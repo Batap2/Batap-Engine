@@ -1,0 +1,52 @@
+\doxysection{App.\+h}
+\hypertarget{_app_8h_source}{}\label{_app_8h_source}\index{src/App.h@{src/App.h}}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{00001\ \textcolor{preprocessor}{\#pragma\ once}}
+\DoxyCodeLine{00002\ }
+\DoxyCodeLine{00003\ \textcolor{preprocessor}{\#define\ WIN32\_LEAN\_AND\_MEAN}}
+\DoxyCodeLine{00004\ }
+\DoxyCodeLine{00005\ \textcolor{preprocessor}{\#include\ <windows.h>}}
+\DoxyCodeLine{00006\ \textcolor{preprocessor}{\#include\ <shellapi.h>}\ \textcolor{comment}{//\ For\ CommandLineToArgvW}}
+\DoxyCodeLine{00007\ \textcolor{comment}{//\ Windows\ Runtime\ Library.\ Needed\ for\ Microsoft::WRL::ComPtr<>\ template\ class.}}
+\DoxyCodeLine{00008\ \textcolor{preprocessor}{\#include\ <wrl.h>}}
+\DoxyCodeLine{00009\ \textcolor{keyword}{using\ namespace\ }Microsoft::WRL;}
+\DoxyCodeLine{00010\ }
+\DoxyCodeLine{00011\ \textcolor{preprocessor}{\#include\ <cstdint>}}
+\DoxyCodeLine{00012\ }
+\DoxyCodeLine{00013\ \textcolor{preprocessor}{\#include\ "{}DX12ComputeContext.h"{}}}
+\DoxyCodeLine{00014\ \textcolor{preprocessor}{\#include\ "{}InputManager.h"{}}}
+\DoxyCodeLine{00015\ }
+\DoxyCodeLine{00016\ \textcolor{keyword}{namespace\ }App}
+\DoxyCodeLine{00017\ \{}
+\DoxyCodeLine{00018\ \ \ \ \ \textcolor{keyword}{inline}\ HWND\ hWnd;}
+\DoxyCodeLine{00019\ \ \ \ \ \textcolor{keyword}{inline}\ RECT\ windowRect;}
+\DoxyCodeLine{00020\ \ \ \ \ \textcolor{keyword}{inline}\ uint32\_t\ clientWidth\ =\ 1024;}
+\DoxyCodeLine{00021\ \ \ \ \ \textcolor{keyword}{inline}\ uint32\_t\ clientHeight\ =\ 1024;}
+\DoxyCodeLine{00022\ }
+\DoxyCodeLine{00023\ \ \ \ \ \textcolor{keyword}{inline}\ DX12ComputeContext\ dx\_cctx;}
+\DoxyCodeLine{00024\ \ \ \ \ \textcolor{keyword}{inline}\ InputManager\ inputManager;}
+\DoxyCodeLine{00025\ }
+\DoxyCodeLine{00026\ \ \ \ \ \textcolor{keyword}{inline}\ \textcolor{keywordtype}{bool}\ isWindowFocused\ =\ \textcolor{keyword}{false};}
+\DoxyCodeLine{00027\ }
+\DoxyCodeLine{00028\ \ \ \ \ \textcolor{keywordtype}{void}\ RedirectIOToConsole();}
+\DoxyCodeLine{00029\ }
+\DoxyCodeLine{00030\ \ \ \ \ HWND\ createWindow(\textcolor{keyword}{const}\ \textcolor{keywordtype}{wchar\_t}*\ windowClassName,\ HINSTANCE\ hInst,}
+\DoxyCodeLine{00031\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ \textcolor{keywordtype}{wchar\_t}*\ windowTitle,\ uint32\_t\ width,\ uint32\_t\ height);}
+\DoxyCodeLine{00032\ }
+\DoxyCodeLine{00033\ \ \ \ \ \textcolor{keywordtype}{void}\ Resize(uint32\_t\ width,\ uint32\_t\ height);}
+\DoxyCodeLine{00034\ }
+\DoxyCodeLine{00035\ \ \ \ \ \textcolor{keywordtype}{void}\ SetFullscreen(\textcolor{keywordtype}{bool}\ fullscreen);}
+\DoxyCodeLine{00036\ }
+\DoxyCodeLine{00037\ \ \ \ \ \textcolor{keywordtype}{void}\ Update();}
+\DoxyCodeLine{00038\ }
+\DoxyCodeLine{00039\ \ \ \ \ LRESULT\ CALLBACK\ WndProc(HWND\ hwnd,\ UINT\ message,\ WPARAM\ wParam,\ LPARAM\ lParam);}
+\DoxyCodeLine{00040\ }
+\DoxyCodeLine{00041\ \ \ \ \ \textcolor{keywordtype}{void}\ RegisterWindowClass(\ HINSTANCE\ hInst,\ \textcolor{keyword}{const}\ \textcolor{keywordtype}{wchar\_t}*\ windowClassName\ );}
+\DoxyCodeLine{00042\ }
+\DoxyCodeLine{00043\ \ \ \ \ \textcolor{keywordtype}{void}\ RegisterRawInputDevices(HWND\ hwnd);}
+\DoxyCodeLine{00044\ }
+\DoxyCodeLine{00045\ \ \ \ \ \textcolor{keywordtype}{void}\ InitApp(HINSTANCE\ hInstance);}
+\DoxyCodeLine{00046\ \}}
+
+\end{DoxyCode}

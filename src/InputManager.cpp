@@ -63,7 +63,6 @@ void InputManager::ProcessRawInput(LPARAM lParam)
             
             ctx->camera.rotate({0,1,0}, mouseDeltaX);
             ctx->camera.rotate(ctx->camera.getRightVec(), mouseDeltaY);
-            ctx->computeAndUploadCameraBuffer();
         }
     }
 }
@@ -94,6 +93,4 @@ void InputManager::processTickInput()
     {
         ctx->camera.move({0,1,0});
     }
-
-    ctx->computeAndUploadCameraBuffer();
 }

@@ -1,0 +1,98 @@
+\doxysection{Camera.\+h}
+\hypertarget{_camera_8h_source}{}\label{_camera_8h_source}\index{src/Camera.h@{src/Camera.h}}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{00001\ \textcolor{preprocessor}{\#pragma\ once}}
+\DoxyCodeLine{00002\ }
+\DoxyCodeLine{00003\ \textcolor{preprocessor}{\#include\ <DirectXMath.h>}}
+\DoxyCodeLine{00004\ \textcolor{keyword}{using\ namespace\ }DirectX;}
+\DoxyCodeLine{00005\ }
+\DoxyCodeLine{00006\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{struct_camera_buffer}{CameraBuffer}}}
+\DoxyCodeLine{00007\ \{}
+\DoxyCodeLine{00008\ \ \ \ \ XMFLOAT3\ pos;}
+\DoxyCodeLine{00009\ \ \ \ \ \textcolor{keywordtype}{float}\ Znear;}
+\DoxyCodeLine{00010\ \ \ \ \ XMFLOAT3\ forward;}
+\DoxyCodeLine{00011\ \ \ \ \ \textcolor{keywordtype}{float}\ Zfar;}
+\DoxyCodeLine{00012\ \ \ \ \ XMFLOAT3\ right;}
+\DoxyCodeLine{00013\ \ \ \ \ \textcolor{keywordtype}{float}\ fov;}
+\DoxyCodeLine{00014\ \};}
+\DoxyCodeLine{00015\ }
+\DoxyCodeLine{00016\ \textcolor{keyword}{struct\ }Camera}
+\DoxyCodeLine{00017\ \{}
+\DoxyCodeLine{00018\ \ \ \ \ XMFLOAT3\ pos\{\};}
+\DoxyCodeLine{00019\ \ \ \ \ XMFLOAT3\ right\{\};}
+\DoxyCodeLine{00020\ \ \ \ \ XMFLOAT3\ up\{\};}
+\DoxyCodeLine{00021\ \ \ \ \ XMFLOAT3\ forward\{\};}
+\DoxyCodeLine{00022\ }
+\DoxyCodeLine{00023\ \ \ \ \ \textcolor{keywordtype}{float}\ fov,\ aspectRatio,\ Znear,\ Zfar,\ speed\ =\ 0.05f;}
+\DoxyCodeLine{00024\ }
+\DoxyCodeLine{00025\ \ \ \ \ Camera()\ =\ \textcolor{keywordflow}{default};}
+\DoxyCodeLine{00026\ \ \ \ \ Camera(\textcolor{keyword}{const}\ XMFLOAT3\&\ position,\ \textcolor{keyword}{const}\ XMFLOAT3\&\ direction,\ \textcolor{keyword}{const}\ XMFLOAT3\&\ upVec,}
+\DoxyCodeLine{00027\ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{float}\ fov,\ \textcolor{keywordtype}{float}\ aspectRatio,\ \textcolor{keywordtype}{float}\ Znear,\ \textcolor{keywordtype}{float}\ Zfar)}
+\DoxyCodeLine{00028\ \ \ \ \ \ \ \ \ \ \ \ \ :\ pos(position),\ forward(direction),\ up(upVec),\ fov(fov),\ aspectRatio(aspectRatio),\ Znear(Znear),\ Zfar(Zfar)}
+\DoxyCodeLine{00029\ \ \ \ \ \{}
+\DoxyCodeLine{00030\ \ \ \ \ \ \ \ \ XMVECTOR\ dir\ =\ XMLoadFloat3(\&forward);}
+\DoxyCodeLine{00031\ \ \ \ \ \ \ \ \ XMVECTOR\ upVecV\ =\ XMLoadFloat3(\&up);}
+\DoxyCodeLine{00032\ \ \ \ \ \ \ \ \ XMVECTOR\ rightV\ =\ XMVector3Cross(upVecV,\ dir);}
+\DoxyCodeLine{00033\ \ \ \ \ \ \ \ \ upVecV\ =\ XMVector3Cross(dir,\ rightV);}
+\DoxyCodeLine{00034\ }
+\DoxyCodeLine{00035\ \ \ \ \ \ \ \ \ dir\ =\ XMVector3Normalize(dir);}
+\DoxyCodeLine{00036\ \ \ \ \ \ \ \ \ rightV\ =\ XMVector3Normalize(rightV);}
+\DoxyCodeLine{00037\ \ \ \ \ \ \ \ \ upVecV\ =\ XMVector3Normalize(upVecV);}
+\DoxyCodeLine{00038\ }
+\DoxyCodeLine{00039\ \ \ \ \ \ \ \ \ XMStoreFloat3(\&forward,\ dir);}
+\DoxyCodeLine{00040\ \ \ \ \ \ \ \ \ XMStoreFloat3(\&right,\ rightV);}
+\DoxyCodeLine{00041\ \ \ \ \ \ \ \ \ XMStoreFloat3(\&up,\ upVecV);}
+\DoxyCodeLine{00042\ \ \ \ \ \}}
+\DoxyCodeLine{00043\ }
+\DoxyCodeLine{00044\ \ \ \ \ XMVECTOR\ getPosVec()\textcolor{keyword}{\ const}}
+\DoxyCodeLine{00045\ \textcolor{keyword}{\ \ \ \ }\{}
+\DoxyCodeLine{00046\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ XMLoadFloat3(\&pos);}
+\DoxyCodeLine{00047\ \ \ \ \ \}}
+\DoxyCodeLine{00048\ }
+\DoxyCodeLine{00049\ \ \ \ \ XMVECTOR\ getForwardVec()\textcolor{keyword}{\ const}}
+\DoxyCodeLine{00050\ \textcolor{keyword}{\ \ \ \ }\{}
+\DoxyCodeLine{00051\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ XMLoadFloat3(\&forward);}
+\DoxyCodeLine{00052\ \ \ \ \ \}}
+\DoxyCodeLine{00053\ }
+\DoxyCodeLine{00054\ \ \ \ \ XMVECTOR\ getUpVec()\textcolor{keyword}{\ const}}
+\DoxyCodeLine{00055\ \textcolor{keyword}{\ \ \ \ }\{}
+\DoxyCodeLine{00056\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ XMLoadFloat3(\&up);}
+\DoxyCodeLine{00057\ \ \ \ \ \}}
+\DoxyCodeLine{00058\ }
+\DoxyCodeLine{00059\ \ \ \ \ XMVECTOR\ getRightVec()\textcolor{keyword}{\ const}}
+\DoxyCodeLine{00060\ \textcolor{keyword}{\ \ \ \ }\{}
+\DoxyCodeLine{00061\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ XMLoadFloat3(\&right);}
+\DoxyCodeLine{00062\ \ \ \ \ \}}
+\DoxyCodeLine{00063\ }
+\DoxyCodeLine{00064\ \ \ \ \ \textcolor{keywordtype}{void}\ rotate(\textcolor{keyword}{const}\ XMVECTOR\&\ axis,\ \textcolor{keywordtype}{float}\ angle)}
+\DoxyCodeLine{00065\ \ \ \ \ \{}
+\DoxyCodeLine{00066\ \ \ \ \ \ \ \ \ XMMATRIX\ rotationMatrix\ =\ XMMatrixRotationAxis(axis,\ angle);}
+\DoxyCodeLine{00067\ }
+\DoxyCodeLine{00068\ \ \ \ \ \ \ \ \ XMVECTOR\ forwardVec\ =\ XMLoadFloat3(\&forward);}
+\DoxyCodeLine{00069\ \ \ \ \ \ \ \ \ XMVECTOR\ rightVec\ =\ XMLoadFloat3(\&right);}
+\DoxyCodeLine{00070\ \ \ \ \ \ \ \ \ XMVECTOR\ upVec\ =\ XMLoadFloat3(\&up);}
+\DoxyCodeLine{00071\ }
+\DoxyCodeLine{00072\ \ \ \ \ \ \ \ \ forwardVec\ =\ XMVector3TransformNormal(forwardVec,\ rotationMatrix);}
+\DoxyCodeLine{00073\ \ \ \ \ \ \ \ \ rightVec\ =\ XMVector3TransformNormal(rightVec,\ rotationMatrix);}
+\DoxyCodeLine{00074\ \ \ \ \ \ \ \ \ upVec\ =\ XMVector3TransformNormal(upVec,\ rotationMatrix);}
+\DoxyCodeLine{00075\ }
+\DoxyCodeLine{00076\ \ \ \ \ \ \ \ \ XMStoreFloat3(\&forward,\ forwardVec);}
+\DoxyCodeLine{00077\ \ \ \ \ \ \ \ \ XMStoreFloat3(\&right,\ rightVec);}
+\DoxyCodeLine{00078\ \ \ \ \ \ \ \ \ XMStoreFloat3(\&up,\ upVec);}
+\DoxyCodeLine{00079\ \ \ \ \ \}}
+\DoxyCodeLine{00080\ }
+\DoxyCodeLine{00081\ \ \ \ \ \textcolor{keywordtype}{void}\ move(\textcolor{keyword}{const}\ XMVECTOR\&\ direction)}
+\DoxyCodeLine{00082\ \ \ \ \ \{}
+\DoxyCodeLine{00083\ \ \ \ \ \ \ \ \ XMVECTOR\ posVec\ =\ XMLoadFloat3(\&pos);}
+\DoxyCodeLine{00084\ \ \ \ \ \ \ \ \ posVec\ =\ XMVectorAdd(posVec,\ XMVectorScale(direction,\ speed));}
+\DoxyCodeLine{00085\ \ \ \ \ \ \ \ \ XMStoreFloat3(\&pos,\ posVec);}
+\DoxyCodeLine{00086\ \ \ \ \ \}}
+\DoxyCodeLine{00087\ }
+\DoxyCodeLine{00088\ \ \ \ \ \mbox{\hyperlink{struct_camera_buffer}{CameraBuffer}}\ getCameraBuffer()}
+\DoxyCodeLine{00089\ \ \ \ \ \{}
+\DoxyCodeLine{00090\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ \{pos,\ Znear,\ forward,\ Zfar,\ right,\ fov\};}
+\DoxyCodeLine{00091\ \ \ \ \ \}}
+\DoxyCodeLine{00092\ \};}
+
+\end{DoxyCode}

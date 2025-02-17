@@ -1,0 +1,173 @@
+\doxysection{DX12\+Context Struct Reference}
+\hypertarget{struct_d_x12_context}{}\label{struct_d_x12_context}\index{DX12Context@{DX12Context}}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{struct_d_x12_context_a6214e843e6e8d3c09c925bf9e1b61451}\label{struct_d_x12_context_a6214e843e6e8d3c09c925bf9e1b61451} 
+void {\bfseries Enable\+Debug\+Layer} ()
+\item 
+\Hypertarget{struct_d_x12_context_a50b017137a24bf6e79be61da2a1f3ae9}\label{struct_d_x12_context_a50b017137a24bf6e79be61da2a1f3ae9} 
+Com\+Ptr$<$ IDXGIAdapter4 $>$ {\bfseries Get\+Adapter} (bool use\+Warp)
+\item 
+\Hypertarget{struct_d_x12_context_af811a8843b1beb0e2fb77a87275a87df}\label{struct_d_x12_context_af811a8843b1beb0e2fb77a87275a87df} 
+Com\+Ptr$<$ ID3\+D12\+Device3 $>$ {\bfseries Create\+Device} (Com\+Ptr$<$ IDXGIAdapter4 $>$ \&adapter)
+\item 
+\Hypertarget{struct_d_x12_context_acab80940794a7210bb1430df33b13e0d}\label{struct_d_x12_context_acab80940794a7210bb1430df33b13e0d} 
+Com\+Ptr$<$ ID3\+D12\+Command\+Queue $>$ {\bfseries Create\+Command\+Queue} (Com\+Ptr$<$ ID3\+D12\+Device2 $>$ \&device, D3\+D12\+\_\+\+COMMAND\+\_\+\+LIST\+\_\+\+TYPE type)
+\item 
+\Hypertarget{struct_d_x12_context_a327301a96d345837678448a29290f071}\label{struct_d_x12_context_a327301a96d345837678448a29290f071} 
+bool {\bfseries Check\+Tearing\+Support} ()
+\item 
+\Hypertarget{struct_d_x12_context_a31eec82530b8843b23bcbda3ae4b9b13}\label{struct_d_x12_context_a31eec82530b8843b23bcbda3ae4b9b13} 
+Com\+Ptr$<$ IDXGISwap\+Chain4 $>$ {\bfseries Create\+Swap\+Chain} (HWND h\+Wnd, std\+::shared\+\_\+ptr$<$ \mbox{\hyperlink{class_command_queue}{Command\+Queue}} $>$ \&command\+Queue, uint32\+\_\+t width, uint32\+\_\+t height, uint32\+\_\+t buffer\+Count)
+\item 
+\Hypertarget{struct_d_x12_context_a6e402b39ed091fa5dbb1f8ad7e3c8810}\label{struct_d_x12_context_a6e402b39ed091fa5dbb1f8ad7e3c8810} 
+Com\+Ptr$<$ ID3\+D12\+Descriptor\+Heap $>$ {\bfseries Create\+Descriptor\+Heap} (Com\+Ptr$<$ ID3\+D12\+Device2 $>$ \&device, D3\+D12\+\_\+\+DESCRIPTOR\+\_\+\+HEAP\+\_\+\+TYPE type, uint32\+\_\+t num\+Descriptors, D3\+D12\+\_\+\+DESCRIPTOR\+\_\+\+HEAP\+\_\+\+FLAGS flags=D3\+D12\+\_\+\+DESCRIPTOR\+\_\+\+HEAP\+\_\+\+FLAG\+\_\+\+NONE)
+\item 
+\Hypertarget{struct_d_x12_context_aeb6bc65f1971b0309d7b732479bbf0ec}\label{struct_d_x12_context_aeb6bc65f1971b0309d7b732479bbf0ec} 
+void {\bfseries Update\+Render\+Target\+Views} (Com\+Ptr$<$ ID3\+D12\+Device2 $>$ \&device, Com\+Ptr$<$ IDXGISwap\+Chain4 $>$ \&swap\+Chain, Com\+Ptr$<$ ID3\+D12\+Descriptor\+Heap $>$ \&descriptor\+Heap)
+\item 
+\Hypertarget{struct_d_x12_context_a3f6ab243e768a85123be278e8986b234}\label{struct_d_x12_context_a3f6ab243e768a85123be278e8986b234} 
+void {\bfseries Update\+Frame\+Buffers} (Com\+Ptr$<$ ID3\+D12\+Device2 $>$ \&device, Com\+Ptr$<$ IDXGISwap\+Chain4 $>$ \&swap\+Chain, Com\+Ptr$<$ ID3\+D12\+Descriptor\+Heap $>$ \&descriptor\+Heap)
+\item 
+\Hypertarget{struct_d_x12_context_aac9d2f50b385dad8e5e5d7794844b20f}\label{struct_d_x12_context_aac9d2f50b385dad8e5e5d7794844b20f} 
+Com\+Ptr$<$ ID3\+D12\+Fence $>$ {\bfseries Create\+Fence} (Com\+Ptr$<$ ID3\+D12\+Device2 $>$ \&device)
+\item 
+\Hypertarget{struct_d_x12_context_ab7c769be192467eba9ccfab7f148c773}\label{struct_d_x12_context_ab7c769be192467eba9ccfab7f148c773} 
+HANDLE {\bfseries Create\+Event\+Handle} ()
+\item 
+\Hypertarget{struct_d_x12_context_af8c192aa3a1ce08d86b68d478fffe216}\label{struct_d_x12_context_af8c192aa3a1ce08d86b68d478fffe216} 
+void {\bfseries transition\+Resource} (Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Graphics\+Command\+List2 $>$ \&command\+List, Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Resource $>$ \&resource, D3\+D12\+\_\+\+RESOURCE\+\_\+\+STATES before\+State, D3\+D12\+\_\+\+RESOURCE\+\_\+\+STATES after\+State)
+\item 
+\Hypertarget{struct_d_x12_context_ab9e0095e88a5e1a6d0af984d14f360fb}\label{struct_d_x12_context_ab9e0095e88a5e1a6d0af984d14f360fb} 
+void {\bfseries Render} ()
+\item 
+\Hypertarget{struct_d_x12_context_a2320cbf2965157a82920988f24a24563}\label{struct_d_x12_context_a2320cbf2965157a82920988f24a24563} 
+void {\bfseries Flush} ()
+\item 
+\Hypertarget{struct_d_x12_context_ad3f5297bf1a431cde5b83553b8d1955c}\label{struct_d_x12_context_ad3f5297bf1a431cde5b83553b8d1955c} 
+void {\bfseries Init\+Context} (HWND h\+Wnd, uint32\+\_\+t client\+Width, uint32\+\_\+t client\+Height)
+\item 
+\Hypertarget{struct_d_x12_context_aef87f51241e554694be6cb75d5b1e4e3}\label{struct_d_x12_context_aef87f51241e554694be6cb75d5b1e4e3} 
+void {\bfseries Update\+Buffer\+Resource} (Com\+Ptr$<$ ID3\+D12\+Graphics\+Command\+List2 $>$ command\+List, ID3\+D12\+Resource \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}p\+Destination\+Resource, ID3\+D12\+Resource \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}p\+Intermediate\+Resource, size\+\_\+t num\+Elements, size\+\_\+t element\+Size, const void \texorpdfstring{$\ast$}{*}buffer\+Data, D3\+D12\+\_\+\+RESOURCE\+\_\+\+FLAGS flags=D3\+D12\+\_\+\+RESOURCE\+\_\+\+FLAG\+\_\+\+NONE)
+\item 
+\Hypertarget{struct_d_x12_context_ad0a20be15b7eaf7623be82c2a7e477b9}\label{struct_d_x12_context_ad0a20be15b7eaf7623be82c2a7e477b9} 
+void {\bfseries Update\+Buffer\+Resource2D} (ID3\+D12\+Resource \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}p\+Destination\+Resource, D3\+D12\+\_\+\+RESOURCE\+\_\+\+FLAGS flags)
+\item 
+\Hypertarget{struct_d_x12_context_adff00207a8737b1dd6640c5078c0ca4f}\label{struct_d_x12_context_adff00207a8737b1dd6640c5078c0ca4f} 
+HRESULT {\bfseries Compile\+Shader\+From\+File} (const std\+::wstring \&filename, const std\+::string \&entry\+Point, const std\+::string \&target, Com\+Ptr$<$ ID3\+DBlob $>$ \&shader\+Blob)
+\item 
+\Hypertarget{struct_d_x12_context_a3ca8c19116c84f3c6448dc315d67b60e}\label{struct_d_x12_context_a3ca8c19116c84f3c6448dc315d67b60e} 
+D3\+D12\+\_\+\+CPU\+\_\+\+DESCRIPTOR\+\_\+\+HANDLE {\bfseries Get\+Current\+Render\+Target\+View} () const
+\item 
+\Hypertarget{struct_d_x12_context_a4dfdd849d7daf82e48870a807c4b2bd0}\label{struct_d_x12_context_a4dfdd849d7daf82e48870a807c4b2bd0} 
+D3\+D12\+\_\+\+CPU\+\_\+\+DESCRIPTOR\+\_\+\+HANDLE {\bfseries Get\+Current\+Frame\+Buffer\+Handle} () const
+\item 
+\Hypertarget{struct_d_x12_context_a411e6128d0d02a8bd8b5dd53f97bb269}\label{struct_d_x12_context_a411e6128d0d02a8bd8b5dd53f97bb269} 
+Com\+Ptr$<$ ID3\+D12\+Resource $>$ {\bfseries Get\+Current\+Back\+Buffer} () const
+\item 
+\Hypertarget{struct_d_x12_context_a88e54545e000f6e65b2132ee64aee37f}\label{struct_d_x12_context_a88e54545e000f6e65b2132ee64aee37f} 
+void {\bfseries Init\+Shaders} ()
+\item 
+\Hypertarget{struct_d_x12_context_ab2e32f41635a879c92326948300bc9dc}\label{struct_d_x12_context_ab2e32f41635a879c92326948300bc9dc} 
+void {\bfseries retreive\+Debug\+Message} ()
+\item 
+\Hypertarget{struct_d_x12_context_a775f57a346469ca832e39a2083efe038}\label{struct_d_x12_context_a775f57a346469ca832e39a2083efe038} 
+void {\bfseries Create\+Frame\+Buffer} (ID3\+D12\+Resource \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}p\+Destination\+Resource, D3\+D12\+\_\+\+RESOURCE\+\_\+\+FLAGS flags)
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{struct_d_x12_context_a5441b2743c18c663577137ccee439ef6}\label{struct_d_x12_context_a5441b2743c18c663577137ccee439ef6} 
+bool {\bfseries use\+Warp} = false
+\item 
+\Hypertarget{struct_d_x12_context_a7b2e132868ef6051f84ea037924c4c60}\label{struct_d_x12_context_a7b2e132868ef6051f84ea037924c4c60} 
+bool {\bfseries is\+Initialized} = false
+\item 
+\Hypertarget{struct_d_x12_context_ad2bce41d8151f847cf8be7dbc417c9cf}\label{struct_d_x12_context_ad2bce41d8151f847cf8be7dbc417c9cf} 
+int {\bfseries width}
+\item 
+\Hypertarget{struct_d_x12_context_a72b20071e7ce90f0d252dbd7fae51569}\label{struct_d_x12_context_a72b20071e7ce90f0d252dbd7fae51569} 
+int {\bfseries height}
+\item 
+\Hypertarget{struct_d_x12_context_abfafa599b83293ae9c6f152b0028c3ef}\label{struct_d_x12_context_abfafa599b83293ae9c6f152b0028c3ef} 
+bool {\bfseries use\+VSync} = false
+\item 
+\Hypertarget{struct_d_x12_context_a65683525121ef73fe15599b8c72bbe26}\label{struct_d_x12_context_a65683525121ef73fe15599b8c72bbe26} 
+bool {\bfseries is\+Tearing\+Supported} = false
+\item 
+\Hypertarget{struct_d_x12_context_a05e3f2399f9a7bc37d99bf4c8a5cf5b7}\label{struct_d_x12_context_a05e3f2399f9a7bc37d99bf4c8a5cf5b7} 
+bool {\bfseries fullscreen} = false
+\item 
+\Hypertarget{struct_d_x12_context_aba79111e83d6be464e173ff28b1f19ec}\label{struct_d_x12_context_aba79111e83d6be464e173ff28b1f19ec} 
+Com\+Ptr$<$ ID3\+D12\+Device2 $>$ {\bfseries device}
+\item 
+\Hypertarget{struct_d_x12_context_a413e301e024db2a60d2f5aeaaeaddfdf}\label{struct_d_x12_context_a413e301e024db2a60d2f5aeaaeaddfdf} 
+Com\+Ptr$<$ IDXGISwap\+Chain4 $>$ {\bfseries swap\+Chain}
+\item 
+\Hypertarget{struct_d_x12_context_a9347f3036af9926e282e643e8d956072}\label{struct_d_x12_context_a9347f3036af9926e282e643e8d956072} 
+Com\+Ptr$<$ ID3\+D12\+Resource $>$ {\bfseries back\+Buffers} \mbox{[}buffer\+Count\mbox{]}
+\item 
+\Hypertarget{struct_d_x12_context_ab088561a4989ae78604bd36c021abf6f}\label{struct_d_x12_context_ab088561a4989ae78604bd36c021abf6f} 
+Com\+Ptr$<$ ID3\+D12\+Resource $>$ {\bfseries frame\+Buffer}
+\item 
+\Hypertarget{struct_d_x12_context_a3c8629b1acf53712535df0ef9eb7b6e7}\label{struct_d_x12_context_a3c8629b1acf53712535df0ef9eb7b6e7} 
+Com\+Ptr$<$ ID3\+D12\+Descriptor\+Heap $>$ {\bfseries RTVDescriptor\+Heap}
+\item 
+\Hypertarget{struct_d_x12_context_ae0f388cd7efbe4e028190bafdf533d30}\label{struct_d_x12_context_ae0f388cd7efbe4e028190bafdf533d30} 
+UINT {\bfseries RTVDescriptor\+Size}
+\item 
+\Hypertarget{struct_d_x12_context_abb811c97087251ba7ab070df137f4d8a}\label{struct_d_x12_context_abb811c97087251ba7ab070df137f4d8a} 
+Com\+Ptr$<$ ID3\+D12\+Descriptor\+Heap $>$ {\bfseries CBV\+\_\+\+SRV\+\_\+\+UAVDescriptor\+Heap}
+\item 
+\Hypertarget{struct_d_x12_context_a3337a6f726e32204e41b1a495a35d9aa}\label{struct_d_x12_context_a3337a6f726e32204e41b1a495a35d9aa} 
+UINT {\bfseries CBV\+\_\+\+SRV\+\_\+\+UAVDescriptor\+Size}
+\item 
+\Hypertarget{struct_d_x12_context_a219b1e66cc5f9d2b56f4081510967f95}\label{struct_d_x12_context_a219b1e66cc5f9d2b56f4081510967f95} 
+UINT {\bfseries current\+Back\+Buffer\+Index}
+\item 
+\Hypertarget{struct_d_x12_context_ac381c4393dbd9bb4bf7300b640df6187}\label{struct_d_x12_context_ac381c4393dbd9bb4bf7300b640df6187} 
+uint64\+\_\+t {\bfseries fence\+Values} \mbox{[}buffer\+Count\mbox{]} = \{\}
+\item 
+\Hypertarget{struct_d_x12_context_aff3f948005047cb793ffa90da58f0cac}\label{struct_d_x12_context_aff3f948005047cb793ffa90da58f0cac} 
+std\+::shared\+\_\+ptr$<$ \mbox{\hyperlink{class_command_queue}{Command\+Queue}} $>$ {\bfseries direct\+Command\+Queue}
+\item 
+\Hypertarget{struct_d_x12_context_aa51a421d3c6d27e6f2508ff60430bb5c}\label{struct_d_x12_context_aa51a421d3c6d27e6f2508ff60430bb5c} 
+std\+::shared\+\_\+ptr$<$ \mbox{\hyperlink{class_command_queue}{Command\+Queue}} $>$ {\bfseries compute\+Command\+Queue}
+\item 
+\Hypertarget{struct_d_x12_context_aa1d3346c1324034f6657c3d551e7c722}\label{struct_d_x12_context_aa1d3346c1324034f6657c3d551e7c722} 
+std\+::shared\+\_\+ptr$<$ \mbox{\hyperlink{class_command_queue}{Command\+Queue}} $>$ {\bfseries copy\+Command\+Queue}
+\item 
+\Hypertarget{struct_d_x12_context_a6d7b8aa5e97c3df53f825a11326274d3}\label{struct_d_x12_context_a6d7b8aa5e97c3df53f825a11326274d3} 
+D3\+D12\+\_\+\+VIEWPORT {\bfseries viewport}
+\item 
+\Hypertarget{struct_d_x12_context_a57f0d518ab2a814154723323a8add395}\label{struct_d_x12_context_a57f0d518ab2a814154723323a8add395} 
+D3\+D12\+\_\+\+RECT {\bfseries scissor\+Rect}
+\item 
+\Hypertarget{struct_d_x12_context_abba96d84618503c1c40ed3c0599e49a4}\label{struct_d_x12_context_abba96d84618503c1c40ed3c0599e49a4} 
+Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Root\+Signature $>$ {\bfseries basic\+Root\+Signature}
+\item 
+\Hypertarget{struct_d_x12_context_a03d8e96d2685fad28ac320803521f229}\label{struct_d_x12_context_a03d8e96d2685fad28ac320803521f229} 
+Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Pipeline\+State $>$ {\bfseries basic\+Pipeline\+State}
+\item 
+\Hypertarget{struct_d_x12_context_a8bfc7cee9cefbbaad405eb2bd0cce872}\label{struct_d_x12_context_a8bfc7cee9cefbbaad405eb2bd0cce872} 
+Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Root\+Signature $>$ {\bfseries compute\+Root\+Signature}
+\item 
+\Hypertarget{struct_d_x12_context_a9adaecfdf6a7496951502eb8c8483c85}\label{struct_d_x12_context_a9adaecfdf6a7496951502eb8c8483c85} 
+Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Pipeline\+State $>$ {\bfseries compute\+Pipeline\+State}
+\item 
+\Hypertarget{struct_d_x12_context_aa64f467d7d4c859883a4de48d7c0d087}\label{struct_d_x12_context_aa64f467d7d4c859883a4de48d7c0d087} 
+\mbox{\hyperlink{struct_plane_render_target}{Plane\+Render\+Target}} {\bfseries plane\+Render\+Target}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Static Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{struct_d_x12_context_a046e7e036bc59c518e12cd5dff3c592f}\label{struct_d_x12_context_a046e7e036bc59c518e12cd5dff3c592f} 
+static const uint8\+\_\+t {\bfseries buffer\+Count} = 3
+\end{DoxyCompactItemize}
+
+
+The documentation for this struct was generated from the following files\+:\begin{DoxyCompactItemize}
+\item 
+src/DX12\+Context.\+h\item 
+src/DX12\+Context.\+cpp\end{DoxyCompactItemize}

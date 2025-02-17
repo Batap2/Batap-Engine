@@ -1,0 +1,51 @@
+\doxysection{Command\+Queue Class Reference}
+\hypertarget{class_command_queue}{}\label{class_command_queue}\index{CommandQueue@{CommandQueue}}
+
+
+{\ttfamily \#include $<$Command\+Queue.\+h$>$}
+
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{class_command_queue_a9cd9d92b60a7d7d129a09ae7caa8b819}\label{class_command_queue_a9cd9d92b60a7d7d129a09ae7caa8b819} 
+{\bfseries Command\+Queue} (Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Device2 $>$ \&device, D3\+D12\+\_\+\+COMMAND\+\_\+\+LIST\+\_\+\+TYPE type)
+\item 
+\Hypertarget{class_command_queue_af5a94f9644df17164090391b20a0055c}\label{class_command_queue_af5a94f9644df17164090391b20a0055c} 
+Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Graphics\+Command\+List2 $>$ {\bfseries Get\+Command\+List} ()
+\item 
+\Hypertarget{class_command_queue_a1d41d725434466e590e000e55d50b780}\label{class_command_queue_a1d41d725434466e590e000e55d50b780} 
+uint64\+\_\+t {\bfseries Execute\+Command\+List} (Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Graphics\+Command\+List2 $>$ command\+List)
+\item 
+\Hypertarget{class_command_queue_a9a0a5604fc3cecc4c6a60bad39ab6850}\label{class_command_queue_a9a0a5604fc3cecc4c6a60bad39ab6850} 
+uint64\+\_\+t {\bfseries Signal} ()
+\item 
+\Hypertarget{class_command_queue_aac53841ec90344664174420c48cfca1f}\label{class_command_queue_aac53841ec90344664174420c48cfca1f} 
+bool {\bfseries Is\+Fence\+Complete} (uint64\+\_\+t fence\+Value)
+\item 
+\Hypertarget{class_command_queue_a6786f277365ca567a3d6fb8dc1659a00}\label{class_command_queue_a6786f277365ca567a3d6fb8dc1659a00} 
+void {\bfseries Wait\+For\+Fence\+Value} (uint64\+\_\+t fence\+Value)
+\item 
+\Hypertarget{class_command_queue_af9fe014b48ec4b4921da534d32f24ee5}\label{class_command_queue_af9fe014b48ec4b4921da534d32f24ee5} 
+void {\bfseries Flush} ()
+\item 
+\Hypertarget{class_command_queue_a26df8826355f29cfecdd9d44c9612393}\label{class_command_queue_a26df8826355f29cfecdd9d44c9612393} 
+Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Command\+Queue $>$ {\bfseries Get\+D3\+D12\+Command\+Queue} () const
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Protected Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{class_command_queue_a94980a6eb32b1269e3739584c1b5ceea}\label{class_command_queue_a94980a6eb32b1269e3739584c1b5ceea} 
+Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Command\+Allocator $>$ {\bfseries Create\+Command\+Allocator} ()
+\item 
+\Hypertarget{class_command_queue_a5f3882a71b028ba48aeb44c2f7fdaf24}\label{class_command_queue_a5f3882a71b028ba48aeb44c2f7fdaf24} 
+Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Graphics\+Command\+List2 $>$ {\bfseries Create\+Command\+List} (Microsoft\+::\+WRL\+::\+Com\+Ptr$<$ ID3\+D12\+Command\+Allocator $>$ allocator)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Wrapper class for a ID3\+D12\+Command\+Queue. 
+
+The documentation for this class was generated from the following files\+:\begin{DoxyCompactItemize}
+\item 
+src/Command\+Queue.\+h\item 
+src/Command\+Queue.\+cpp\end{DoxyCompactItemize}

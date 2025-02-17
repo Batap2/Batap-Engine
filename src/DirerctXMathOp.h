@@ -25,10 +25,7 @@ namespace DirectXMathOp
 
     XMMATRIX GetInverseProjectionMatrix(float fovY, float aspectRatio, float nearClip, float farClip)
     {
-        // Créer la matrice de projection
         XMMATRIX projMatrix = CreatePerspectiveProjectionMatrix(fovY, aspectRatio, nearClip, farClip);
-
-        // Calculer et retourner l'inverse de la matrice de projection
         XMMATRIX invProjMatrix = XMMatrixInverse(nullptr, projMatrix);
         return invProjMatrix;
     }

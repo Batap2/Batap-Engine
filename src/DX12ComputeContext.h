@@ -2,7 +2,7 @@
 
 #include "includeDX12.h"
 #include "Camera.h"
-#include "DX12Resource.h"
+#include "DX12Buffers.h"
 
 struct DX12ComputeContext
 {
@@ -52,7 +52,7 @@ struct DX12ComputeContext
     uint32_t threadGroupCountX, threadGroupCountY, threadGroupCountZ;
 
     Camera camera;
-    DX12Resource cameraBuffer;
+    DX12ConstantBuffer cameraBuffer;
 
     void computeAndUploadCameraBuffer();
 

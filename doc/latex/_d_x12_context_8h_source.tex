@@ -1,0 +1,131 @@
+\doxysection{DX12\+Context.\+h}
+\hypertarget{_d_x12_context_8h_source}{}\label{_d_x12_context_8h_source}\index{src/DX12Context.h@{src/DX12Context.h}}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{00001\ \textcolor{preprocessor}{\#pragma\ once}}
+\DoxyCodeLine{00002\ }
+\DoxyCodeLine{00003\ \textcolor{preprocessor}{\#include\ <wrl.h>}}
+\DoxyCodeLine{00004\ \textcolor{keyword}{using\ namespace\ }Microsoft::WRL;}
+\DoxyCodeLine{00005\ }
+\DoxyCodeLine{00006\ \textcolor{comment}{//\ undef\ minwindef.h\ macro}}
+\DoxyCodeLine{00007\ \textcolor{preprocessor}{\#if\ defined(min)}}
+\DoxyCodeLine{00008\ \textcolor{preprocessor}{\#undef\ min}}
+\DoxyCodeLine{00009\ \textcolor{preprocessor}{\#endif}}
+\DoxyCodeLine{00010\ }
+\DoxyCodeLine{00011\ \textcolor{preprocessor}{\#if\ defined(max)}}
+\DoxyCodeLine{00012\ \textcolor{preprocessor}{\#undef\ max}}
+\DoxyCodeLine{00013\ \textcolor{preprocessor}{\#endif}}
+\DoxyCodeLine{00014\ }
+\DoxyCodeLine{00015\ \textcolor{preprocessor}{\#include\ <DirectX-\/Headers/include/directx/d3dx12.h>}}
+\DoxyCodeLine{00016\ \textcolor{preprocessor}{\#include\ <dxgi1\_6.h>}}
+\DoxyCodeLine{00017\ }
+\DoxyCodeLine{00018\ }
+\DoxyCodeLine{00019\ }
+\DoxyCodeLine{00020\ \textcolor{preprocessor}{\#include\ "{}CommandQueue.h"{}}}
+\DoxyCodeLine{00021\ \textcolor{preprocessor}{\#include\ "{}PlaneRenderTarget.h"{}}}
+\DoxyCodeLine{00022\ }
+\DoxyCodeLine{00023\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{struct_d_x12_context}{DX12Context}}\{}
+\DoxyCodeLine{00024\ \ \ \ \ \textcolor{comment}{//\ The\ number\ of\ swap\ chain\ back\ buffers.}}
+\DoxyCodeLine{00025\ \ \ \ \ \textcolor{keyword}{inline}\ \textcolor{keyword}{static}\ \textcolor{keyword}{const}\ uint8\_t\ bufferCount\ =\ 3;}
+\DoxyCodeLine{00026\ \ \ \ \ \textcolor{comment}{//\ Use\ WARP\ adapter}}
+\DoxyCodeLine{00027\ \ \ \ \ \textcolor{keywordtype}{bool}\ useWarp\ =\ \textcolor{keyword}{false};}
+\DoxyCodeLine{00028\ }
+\DoxyCodeLine{00029\ \ \ \ \ \textcolor{keywordtype}{bool}\ isInitialized\ =\ \textcolor{keyword}{false};}
+\DoxyCodeLine{00030\ }
+\DoxyCodeLine{00031\ \ \ \ \ \textcolor{keywordtype}{int}\ width,\ height;}
+\DoxyCodeLine{00032\ \ \ \ \ \textcolor{keywordtype}{bool}\ useVSync\ =\ \textcolor{keyword}{false};}
+\DoxyCodeLine{00033\ \ \ \ \ \textcolor{keywordtype}{bool}\ isTearingSupported\ =\ \textcolor{keyword}{false};}
+\DoxyCodeLine{00034\ \ \ \ \ \textcolor{keywordtype}{bool}\ fullscreen\ =\ \textcolor{keyword}{false};}
+\DoxyCodeLine{00035\ }
+\DoxyCodeLine{00036\ \ \ \ \ \textcolor{comment}{//\ DirectX\ 12\ Objects}}
+\DoxyCodeLine{00037\ \ \ \ \ ComPtr<ID3D12Device2>\ device;}
+\DoxyCodeLine{00038\ \ \ \ \ ComPtr<IDXGISwapChain4>\ swapChain;}
+\DoxyCodeLine{00039\ \ \ \ \ ComPtr<ID3D12Resource>\ backBuffers[bufferCount];}
+\DoxyCodeLine{00040\ \ \ \ \ ComPtr<ID3D12Resource>\ frameBuffer;}
+\DoxyCodeLine{00041\ \ \ \ \ ComPtr<ID3D12DescriptorHeap>\ RTVDescriptorHeap;\ \textcolor{comment}{//\ array\ of\ rtv\ for\ the\ backbuffers\ of\ the\ swapchain}}
+\DoxyCodeLine{00042\ \ \ \ \ UINT\ RTVDescriptorSize;}
+\DoxyCodeLine{00043\ \ \ \ \ ComPtr<ID3D12DescriptorHeap>\ CBV\_SRV\_UAVDescriptorHeap;}
+\DoxyCodeLine{00044\ \ \ \ \ UINT\ CBV\_SRV\_UAVDescriptorSize;}
+\DoxyCodeLine{00045\ }
+\DoxyCodeLine{00046\ \ \ \ \ UINT\ currentBackBufferIndex;}
+\DoxyCodeLine{00047\ \ \ \ \ uint64\_t\ fenceValues[bufferCount]\ =\ \{\};}
+\DoxyCodeLine{00048\ }
+\DoxyCodeLine{00049\ \ \ \ \ std::shared\_ptr<CommandQueue>\ directCommandQueue,\ computeCommandQueue,\ copyCommandQueue;}
+\DoxyCodeLine{00050\ }
+\DoxyCodeLine{00051\ \ \ \ \ D3D12\_VIEWPORT\ viewport;}
+\DoxyCodeLine{00052\ \ \ \ \ D3D12\_RECT\ scissorRect;}
+\DoxyCodeLine{00053\ }
+\DoxyCodeLine{00054\ \ \ \ \ Microsoft::WRL::ComPtr<ID3D12RootSignature>\ basicRootSignature;}
+\DoxyCodeLine{00055\ \ \ \ \ Microsoft::WRL::ComPtr<ID3D12PipelineState>\ basicPipelineState;}
+\DoxyCodeLine{00056\ }
+\DoxyCodeLine{00057\ \ \ \ \ Microsoft::WRL::ComPtr<ID3D12RootSignature>\ computeRootSignature;}
+\DoxyCodeLine{00058\ \ \ \ \ Microsoft::WRL::ComPtr<ID3D12PipelineState>\ computePipelineState;}
+\DoxyCodeLine{00059\ }
+\DoxyCodeLine{00060\ \ \ \ \ \mbox{\hyperlink{struct_plane_render_target}{PlaneRenderTarget}}\ planeRenderTarget;}
+\DoxyCodeLine{00061\ }
+\DoxyCodeLine{00062\ }
+\DoxyCodeLine{00063\ \ \ \ \ \textcolor{keywordtype}{void}\ EnableDebugLayer();}
+\DoxyCodeLine{00064\ }
+\DoxyCodeLine{00065\ \ \ \ \ ComPtr<IDXGIAdapter4>\ GetAdapter(\textcolor{keywordtype}{bool}\ useWarp);}
+\DoxyCodeLine{00066\ }
+\DoxyCodeLine{00067\ \ \ \ \ ComPtr<ID3D12Device3>\ CreateDevice(ComPtr<IDXGIAdapter4>\&\ adapter);}
+\DoxyCodeLine{00068\ }
+\DoxyCodeLine{00069\ \ \ \ \ ComPtr<ID3D12CommandQueue>\ CreateCommandQueue(ComPtr<ID3D12Device2>\ \&device,\ D3D12\_COMMAND\_LIST\_TYPE\ type);}
+\DoxyCodeLine{00070\ }
+\DoxyCodeLine{00071\ \ \ \ \ \textcolor{keywordtype}{bool}\ CheckTearingSupport();}
+\DoxyCodeLine{00072\ }
+\DoxyCodeLine{00073\ \ \ \ \ ComPtr<IDXGISwapChain4>\ CreateSwapChain(HWND\ hWnd,}
+\DoxyCodeLine{00074\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ std::shared\_ptr<CommandQueue>\ \&commandQueue,}
+\DoxyCodeLine{00075\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint32\_t\ width,\ uint32\_t\ height,\ uint32\_t\ bufferCount);}
+\DoxyCodeLine{00076\ }
+\DoxyCodeLine{00077\ \ \ \ \ ComPtr<ID3D12DescriptorHeap>\ CreateDescriptorHeap(ComPtr<ID3D12Device2>\ \&device,}
+\DoxyCodeLine{00078\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ D3D12\_DESCRIPTOR\_HEAP\_TYPE\ type,}
+\DoxyCodeLine{00079\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint32\_t\ numDescriptors,}
+\DoxyCodeLine{00080\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ D3D12\_DESCRIPTOR\_HEAP\_FLAGS\ flags\ =\ D3D12\_DESCRIPTOR\_HEAP\_FLAG\_NONE);}
+\DoxyCodeLine{00081\ }
+\DoxyCodeLine{00082\ \ \ \ \ \textcolor{keywordtype}{void}\ UpdateRenderTargetViews(ComPtr<ID3D12Device2>\ \&device,}
+\DoxyCodeLine{00083\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ComPtr<IDXGISwapChain4>\ \&swapChain,}
+\DoxyCodeLine{00084\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ComPtr<ID3D12DescriptorHeap>\ \&descriptorHeap);}
+\DoxyCodeLine{00085\ }
+\DoxyCodeLine{00086\ \ \ \ \ \textcolor{keywordtype}{void}\ UpdateFrameBuffers(ComPtr<ID3D12Device2>\ \&device,}
+\DoxyCodeLine{00087\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ComPtr<IDXGISwapChain4>\ \&swapChain,\ ComPtr<ID3D12DescriptorHeap>\ \&descriptorHeap);}
+\DoxyCodeLine{00088\ }
+\DoxyCodeLine{00089\ \ \ \ \ ComPtr<ID3D12Fence>\ CreateFence(ComPtr<ID3D12Device2>\ \&device);}
+\DoxyCodeLine{00090\ }
+\DoxyCodeLine{00091\ \ \ \ \ HANDLE\ CreateEventHandle();}
+\DoxyCodeLine{00092\ }
+\DoxyCodeLine{00093\ \ \ \ \ \textcolor{keywordtype}{void}\ transitionResource(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList2>\ \&commandList,}
+\DoxyCodeLine{00094\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Microsoft::WRL::ComPtr<ID3D12Resource>\ \&resource,}
+\DoxyCodeLine{00095\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ D3D12\_RESOURCE\_STATES\ beforeState,\ D3D12\_RESOURCE\_STATES\ afterState);}
+\DoxyCodeLine{00096\ }
+\DoxyCodeLine{00097\ \ \ \ \ \textcolor{keywordtype}{void}\ Render();}
+\DoxyCodeLine{00098\ }
+\DoxyCodeLine{00099\ \ \ \ \ \textcolor{keywordtype}{void}\ Flush();}
+\DoxyCodeLine{00100\ }
+\DoxyCodeLine{00101\ \ \ \ \ \textcolor{keywordtype}{void}\ InitContext(HWND\ hWnd,\ uint32\_t\ clientWidth,\ uint32\_t\ clientHeight);}
+\DoxyCodeLine{00102\ }
+\DoxyCodeLine{00103\ \ \ \ \ \textcolor{keywordtype}{void}\ UpdateBufferResource(ComPtr<ID3D12GraphicsCommandList2>\ commandList,}
+\DoxyCodeLine{00104\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ID3D12Resource\ **pDestinationResource,}
+\DoxyCodeLine{00105\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ID3D12Resource\ **pIntermediateResource,}
+\DoxyCodeLine{00106\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{size\_t}\ numElements,\ \textcolor{keywordtype}{size\_t}\ elementSize,}
+\DoxyCodeLine{00107\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ \textcolor{keywordtype}{void}\ *bufferData,\ D3D12\_RESOURCE\_FLAGS\ flags\ =\ D3D12\_RESOURCE\_FLAG\_NONE);}
+\DoxyCodeLine{00108\ }
+\DoxyCodeLine{00109\ \ \ \ \ \textcolor{keywordtype}{void}\ UpdateBufferResource2D(ID3D12Resource\ **pDestinationResource,\ D3D12\_RESOURCE\_FLAGS\ flags);}
+\DoxyCodeLine{00110\ }
+\DoxyCodeLine{00111\ \ \ \ \ HRESULT\ CompileShaderFromFile(\textcolor{keyword}{const}\ std::wstring\&\ filename,\ \textcolor{keyword}{const}\ std::string\&\ entryPoint,}
+\DoxyCodeLine{00112\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ std::string\&\ target,\ ComPtr<ID3DBlob>\&\ shaderBlob);}
+\DoxyCodeLine{00113\ }
+\DoxyCodeLine{00114\ \ \ \ \ D3D12\_CPU\_DESCRIPTOR\_HANDLE\ GetCurrentRenderTargetView()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{00115\ }
+\DoxyCodeLine{00116\ \ \ \ \ D3D12\_CPU\_DESCRIPTOR\_HANDLE\ GetCurrentFrameBufferHandle()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{00117\ }
+\DoxyCodeLine{00118\ \ \ \ \ ComPtr<ID3D12Resource>\ GetCurrentBackBuffer()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{00119\ }
+\DoxyCodeLine{00120\ \ \ \ \ \textcolor{keywordtype}{void}\ InitShaders();}
+\DoxyCodeLine{00121\ }
+\DoxyCodeLine{00122\ \ \ \ \ \textcolor{keywordtype}{void}\ retreiveDebugMessage();}
+\DoxyCodeLine{00123\ }
+\DoxyCodeLine{00124\ \ \ \ \ \textcolor{keywordtype}{void}\ CreateFrameBuffer(ID3D12Resource\ **pDestinationResource,\ D3D12\_RESOURCE\_FLAGS\ flags);}
+\DoxyCodeLine{00125\ \};}
+
+\end{DoxyCode}

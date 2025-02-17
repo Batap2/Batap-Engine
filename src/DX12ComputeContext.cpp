@@ -313,6 +313,7 @@ void DX12ComputeContext::render()
     ThrowIfFailed( command_allocator->Reset());
     ThrowIfFailed( command_list->Reset(command_allocator.Get(), nullptr));
 
+    computeAndUploadCameraBuffer();
 
     swapchain->Present(useVSync, tearingFlag);
 }
