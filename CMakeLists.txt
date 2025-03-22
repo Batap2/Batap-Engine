@@ -34,7 +34,7 @@ add_executable(RayVox_Engine WIN32 ${source_files}
         src/InputManager.cpp
         resources.rc
         src/VoxelDataStructs.cpp
-)
+        )
 
 target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.lib)
 

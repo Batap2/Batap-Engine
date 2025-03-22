@@ -29,7 +29,7 @@ namespace VoxelDataStructs
             {
                 for(int k = 0; k < 64; ++k)
                 {
-                    list.push_back({{i,j,k}, dis(gen)});
+                    //list.push_back({{i,j,k}, dis(gen)});
                 }
             }
         }

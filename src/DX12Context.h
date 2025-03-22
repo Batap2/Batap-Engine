@@ -1,3 +1,4 @@
+#if 0
 #pragma once
 
 #include <wrl.h>
@@ -14,8 +15,7 @@ using namespace Microsoft::WRL;
 
 #include <DirectX-Headers/include/directx/d3dx12.h>
 #include <dxgi1_6.h>
-
-
+#include "DX12Utils.h"
 
 #include "CommandQueue.h"
 #include "PlaneRenderTarget.h"
@@ -123,3 +123,4 @@ struct DX12Context{
 
     void CreateFrameBuffer(ID3D12Resource **pDestinationResource, D3D12_RESOURCE_FLAGS flags);
 };
+#endif

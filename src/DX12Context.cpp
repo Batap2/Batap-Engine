@@ -1,3 +1,4 @@
+#if 0
 #include "DX12Context.h"
 
 #include <cstdint>
@@ -732,3 +733,4 @@ void DX12Context::retreiveDebugMessage()
         }
     }
 }
+#endif
