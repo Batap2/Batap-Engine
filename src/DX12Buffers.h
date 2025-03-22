@@ -198,41 +198,57 @@ public:
 	{
 		UINT elementSize = sizeof(T);
 		UINT bufferSize = elementSize * static_cast<UINT>(data.size());
+		
+		bool isTexture2D = (buffer_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D);
 
 		// Create default heap resource (GPU only) with UAV flag
 		D3D12_HEAP_PROPERTIES defaultHeap = { D3D12_HEAP_TYPE_DEFAULT };
 		buffer_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
 		ThrowIfFailed(device->CreateCommittedResource(
-			&defaultHeap, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource)
+			&defaultHeap, D3D12_HEAP_FLAG_NONE, &buffer_desc, 
+			isTexture2D ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS : D3D12_RESOURCE_STATE_COPY_DEST, 
+			nullptr, IID_PPV_ARGS(&resource)
 		));
 
-		// Create upload buffer (CPU -> GPU)
-		D3D12_HEAP_PROPERTIES uploadHeap = { D3D12_HEAP_TYPE_UPLOAD };
-		D3D12_RESOURCE_DESC uploadBufferDesc = buffer_desc;
-    	uploadBufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		// Handle upload buffer only if it's NOT a texture (structured buffers need CPU data upload)
+		if (!isTexture2D)
+		{
+			D3D12_HEAP_PROPERTIES uploadHeap = { D3D12_HEAP_TYPE_UPLOAD };
+			D3D12_RESOURCE_DESC uploadBufferDesc = buffer_desc;
+			uploadBufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
-		ThrowIfFailed(device->CreateCommittedResource(
-			&uploadHeap, D3D12_HEAP_FLAG_NONE, &uploadBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer)
-		));
+			ThrowIfFailed(device->CreateCommittedResource(
+				&uploadHeap, D3D12_HEAP_FLAG_NONE, &uploadBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer)
+			));
 
-		// Copy data to upload buffer
-		void* mappedData;
-		ThrowIfFailed(uploadBuffer->Map(0, nullptr, &mappedData));
-		memcpy(mappedData, data.data(), bufferSize);
-		uploadBuffer->Unmap(0, nullptr);
+			// Copy data to upload buffer
+			void* mappedData;
+			ThrowIfFailed(uploadBuffer->Map(0, nullptr, &mappedData));
+			memcpy(mappedData, data.data(), bufferSize);
+			uploadBuffer->Unmap(0, nullptr);
 
-		// Copy from upload buffer to GPU buffer
-		commandList->CopyResource(resource.Get(), uploadBuffer.Get());
+			// Copy from upload buffer to GPU buffer
+			commandList->CopyResource(resource.Get(), uploadBuffer.Get());
+		}
 
 		// Create UAV (for read-write access in shaders)
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 		uavDesc.Format = DXGI_FORMAT_UNKNOWN;
-		uavDesc.Buffer.FirstElement = 0;
-		uavDesc.Buffer.NumElements = static_cast<UINT>(data.size());
-		uavDesc.Buffer.StructureByteStride = elementSize;
-		uavDesc.Buffer.CounterOffsetInBytes = 0; // Optional: Used for append/consume buffers
+
+		if (isTexture2D)
+		{
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+			uavDesc.Texture2D.MipSlice = 0;
+		}
+		else
+		{
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+			uavDesc.Buffer.FirstElement = 0;
+			uavDesc.Buffer.NumElements = static_cast<UINT>(data.size());
+			uavDesc.Buffer.StructureByteStride = elementSize;
+			uavDesc.Buffer.CounterOffsetInBytes = 0;
+		}
 
 		// Get the CPU descriptor handle for the UAV
 		cpuSrvDescriptorHandle = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
