@@ -190,10 +190,10 @@ struct DX12UnorderedAccessBuffer : public DX12Resource
 {
 	ComPtr<ID3D12Resource> uploadBuffer;
 
-private:
+public:
 	template <typename T>
 	void Initialize(ID3D12Device* device, ID3D12GraphicsCommandList* commandList,
-		ID3D12DescriptorHeap* descriptorHeap, unsigned int& descriptorIndex,
+		ID3D12DescriptorHeap* descriptorHeap, D3D12_RESOURCE_DESC buffer_desc, unsigned int& descriptorIndex,
 		const std::vector<T>& data, const wchar_t* name)
 	{
 		UINT elementSize = sizeof(T);
@@ -201,18 +201,19 @@ private:
 
 		// Create default heap resource (GPU only) with UAV flag
 		D3D12_HEAP_PROPERTIES defaultHeap = { D3D12_HEAP_TYPE_DEFAULT };
-		D3D12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		buffer_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
 		ThrowIfFailed(device->CreateCommittedResource(
-			&defaultHeap, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource)
+			&defaultHeap, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource)
 		));
 
 		// Create upload buffer (CPU -> GPU)
 		D3D12_HEAP_PROPERTIES uploadHeap = { D3D12_HEAP_TYPE_UPLOAD };
-		D3D12_RESOURCE_DESC uploadDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+		D3D12_RESOURCE_DESC uploadBufferDesc = buffer_desc;
+    	uploadBufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 		ThrowIfFailed(device->CreateCommittedResource(
-			&uploadHeap, D3D12_HEAP_FLAG_NONE, &uploadDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer)
+			&uploadHeap, D3D12_HEAP_FLAG_NONE, &uploadBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer)
 		));
 
 		// Copy data to upload buffer
@@ -280,19 +281,5 @@ private:
 		// Schedule a copy from the upload buffer to the GPU buffer
 		commandList->CopyResource(resource.Get(), uploadBuffer.Get());
 	}
-
-public:
-	template <typename T>
-	void CreateOrUpdate(ID3D12Device* device, ID3D12GraphicsCommandList* commandList,
-		ID3D12DescriptorHeap* descriptorHeap, unsigned int& descriptorIndex,
-		const std::vector<T>& data, const wchar_t* name = L"Unnamed UnorderedAccessBuffer")
-	{
-		UINT bufferSize = sizeof(T) * static_cast<UINT>(data.size());
-		if (init && resource->GetDesc().Width >= bufferSize)
-		{
-			UpdateData(device, commandList, data);
-			return;
-		}
-		Initialize(device, commandList, descriptorHeap, descriptorIndex, data, name);
-	}
+	
 };

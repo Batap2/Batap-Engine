@@ -193,25 +193,7 @@ void DX12ComputeContext::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHe
 
 	// Retrieve swapchain buffer description and create identical resource but with UAV allowed, so compute shader could write to it
 	auto buffer_desc = swapchain_buffers[0].resource->GetDesc();
-	buffer_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-	const CD3DX12_HEAP_PROPERTIES default_heap_props{ D3D12_HEAP_TYPE_DEFAULT };
-
-	// Fais la création avec ta classe custom de ressource (il faut la faire)
-	ThrowIfFailed(device->CreateCommittedResource(
-		&default_heap_props, D3D12_HEAP_FLAG_NONE,
-		&buffer_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-		nullptr, IID_PPV_ARGS(&framebuffer.resource)));
-
-	ThrowIfFailed(framebuffer.resource->SetName(L"framebuffer"));
-	/* Create view for our framebuffer so compute shader can access it
-	 *  passing UAV desc is not neccessary? it's determined automatically by system(correctly)
-	 *  using first handle/descriptor in the heap as currently we dont have any other resources
-	 */
-	device->CreateUnorderedAccessView(framebuffer.Get(), nullptr, nullptr, descriptor_heap->GetCPUDescriptorHandleForHeapStart());
-	++currentlyInitDescriptor;
-
-	framebuffer.CreateOrUpdate(device.Get(), command_list.Get(), descriptor_heap.Get(), currentlyInitDescriptor, std::vector<uint32_t>{}, L"framebuffer");
+	framebuffer.Initialize(device.Get(), command_list.Get(), descriptor_heap.Get(), buffer_desc, currentlyInitDescriptor, std::vector<uint32_t>{}, L"framebuffer");
 
 	camera = Camera({ 0, 0, -10 }, { 0, 0, 1 }, { 0, 1, 0 },
 		80, (float)width / (float)height, 0.1f, 100);
