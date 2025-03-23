@@ -167,7 +167,7 @@ void main(uint3 dt_id : SV_DispatchThreadID, uint3 group_id : SV_GroupID)
     uint width, height;
     framebuffer.GetDimensions(width, height);
 
-    float4 finalColor = float4(0,0,0,1);
+    float4 finalColor = float4(0.8,0.95,1,1);
 
     Sphere sphere;
     sphere.center = float3(0,0,0);
@@ -180,9 +180,9 @@ void main(uint3 dt_id : SV_DispatchThreadID, uint3 group_id : SV_GroupID)
     Hit h;
     lh.distance = 9999999999.0f;
 
-    for(int i = 0; i < 64; i++)
+    for(int i = 0; i < 16; i++)
     {
-        for(int j = 0; j < 64; j++)
+        for(int j = 0; j < 16; j++)
         {
             h = RayIntersectsAABB(ray, float3(i,0,j), float3(i + 0.9f, 0.9f, j + 0.9f));
             if(h.hit && h.distance < lh.distance){
