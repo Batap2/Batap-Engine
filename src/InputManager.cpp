@@ -75,7 +75,7 @@ void InputManager::processTickInput()
     }
     if (holdedKey[Left])
     {
-        ctx->camera.move(XMVectorNegate(ctx->camera.getRightVec()));
+        ctx->camera.move(-ctx->camera.getRightVec());
     }
     if (holdedKey[Forward])
     {
@@ -83,7 +83,7 @@ void InputManager::processTickInput()
     }
     if (holdedKey[Backward])
     {
-        ctx->camera.move(XMVectorNegate(ctx->camera.getForwardVec()));
+        ctx->camera.move(-ctx->camera.getForwardVec());
     }
     if (holdedKey[Down])
     {

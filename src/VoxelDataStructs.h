@@ -1,41 +1,35 @@
 #pragma once
 
-#include <DirectXMath.h>
+#include <glm/glm.hpp>
 
 #include <cstdint>
 #include <vector>
+#include <unordered_map>
 
-using namespace DirectX;
+using namespace glm;
 namespace VoxelDataStructs
 {
 	struct Voxel
 	{
-		XMUINT3 pos;
+		uvec3 pos;
 		uint32_t color;
 	};
 
-	struct SVO_node
-	{
-		bool leaf;
-		SVO_node* children[8];
-		Voxel voxel;
+	constexpr int GRID_SIZE = 32;
+
+	struct Vec3Hash {
 	};
 
-	struct SVO
-	{
-		bool leaf;
-		SVO_node* root;
-
-		void construct(const std::vector<Voxel>& voxelList);
-		void construct64_3(const std::vector<Voxel>& voxelList);
+	// Une cellule de la grille contient ses voxels sous forme de hashmap
+	struct SparseCell {
+		//std::unordered_map<XMUINT3, Voxel, Vec3Hash> voxels;
 	};
 
-	struct Chunk
-	{
-		XMINT3 offsetPos;
-		SVO SVO64_3;
-	};
+	// La Sparse Grid est une hashmap de cellules (chaque cellule représente un bloc GRID_SIZE³)
+	struct SparseGrid{
+		//std::unordered_map<XMUINT3, SparseCell, Vec3Hash> map;
 
-	static std::vector<Voxel> generateChunk_debug();
+		//void addVoxel(const Voxel& voxel);
+	};
 }
 

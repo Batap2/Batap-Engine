@@ -74,5 +74,6 @@ struct DX12ComputeContext
 	std::vector<VoxelDataStructs::Voxel> voxelMap;
 	DX12StructuredBuffer voxelMapBuffer;
 
+
 	void InitWorld();
 };

@@ -74,7 +74,13 @@
         "xstddef": "cpp",
         "array": "cpp",
         "deque": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "bitset": "cpp",
+        "condition_variable": "cpp",
+        "cstdarg": "cpp",
+        "functional": "cpp",
+        "unordered_map": "cpp",
+        "xhash": "cpp"
     }
     
 }

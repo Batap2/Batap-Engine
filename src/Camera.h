@@ -1,88 +1,70 @@
 #pragma once
 
-#include <DirectXMath.h>
-using namespace DirectX;
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 struct CameraBuffer
 {
-    XMFLOAT3 pos;
+    glm::vec3 pos;
     float Znear;
-    XMFLOAT3 forward;
+    glm::vec3 forward;
     float Zfar;
-    XMFLOAT3 right;
+    glm::vec3 right;
     float fov;
 };
 
 struct Camera
 {
-    XMFLOAT3 pos{};
-    XMFLOAT3 right{};
-    XMFLOAT3 up{};
-    XMFLOAT3 forward{};
+    glm::vec3 pos{};
+    glm::vec3 right{};
+    glm::vec3 up{};
+    glm::vec3 forward{};
 
     float fov, aspectRatio, Znear, Zfar, speed = 0.05f;
 
     Camera() = default;
-    Camera(const XMFLOAT3& position, const XMFLOAT3& direction, const XMFLOAT3& upVec,
+    Camera(const glm::vec3& position, const glm::vec3& direction, const glm::vec3& upVec,
            float fov, float aspectRatio, float Znear, float Zfar)
-            : pos(position), forward(direction), up(upVec), fov(fov), aspectRatio(aspectRatio), Znear(Znear), Zfar(Zfar)
+            : pos(position), forward(glm::normalize(direction)), up(glm::normalize(upVec)),
+              fov(fov), aspectRatio(aspectRatio), Znear(Znear), Zfar(Zfar)
     {
-        XMVECTOR dir = XMLoadFloat3(&forward);
-        XMVECTOR upVecV = XMLoadFloat3(&up);
-        XMVECTOR rightV = XMVector3Cross(upVecV, dir);
-        upVecV = XMVector3Cross(dir, rightV);
-
-        dir = XMVector3Normalize(dir);
-        rightV = XMVector3Normalize(rightV);
-        upVecV = XMVector3Normalize(upVecV);
-
-        XMStoreFloat3(&forward, dir);
-        XMStoreFloat3(&right, rightV);
-        XMStoreFloat3(&up, upVecV);
+        right = glm::normalize(glm::cross(up, forward));
+        up = glm::normalize(glm::cross(forward, right));
     }
 
-    XMVECTOR getPosVec() const
+    glm::vec3 getPosVec() const
     {
-        return XMLoadFloat3(&pos);
+        return pos;
     }
 
-    XMVECTOR getForwardVec() const
+    glm::vec3 getForwardVec() const
     {
-        return XMLoadFloat3(&forward);
+        return forward;
     }
 
-    XMVECTOR getUpVec() const
+    glm::vec3 getUpVec() const
     {
-        return XMLoadFloat3(&up);
+        return up;
     }
 
-    XMVECTOR getRightVec() const
+    glm::vec3 getRightVec() const
     {
-        return XMLoadFloat3(&right);
+        return right;
     }
 
-    void rotate(const XMVECTOR& axis, float angle)
+    void rotate(const glm::vec3& axis, float angle)
     {
-        XMMATRIX rotationMatrix = XMMatrixRotationAxis(axis, angle);
+        glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0f), angle, axis);
 
-        XMVECTOR forwardVec = XMLoadFloat3(&forward);
-        XMVECTOR rightVec = XMLoadFloat3(&right);
-        XMVECTOR upVec = XMLoadFloat3(&up);
-
-        forwardVec = XMVector3TransformNormal(forwardVec, rotationMatrix);
-        rightVec = XMVector3TransformNormal(rightVec, rotationMatrix);
-        upVec = XMVector3TransformNormal(upVec, rotationMatrix);
-
-        XMStoreFloat3(&forward, forwardVec);
-        XMStoreFloat3(&right, rightVec);
-        XMStoreFloat3(&up, upVec);
+        forward = glm::normalize(glm::mat3(rotationMatrix) * forward);
+        right = glm::normalize(glm::mat3(rotationMatrix) * right);
+        up = glm::normalize(glm::mat3(rotationMatrix) * up);
     }
 
-    void move(const XMVECTOR& direction)
+    void move(const glm::vec3& direction)
     {
-        XMVECTOR posVec = XMLoadFloat3(&pos);
-        posVec = XMVectorAdd(posVec, XMVectorScale(direction, speed));
-        XMStoreFloat3(&pos, posVec);
+        pos += direction * speed;
     }
 
     CameraBuffer getCameraBuffer()

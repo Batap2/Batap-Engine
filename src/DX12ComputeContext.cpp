@@ -7,19 +7,20 @@
 
 void DX12ComputeContext::InitWorld()
 {
-	for (int x = 0; x < 32; x++)
+	for (int x = 0; x < 4; x++)
 	{
-		for (int y = 0; y < 32; y++)
+		for (int y = 0; y < 4; y++)
 		{
-			VoxelDataStructs::Voxel v;
-			v.pos = XMUINT3(x, y, 0);
-			voxelMap.push_back(v);
+			for (int z = 0; z < 4; z++) {
+				VoxelDataStructs::Voxel v;
+				v.pos = uvec3(x, y, z);
+				voxelMap.push_back(v);
+			}
 		}
 	}
 
 	voxelMapBuffer.CreateOrUpdate(device.Get(), command_list.Get(),
 		descriptor_heap.Get(), currentlyInitDescriptor, voxelMap);
-
 
 }
 
@@ -267,8 +268,8 @@ void DX12ComputeContext::render()
 	CD3DX12_GPU_DESCRIPTOR_HANDLE cameraHandle(descriptor_heap->GetGPUDescriptorHandleForHeapStart(), 1, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
 	command_list->SetComputeRootDescriptorTable(1, cameraHandle);
 
-	//CD3DX12_GPU_DESCRIPTOR_HANDLE voxelMapHandle(descriptor_heap->GetGPUDescriptorHandleForHeapStart(), 2, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-	//command_list->SetComputeRootDescriptorTable(2, voxelMapHandle);
+	CD3DX12_GPU_DESCRIPTOR_HANDLE voxelMapHandle(descriptor_heap->GetGPUDescriptorHandleForHeapStart(), 2, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+	command_list->SetComputeRootDescriptorTable(2, voxelMapHandle);
 
 	command_list->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
 

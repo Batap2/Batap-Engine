@@ -10,8 +10,15 @@ cbuffer CameraBuffer : register(b0)
         float Zfar;
         float3 right;
         float fov;
-    }cameraBuffer;
+    } cameraBuffer;
 };
+
+struct Voxel
+{
+    uint3 pos;
+    uint color;
+};
+StructuredBuffer<Voxel> voxelMap : register(t0);
 
 struct Ray
 {
@@ -167,10 +174,10 @@ void main(uint3 dt_id : SV_DispatchThreadID, uint3 group_id : SV_GroupID)
     uint width, height;
     framebuffer.GetDimensions(width, height);
 
-    float4 finalColor = float4(0.8,0.95,1,1);
+    float4 finalColor = float4(0.8, 0.95, 1, 1);
 
     Sphere sphere;
-    sphere.center = float3(0,0,0);
+    sphere.center = float3(0, 0, 0);
     sphere.radius = 1;
 
     Ray ray = GenerateRay(screen_coord, uint2(width, height), cameraBuffer.pos,
@@ -180,20 +187,20 @@ void main(uint3 dt_id : SV_DispatchThreadID, uint3 group_id : SV_GroupID)
     Hit h;
     lh.distance = 9999999999.0f;
 
-    for(int i = 0; i < 16; i++)
+    for (int i = 0; i < 64; i++)
     {
-        for(int j = 0; j < 16; j++)
+        Voxel v = voxelMap[i];
+        float3 pos = float3(float(v.pos.x), float(v.pos.y), float(v.pos.z));
+        h = RayIntersectsAABB(ray, pos, pos + float3(0.9, 0.9, 0.9));
+        if (h.hit && h.distance < lh.distance)
         {
-            h = RayIntersectsAABB(ray, float3(i,0,j), float3(i + 0.9f, 0.9f, j + 0.9f));
-            if(h.hit && h.distance < lh.distance){
-                    lh = h;
-            }
+            lh = h;
         }
     }
 
-    if(lh.hit)
+    if (lh.hit)
     {
-        finalColor = float4(abs(lh.normal),1);
+        finalColor = float4(abs(lh.normal), 1);
     }
     framebuffer[screen_coord.xy] = finalColor;
 }
