@@ -12,6 +12,10 @@ namespace SVO{
         uint32_t ToRaw();
     };
 
+    struct FarNode{
+        uint32_t farPtr;
+    };
+
     struct LeafNode{
         std::bitset<30> normal;
         std::bitset<32> material;

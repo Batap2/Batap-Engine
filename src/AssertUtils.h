@@ -3,7 +3,7 @@
 #include <cassert>
 #include <winerror.h>
 #include <exception>
-#include <DirectXMath.h>
+#include <glm/glm.hpp>
 #include <vector>
 #include <stdexcept>
 #include <wrl.h>
@@ -19,7 +19,7 @@ inline void ThrowIfFailed(HRESULT hr)
 }
 
 
-inline std::vector<DirectX::XMFLOAT3> ReadBackVertexBuffer(ID3D12Device* device,
+inline std::vector<glm::vec3> ReadBackVertexBuffer(ID3D12Device* device,
                                                            ID3D12GraphicsCommandList* commandList,
                                                            ID3D12CommandQueue* commandQueue,
                                                            ID3D12Resource* vertexBuffer)
@@ -93,8 +93,8 @@ inline std::vector<DirectX::XMFLOAT3> ReadBackVertexBuffer(ID3D12Device* device,
     }
 
     // Access the data.
-    size_t vertexCount = vertexBufferDesc.Width / sizeof(DirectX::XMFLOAT3);
-    std::vector<DirectX::XMFLOAT3> vertices(vertexCount);
+    size_t vertexCount = vertexBufferDesc.Width / sizeof(glm::vec3);
+    std::vector<glm::vec3> vertices(vertexCount);
     memcpy(vertices.data(), pData, vertexBufferDesc.Width);
 
     // Unmap the resource.

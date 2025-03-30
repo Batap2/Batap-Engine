@@ -1,7 +1,7 @@
 #include "DX12ComputeContext.h"
 #include "AssertUtils.h"
 
-#include <DirectXMath.h>
+#include <glm/glm.hpp>
 #include <filesystem>
 #include <optional>
 

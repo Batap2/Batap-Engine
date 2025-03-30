@@ -1,13 +1,13 @@
 #pragma once
 
 #include <d3d12.h>
-#include <DirectXMath.h>
+#include <glm/glm.hpp>
 #include <wrl.h>
 using namespace Microsoft::WRL;
 
 struct VertexData
 {
-    DirectX::XMFLOAT3 pos;
+    glm::vec3 pos;
 };
 
 struct PlaneRenderTarget
