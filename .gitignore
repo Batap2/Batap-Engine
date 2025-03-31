@@ -6,4 +6,5 @@ cmake-build-release
 out
 x64
 .vs
-bin
+build
+.cache

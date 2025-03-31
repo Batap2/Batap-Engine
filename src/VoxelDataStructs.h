@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
-#include "Bbox.h"
+#include "Bbox.hpp"
 
 using namespace glm;
 namespace VoxelDataStructs
@@ -24,20 +24,22 @@ namespace VoxelDataStructs
 		}
 	};
 
-	// Une cellule de la grille contient ses voxels sous forme de hashmap
 	struct SparseCell {
 		std::unordered_map<uvec3, Voxel, Vec3Hash> voxels;
 	};
 
-	// La Sparse Grid est une hashmap de cellules (chaque cellule représente un bloc GRID_SIZE³)
-	struct SparseGrid{
-		
+	struct SparseGrid {
+
 		AABB3 bbox;
 		std::unordered_map<uvec3, SparseCell, Vec3Hash> map;
 
 		void addVoxel(const Voxel& voxel);
 		bool hasVoxelsInRegion(const uvec3& minPos, const uvec3& maxPos);
 		std::vector<Voxel> getVoxelsInRegion(const uvec3& minPos, const uvec3& maxPos);
+
+		std::vector<Voxel> getAllVoxels();
+
+		void DEBUG_fill();
 	};
 }
 

@@ -1,6 +1,6 @@
-#include "Bbox.h"
+#include "Bbox.hpp"
 
-void AABB3::extends(vec3 &vec){
-    min = glm::min(min, vec);
-    max = glm::max(max, vec);
+void AABB3::extends(const vec3& vec) {
+	min = glm::min(min, vec);
+	max = glm::max(max, vec);
 }

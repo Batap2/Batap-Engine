@@ -1,5 +1,6 @@
 #include "DX12ComputeContext.h"
 #include "AssertUtils.h"
+#include "VoxelDataStructs.h"
 
 #include <glm/glm.hpp>
 #include <filesystem>
@@ -7,17 +8,9 @@
 
 void DX12ComputeContext::InitWorld()
 {
-	for (int x = 0; x < 4; x++)
-	{
-		for (int y = 0; y < 4; y++)
-		{
-			for (int z = 0; z < 4; z++) {
-				VoxelDataStructs::Voxel v;
-				v.pos = uvec3(x, y, z);
-				voxelMap.push_back(v);
-			}
-		}
-	}
+	VoxelDataStructs::SparseGrid sg;
+	sg.DEBUG_fill();
+	voxelMap = sg.getAllVoxels();
 
 	voxelMapBuffer.CreateOrUpdate(device.Get(), command_list.Get(),
 		descriptor_heap.Get(), currentlyInitDescriptor, voxelMap);
@@ -204,7 +197,7 @@ void DX12ComputeContext::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHe
 		descriptor_heap.Get(), currentlyInitDescriptor);
 
 	std::wstring shader_dir;
-	shader_dir = std::filesystem::current_path().filename() == "bin" ? L"../src/Shaders" : L"src/Shaders";
+	shader_dir = std::filesystem::current_path().filename() == "build" ? L"../src/Shaders" : L"src/Shaders";
 
 	// Shader and its layout
 	ComPtr<ID3DBlob> computeShaderBlob;

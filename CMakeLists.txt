@@ -9,6 +9,7 @@ endif()
 project ("RayVox-Engine")
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 
 # Définir le répertoire des sources et include
@@ -16,7 +17,7 @@ set(source_dir "${PROJECT_SOURCE_DIR}/src")
 set(include_dir "${PROJECT_SOURCE_DIR}/include")
 
 # Définir le répertoire de sortie des exécutables
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
 
 add_subdirectory(${include_dir}/DirectX-Headers)
 add_subdirectory(${include_dir}/glm)

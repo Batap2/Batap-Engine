@@ -187,7 +187,7 @@ void main(uint3 dt_id : SV_DispatchThreadID, uint3 group_id : SV_GroupID)
     Hit h;
     lh.distance = 9999999999.0f;
 
-    for (int i = 0; i < 64; i++)
+    for (int i = 0; i < 1600; i++)
     {
         Voxel v = voxelMap[i];
         float3 pos = float3(float(v.pos.x), float(v.pos.y), float(v.pos.z));
