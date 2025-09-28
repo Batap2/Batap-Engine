@@ -19,18 +19,15 @@ set(include_dir "${PROJECT_SOURCE_DIR}/include")
 # Définir le répertoire de sortie des exécutables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
 
-add_subdirectory(${include_dir}/DirectX-Headers)
-add_subdirectory(${include_dir}/glm)
-
 include_directories(${include_dir})
+add_subdirectory(${include_dir}/DirectX-Headers)
+include_directories(${include_dir}/glm)
 
 # Ajouter les fichiers source
 file(GLOB source_files "${source_dir}/*.cpp")
 
 # Ajouter l'exécutable avec les fichiers source
 add_executable(RayVox_Engine WIN32 ${source_files}
-        src/DX12Context.cpp
-        src/DX12ComputeContext.cpp
         src/App.cpp
         src/CommandQueue.cpp
         src/InputManager.cpp
@@ -39,7 +36,6 @@ add_executable(RayVox_Engine WIN32 ${source_files}
         )
 
 target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.lib)
-target_link_libraries(RayVox_Engine glm::glm)
 
 # Définir _DEBUG pour les builds Debug
 target_compile_definitions(RayVox_Engine
@@ -54,5 +50,9 @@ target_compile_options(RayVox_Engine PRIVATE
         $<$<CONFIG:RelWithDebInfo>:/O2>
 )
 
-#target_link_directories(RayVox_Engine PUBLIC ${PROJECT_SOURCE_DIR}/include)
-#target_include_directories(RayVox_Engine PUBLIC ${PROJECT_SOURCE_DIR}/include)
+add_custom_target(copy_compile_commands ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/compile_commands.json
+            ${CMAKE_SOURCE_DIR}/compile_commands.json
+    COMMENT "Copy compile_commands.json to project root"
+)

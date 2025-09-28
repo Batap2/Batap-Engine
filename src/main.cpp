@@ -1,7 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include "App.h"
-#include "DX12Context.h"
+#include "Renderer.h"
 
 #include <iostream>
 #include <string>
@@ -29,7 +29,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
         }
     }
 
-    dx_cctx.flush();
+    Ctx.Renderer->flush();
 
     return 0;
 }

@@ -24,6 +24,7 @@ struct Ray
 {
     float3 origin;
     float3 direction;
+    float3 invDir;
 };
 
 struct Hit
@@ -59,6 +60,7 @@ Ray GenerateRay(float2 pixelPos, float2 screenSize, float3 cameraPos,
     Ray ray;
     ray.origin = cameraPos;
     ray.direction = cameraSpaceDir;
+    ray.invDir = 1 / cameraSpaceDir;
 
     return ray;
 }
@@ -131,10 +133,8 @@ bool intersectAABB(float3 origin, float3 direction, AABB box)
 
 Hit RayIntersectsAABB(Ray ray, float3 boxMin, float3 boxMax)
 {
-    float3 invDir = 1.0 / ray.direction;
-
-    float3 t0s = (boxMin - ray.origin) * invDir;
-    float3 t1s = (boxMax - ray.origin) * invDir;
+    float3 t0s = (boxMin - ray.origin) * ray.invDir;
+    float3 t1s = (boxMax - ray.origin) * ray.invDir;
 
     float3 tsmaller = min(t0s, t1s);
     float3 tbigger = max(t0s, t1s);
@@ -151,11 +151,11 @@ Hit RayIntersectsAABB(Ray ray, float3 boxMin, float3 boxMax)
         result.hitPoint = ray.origin + result.distance * ray.direction;
 
         if (result.distance == tsmaller.x)
-            result.normal = invDir.x > 0.0 ? float3(-1, 0, 0) : float3(1, 0, 0);
+            result.normal = ray.invDir.x > 0.0 ? float3(-1, 0, 0) : float3(1, 0, 0);
         else if (result.distance == tsmaller.y)
-            result.normal = invDir.y > 0.0 ? float3(0, -1, 0) : float3(0, 1, 0);
+            result.normal = ray.invDir.y > 0.0 ? float3(0, -1, 0) : float3(0, 1, 0);
         else
-            result.normal = invDir.z > 0.0 ? float3(0, 0, -1) : float3(0, 0, 1);
+            result.normal = ray.invDir.z > 0.0 ? float3(0, 0, -1) : float3(0, 0, 1);
     }
     else
     {

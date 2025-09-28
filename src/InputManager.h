@@ -1,11 +1,11 @@
 #pragma once
 
 #include "includeDX12.h"
-#include "DX12ComputeContext.h"
+#include "Context.h"
 
 struct InputManager
 {
-    DX12ComputeContext* ctx;
+    Context* ctx;
 
     bool holdedKey[9] = {false};
     enum KeyIndex

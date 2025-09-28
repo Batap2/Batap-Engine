@@ -1,6 +1,7 @@
 {
     "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.path": "C:/clangllvm/bin/clangd.exe",
     "clangd.arguments": [
-        "--compile-commands-dir=${workspaceFolder}"
+        "--compile-commands-dir=${workspaceFolder}",
     ]
 }

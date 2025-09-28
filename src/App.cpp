@@ -6,6 +6,9 @@
 #include <cassert>
 
 #include "AssertUtils.h"
+#include "InputManager.h"
+#include "Renderer.h"
+#include "InputManager.h"
 
 #define MYICON 101
 
@@ -166,10 +169,10 @@ namespace App
     // Window callback function.
     LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
-        if ( dx_cctx.isInitialized )
+        if ( Ctx.Renderer->isInitialized )
         {
 
-            inputManager.manageInput(message, wParam, lParam);
+            Ctx.InputManager->manageInput(message, wParam, lParam);
             int centerX = (windowRect.left + windowRect.right) / 2;
             int centerY = (windowRect.top + windowRect.bottom) / 2;
 
@@ -179,14 +182,14 @@ namespace App
                     if(isWindowFocused)
                     {
                         SetCursorPos(centerX, centerY);
-                        inputManager.ProcessRawInput(lParam);
+                        Ctx.InputManager->ProcessRawInput(lParam);
                     }
                 break;
 
                 case WM_PAINT:
                     Update();
-                    dx_cctx.render();
-                    inputManager.processTickInput();
+                    Ctx.Renderer->render();
+                    Ctx.InputManager->processTickInput();
 
                     break;
                 case WM_SYSKEYDOWN:
@@ -203,7 +206,7 @@ namespace App
                             if ( alt )
                             {
                                 case VK_F11:
-                                    SetFullscreen(!dx_cctx.fullscreen);
+                                    SetFullscreen(!Ctx.Renderer->fullscreen);
                             }
                             break;
                     }
@@ -328,8 +331,8 @@ namespace App
 
         RegisterRawInputDevices(hWnd);
 
-        dx_cctx.init(hWnd, clientWidth, clientHeight);
-        inputManager.ctx = &dx_cctx;
+        Ctx.Renderer->init(hWnd, clientWidth, clientHeight);
+        Ctx.InputManager->ctx = &Ctx;
 
         ::ShowWindow(hWnd, SW_SHOW);
     }

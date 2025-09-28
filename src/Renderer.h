@@ -5,7 +5,7 @@
 #include "DX12Buffers.h"
 #include "VoxelDataStructs.h"
 
-struct DX12ComputeContext
+struct Renderer
 {
 	uint32_t threadGroupSizeX = 8;
 	uint32_t threadGroupSizeY = 8;
@@ -71,7 +71,7 @@ struct DX12ComputeContext
 	Camera camera;
 	DX12ConstantBuffer cameraBuffer;
 
-	std::vector<VoxelDataStructs::Voxel> voxelMap;
+	std::vector<Voxel> voxelMap;
 	DX12StructuredBuffer voxelMapBuffer;
 
 

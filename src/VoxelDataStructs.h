@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include "glm/glm.hpp"
 
 #include <cstdint>
 #include <vector>
@@ -8,38 +8,38 @@
 #include "Bbox.hpp"
 
 using namespace glm;
-namespace VoxelDataStructs
+
+struct Voxel
 {
-	struct Voxel
-	{
-		uvec3 pos;
-		uint32_t color;
-	};
+	ivec3 pos;
+	vec3 normal;
+	uint32_t color;
+};
 
-	constexpr int GRID_SIZE = 32;
+constexpr int GRID_SIZE = 32;
 
-	struct Vec3Hash {
-		std::size_t operator()(const uvec3& v) const {
-			return std::hash<int>()(v.x) ^ (std::hash<int>()(v.y) << 1) ^ (std::hash<int>()(v.z) << 2);
-		}
-	};
+struct Vec3Hash {
+	std::size_t operator()(const uvec3& v) const {
+		return std::hash<int>()(v.x) ^ (std::hash<int>()(v.y) << 1) ^ (std::hash<int>()(v.z) << 2);
+	}
+};
 
-	struct SparseCell {
-		std::unordered_map<uvec3, Voxel, Vec3Hash> voxels;
-	};
+struct SparseCell {
+	std::unordered_map<ivec3, Voxel, Vec3Hash> voxels;
+};
 
-	struct SparseGrid {
+struct SparseGrid {
 
-		AABB3 bbox;
-		std::unordered_map<uvec3, SparseCell, Vec3Hash> map;
+	AABB3<vec3> bbox;
+	std::unordered_map<ivec3, SparseCell, Vec3Hash> map;
 
-		void addVoxel(const Voxel& voxel);
-		bool hasVoxelsInRegion(const uvec3& minPos, const uvec3& maxPos);
-		std::vector<Voxel> getVoxelsInRegion(const uvec3& minPos, const uvec3& maxPos);
+	void addVoxel(const Voxel& voxel);
+	bool hasVoxelsInRegion(const ivec3& minPos, const ivec3& maxPos);
+	std::vector<Voxel> getVoxelsInRegion(const ivec3& minPos, const ivec3& maxPos);
 
-		std::vector<Voxel> getAllVoxels();
+	std::vector<Voxel> getAllVoxels();
 
-		void DEBUG_fill();
-	};
-}
+	void DEBUG_fill();
+};
+
 

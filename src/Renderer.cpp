@@ -1,4 +1,4 @@
-#include "DX12ComputeContext.h"
+#include "Renderer.h"
 #include "AssertUtils.h"
 #include "VoxelDataStructs.h"
 
@@ -6,18 +6,18 @@
 #include <filesystem>
 #include <optional>
 
-void DX12ComputeContext::InitWorld()
+void Renderer::InitWorld()
 {
-	VoxelDataStructs::SparseGrid sg;
+	SparseGrid sg;
 	sg.DEBUG_fill();
-	voxelMap = sg.getAllVoxels();
+	//voxelMap = sg.getAllVoxels();
 
-	voxelMapBuffer.CreateOrUpdate(device.Get(), command_list.Get(),
-		descriptor_heap.Get(), currentlyInitDescriptor, voxelMap);
+	//voxelMapBuffer.CreateOrUpdate(device.Get(), command_list.Get(),
+	//	descriptor_heap.Get(), currentlyInitDescriptor, voxelMap);
 
 }
 
-bool DX12ComputeContext::setTearingFlag()
+bool Renderer::setTearingFlag()
 {
 	if (useVSync)
 	{
@@ -51,7 +51,7 @@ bool DX12ComputeContext::setTearingFlag()
 	return allowTearing == TRUE;
 }
 
-HRESULT DX12ComputeContext::CompileShaderFromFile(const std::wstring& filename, const std::string& entryPoint,
+HRESULT Renderer::CompileShaderFromFile(const std::wstring& filename, const std::string& entryPoint,
 	const std::string& target, ComPtr<ID3DBlob>& shaderBlob)
 {
 	UINT compileFlags = 0;
@@ -91,7 +91,7 @@ HRESULT DX12ComputeContext::CompileShaderFromFile(const std::wstring& filename, 
 	return S_OK;
 }
 
-void DX12ComputeContext::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
+void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 {
 	width = clientHeight;
 	height = clientHeight;
@@ -242,7 +242,7 @@ void DX12ComputeContext::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHe
 	InitWorld();
 }
 
-void DX12ComputeContext::render()
+void Renderer::render()
 {
 	buffer_index = swapchain->GetCurrentBackBufferIndex();
 	auto& backbuffer = swapchain_buffers[buffer_index];
@@ -295,7 +295,7 @@ void DX12ComputeContext::render()
 	swapchain->Present(useVSync, tearingFlag);
 }
 
-void DX12ComputeContext::flush()
+void Renderer::flush()
 {
 	if (fence->GetCompletedValue() < fence_value)
 	{
@@ -316,7 +316,7 @@ void DX12ComputeContext::flush()
 	device.Reset();
 }
 
-void DX12ComputeContext::computeAndUploadCameraBuffer()
+void Renderer::computeAndUploadCameraBuffer()
 {
 	CameraBuffer cameraBufferData = camera.getCameraBuffer();
 	cameraBuffer.CreateOrUpdate(device.Get(), command_list.Get(), cameraBufferData,

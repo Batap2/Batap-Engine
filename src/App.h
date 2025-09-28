@@ -10,8 +10,7 @@ using namespace Microsoft::WRL;
 
 #include <cstdint>
 
-#include "DX12ComputeContext.h"
-#include "InputManager.h"
+#include "Context.h"
 
 namespace App
 {
@@ -20,8 +19,7 @@ namespace App
     inline uint32_t clientWidth = 1024;
     inline uint32_t clientHeight = 1024;
 
-    inline DX12ComputeContext dx_cctx;
-    inline InputManager inputManager;
+    inline Context Ctx;
 
     inline bool isWindowFocused = false;
 
