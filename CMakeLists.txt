@@ -22,6 +22,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
 include_directories(${include_dir})
 add_subdirectory(${include_dir}/DirectX-Headers)
 include_directories(${include_dir}/glm)
+include_directories(${include_dir}/imgui)
+include_directories(${include_dir}/nano-signal-slot)
 
 # Ajouter les fichiers source
 file(GLOB source_files "${source_dir}/*.cpp")

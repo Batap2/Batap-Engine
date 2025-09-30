@@ -1,12 +1,19 @@
 #pragma once
 
-struct Renderer;
-struct InputManager;
-struct Scene;
+namespace RayVox {
+    struct Renderer;
+    struct InputManager;
+    struct Scene;
 
-struct Context{
-    Renderer* Renderer;
-    InputManager* InputManager;
+    struct Context{
+        
+        Context();
 
-
-};
+        Renderer* renderer;
+        InputManager* inputManager;
+        Scene* scene;
+    
+        void Update();
+        void render();
+    };
+}

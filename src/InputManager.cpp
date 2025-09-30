@@ -1,96 +1,159 @@
 #include "InputManager.h"
 #include <Windowsx.h>
 
-void InputManager::manageInput(UINT message, WPARAM wParam, LPARAM lParam)
-{
-
-    switch (message)
+namespace RayVox {
+    
+    void InputManager::ProcessWindowsEvent(UINT message, WPARAM wParam, LPARAM lParam)
     {
-        case WM_KEYDOWN:
-            switch (wParam) {
-                case 'D': holdedKey[Right] = true; break;
-                case 'Q': holdedKey[Left] = true; break;
-                case 'Z': holdedKey[Forward] = true; break;
-                case 'S': holdedKey[Backward] = true; break;
-                case 'A': holdedKey[Down] = true; break;
-                case 'E': holdedKey[Up] = true; break;
-            }
-            break;
-
-        case WM_KEYUP:
-            switch (wParam) {
-                case 'D': holdedKey[Right] = false; break;
-                case 'Q': holdedKey[Left] = false; break;
-                case 'Z': holdedKey[Forward] = false; break;
-                case 'S': holdedKey[Backward] = false; break;
-                case 'A': holdedKey[Down] = false; break;
-                case 'E': holdedKey[Up] = false; break;
-            }
-            break;
-
-        case WM_MOUSEWHEEL:
+        switch (message)
         {
-            if(GET_WHEEL_DELTA_WPARAM(wParam) < 0){
-                ctx->camera.speed *= 0.92f;
-            } else {
-                ctx->camera.speed *= 1.08f;
+            case WM_KEYDOWN:
+                if (!KeysDown.contains(wParam))
+                    KeysPressed.insert(wParam);
+                KeysDown.insert(wParam);
+                std::cout << "key " << char(wParam) << " inserted\n";
+                break;
+                
+            case WM_KEYUP:
+                KeysReleased.insert(wParam);
+                KeysDown.erase(wParam);
+                break;
+            
+            case WM_LBUTTONDOWN:
+            case WM_RBUTTONDOWN:
+            case WM_MBUTTONDOWN:
+            {
+                int btn = (message == WM_LBUTTONDOWN) ? 0 : (message == WM_RBUTTONDOWN) ? 1 : 2;
+                if (!MouseButtonsDown[btn])
+                    MouseButtonsPressed[btn] = true;
+                MouseButtonsDown[btn] = true;
+                break;
             }
-            break;
-        }
 
-        default:
-            break;
-    }
-
-}
-
-void InputManager::ProcessRawInput(LPARAM lParam)
-{
-    auto hRawInput = (HRAWINPUT)lParam;
-    RAWINPUT raw;
-    UINT size;
-
-    GetRawInputData(hRawInput, RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
-
-    if (GetRawInputData(hRawInput, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) == size)
-    {
-        if (raw.header.dwType == RIM_TYPEMOUSE)
-        {
-            // Traiter les données de la souris
-            float mouseDeltaX = raw.data.mouse.lLastX * 0.001f;
-            float mouseDeltaY = raw.data.mouse.lLastY * 0.001f;
+            case WM_LBUTTONUP:
+            case WM_RBUTTONUP:
+            case WM_MBUTTONUP:
+            {
+                int btn = (message == WM_LBUTTONUP) ? 0 : (message == WM_RBUTTONUP) ? 1 : 2;
+                MouseButtonsReleased[btn] = true;
+                MouseButtonsDown[btn] = false;
+                break;
+            }
             
-            
-            ctx->camera.rotate({0,1,0}, mouseDeltaX);
-            ctx->camera.rotate(ctx->camera.getRightVec(), mouseDeltaY);
+            case WM_MOUSEWHEEL:
+                MouseWheelAccumulated += GET_WHEEL_DELTA_WPARAM(wParam) / 120.0f;
+                break;
+
+            case WM_MOUSEMOVE:
+                MousePosition.x = GET_X_LPARAM(lParam);
+                MousePosition.y = GET_Y_LPARAM(lParam);
+                break;
         }
     }
-}
+    
+    void InputManager::ProcessWindowsRawInput(LPARAM lParam)
+    {
+        UINT dwSize;
+        
+        // Get size
+        GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
+        
+        // Allocate buffer (RAII)
+        std::vector<BYTE> buffer(dwSize);
+        
+        // Get data
+        if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, buffer.data(), &dwSize, sizeof(RAWINPUTHEADER)) != dwSize)
+            return;
+        
+        RAWINPUT* raw = (RAWINPUT*)buffer.data();
+        
+        if (raw->header.dwType == RIM_TYPEMOUSE)
+        {
+            MouseDeltaAccumulated.x += raw->data.mouse.lLastX;
+            MouseDeltaAccumulated.y += raw->data.mouse.lLastY;
+        }
+    }
 
-void InputManager::processTickInput()
-{
-    if (holdedKey[Right])
+    void InputManager::DispatchEvents()
     {
-        ctx->camera.move(ctx->camera.getRightVec());
+        for (auto key : KeysPressed)
+        {
+            KeySignal.fire(KeyEvent{KeyState::Pressed, key});
+            std::cout << (char)key << " Pressed\n";
+        }
+        
+        for (auto key : KeysReleased)
+        {
+            KeySignal.fire(KeyEvent{KeyState::Released, key});
+            std::cout << (char)key << " Released\n";
+        }
+
+        for (int i = 0; i < 3; i++)
+        {
+            if (MouseButtonsPressed[i])
+            {
+                MouseEvent e;
+                e.Type = MouseEvent::Type::Click;
+                e.KeyState = KeyState::Pressed;
+                e.Button = (MouseButton)i;
+                e.ScreenPosition = MousePosition;
+                MouseSignal.fire(e);
+            }
+            
+            if (MouseButtonsReleased[i])
+            {
+                MouseEvent e;
+                e.Type = MouseEvent::Type::Click;
+                e.KeyState = KeyState::Released;
+                e.Button = (MouseButton)i;
+                e.ScreenPosition = MousePosition;
+                MouseSignal.fire(e);
+            }
+        }
+        
+        if (MouseDeltaAccumulated.x != 0 || MouseDeltaAccumulated.y != 0)
+        {
+            MouseEvent e;
+            e.Type = MouseEvent::Type::Move;
+            e.Delta = MouseDeltaAccumulated;
+            e.ScreenPosition = MousePosition;
+            MouseSignal.fire(e);
+        }
+        
+        if (MouseWheelAccumulated != 0.0f)
+        {
+            MouseEvent e;
+            e.Type = MouseEvent::Type::Wheel;
+            e.Wheel = MouseWheelAccumulated;
+            e.ScreenPosition = MousePosition;
+            MouseSignal.fire(e);
+        }
     }
-    if (holdedKey[Left])
+
+    void InputManager::ClearFrameState()
     {
-        ctx->camera.move(-ctx->camera.getRightVec());
+        KeysPressed.clear();
+        KeysReleased.clear();
+        
+        MouseButtonsPressed[0] = MouseButtonsPressed[1] = MouseButtonsPressed[2] = false;
+        MouseButtonsReleased[0] = MouseButtonsReleased[1] = MouseButtonsReleased[2] = false;
+        
+        MouseDeltaAccumulated = {0, 0};
+        MouseWheelAccumulated = 0.0f;
     }
-    if (holdedKey[Forward])
+
+    bool InputManager::IsKeyDown(unsigned long long key)
     {
-        ctx->camera.move(ctx->camera.getForwardVec());
+        return KeysDown.contains(key);
     }
-    if (holdedKey[Backward])
+
+    bool InputManager::IsMouseButtonDown(MouseButton button)
     {
-        ctx->camera.move(-ctx->camera.getForwardVec());
+        return MouseButtonsDown[(int)button];
     }
-    if (holdedKey[Down])
+
+    ivec2 InputManager::GetMouseDelta()
     {
-        ctx->camera.move({0,-1,0});
-    }
-    if (holdedKey[Up])
-    {
-        ctx->camera.move({0,1,0});
+        return MouseDeltaAccumulated;
     }
 }

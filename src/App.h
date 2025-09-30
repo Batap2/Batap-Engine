@@ -12,13 +12,14 @@ using namespace Microsoft::WRL;
 
 #include "Context.h"
 
-namespace App
+namespace RayVox
 {
     inline HWND hWnd;
     inline RECT windowRect;
     inline uint32_t clientWidth = 1024;
     inline uint32_t clientHeight = 1024;
 
+    inline bool AppInitialized = false;
     inline Context Ctx;
 
     inline bool isWindowFocused = false;
@@ -31,8 +32,6 @@ namespace App
     void Resize(uint32_t width, uint32_t height);
 
     void SetFullscreen(bool fullscreen);
-
-    void Update();
 
     LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 

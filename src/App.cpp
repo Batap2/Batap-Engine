@@ -1,18 +1,19 @@
+#include "Renderer.h"
+#include "InputManager.h"
+
 #include "App.h"
 
-#include <chrono>
 #include <iostream>
 #include <algorithm>
 #include <cassert>
 
 #include "AssertUtils.h"
-#include "InputManager.h"
-#include "Renderer.h"
-#include "InputManager.h"
+
+
 
 #define MYICON 101
-
-namespace App
+#pragma optimize("", off)
+namespace RayVox
 {
     HWND createWindow(const wchar_t* windowClassName, HINSTANCE hInst,
                       const wchar_t* windowTitle, uint32_t width, uint32_t height)
@@ -141,38 +142,12 @@ namespace App
 //        }
     }
 
-    void Update()
-    {
-        static uint64_t frameCounter = 0;
-        static double elapsedSeconds = 0.0;
-        static std::chrono::high_resolution_clock clock;
-        static auto t0 = clock.now();
-
-        frameCounter++;
-        auto t1 = clock.now();
-        auto deltaTime = t1 - t0;
-        t0 = t1;
-        elapsedSeconds += deltaTime.count() * 1e-9;
-        if (elapsedSeconds > 1.0)
-        {
-            char buffer[500];
-            auto fps = frameCounter / elapsedSeconds;
-            sprintf_s(buffer, 500, "FPS: %f\n", fps);
-            std::cout << buffer;
-
-            frameCounter = 0;
-            elapsedSeconds = 0.0;
-
-        }
-    }
-
     // Window callback function.
     LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
-        if ( Ctx.Renderer->isInitialized )
+        if ( AppInitialized )
         {
-
-            Ctx.InputManager->manageInput(message, wParam, lParam);
+            Ctx.inputManager->ProcessWindowsEvent(message, wParam, lParam);
             int centerX = (windowRect.left + windowRect.right) / 2;
             int centerY = (windowRect.top + windowRect.bottom) / 2;
 
@@ -181,16 +156,11 @@ namespace App
                 case WM_INPUT:
                     if(isWindowFocused)
                     {
-                        SetCursorPos(centerX, centerY);
-                        Ctx.InputManager->ProcessRawInput(lParam);
+                        //SetCursorPos(centerX, centerY);
                     }
                 break;
 
                 case WM_PAINT:
-                    Update();
-                    Ctx.Renderer->render();
-                    Ctx.InputManager->processTickInput();
-
                     break;
                 case WM_SYSKEYDOWN:
                 case WM_KEYDOWN:
@@ -206,7 +176,7 @@ namespace App
                             if ( alt )
                             {
                                 case VK_F11:
-                                    SetFullscreen(!Ctx.Renderer->fullscreen);
+                                    SetFullscreen(!Ctx.renderer->fullscreen);
                             }
                             break;
                     }
@@ -331,9 +301,10 @@ namespace App
 
         RegisterRawInputDevices(hWnd);
 
-        Ctx.Renderer->init(hWnd, clientWidth, clientHeight);
-        Ctx.InputManager->ctx = &Ctx;
+        Ctx.renderer->init(hWnd, clientWidth, clientHeight);
 
+        AppInitialized = true;
         ::ShowWindow(hWnd, SW_SHOW);
     }
 }
+#pragma optimize("", on)
