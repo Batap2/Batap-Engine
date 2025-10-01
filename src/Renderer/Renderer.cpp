@@ -1,10 +1,11 @@
 #include "Renderer.h"
 #include "AssertUtils.h"
-#include "VoxelDataStructs.h"
+#include "../VoxelDataStructs.h"
 
 #include <glm/glm.hpp>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 namespace RayVox {
 	void Renderer::InitWorld()
@@ -116,13 +117,28 @@ namespace RayVox {
 		debug_controller->SetEnableGPUBasedValidation(true);
 	#endif
 	
+		ThrowIfFailed(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&dxgi_factory)));
+
+		ComPtr<IDXGIAdapter1> adapter;
+		for (UINT i = 0; ; ++i) {
+			ComPtr<IDXGIAdapter1> temp;
+			if (dxgi_factory->EnumAdapters1(i, &temp) == DXGI_ERROR_NOT_FOUND)
+				break;
+
+			DXGI_ADAPTER_DESC1 desc;
+			temp->GetDesc1(&desc);
+
+			if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue; // skip WARP
+			adapter = temp;  // premier GPU dédié trouvé
+			std::wcout << L"Selected GPU : " << desc.Description << std::endl;
+			break;
+		}
 		// Passing nullptr means its up to system which adapter to use for device, might even use WARP(no gpu)
-		ThrowIfFailed(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
+		ThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
 	
-		// TODO trouver un moyen de gérer ce foutu nombre de descriptor dans le heap
 		const D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc{
 			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-			3,
+			128,
 			D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE };
 		ThrowIfFailed(device->CreateDescriptorHeap(&descriptor_heap_desc, IID_PPV_ARGS(&descriptor_heap)));
 	
@@ -153,9 +169,7 @@ namespace RayVox {
 	
 		setTearingFlag();
 	
-		// Factory to create swapchains etc
-		ThrowIfFailed(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&dxgi_factory)));
-	
+		
 		const DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {
 			width,
 			height,
@@ -183,7 +197,9 @@ namespace RayVox {
 		for (int i = 0; i < buffer_count; i++)
 		{
 			ThrowIfFailed(swapchain->GetBuffer(i, IID_PPV_ARGS(&swapchain_buffers[i].resource)));
-			ThrowIfFailed(swapchain_buffers[i].resource->SetName(L"swapchain_buffer"));
+			auto name = "swapchain_buffer_" + std::to_string(i);
+			std::wstring wname(name.begin(), name.end());
+			ThrowIfFailed(swapchain_buffers[i].resource->SetName(wname.c_str()));
 		}
 	
 		// Retrieve swapchain buffer description and create identical resource but with UAV allowed, so compute shader could write to it

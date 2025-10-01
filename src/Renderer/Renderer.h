@@ -1,9 +1,9 @@
 #pragma once
 
 #include "includeDX12.h"
-#include "Camera.h"
+#include "../Camera.h"
 #include "DX12Buffers.h"
-#include "VoxelDataStructs.h"
+#include "../VoxelDataStructs.h"
 
 namespace RayVox {
 	struct Renderer

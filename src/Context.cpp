@@ -1,6 +1,6 @@
 #include "Context.h"
 #include "InputManager.h"
-#include "Renderer.h"
+#include "Renderer/Renderer.h"
 
 #include <chrono>
 
@@ -43,7 +43,7 @@ namespace RayVox{
         inputManager->DispatchEvents();
         inputManager->ClearFrameState();
 
-        renderer->render();
+        //renderer->render();
     }
     
     void Context::render(){

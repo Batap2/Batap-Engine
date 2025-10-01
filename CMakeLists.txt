@@ -26,15 +26,21 @@ include_directories(${include_dir}/imgui)
 include_directories(${include_dir}/nano-signal-slot)
 
 # Ajouter les fichiers source
-file(GLOB source_files "${source_dir}/*.cpp")
+file(GLOB_RECURSE source_files "${source_dir}/*.cpp")
+
+file(GLOB IMGUI_SOURCES
+    "${include_dir}/imgui/imgui.cpp"
+    "${include_dir}/imgui/imgui_draw.cpp"
+    "${include_dir}/imgui/imgui_tables.cpp"
+    "${include_dir}/imgui/imgui_widgets.cpp"
+    "${include_dir}/imgui/backends/imgui_impl_win32.cpp"
+    "${include_dir}/imgui/backends/imgui_impl_dx12.cpp"
+)
+list(APPEND source_files ${IMGUI_SOURCES})
 
 # Ajouter l'exécutable avec les fichiers source
 add_executable(RayVox_Engine WIN32 ${source_files}
-        src/App.cpp
-        src/CommandQueue.cpp
-        src/InputManager.cpp
         resources.rc
-        src/VoxelDataStructs.cpp
         )
 
 target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.lib)

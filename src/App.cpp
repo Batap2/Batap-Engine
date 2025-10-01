@@ -1,4 +1,4 @@
-#include "Renderer.h"
+#include "Renderer/Renderer.h"
 #include "InputManager.h"
 
 #include "App.h"
@@ -6,8 +6,6 @@
 #include <iostream>
 #include <algorithm>
 #include <cassert>
-
-#include "AssertUtils.h"
 
 
 
@@ -153,7 +151,7 @@ namespace RayVox
 
             switch (message)
             {
-                case WM_INPUT:
+                case WM_INPUT: 
                     if(isWindowFocused)
                     {
                         //SetCursorPos(centerX, centerY);
@@ -172,19 +170,21 @@ namespace RayVox
                         case VK_ESCAPE:
                             ::PostQuitMessage(0);
                             break;
+
                         case VK_RETURN:
-                            if ( alt )
-                            {
-                                case VK_F11:
-                                    SetFullscreen(!Ctx.renderer->fullscreen);
-                            }
+                            if (alt)
+                                SetFullscreen(!Ctx.renderer->fullscreen);
+                            break;
+
+                        case VK_F11:
+                            SetFullscreen(!Ctx.renderer->fullscreen);
                             break;
                     }
                 }
-                    break;
-                    // The default window procedure will play a system notification sound
-                    // when pressing the Alt+Enter keyboard combination if this message is
-                    // not handled.
+                break;
+                // The default window procedure will play a system notification sound
+                // when pressing the Alt+Enter keyboard combination if this message is
+                // not handled.
                 case WM_SYSCHAR:
                     break;
                 case WM_SIZE:
@@ -303,8 +303,44 @@ namespace RayVox
 
         Ctx.renderer->init(hWnd, clientWidth, clientHeight);
 
-        AppInitialized = true;
         ::ShowWindow(hWnd, SW_SHOW);
+        
+        //------- Init ImGui
+        ImGui_ImplWin32_EnableDpiAwareness();
+        float main_scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
+        
+        // Setup Dear ImGui context
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO(); (void)io;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+        // Setup Dear ImGui style
+        ImGui::StyleColorsDark();
+
+        // Setup scaling
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+        style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
+
+        // Setup Platform/Renderer backends
+        ImGui_ImplWin32_Init(hWnd);
+
+        ImGui_ImplDX12_InitInfo init_info = {};
+        init_info.Device = Ctx.renderer->device.Get();
+        init_info.CommandQueue = Ctx.renderer->direct_command_queue.Get();
+        init_info.NumFramesInFlight = Ctx.renderer->buffer_count;
+        init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+        init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
+        // Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks.
+        // (current version of the backend will only allocate one descriptor, future versions will need to allocate more)
+        init_info.SrvDescriptorHeap = Ctx.renderer->descriptor_heap.Get();
+        // init_info.SrvDescriptorAllocFn = ;
+        // init_info.SrvDescriptorFreeFn = ;
+        // ImGui_ImplDX12_Init(&init_info);
+
+        AppInitialized = true;
     }
 }
 #pragma optimize("", on)

@@ -12,6 +12,10 @@ using namespace Microsoft::WRL;
 
 #include "Context.h"
 
+#include "imgui.h"
+#include "imgui/backends/imgui_impl_win32.h"
+#include "imgui/backends/imgui_impl_dx12.h"
+
 namespace RayVox
 {
     inline HWND hWnd;

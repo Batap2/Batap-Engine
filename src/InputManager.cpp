@@ -1,5 +1,6 @@
 #include "InputManager.h"
 #include <Windowsx.h>
+#include <iostream>
 
 namespace RayVox {
     
@@ -11,7 +12,7 @@ namespace RayVox {
                 if (!KeysDown.contains(wParam))
                     KeysPressed.insert(wParam);
                 KeysDown.insert(wParam);
-                std::cout << "key " << char(wParam) << " inserted\n";
+                std::cout << (char)wParam << "inserted\n";
                 break;
                 
             case WM_KEYUP:
@@ -54,7 +55,7 @@ namespace RayVox {
     void InputManager::ProcessWindowsRawInput(LPARAM lParam)
     {
         UINT dwSize;
-        
+        std::cout << "mouse event : begin\n";
         // Get size
         GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
         
@@ -69,6 +70,7 @@ namespace RayVox {
         
         if (raw->header.dwType == RIM_TYPEMOUSE)
         {
+            std::cout << "mouse event : " << MouseDeltaAccumulated.x << " " << MouseDeltaAccumulated.y << "\n";
             MouseDeltaAccumulated.x += raw->data.mouse.lLastX;
             MouseDeltaAccumulated.y += raw->data.mouse.lLastY;
         }
@@ -79,13 +81,11 @@ namespace RayVox {
         for (auto key : KeysPressed)
         {
             KeySignal.fire(KeyEvent{KeyState::Pressed, key});
-            std::cout << (char)key << " Pressed\n";
         }
         
         for (auto key : KeysReleased)
         {
             KeySignal.fire(KeyEvent{KeyState::Released, key});
-            std::cout << (char)key << " Released\n";
         }
 
         for (int i = 0; i < 3; i++)

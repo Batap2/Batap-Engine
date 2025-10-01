@@ -1,6 +1,7 @@
 #pragma once
 
-#include "includeDX12.h"
+#include <wrl.h>
+using namespace Microsoft::WRL;
 #include "nano_signal_slot.hpp"
 #include <glm/glm.hpp>
 #include <unordered_set>
