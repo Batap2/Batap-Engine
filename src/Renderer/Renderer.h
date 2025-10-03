@@ -1,9 +1,13 @@
 #pragma once
 
+#include "CommandQueue.h"
+#include "DirectX-Headers/include/directx/d3d12.h"
 #include "includeDX12.h"
 #include "../Camera.h"
 #include "DX12Buffers.h"
 #include "../VoxelDataStructs.h"
+#include "DescriptorHeapAllocator.h"
+#include <vector>
 
 namespace RayVox {
 	struct Renderer
@@ -11,31 +15,25 @@ namespace RayVox {
 		uint32_t threadGroupSizeX = 8;
 		uint32_t threadGroupSizeY = 8;
 	
-		bool useVSync = true;
+		bool useVSync = false;
 		UINT tearingFlag = 0;
 		bool fullscreen = false;
 	
 		// DXGI
 		ComPtr<IDXGIFactory4> dxgi_factory;
 		ComPtr<IDXGISwapChain4> swapchain;
-		static const uint32_t buffer_count = 3;
-		uint32_t buffer_index;
+		static const uint32_t swapChain_buffer_count = 3;
+		uint32_t buffer_index = 0;
 	
 		// D3D12 core interfaces
 		ComPtr<ID3D12Debug6> debug_controller;
 		ComPtr<ID3D12Device2> device;
+
 		// Command interfaces
-		ComPtr<ID3D12CommandQueue> direct_command_queue;
-		ComPtr<ID3D12CommandAllocator> command_allocator;
-		ComPtr<ID3D12GraphicsCommandList> command_list;
-	
-		// Synchronization
-		ComPtr<ID3D12Fence> fence;
-		uint64_t fence_value;
-		HANDLE fence_event;
+		std::vector<CommandQueue> CommandQueues;
 	
 		// GPU Resources
-		DX12Resource swapchain_buffers[buffer_count];
+		DX12Resource swapchain_buffers[swapChain_buffer_count];
 		DX12UnorderedAccessBuffer framebuffer;
 	
 		// Shader layout and pipeline state
@@ -43,11 +41,15 @@ namespace RayVox {
 		ComPtr<ID3D12PipelineState> pso;
 	
 		// Resource descriptors(views)
-		ComPtr<ID3D12DescriptorHeap> descriptor_heap;
+		DescriptorHeapAllocator descriptorHeapAllocator_CBV_SRV_UAV;
+		DescriptorHeapAllocator descriptorHeapAllocator_SAMPLER;
+		DescriptorHeapAllocator descriptorHeapAllocator_RTV;
+		DescriptorHeapAllocator descriptorHeapAllocator_DSV;
+
 	
 		unsigned int currentlyInitDescriptor = 0;
 	
-		bool isInitialized;
+		bool isInitialized = false;
 	
 		uint32_t width, height;
 	

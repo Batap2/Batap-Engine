@@ -1,5 +1,6 @@
 #include "Renderer/Renderer.h"
 #include "InputManager.h"
+#include "backends/imgui_impl_dx12.h"
 
 #include "App.h"
 
@@ -275,6 +276,27 @@ namespace RayVox
         }
     }
 
+    struct ImguiUserData{
+        UINT heapIdx = 0;
+    };
+    void imguiSrvAlloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cH, D3D12_GPU_DESCRIPTOR_HANDLE* gH){
+            auto res = Ctx.renderer->descriptorHeapAllocator_CBV_SRV_UAV.alloc();
+            *cH = res->cpuHandle;
+            *gH = res->gpuHandle;
+            ImguiUserData* usrData = new ImguiUserData();
+            usrData->heapIdx = res->heapIdx;
+            info->UserData = usrData;
+    };
+    void imguiSrvFree(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cH, D3D12_GPU_DESCRIPTOR_HANDLE gH){
+        if (!info->UserData) return;
+
+        ImguiUserData* usrData = static_cast<ImguiUserData*>(info->UserData);
+        Ctx.renderer->descriptorHeapAllocator_CBV_SRV_UAV.free(usrData->heapIdx);
+
+        delete usrData;
+        info->UserData = nullptr;
+    };
+
     void InitApp(HINSTANCE hInstance)
     {
 
@@ -329,16 +351,16 @@ namespace RayVox
 
         ImGui_ImplDX12_InitInfo init_info = {};
         init_info.Device = Ctx.renderer->device.Get();
-        init_info.CommandQueue = Ctx.renderer->direct_command_queue.Get();
-        init_info.NumFramesInFlight = Ctx.renderer->buffer_count;
+        init_info.CommandQueue = Ctx.renderer->CommandQueues[0].commandQueue.Get();
+        init_info.NumFramesInFlight = Ctx.renderer->swapChain_buffer_count;
         init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
         init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
         // Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks.
         // (current version of the backend will only allocate one descriptor, future versions will need to allocate more)
-        init_info.SrvDescriptorHeap = Ctx.renderer->descriptor_heap.Get();
-        // init_info.SrvDescriptorAllocFn = ;
-        // init_info.SrvDescriptorFreeFn = ;
-        // ImGui_ImplDX12_Init(&init_info);
+        init_info.SrvDescriptorHeap = Ctx.renderer->descriptorHeapAllocator_CBV_SRV_UAV.heap.Get();
+        init_info.SrvDescriptorAllocFn = imguiSrvAlloc;
+        init_info.SrvDescriptorFreeFn = imguiSrvFree;
+        ImGui_ImplDX12_Init(&init_info);
 
         AppInitialized = true;
     }

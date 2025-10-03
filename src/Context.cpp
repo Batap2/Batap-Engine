@@ -43,7 +43,7 @@ namespace RayVox{
         inputManager->DispatchEvents();
         inputManager->ClearFrameState();
 
-        //renderer->render();
+        renderer->render();
     }
     
     void Context::render(){

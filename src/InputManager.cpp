@@ -48,6 +48,7 @@ namespace RayVox {
             case WM_MOUSEMOVE:
                 MousePosition.x = GET_X_LPARAM(lParam);
                 MousePosition.y = GET_Y_LPARAM(lParam);
+                std::cout << "mouse :" <<  MousePosition.x << " " << MousePosition.y <<  "\n";
                 break;
         }
     }

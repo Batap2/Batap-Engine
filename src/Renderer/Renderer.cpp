@@ -1,6 +1,8 @@
 #include "Renderer.h"
 #include "AssertUtils.h"
 #include "../VoxelDataStructs.h"
+#include "CommandQueue.h"
+#include "DirectX-Headers/include/directx/d3d12.h"
 
 #include <glm/glm.hpp>
 #include <filesystem>
@@ -135,37 +137,14 @@ namespace RayVox {
 		}
 		// Passing nullptr means its up to system which adapter to use for device, might even use WARP(no gpu)
 		ThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
-	
-		const D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc{
-			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-			128,
-			D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE };
-		ThrowIfFailed(device->CreateDescriptorHeap(&descriptor_heap_desc, IID_PPV_ARGS(&descriptor_heap)));
-	
-		const D3D12_COMMAND_QUEUE_DESC command_queue_desc = {
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			D3D12_COMMAND_QUEUE_PRIORITY_NORMAL,
-			D3D12_COMMAND_QUEUE_FLAG_NONE,
-			0 };
-		ThrowIfFailed(device->CreateCommandQueue(&command_queue_desc, IID_PPV_ARGS(&direct_command_queue)));
-	
-		ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&command_allocator)));
-	
-		ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
-			command_allocator.Get(), nullptr, IID_PPV_ARGS(&command_list)));
-	
-		ThrowIfFailed(command_list->Close());
-		ThrowIfFailed(command_allocator->Reset());
-		ThrowIfFailed(command_list->Reset(command_allocator.Get(), nullptr));
-	
-		fence_value = 0;
-		ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
-		fence_event = CreateEventA(nullptr, FALSE, FALSE, nullptr);
-		if (!fence_event)
-		{
-			ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
-		}
+		
+		
+		descriptorHeapAllocator_CBV_SRV_UAV.init(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128);
+		descriptorHeapAllocator_SAMPLER.init(device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 8);
+		descriptorHeapAllocator_RTV.init(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
+		descriptorHeapAllocator_DSV.init(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
+		
+		CommandQueues.emplace_back(device, D3D12_COMMAND_LIST_TYPE_DIRECT, swapChain_buffer_count);
 	
 		setTearingFlag();
 	
@@ -177,7 +156,7 @@ namespace RayVox {
 			FALSE,
 			{1, 0},
 			DXGI_USAGE_BACK_BUFFER,
-			buffer_count,
+			swapChain_buffer_count,
 			DXGI_SCALING_STRETCH,
 			DXGI_SWAP_EFFECT_FLIP_DISCARD,
 			DXGI_ALPHA_MODE_UNSPECIFIED,
@@ -185,7 +164,7 @@ namespace RayVox {
 		// Create and upgrade swapchain to our version(ComPtr<IDXGISwapChain4> swapchain)
 		ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
 		ThrowIfFailed(dxgi_factory->CreateSwapChainForHwnd(
-			direct_command_queue.Get(),
+			CommandQueues[0].commandQueue.Get(),
 			hWnd,
 			&swapchain_desc,
 			nullptr,
@@ -194,7 +173,7 @@ namespace RayVox {
 		ThrowIfFailed(swapchain_tier_dx12.As(&swapchain));
 	
 		// Get swapchain pointers to ID3D12Resource's that represents buffers
-		for (int i = 0; i < buffer_count; i++)
+		for (int i = 0; i < swapChain_buffer_count; i++)
 		{
 			ThrowIfFailed(swapchain->GetBuffer(i, IID_PPV_ARGS(&swapchain_buffers[i].resource)));
 			auto name = "swapchain_buffer_" + std::to_string(i);
@@ -204,14 +183,13 @@ namespace RayVox {
 	
 		// Retrieve swapchain buffer description and create identical resource but with UAV allowed, so compute shader could write to it
 		auto buffer_desc = swapchain_buffers[0].resource->GetDesc();
-		framebuffer.Initialize(device.Get(), command_list.Get(), descriptor_heap.Get(), buffer_desc, currentlyInitDescriptor, std::vector<uint32_t>{}, L"framebuffer");
+		//framebuffer.Initialize(device.Get(), command_list.Get(), descriptor_heap.Get(), buffer_desc, currentlyInitDescriptor, std::vector<uint32_t>{}, L"framebuffer");
 	
 		camera = Camera({ 0, 0, -10 }, { 0, 0, 1 }, { 0, 1, 0 },
 			80, (float)width / (float)height, 0.1f, 100);
 	
 		CameraBuffer cameraBufferData = camera.getCameraBuffer();
-		cameraBuffer.CreateOrUpdate(device.Get(), command_list.Get(), cameraBufferData,
-			descriptor_heap.Get(), currentlyInitDescriptor);
+		//cameraBuffer.CreateOrUpdate(device.Get(), command_list.Get(), cameraBufferData, descriptor_heap.Get(), currentlyInitDescriptor);
 	
 		std::wstring shader_dir;
 		shader_dir = std::filesystem::current_path().filename() == "build" ? L"../src/Shaders" : L"src/Shaders";
@@ -264,68 +242,26 @@ namespace RayVox {
 		buffer_index = swapchain->GetCurrentBackBufferIndex();
 		auto& backbuffer = swapchain_buffers[buffer_index];
 	
-		command_list->SetPipelineState(pso.Get());
-		command_list->SetComputeRootSignature(root_signature.Get());
-		command_list->SetDescriptorHeaps(1, descriptor_heap.GetAddressOf());
-	
-		// Set the root descriptor table for the UAV (at slot 0)
-		// the UAV(GPU writtable buffer) is the framebuffer here
-		CD3DX12_GPU_DESCRIPTOR_HANDLE framebufferHandle(descriptor_heap->GetGPUDescriptorHandleForHeapStart(), 0, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-		command_list->SetComputeRootDescriptorTable(0, framebufferHandle);
-	
-		// Set the root descriptor table for the CBV (at slot 1)
-		// camera buffer
-		CD3DX12_GPU_DESCRIPTOR_HANDLE cameraHandle(descriptor_heap->GetGPUDescriptorHandleForHeapStart(), 1, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-		command_list->SetComputeRootDescriptorTable(1, cameraHandle);
-	
-		CD3DX12_GPU_DESCRIPTOR_HANDLE voxelMapHandle(descriptor_heap->GetGPUDescriptorHandleForHeapStart(), 2, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-		command_list->SetComputeRootDescriptorTable(2, voxelMapHandle);
-	
-		command_list->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
-	
-	
-		// copy du backbuffer au framebuffer
-		framebuffer.TransitionTo(command_list.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
-		backbuffer.TransitionTo(command_list.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
-		command_list->CopyResource(backbuffer.Get(), framebuffer.Get());
-		framebuffer.TransitionTo(command_list.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		backbuffer.TransitionTo(command_list.Get(), D3D12_RESOURCE_STATE_PRESENT);
-	
-	
-	
-		ThrowIfFailed(command_list->Close());
-		ID3D12CommandList* const command_lists[] = { command_list.Get() };
-		direct_command_queue->ExecuteCommandLists(sizeof(command_lists) / sizeof command_lists[0], command_lists);
-	
-		ThrowIfFailed(direct_command_queue->Signal(fence.Get(), ++fence_value));
-		ThrowIfFailed(fence->SetEventOnCompletion(fence_value, fence_event));
-		if (::WaitForSingleObject(fence_event, INFINITE) == WAIT_FAILED)
-		{
-			ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
+		for(CommandQueue& queue : CommandQueues){
+			CommandQueue::Command& cmd = queue.getCommand(buffer_index);
+			if(queue.isCommandComplete(cmd)){
+				cmd.commandAllocator->Reset();
+        		cmd.commandList->Reset(cmd.commandAllocator.Get(), nullptr);
+				// pass de rendu, enregistrement des commands dans la command list
+				queue.executeCommand(buffer_index);
+			}
 		}
-	
-		ThrowIfFailed(command_allocator->Reset());
-		ThrowIfFailed(command_list->Reset(command_allocator.Get(), nullptr));
-	
-		computeAndUploadCameraBuffer();
 	
 		swapchain->Present(useVSync, tearingFlag);
 	}
 	
 	void Renderer::flush()
 	{
-		if (fence->GetCompletedValue() < fence_value)
-		{
-			fence->SetEventOnCompletion(fence_value, fence_event);
-			::WaitForSingleObject(fence_event, DWORD_MAX);
+		for(auto& q : CommandQueues){
+			q.flush();
 		}
 	
-		ThrowIfFailed(direct_command_queue->Signal(fence.Get(), fence_value));
-	
-		ThrowIfFailed(fence->SetEventOnCompletion(fence_value, fence_event));
-		::WaitForSingleObject(fence_event, INFINITE);
-	
-		for (int i = 0; i < buffer_count; ++i)
+		for (int i = 0; i < swapChain_buffer_count; ++i)
 		{
 			swapchain_buffers[i].resource.Reset();
 		}
@@ -336,7 +272,7 @@ namespace RayVox {
 	void Renderer::computeAndUploadCameraBuffer()
 	{
 		CameraBuffer cameraBufferData = camera.getCameraBuffer();
-		cameraBuffer.CreateOrUpdate(device.Get(), command_list.Get(), cameraBufferData,
-			descriptor_heap.Get(), currentlyInitDescriptor);
+		// cameraBuffer.CreateOrUpdate(device.Get(), command_list.Get(), cameraBufferData,
+		// 	descriptor_heap.Get(), currentlyInitDescriptor);
 	}
 }
