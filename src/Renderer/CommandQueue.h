@@ -1,34 +1,41 @@
 #pragma once
 
-#include "includeDX12.h"
 #include <wrl.h>
+
 #include <cstdint>
 
-namespace RayVox {
-    struct CommandQueue
+#include "includeDX12.h"
+
+namespace rayvox
+{
+
+struct FenceManager;
+
+struct CommandQueue
+{
+    CommandQueue(Microsoft::WRL::ComPtr<ID3D12Device2>& device, FenceManager& fenceManager,
+                 D3D12_COMMAND_LIST_TYPE type, uint32_t allocatorNumber);
+
+    struct Command
     {
-        CommandQueue(Microsoft::WRL::ComPtr<ID3D12Device2> &device, D3D12_COMMAND_LIST_TYPE type, uint32_t allocatorNumber);
-
-        struct Command
-        {
-            uint64_t fenceValue;
-            Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;
-            Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList;
-        };
-
-        Command& getCommand(uint32_t index);
-        uint64_t executeCommand(uint32_t index);
-        bool isCommandComplete(Command& cmd) const;
-        void waitForFence(uint64_t value);
-        void flush();
-
-    
-        D3D12_COMMAND_LIST_TYPE                     commandListType;
-        Microsoft::WRL::ComPtr<ID3D12Device2>       device;
-        Microsoft::WRL::ComPtr<ID3D12CommandQueue>  commandQueue;
-        Microsoft::WRL::ComPtr<ID3D12Fence>         fence;
-        HANDLE                                      fenceEvent;
-        uint64_t                                    fenceValue;
-        std::vector<Command> commands;
+        uint64_t _fenceValue;
+        Microsoft::WRL::ComPtr<ID3D12CommandAllocator> _commandAllocator;
+        Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> _commandList;
     };
-}
+
+    Command& getCommand(uint32_t index);
+    uint64_t executeCommand(uint32_t index);
+    bool isCommandComplete(Command& cmd) const;
+    void waitForFence(uint64_t value);
+    void flush();
+
+    D3D12_COMMAND_LIST_TYPE _commandListType;
+    Microsoft::WRL::ComPtr<ID3D12Device2> _device;
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue> _commandQueue;
+    FenceManager& _fenceManager;
+    uint32_t _fenceId;
+    uint64_t _fenceValue;
+
+    std::vector<Command> _commands;
+};
+}  // namespace rayvox

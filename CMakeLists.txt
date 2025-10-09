@@ -33,6 +33,7 @@ file(GLOB IMGUI_SOURCES
     "${include_dir}/imgui/imgui_draw.cpp"
     "${include_dir}/imgui/imgui_tables.cpp"
     "${include_dir}/imgui/imgui_widgets.cpp"
+    "${include_dir}/imgui/imgui_demo.cpp"
     "${include_dir}/imgui/backends/imgui_impl_win32.cpp"
     "${include_dir}/imgui/backends/imgui_impl_dx12.cpp"
 )

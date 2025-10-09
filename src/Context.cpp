@@ -1,10 +1,13 @@
 #include "Context.h"
-#include "InputManager.h"
-#include "Renderer/Renderer.h"
 
 #include <chrono>
 
-void printFps(){
+#include "InputManager.h"
+#include "Renderer/Renderer.h"
+
+
+void printFps()
+{
     static uint64_t frameCounter = 0;
     static double elapsedSeconds = 0.0;
     static std::chrono::high_resolution_clock clock;
@@ -24,28 +27,29 @@ void printFps(){
 
         frameCounter = 0;
         elapsedSeconds = 0.0;
-
     }
 }
 
-namespace RayVox{
-    Context::Context(){
-        renderer = new Renderer();
-        inputManager = new InputManager();
-        inputManager->Ctx = this;
-    }
-
-    
-
-    void Context::Update(){
-        printFps();
-        
-        inputManager->DispatchEvents();
-        inputManager->ClearFrameState();
-
-        renderer->render();
-    }
-    
-    void Context::render(){
-    }
+namespace rayvox
+{
+Context::Context()
+{
+    renderer = new Renderer();
+    inputManager = new InputManager();
+    inputManager->Ctx = this;
 }
+
+void Context::Update()
+{
+    printFps();
+
+    inputManager->DispatchEvents();
+    inputManager->ClearFrameState();
+
+    renderer->render();
+}
+
+void Context::render()
+{
+}
+}  // namespace rayvox

@@ -1,0 +1,40 @@
+# Base du style
+BasedOnStyle: Google    # lisible et populaire
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never           # toujours des espaces
+
+# Accolades et blocs
+BreakBeforeBraces: Allman       # accolades sur une nouvelle ligne
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# Limite de ligne
+ColumnLimit: 100
+
+# Espaces et alignements
+SpacesBeforeTrailingComments: 2
+SpaceAfterCStyleCast: true
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+PointerAlignment: Left
+AlignTrailingComments: true
+IndentCaseLabels: true
+
+# C++ moderne
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+
+# Commentaires et lisibilité
+ReflowComments: true
+PenaltyBreakBeforeFirstCallParameter: 20
+PenaltyBreakAssignment: 10
+PenaltyReturnTypeOnItsOwnLine: 60
+
+# Style d’initialisation
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+IncludeBlocks: Preserve

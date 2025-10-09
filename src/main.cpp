@@ -1,15 +1,13 @@
 #define WIN32_LEAN_AND_MEAN
 
-#include "Renderer/Renderer.h"
-#include "App.h"
-#include "Context.h"
-
 #include <iostream>
 #include <string>
 
-using namespace RayVox;
+#include "App.h"
+#include "Context.h"
+#include "Renderer/Renderer.h"
 
-
+using namespace rayvox;
 
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
