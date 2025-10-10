@@ -239,21 +239,16 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
                                                         &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
 
-    // Get swapchain pointers to ID3D12Resource's that represents buffers
+    // UAV 
     for (int i = 0; i < _swapChain_buffer_count; i++)
     {
-        ThrowIfFailed(_swapchain->GetBuffer(i, IID_PPV_ARGS(&_swapchain_buffers[i].resource)));
+        //ThrowIfFailed(_swapchain->GetBuffer(i, IID_PPV_ARGS(/*ID3D12Resource*/)));
         auto name = "swapchain_buffer_" + std::to_string(i);
         std::wstring wname(name.begin(), name.end());
-        ThrowIfFailed(_swapchain_buffers[i].resource->SetName(wname.c_str()));
+        //ThrowIfFailed(_swapchain_buffers[i].resource->SetName(wname.c_str()));
+
     }
 
-    // Init buffers
-    // TODO: Faire plus propre
-
-    // Retrieve swapchain buffer description and create identical resource but with UAV allowed, so
-    // compute shader could write to it
-    auto buffer_desc = _swapchain_buffers[0].resource->GetDesc();
 
     camera =
         Camera({0, 0, -10}, {0, 0, 1}, {0, 1, 0}, 80, (float) _width / (float) _height, 0.1f, 100);
@@ -321,7 +316,7 @@ inline bool testimgui = true;
 void Renderer::render()
 {
     _buffer_index = _swapchain->GetCurrentBackBufferIndex();
-    auto& backbuffer = _swapchain_buffers[_buffer_index];
+    //auto& backbuffer = _swapchain_buffers[_buffer_index];
 
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -368,7 +363,7 @@ void Renderer::flush()
 
     for (int i = 0; i < _swapChain_buffer_count; ++i)
     {
-        _swapchain_buffers[i].resource.Reset();
+        //_swapchain_buffers[i].resource.Reset();
     }
     _swapchain.Reset();
     _device.Reset();

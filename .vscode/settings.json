@@ -5,5 +5,8 @@
         "--compile-commands-dir=${workspaceFolder}",
     ],
     "editor.formatOnSave": true,
-    "clang-format.executable": "C:/clangllvm/in/clang-format"
+    "clang-format.executable": "C:/clangllvm/in/clang-format",
+    "editor.stickyScroll.enabled": true,
+    "editor.stickyScroll.maxLineCount": 5,
+    "editor.stickyScroll.scrollWithEditor": true
 }

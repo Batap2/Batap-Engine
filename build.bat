@@ -1,11 +1,10 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
 :: Vérifier si CMake est installé
 where cmake >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     echo CMake is not installed
-    pause
     exit /b 1
 )
 
@@ -13,7 +12,6 @@ if %ERRORLEVEL% neq 0 (
 where ninja >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     echo Ninja is not installed
-    pause
     exit /b 1
 )
 
@@ -23,15 +21,34 @@ set "BUILD_DIR=%PROJECT_ROOT%\build"
 
 :: Créer le dossier build s'il n'existe pas
 if not exist "%BUILD_DIR%" (
-    echo Create build folder
+    echo [INFO] Creating build folder...
     mkdir "%BUILD_DIR%"
 )
 
 cd /d "%BUILD_DIR%"
 
-:: Exécuter CMake pour générer compile_commands.json
-echo Generate compile_commands.json...
+:: Exécuter CMake pour générer les fichiers de build
+echo.
+echo [INFO] Generating build files with CMake...
 cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G "Ninja" .. 
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] CMake configuration failed
+    cd /d "%PROJECT_ROOT%"
+    exit /b 1
+)
+
+:: Compiler le projet
+echo.
+echo [INFO] Compiling project with Ninja...
+ninja
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Compilation failed
+    cd /d "%PROJECT_ROOT%"
+    exit /b 1
+)
+
+echo.
+echo [SUCCESS] Compilation successful
 
 :: Vérifier si compile_commands.json a été généré
 if exist "%BUILD_DIR%\compile_commands.json" (
@@ -43,7 +60,7 @@ if exist "%BUILD_DIR%\compile_commands.json" (
 )
 
 cd /d "%PROJECT_ROOT%"
+::echo.
+::echo [DONE] Build process completed
 
-:: Empêche la fermeture automatique de la fenêtre
-pause
 exit /b 0

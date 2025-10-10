@@ -37,10 +37,6 @@ struct Renderer
     // Command interfaces
     std::vector<CommandQueue> _CommandQueues;
 
-    // GPU Resources
-    DX12Resource _swapchain_buffers[_swapChain_buffer_count];
-    DX12UnorderedAccessBuffer _framebuffer;
-
     // Shader layout and pipeline state
     ComPtr<ID3D12RootSignature> _root_signature;
     ComPtr<ID3D12PipelineState> _pso;

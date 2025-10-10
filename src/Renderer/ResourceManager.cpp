@@ -1,8 +1,6 @@
 #include "ResourceManager.h"
 
-
 #include <wrl/client.h>
-
 
 #include <cstdint>
 
@@ -127,7 +125,7 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
 
 GPUResource* ResourceManager::createBufferResource(uint64_t size,
                                                    D3D12_RESOURCE_STATES initialState,
-                                                   D3D12_HEAP_TYPE heapType,
+                                                   D3D12_HEAP_TYPE heapType, std::string name,
                                                    D3D12_HEAP_FLAGS heapFlags)
 {
     auto& resource = _resources.emplace_back(std::make_unique<GPUResource>(initialState));
@@ -143,13 +141,18 @@ GPUResource* ResourceManager::createBufferResource(uint64_t size,
         return nullptr;
     }
 
+    std::wstring wname(name.begin(), name.end());
+    resource->_resource->SetName(wname.c_str());
     resource->_init = true;
     return resource.get();
 }
 
-GPUResource* ResourceManager::createTexture2DResource(
-    uint32_t width, uint32_t height, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags,
-    D3D12_RESOURCE_STATES initialState, D3D12_HEAP_TYPE heapType, D3D12_HEAP_FLAGS heapFlags)
+GPUResource* ResourceManager::createTexture2DResource(uint32_t width, uint32_t height,
+                                                      DXGI_FORMAT format,
+                                                      D3D12_RESOURCE_FLAGS flags,
+                                                      D3D12_RESOURCE_STATES initialState,
+                                                      D3D12_HEAP_TYPE heapType, std::string name,
+                                                      D3D12_HEAP_FLAGS heapFlags)
 {
     auto& resource = _resources.emplace_back(std::make_unique<GPUResource>(initialState));
 
@@ -187,6 +190,8 @@ GPUResource* ResourceManager::createTexture2DResource(
         return nullptr;
     }
 
+    std::wstring wname(name.begin(), name.end());
+    resource->_resource->SetName(wname.c_str());
     resource->_init = true;
     return resource.get();
 }

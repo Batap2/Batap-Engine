@@ -99,13 +99,14 @@ struct ResourceManager
                         uint32_t frameIndex, bool isFrameResource, uint64_t destinationOffset = 0);
 
     GPUResource* createBufferResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
-                                      D3D12_HEAP_TYPE heapType,
+                                      D3D12_HEAP_TYPE heapType, std::string name = "unnamed_buffer",
                                       D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
     GPUResource* createTexture2DResource(uint32_t width, uint32_t height, DXGI_FORMAT format,
                                          D3D12_RESOURCE_FLAGS flags,
                                          D3D12_RESOURCE_STATES initialState,
                                          D3D12_HEAP_TYPE heapType,
+                                         std::string name = "unnamed_texture",
                                          D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
     template <typename T>
