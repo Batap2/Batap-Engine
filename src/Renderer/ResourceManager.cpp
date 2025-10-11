@@ -113,14 +113,21 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
     GPUView* gpuView;
     if (isFrameResource)
     {
-        gpuView = &_frameResource[name][frameIndex];
+        gpuView = &_frameViews[name][frameIndex];
     }
     else
     {
-        gpuView = &_staticResources[name];
+        gpuView = &_staticViews[name];
     }
     uploadToResource(cmdList, commandQueue, gpuView->_resource, data, dataSize, alignment,
                      frameIndex, destinationOffset);
+}
+
+GPUResource* ResourceManager::createEmptyResource()
+{
+    auto& resource =
+        _resources.emplace_back(std::make_unique<GPUResource>(D3D12_RESOURCE_STATE_COMMON));
+    return resource.get();
 }
 
 GPUResource* ResourceManager::createBufferResource(uint64_t size,
@@ -194,5 +201,14 @@ GPUResource* ResourceManager::createTexture2DResource(uint32_t width, uint32_t h
     resource->_resource->SetName(wname.c_str());
     resource->_init = true;
     return resource.get();
+}
+
+void ResourceManager::createCBV(std::string name, GPUResource* resource,
+                                DescriptorHeapAllocator& allocator)
+{
+    D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
+    desc.BufferLocation = resource->get()->GetGPUVirtualAddress();
+    desc.SizeInBytes = static_cast<UINT>(resource->get()->GetDesc().Width);
+    createView(name, resource, desc, allocator);
 }
 }  // namespace rayvox

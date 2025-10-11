@@ -8,6 +8,7 @@
 #include "DescriptorHeapAllocator.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
 #include "FenceManager.h"
+#include "ResourceManager.h"
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
 #include "imgui/backends/imgui_impl_win32.h"
@@ -48,6 +49,7 @@ struct Renderer
     DescriptorHeapAllocator _descriptorHeapAllocator_DSV;
 
     FenceManager* _fenceManager;
+    ResourceManager* _resourceManager;
 
     unsigned int _currentlyInitDescriptor = 0;
 

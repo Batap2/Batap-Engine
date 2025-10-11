@@ -22,7 +22,6 @@ void DescriptorHeapAllocator::init(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTO
     {
         descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     }
-    descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     descHeapDesc.NodeMask = 0;
 
     HRESULT hr = device->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&heap));

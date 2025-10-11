@@ -6,7 +6,7 @@
     ],
     "editor.formatOnSave": true,
     "clang-format.executable": "C:/clangllvm/in/clang-format",
-    "editor.stickyScroll.enabled": true,
+    "editor.stickyScroll.enabled": false,
     "editor.stickyScroll.maxLineCount": 5,
     "editor.stickyScroll.scrollWithEditor": true
 }

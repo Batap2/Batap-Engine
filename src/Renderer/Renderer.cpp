@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include <wrl/client.h>
 
 #include <filesystem>
 #include <glm/glm.hpp>
@@ -11,6 +12,7 @@
 #include "DescriptorHeapAllocator.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
 #include "FenceManager.h"
+#include "ResourceManager.h"
 
 namespace rayvox
 {
@@ -216,6 +218,8 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     _descriptorHeapAllocator_DSV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
 
     _fenceManager = new FenceManager(_device.Get());
+    _resourceManager = new ResourceManager(_device.Get(), *_fenceManager, _swapChain_buffer_count,
+                                           64 * 1024 * 1024);
     _CommandQueues.emplace_back(_device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT,
                                 _swapChain_buffer_count);
 
@@ -239,23 +243,34 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
                                                         &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
 
-    // UAV 
+    // UAV
+    std::vector<GPUResource*> swapChainResources;
     for (int i = 0; i < _swapChain_buffer_count; i++)
     {
-        //ThrowIfFailed(_swapchain->GetBuffer(i, IID_PPV_ARGS(/*ID3D12Resource*/)));
-        auto name = "swapchain_buffer_" + std::to_string(i);
-        std::wstring wname(name.begin(), name.end());
-        //ThrowIfFailed(_swapchain_buffers[i].resource->SetName(wname.c_str()));
+        auto swapChainResource = _resourceManager->createTexture2DResource(
+            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
+            "texture_swapchain_buffer_" + std::to_string(i));
 
+        swapChainResources.push_back(swapChainResource);
+        //TODO: mettre les backbuffer dans le resourceManager sans vues osef
     }
-
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    uavDesc.Texture2D.MipSlice = 0;
+    _resourceManager->createView("UAVs_swapchain_buffer", swapChainResources, uavDesc,
+                                 _descriptorHeapAllocator_CBV_SRV_UAV);
 
     camera =
         Camera({0, 0, -10}, {0, 0, 1}, {0, 1, 0}, 80, (float) _width / (float) _height, 0.1f, 100);
 
     CameraBuffer cameraBufferData = camera.getCameraBuffer();
-    // cameraBuffer.CreateOrUpdate(device.Get(), command_list.Get(), cameraBufferData,
-    // descriptor_heap.Get(), currentlyInitDescriptor);
+    auto camResource = _resourceManager->createBufferResource(
+        _resourceManager->AlignUp(sizeof(cameraBufferData), 256), D3D12_RESOURCE_STATE_COMMON,
+        D3D12_HEAP_TYPE_DEFAULT, "camera_buffer");
+
+    _resourceManager->createCBV("CBV_camera", camResource, _descriptorHeapAllocator_CBV_SRV_UAV);
 
     std::wstring shader_dir;
     shader_dir = std::filesystem::current_path().filename() == "build" ? L"../src/Shaders"
@@ -316,7 +331,7 @@ inline bool testimgui = true;
 void Renderer::render()
 {
     _buffer_index = _swapchain->GetCurrentBackBufferIndex();
-    //auto& backbuffer = _swapchain_buffers[_buffer_index];
+    auto& swapChainUAV = _resourceManager->_frameViews["UAVs_swapchain_buffer"][_buffer_index];
 
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -335,13 +350,25 @@ void Renderer::render()
             // TODO: Abstraction RenderPass
             auto cmdList = cmd._commandList.Get();
 
+            ID3D12DescriptorHeap* heaps[] = {_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
+            cmdList->SetDescriptorHeaps(1, heaps);
+
             cmdList->SetPipelineState(_pso.Get());
             cmdList->SetComputeRootSignature(_root_signature.Get());
-            // cmdList->SetDescriptorHeaps(1, descriptor_heap.GetAddressOf());
-            const float clearCol[4] = {1, 0, 0, 1};
-            // cmdList->ClearRenderTargetView(, clearCol, 0, nullptr);
-            // cmdList->ClearRenderTargetView(D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView, const
-            // FLOAT *ColorRGBA, UINT NumRects, const D3D12_RECT *pRects)
+
+            swapChainUAV._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+            cmdList->SetComputeRootDescriptorTable(
+                0, swapChainUAV._descriptorHandle->gpuHandle);  // UAV framebuffer
+            // cmdList->SetComputeRootDescriptorTable(1, cameraBufferView.gpuHandle); // CBV camera
+            // cmdList->SetComputeRootDescriptorTable(2, voxelMapView.gpuHandle); // SRV voxel map
+
+            cmdList->Dispatch(_threadGroupCountX, _threadGroupCountY, _threadGroupCountZ);
+
+            // 7. Transition vers PRESENT
+            swapChainUAV._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
+
+            
 
             queue.executeCommand(_buffer_index);
         }

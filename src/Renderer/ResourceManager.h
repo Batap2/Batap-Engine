@@ -1,5 +1,7 @@
 #pragma once
 
+#include <concepts>
+#include <string_view>
 #define NOMINMAX
 #include <wrl.h>
 #include <wrl/client.h>
@@ -12,9 +14,12 @@ using namespace Microsoft::WRL;
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
 
+#include <iostream>
 #include <memory>
+#include <ranges>
 #include <string>
 #include <unordered_map>
+
 
 namespace rayvox
 {
@@ -51,6 +56,14 @@ struct GPUResource
     {
         return _currentState;
     }
+
+    void setResource(D3D12_RESOURCE_STATES currentState, std::string name = "unnamed_resource")
+    {
+        _currentState = currentState;
+        std::wstring wname(name.begin(), name.end());
+        _resource->SetName(wname.c_str());
+        _init = true;
+    };
 
    protected:
     D3D12_RESOURCE_STATES _currentState = D3D12_RESOURCE_STATE_COMMON;
@@ -98,6 +111,9 @@ struct ResourceManager
                         const std::string& name, void* data, uint64_t dataSize, uint32_t alignment,
                         uint32_t frameIndex, bool isFrameResource, uint64_t destinationOffset = 0);
 
+    // You must call setResource() of the GPUResource* after this
+    GPUResource* createEmptyResource();
+
     GPUResource* createBufferResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
                                       D3D12_HEAP_TYPE heapType, std::string name = "unnamed_buffer",
                                       D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
@@ -111,83 +127,87 @@ struct ResourceManager
 
     template <typename T>
     void createView(std::string name, GPUResource* resource, T& viewDesc,
-                    DescriptorHeapAllocator& descriptorHeapAllocator, bool frameResource)
+                    DescriptorHeapAllocator& descriptorHeapAllocator)
     {
-        auto createSingleView = [&]() -> GPUView
+        GPUView view;
+        createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
+        _staticViews[name] = view;
+    }
+
+    template <typename T, std::ranges::range R>
+        requires std::same_as<std::ranges::range_value_t<R>, GPUResource*>
+    void createView(std::string name, const R& resources, T& viewDesc,
+                    DescriptorHeapAllocator& descriptorHeapAllocator)
+    {
+        _frameViews[name] = std::vector<GPUView>();
+
+        for (auto* resource : resources)
         {
             GPUView view;
-            view._resource = resource;
-
-            if constexpr (std::is_same_v<T, D3D12_CONSTANT_BUFFER_VIEW_DESC>)
-            {
-                view._descriptorHandle = descriptorHeapAllocator.alloc();
-                view._type = GPUView::Type::CBV;
-                _device->CreateConstantBufferView(&viewDesc, view._descriptorHandle->cpuHandle);
-            }
-            else if constexpr (std::is_same_v<T, D3D12_SHADER_RESOURCE_VIEW_DESC>)
-            {
-                view._descriptorHandle = descriptorHeapAllocator.alloc();
-                view._type = GPUView::Type::SRV;
-                _device->CreateShaderResourceView(resource->get(), &viewDesc,
-                                                  view._descriptorHandle->cpuHandle);
-            }
-            else if constexpr (std::is_same_v<T, D3D12_UNORDERED_ACCESS_VIEW_DESC>)
-            {
-                view._descriptorHandle = descriptorHeapAllocator.alloc();
-                view._type = GPUView::Type::UAV;
-                _device->CreateUnorderedAccessView(resource->get(), nullptr, &viewDesc,
-                                                   view._descriptorHandle->cpuHandle);
-            }
-            else if constexpr (std::is_same_v<T, D3D12_RENDER_TARGET_VIEW_DESC>)
-            {
-                view._descriptorHandle = descriptorHeapAllocator.alloc();
-                view._type = GPUView::Type::RTV;
-                _device->CreateRenderTargetView(resource->get(), &viewDesc,
-                                                view._descriptorHandle->cpuHandle);
-            }
-            else if constexpr (std::is_same_v<T, D3D12_DEPTH_STENCIL_VIEW_DESC>)
-            {
-                view._descriptorHandle = descriptorHeapAllocator.alloc();
-                view._type = GPUView::Type::DSV;
-                _device->CreateDepthStencilView(resource->get(), &viewDesc,
-                                                view._descriptorHandle->cpuHandle);
-            }
-
-            return view;
-        };
-
-        // Stocker selon le type de ressource
-        if (frameResource)
-        {
-            // Si c'est une frame resource, créer une vue par frame
-            if (_frameResource.find(name) == _frameResource.end())
-            {
-                _frameResource[name] = std::vector<GPUView>();
-            }
-
-            // Créer N vues (une par frame)
-            for (uint8_t i = 0; i < _frameCount; ++i)
-            {
-                _frameResource[name].push_back(createSingleView());
-            }
-        }
-        else
-        {
-            // Ressource statique : une seule vue
-            _staticResources[name] = createSingleView();
+            createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
+            _frameViews[name].push_back(view);
         }
     }
+
+    void createCBV(std::string name, GPUResource* resource, DescriptorHeapAllocator& allocator);
 
     ComPtr<ID3D12Device2> _device;
     uint8_t _frameCount;
     std::vector<std::unique_ptr<GPUResource>> _resources;
+
     // Frame resources: change every frame, duplicated per frame (e.g., constant
     // buffers)
-    std::unordered_map<std::string, std::vector<GPUView>> _frameResource;
     // Static resources: rarely updated, must wait for GPU before re-upload
-    std::unordered_map<std::string, GPUView> _staticResources;
+
+    std::unordered_map<std::string, std::vector<std::unique_ptr<GPUResource>>> _frameResource;
+    std::unordered_map<std::string, std::unique_ptr<GPUResource>> _staticResources;
+    std::unordered_map<std::string, std::vector<GPUView>> _frameViews;
+    std::unordered_map<std::string, GPUView> _staticViews;
 
     FenceManager& _fenceManager;
     uint32_t _fenceId;
+
+   private:
+    template <typename T>
+    void createSingleView(GPUResource* resource, GPUView* view, T& viewDesc,
+                          DescriptorHeapAllocator& descriptorHeapAllocator)
+    {
+        view->_resource = resource;
+
+        if constexpr (std::is_same_v<T, D3D12_CONSTANT_BUFFER_VIEW_DESC>)
+        {
+            view->_descriptorHandle = descriptorHeapAllocator.alloc();
+            view->_type = GPUView::Type::CBV;
+            _device->CreateConstantBufferView(&viewDesc, view->_descriptorHandle->cpuHandle);
+        }
+        else if constexpr (std::is_same_v<T, D3D12_SHADER_RESOURCE_VIEW_DESC>)
+        {
+            view->_descriptorHandle = descriptorHeapAllocator.alloc();
+            view->_type = GPUView::Type::SRV;
+            _device->CreateShaderResourceView(resource->get(), &viewDesc,
+                                              view->_descriptorHandle->cpuHandle);
+        }
+        else if constexpr (std::is_same_v<T, D3D12_UNORDERED_ACCESS_VIEW_DESC>)
+        {
+            view->_descriptorHandle = descriptorHeapAllocator.alloc();
+            view->_type = GPUView::Type::UAV;
+            _device->CreateUnorderedAccessView(resource->get(), nullptr, &viewDesc,
+                                               view->_descriptorHandle->cpuHandle);
+        }
+        else if constexpr (std::is_same_v<T, D3D12_RENDER_TARGET_VIEW_DESC>)
+        {
+            view->_descriptorHandle = descriptorHeapAllocator.alloc();
+            view->_type = GPUView::Type::RTV;
+            _device->CreateRenderTargetView(resource->get(), &viewDesc,
+                                            view->_descriptorHandle->cpuHandle);
+        }
+        else if constexpr (std::is_same_v<T, D3D12_DEPTH_STENCIL_VIEW_DESC>)
+        {
+            view->_descriptorHandle = descriptorHeapAllocator.alloc();
+            view->_type = GPUView::Type::DSV;
+            _device->CreateDepthStencilView(resource->get(), &viewDesc,
+                                            view->_descriptorHandle->cpuHandle);
+        }
+    };
 };
 }  // namespace rayvox
