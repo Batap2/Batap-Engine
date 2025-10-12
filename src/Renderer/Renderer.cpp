@@ -3,7 +3,6 @@
 
 #include <filesystem>
 #include <glm/glm.hpp>
-#include <optional>
 #include <string>
 
 #include "../VoxelDataStructs.h"
@@ -243,34 +242,35 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
                                                         &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
 
-    // UAV
-    std::vector<GPUResource*> swapChainResources;
+    auto swapChainResources = _resourceManager->createEmptyFrameResource(toS(RName::backbuffers));
     for (int i = 0; i < _swapChain_buffer_count; i++)
     {
-        auto swapChainResource = _resourceManager->createTexture2DResource(
-            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
-            "texture_swapchain_buffer_" + std::to_string(i));
-
-        swapChainResources.push_back(swapChainResource);
-        //TODO: mettre les backbuffer dans le resourceManager sans vues osef
+        _swapchain->GetBuffer(i, IID_PPV_ARGS(&swapChainResources[i]->_resource));
+        swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT);
     }
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
-    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    uavDesc.Texture2D.MipSlice = 0;
-    _resourceManager->createView("UAVs_swapchain_buffer", swapChainResources, uavDesc,
+
+    auto texs_render0 = _resourceManager->createTexture2DFrameResource(
+        _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
+        toS(RName::texture2D_render0));
+
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
+    uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    uavDesc_render0.Texture2D.MipSlice = 0;
+    uavDesc_render0.Texture2D.PlaneSlice = 0;
+    _resourceManager->createView(toS(VName::UAV_render0), texs_render0, uavDesc_render0,
                                  _descriptorHeapAllocator_CBV_SRV_UAV);
 
     camera =
         Camera({0, 0, -10}, {0, 0, 1}, {0, 1, 0}, 80, (float) _width / (float) _height, 0.1f, 100);
 
     CameraBuffer cameraBufferData = camera.getCameraBuffer();
-    auto camResource = _resourceManager->createBufferResource(
-        _resourceManager->AlignUp(sizeof(cameraBufferData), 256), D3D12_RESOURCE_STATE_COMMON,
-        D3D12_HEAP_TYPE_DEFAULT, "camera_buffer");
+    // auto camResource = _resourceManager->createBufferResource(
+    //     _resourceManager->AlignUp(sizeof(cameraBufferData), 256), D3D12_RESOURCE_STATE_COMMON,
+    //     D3D12_HEAP_TYPE_DEFAULT, "camera_buffer");
 
-    _resourceManager->createCBV("CBV_camera", camResource, _descriptorHeapAllocator_CBV_SRV_UAV);
+    //_resourceManager->createCBV("CBV_camera", camResource, _descriptorHeapAllocator_CBV_SRV_UAV);
 
     std::wstring shader_dir;
     shader_dir = std::filesystem::current_path().filename() == "build" ? L"../src/Shaders"
@@ -278,7 +278,7 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
     // Shader and its layout
     ComPtr<ID3DBlob> computeShaderBlob;
-    ThrowIfFailed(compileShaderFromFile(shader_dir + L"/ComputeShader.hlsl", "main", "cs_5_0",
+    ThrowIfFailed(compileShaderFromFile(shader_dir + L"/ComputeShader_test.hlsl", "main", "cs_5_0",
                                         computeShaderBlob));
 
     {
@@ -320,32 +320,48 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     pso_desc.CS.pShaderBytecode = computeShaderBlob->GetBufferPointer();
     ThrowIfFailed(_device->CreateComputePipelineState(&pso_desc, IID_PPV_ARGS(&_pso)));
 
-    initImgui(hWnd, clientWidth, clientHeight);
+    // initImgui(hWnd, clientWidth, clientHeight);
 
     _isInitialized = true;
 
-    InitWorld();
+    // InitWorld();
 }
 
 inline bool testimgui = true;
 void Renderer::render()
 {
-    _buffer_index = _swapchain->GetCurrentBackBufferIndex();
-    auto& swapChainUAV = _resourceManager->_frameViews["UAVs_swapchain_buffer"][_buffer_index];
+    std::cout << "=== FRAME ===" << std::endl;
+    std::cout << "Buffer index: " << _buffer_index << std::endl;
 
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
-    ImGui::ShowDemoWindow(&testimgui);
-    ImGui::Render();
+    auto backBuffer = _resourceManager->getFrameResource(RName::backbuffers)[_buffer_index];
+    auto uav_render0 = _resourceManager->getFrameView(VName::UAV_render0)[_buffer_index];
+
+    // ImGui_ImplDX12_NewFrame();
+    // ImGui_ImplWin32_NewFrame();
+    // ImGui::NewFrame();
+    // ImGui::ShowDemoWindow(&testimgui);
+    // ImGui::Render();
 
     for (CommandQueue& queue : _CommandQueues)
     {
         CommandQueue::Command& cmd = queue.getCommand(_buffer_index);
+
+        uint64_t completedValue = _fenceManager->getFence(queue._fenceId)->GetCompletedValue();
+        bool complete = queue.isCommandComplete(cmd);
+        std::cout << "isCommandComplete: " << complete << " (cmd.fenceValue: " << cmd._fenceValue
+                  << ", GPU completed: " << completedValue << ")" << std::endl;
+
         if (queue.isCommandComplete(cmd))
         {
-            cmd._commandAllocator->Reset();
-            cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
+            std::cout << "RECORDING commands" << std::endl;
+            HRESULT hr1 = cmd._commandAllocator->Reset();
+            HRESULT hr2 = cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
+
+            if (FAILED(hr1))
+                std::cout << "ERROR: CommandAllocator->Reset() failed: " << std::hex << hr1
+                          << std::endl;
+            if (FAILED(hr2))
+                std::cout << "ERROR: CommandList->Reset() failed: " << std::hex << hr2 << std::endl;
 
             // TODO: Abstraction RenderPass
             auto cmdList = cmd._commandList.Get();
@@ -356,32 +372,38 @@ void Renderer::render()
             cmdList->SetPipelineState(_pso.Get());
             cmdList->SetComputeRootSignature(_root_signature.Get());
 
-            swapChainUAV._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
             cmdList->SetComputeRootDescriptorTable(
-                0, swapChainUAV._descriptorHandle->gpuHandle);  // UAV framebuffer
+                0, uav_render0._descriptorHandle->gpuHandle);  // UAV framebuffer
             // cmdList->SetComputeRootDescriptorTable(1, cameraBufferView.gpuHandle); // CBV camera
             // cmdList->SetComputeRootDescriptorTable(2, voxelMapView.gpuHandle); // SRV voxel map
 
             cmdList->Dispatch(_threadGroupCountX, _threadGroupCountY, _threadGroupCountZ);
 
-            // 7. Transition vers PRESENT
-            swapChainUAV._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
-
-            
+            backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
+            uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
+            cmdList->CopyResource(backBuffer->_resource.Get(), uav_render0._resource->get());
+            backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
+            uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
             queue.executeCommand(_buffer_index);
+        }
+        else
+        {
+            std::cout << "SKIPPING - GPU still busy!" << std::endl;
         }
     }
 
     _swapchain->Present(_useVSync, _tearingFlag);
+    _buffer_index = (_buffer_index + 1) % _swapChain_buffer_count;
 }
 
 void Renderer::flush()
 {
-    ImGui_ImplDX12_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
+    // ImGui_ImplDX12_Shutdown();
+    // ImGui_ImplWin32_Shutdown();
+    // ImGui::DestroyContext();
 
     for (auto& q : _CommandQueues)
     {

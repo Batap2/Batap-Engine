@@ -61,11 +61,29 @@ uint64_t CommandQueue::executeCommand(uint32_t index)
 {
     auto& cmd = _commands[index];
 
-    cmd._commandList->Close();
+    HRESULT hr = cmd._commandList->Close();
+    if (FAILED(hr))
+    {
+        std::cout << "ERROR: CommandList->Close() failed with HRESULT: " << std::hex << hr
+                  << std::endl;
+        return 0;
+    }
+
+    std::cout << "Executing command list " << index << std::endl;
     ID3D12CommandList* lists[] = {cmd._commandList.Get()};
     _commandQueue->ExecuteCommandLists(1, lists);
+
+    uint64_t beforeSignal = _fenceManager.getFence(_fenceId)->GetCompletedValue();
+    std::cout << "  GPU completed BEFORE signal: " << beforeSignal << std::endl;
+
     _fenceValue = _fenceManager.signal(_fenceId, _commandQueue.Get());
     cmd._fenceValue = _fenceValue;
+
+    std::cout << "  Signaled with value: " << _fenceValue << std::endl;
+
+    // APRES signal (devrait être identique à beforeSignal)
+    uint64_t afterSignal = _fenceManager.getFence(_fenceId)->GetCompletedValue();
+    std::cout << "  GPU completed AFTER signal: " << afterSignal << std::endl;
 
     return _fenceValue;
 }

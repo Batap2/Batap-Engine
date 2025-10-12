@@ -24,6 +24,7 @@ add_subdirectory(${include_dir}/DirectX-Headers)
 include_directories(${include_dir}/glm)
 include_directories(${include_dir}/imgui)
 include_directories(${include_dir}/nano-signal-slot)
+include_directories(${include_dir}/magic_enum/include)
 
 # Ajouter les fichiers source
 file(GLOB_RECURSE source_files "${source_dir}/*.cpp")

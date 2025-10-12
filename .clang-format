@@ -5,6 +5,8 @@ TabWidth: 4
 UseTab: Never           # toujours des espaces
 
 # Accolades et blocs
+AlwaysBreakAfterReturnType: None
+AlwaysBreakAfterDefinitionReturnType: None
 BreakBeforeBraces: Allman       # accolades sur une nouvelle ligne
 AllowShortFunctionsOnASingleLine: false
 AllowShortIfStatementsOnASingleLine: false
