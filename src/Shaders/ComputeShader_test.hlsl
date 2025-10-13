@@ -19,7 +19,7 @@ float HeavyCompute(uint iterations) {
 
   float4 finalColor = float4(1, 0, 0, 1);
 
-  float result = HeavyCompute(screen_coord.x * 100);
+  float result = HeavyCompute(screen_coord.x * 1);
     finalColor.x = result;
 
 

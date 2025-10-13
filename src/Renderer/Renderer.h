@@ -21,7 +21,7 @@ struct Renderer
     uint32_t _threadGroupSizeX = 8;
     uint32_t _threadGroupSizeY = 8;
 
-    bool _useVSync = false;
+    UINT _useVSync = 0;
     UINT _tearingFlag = 0;
     bool _fullscreen = false;
 

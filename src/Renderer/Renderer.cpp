@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <glm/glm.hpp>
 #include <string>
+#include <thread>
 
 #include "../VoxelDataStructs.h"
 #include "AssertUtils.h"
@@ -127,8 +128,11 @@ bool Renderer::setTearingFlag()
         }
     }
 
-    if (allowTearing == TRUE)
+    if (allowTearing == TRUE){
         _tearingFlag = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    } else {
+        _useVSync = 1;
+    }
 
     return allowTearing == TRUE;
 }
@@ -330,9 +334,6 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 inline bool testimgui = true;
 void Renderer::render()
 {
-    std::cout << "=== FRAME ===" << std::endl;
-    std::cout << "Buffer index: " << _buffer_index << std::endl;
-
     auto backBuffer = _resourceManager->getFrameResource(RName::backbuffers)[_buffer_index];
     auto uav_render0 = _resourceManager->getFrameView(VName::UAV_render0)[_buffer_index];
 
@@ -346,22 +347,9 @@ void Renderer::render()
     {
         CommandQueue::Command& cmd = queue.getCommand(_buffer_index);
 
-        uint64_t completedValue = _fenceManager->getFence(queue._fenceId)->GetCompletedValue();
-        bool complete = queue.isCommandComplete(cmd);
-        std::cout << "isCommandComplete: " << complete << " (cmd.fenceValue: " << cmd._fenceValue
-                  << ", GPU completed: " << completedValue << ")" << std::endl;
-
         if (queue.isCommandComplete(cmd))
         {
-            std::cout << "RECORDING commands" << std::endl;
-            HRESULT hr1 = cmd._commandAllocator->Reset();
-            HRESULT hr2 = cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
-
-            if (FAILED(hr1))
-                std::cout << "ERROR: CommandAllocator->Reset() failed: " << std::hex << hr1
-                          << std::endl;
-            if (FAILED(hr2))
-                std::cout << "ERROR: CommandList->Reset() failed: " << std::hex << hr2 << std::endl;
+            cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
 
             // TODO: Abstraction RenderPass
             auto cmdList = cmd._commandList.Get();
@@ -395,8 +383,9 @@ void Renderer::render()
         }
     }
 
-    _swapchain->Present(_useVSync, _tearingFlag);
+    _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
     _buffer_index = (_buffer_index + 1) % _swapChain_buffer_count;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 
 void Renderer::flush()

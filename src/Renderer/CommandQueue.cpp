@@ -13,7 +13,7 @@ namespace rayvox
 CommandQueue::CommandQueue(Microsoft::WRL::ComPtr<ID3D12Device2>& device,
                            FenceManager& fenceManager_, D3D12_COMMAND_LIST_TYPE type,
                            uint32_t allocatorNumber)
-    : _fenceManager(fenceManager_)
+    : _device(device), _fenceManager(fenceManager_)
 {
     D3D12_COMMAND_QUEUE_DESC desc = {};
     desc.Type = type;
@@ -60,7 +60,7 @@ bool CommandQueue::isCommandComplete(Command& cmd) const
 uint64_t CommandQueue::executeCommand(uint32_t index)
 {
     auto& cmd = _commands[index];
-
+    
     HRESULT hr = cmd._commandList->Close();
     if (FAILED(hr))
     {
@@ -69,21 +69,11 @@ uint64_t CommandQueue::executeCommand(uint32_t index)
         return 0;
     }
 
-    std::cout << "Executing command list " << index << std::endl;
     ID3D12CommandList* lists[] = {cmd._commandList.Get()};
     _commandQueue->ExecuteCommandLists(1, lists);
 
-    uint64_t beforeSignal = _fenceManager.getFence(_fenceId)->GetCompletedValue();
-    std::cout << "  GPU completed BEFORE signal: " << beforeSignal << std::endl;
-
     _fenceValue = _fenceManager.signal(_fenceId, _commandQueue.Get());
     cmd._fenceValue = _fenceValue;
-
-    std::cout << "  Signaled with value: " << _fenceValue << std::endl;
-
-    // APRES signal (devrait être identique à beforeSignal)
-    uint64_t afterSignal = _fenceManager.getFence(_fenceId)->GetCompletedValue();
-    std::cout << "  GPU completed AFTER signal: " << afterSignal << std::endl;
 
     return _fenceValue;
 }

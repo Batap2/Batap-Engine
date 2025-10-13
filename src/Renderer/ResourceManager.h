@@ -77,11 +77,9 @@ struct GPUResource
         return _currentState;
     }
 
-    void setResource(D3D12_RESOURCE_STATES currentState, std::string_view name = "unnamed_resource")
+    void setResource(D3D12_RESOURCE_STATES currentState)
     {
         _currentState = currentState;
-        std::wstring wname(name.begin(), name.end());
-        _resource->SetName(wname.c_str());
         _init = true;
     };
 
