@@ -134,7 +134,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     if (AppInitialized)
     {
-        Ctx.inputManager->ProcessWindowsEvent(message, wParam, lParam);
+        Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
         int centerX = (windowRect.left + windowRect.right) / 2;
         int centerY = (windowRect.top + windowRect.bottom) / 2;
 
@@ -162,11 +162,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                     case VK_RETURN:
                         if (alt)
-                            SetFullscreen(!Ctx.renderer->_fullscreen);
+                            SetFullscreen(!Ctx._renderer->_fullscreen);
                         break;
 
                     case VK_F11:
-                        SetFullscreen(!Ctx.renderer->_fullscreen);
+                        SetFullscreen(!Ctx._renderer->_fullscreen);
                         break;
                 }
             }
@@ -288,7 +288,7 @@ void InitApp(HINSTANCE hInstance)
 
     RegisterRawInputDevices(hWnd);
 
-    Ctx.renderer->init(hWnd, clientWidth, clientHeight);
+    Ctx._renderer->init(hWnd, clientWidth, clientHeight);
 
     ::ShowWindow(hWnd, SW_SHOW);
 

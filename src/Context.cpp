@@ -1,32 +1,32 @@
 #include "Context.h"
 
 #include <chrono>
+#include <cstddef>
 
 #include "InputManager.h"
 #include "Renderer/Renderer.h"
+#include "Scene.h"
 
 
-void printFps()
+void printDeltaTime(float dt)
 {
-    static uint64_t frameCounter = 0;
-    static double elapsedSeconds = 0.0;
-    static std::chrono::high_resolution_clock clock;
-    static auto t0 = clock.now();
+    static float deltaTimeBuffer[100];
+    static size_t dt_index = 0;
+    static std::chrono::time_point<std::chrono::high_resolution_clock> lastPrint = std::chrono::high_resolution_clock::now();
 
-    frameCounter++;
-    auto t1 = clock.now();
-    auto deltaTime = t1 - t0;
-    t0 = t1;
-    elapsedSeconds += deltaTime.count() * 1e-9;
-    if (elapsedSeconds > 1.0)
-    {
-        char buffer[500];
-        auto fps = frameCounter / elapsedSeconds;
-        sprintf_s(buffer, 500, "FPS: %f\n", fps);
-        std::cout << buffer;
+    deltaTimeBuffer[dt_index] = dt;
+    dt_index = (dt_index + 1) % 100;
 
-        frameCounter = 0;
-        elapsedSeconds = 0.0;
+    std::chrono::duration<float> dtp = std::chrono::high_resolution_clock::now() - lastPrint;
+    if(dtp.count() > 1){
+        float dtAvg = 0;
+        for(int i = 0; i < 100; i++){
+            dtAvg += deltaTimeBuffer[i];
+        }
+        dtAvg /= 100;
+
+        std::cout << dtAvg*1000 << "ms\n";
+        lastPrint = std::chrono::high_resolution_clock::now();
     }
 }
 
@@ -34,19 +34,25 @@ namespace rayvox
 {
 Context::Context()
 {
-    renderer = new Renderer();
-    inputManager = new InputManager();
-    inputManager->Ctx = this;
+    _renderer = new Renderer();
+    _inputManager = new InputManager();
+    _inputManager->Ctx = this;
+    _lastTime = std::chrono::high_resolution_clock::now();
 }
 
-void Context::Update()
+void Context::update()
 {
-    printFps();
+    std::chrono::duration<float> dt = std::chrono::high_resolution_clock::now() - _lastTime;
+    _lastTime = std::chrono::high_resolution_clock::now();
+    _deltaTime = dt.count();
+    printDeltaTime(_deltaTime);
 
-    inputManager->DispatchEvents();
-    inputManager->ClearFrameState();
+    _inputManager->DispatchEvents();
+    _inputManager->ClearFrameState();
 
-    renderer->render();
+    //_scene->update(1);
+
+    _renderer->render();
 }
 
 void Context::render()

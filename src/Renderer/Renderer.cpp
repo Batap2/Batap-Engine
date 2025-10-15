@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <glm/glm.hpp>
+#include <memory>
 #include <string>
 #include <thread>
 
@@ -12,6 +13,7 @@
 #include "DescriptorHeapAllocator.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
 #include "FenceManager.h"
+#include "RenderGraph.h"
 #include "ResourceManager.h"
 
 namespace rayvox
@@ -77,7 +79,7 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
 
     ImGui_ImplDX12_InitInfo init_info = {};
     init_info.Device = _device.Get();
-    init_info.CommandQueue = _CommandQueues[0]._commandQueue.Get();
+    init_info.CommandQueue = _commandQueues[0]->_commandQueue.Get();
     init_info.NumFramesInFlight = _swapChain_buffer_count;
     init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
@@ -89,6 +91,45 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
     init_info.SrvDescriptorFreeFn = imguiSrvFree;
     init_info.UserData = new ImguiUserData{&_descriptorHeapAllocator_CBV_SRV_UAV, 0};
     ImGui_ImplDX12_Init(&init_info);
+}
+
+void Renderer::initRenderPasses()
+{
+    _renderGraph->addPass("render0", RenderPass::QueueType::Direct)
+        .addRecordStep(
+            [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
+            {
+                auto backBuffer =
+                    _resourceManager->getFrameResource(RName::backbuffers)[_buffer_index];
+                auto uav_render0 =
+                    _resourceManager->getFrameView(VName::UAV_render0)[_buffer_index];
+
+                ID3D12DescriptorHeap* heaps[] = {_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
+                cmdList->SetDescriptorHeaps(1, heaps);
+
+                cmdList->SetPipelineState(_pso.Get());
+                cmdList->SetComputeRootSignature(_root_signature.Get());
+
+                uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+                cmdList->SetComputeRootDescriptorTable(
+                    0, uav_render0._descriptorHandle->gpuHandle);  // UAV framebuffer
+                // cmdList->SetComputeRootDescriptorTable(1, cameraBufferView.gpuHandle); // CBV
+                // camera cmdList->SetComputeRootDescriptorTable(2, voxelMapView.gpuHandle); // SRV
+                // voxel map
+
+                cmdList->Dispatch(_threadGroupCountX, _threadGroupCountY, _threadGroupCountZ);
+
+                backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
+                uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
+                cmdList->CopyResource(backBuffer->_resource.Get(), uav_render0._resource->get());
+                uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+                backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
+                ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList);
+
+                backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
+            });
 }
 
 void Renderer::InitWorld()
@@ -128,9 +169,12 @@ bool Renderer::setTearingFlag()
         }
     }
 
-    if (allowTearing == TRUE){
+    if (allowTearing == TRUE)
+    {
         _tearingFlag = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
-    } else {
+    }
+    else
+    {
         _useVSync = 1;
     }
 
@@ -223,10 +267,12 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     _fenceManager = new FenceManager(_device.Get());
     _resourceManager = new ResourceManager(_device.Get(), *_fenceManager, _swapChain_buffer_count,
                                            64 * 1024 * 1024);
-    _CommandQueues.emplace_back(_device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                _swapChain_buffer_count);
+    _commandQueues.emplace_back(std::make_unique<CommandQueue>(
+        _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, _swapChain_buffer_count));
 
-    setTearingFlag();
+    _renderGraph = new RenderGraph();
+    
+        setTearingFlag();
 
     const DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {_width,
                                                   _height,
@@ -241,8 +287,8 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
                                                   _tearingFlag};
     // Create and upgrade swapchain to our version(ComPtr<IDXGISwapChain4> swapchain)
     ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
-    ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_CommandQueues[0]._commandQueue.Get(), hWnd,
-                                                        &swapchain_desc, nullptr, nullptr,
+    ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_commandQueues[0]->_commandQueue.Get(),
+                                                        hWnd, &swapchain_desc, nullptr, nullptr,
                                                         &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
 
@@ -324,7 +370,8 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     pso_desc.CS.pShaderBytecode = computeShaderBlob->GetBufferPointer();
     ThrowIfFailed(_device->CreateComputePipelineState(&pso_desc, IID_PPV_ARGS(&_pso)));
 
-    // initImgui(hWnd, clientWidth, clientHeight);
+    initRenderPasses();
+    initImgui(hWnd, clientWidth, clientHeight);
 
     _isInitialized = true;
 
@@ -334,75 +381,29 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 inline bool testimgui = true;
 void Renderer::render()
 {
-    auto backBuffer = _resourceManager->getFrameResource(RName::backbuffers)[_buffer_index];
-    auto uav_render0 = _resourceManager->getFrameView(VName::UAV_render0)[_buffer_index];
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+    ImGui::ShowDemoWindow(&testimgui);
+    ImGui::Render();
 
-    // ImGui_ImplDX12_NewFrame();
-    // ImGui_ImplWin32_NewFrame();
-    // ImGui::NewFrame();
-    // ImGui::ShowDemoWindow(&testimgui);
-    // ImGui::Render();
-
-    for (CommandQueue& queue : _CommandQueues)
-    {
-        CommandQueue::Command& cmd = queue.getCommand(_buffer_index);
-
-        if (queue.isCommandComplete(cmd))
-        {
-            cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
-
-            // TODO: Abstraction RenderPass
-            auto cmdList = cmd._commandList.Get();
-
-            ID3D12DescriptorHeap* heaps[] = {_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
-            cmdList->SetDescriptorHeaps(1, heaps);
-
-            cmdList->SetPipelineState(_pso.Get());
-            cmdList->SetComputeRootSignature(_root_signature.Get());
-
-            uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-            cmdList->SetComputeRootDescriptorTable(
-                0, uav_render0._descriptorHandle->gpuHandle);  // UAV framebuffer
-            // cmdList->SetComputeRootDescriptorTable(1, cameraBufferView.gpuHandle); // CBV camera
-            // cmdList->SetComputeRootDescriptorTable(2, voxelMapView.gpuHandle); // SRV voxel map
-
-            cmdList->Dispatch(_threadGroupCountX, _threadGroupCountY, _threadGroupCountZ);
-
-            backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
-            uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
-            cmdList->CopyResource(backBuffer->_resource.Get(), uav_render0._resource->get());
-            backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
-            uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-            queue.executeCommand(_buffer_index);
-        }
-        else
-        {
-            std::cout << "SKIPPING - GPU still busy!" << std::endl;
-        }
-    }
+    _renderGraph->execute(_commandQueues, _buffer_index);
 
     _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
     _buffer_index = (_buffer_index + 1) % _swapChain_buffer_count;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 
 void Renderer::flush()
 {
-    // ImGui_ImplDX12_Shutdown();
-    // ImGui_ImplWin32_Shutdown();
-    // ImGui::DestroyContext();
+    ImGui_ImplDX12_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 
-    for (auto& q : _CommandQueues)
+    for (auto& q : _commandQueues)
     {
-        q.flush();
+        q->flush();
     }
 
-    for (int i = 0; i < _swapChain_buffer_count; ++i)
-    {
-        //_swapchain_buffers[i].resource.Reset();
-    }
     _swapchain.Reset();
     _device.Reset();
 

@@ -24,10 +24,10 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
             ::DispatchMessage(&msg);
         }
 
-        Ctx.Update();
+        Ctx.update();
     }
 
-    Ctx.renderer->flush();
+    Ctx._renderer->flush();
 
     return 0;
 }

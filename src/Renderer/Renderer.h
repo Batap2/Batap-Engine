@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <memory>
 
 #include "../Camera.h"
 #include "../VoxelDataStructs.h"
@@ -9,6 +10,8 @@
 #include "DirectX-Headers/include/directx/d3d12.h"
 #include "FenceManager.h"
 #include "ResourceManager.h"
+#include "RenderGraph.h"
+
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
 #include "imgui/backends/imgui_impl_win32.h"
@@ -36,7 +39,7 @@ struct Renderer
     ComPtr<ID3D12Device2> _device;
 
     // Command interfaces
-    std::vector<CommandQueue> _CommandQueues;
+    std::vector<std::unique_ptr<CommandQueue>> _commandQueues;
 
     // Shader layout and pipeline state
     ComPtr<ID3D12RootSignature> _root_signature;
@@ -50,6 +53,7 @@ struct Renderer
 
     FenceManager* _fenceManager;
     ResourceManager* _resourceManager;
+    RenderGraph* _renderGraph;
 
     unsigned int _currentlyInitDescriptor = 0;
 
@@ -70,6 +74,7 @@ struct Renderer
 
     void init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight);
     void initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight);
+    void initRenderPasses();
 
     void render();
 
