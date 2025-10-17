@@ -86,6 +86,9 @@ struct FenceManager
    private:
     struct FenceData
     {
+        ~FenceData(){
+            _fence.Reset();
+        }
         ComPtr<ID3D12Fence> _fence;
         uint64_t _currentValue = 0;
         std::string name;

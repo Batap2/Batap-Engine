@@ -1,17 +1,17 @@
 #include "Renderer.h"
+
+#include <dxgidebug.h>
 #include <wrl/client.h>
+#include "DirectX-Headers/include/directx/d3d12.h"
 
 #include <filesystem>
 #include <glm/glm.hpp>
 #include <memory>
 #include <string>
-#include <thread>
 
-#include "../VoxelDataStructs.h"
 #include "AssertUtils.h"
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
-#include "DirectX-Headers/include/directx/d3d12.h"
 #include "FenceManager.h"
 #include "RenderGraph.h"
 #include "ResourceManager.h"
@@ -132,16 +132,6 @@ void Renderer::initRenderPasses()
             });
 }
 
-void Renderer::InitWorld()
-{
-    SparseGrid sg;
-    sg.DEBUG_fill();
-    // voxelMap = sg.getAllVoxels();
-
-    // voxelMapBuffer.CreateOrUpdate(device.Get(), command_list.Get(),
-    //	descriptor_heap.Get(), currentlyInitDescriptor, voxelMap);
-}
-
 bool Renderer::setTearingFlag()
 {
     if (_useVSync)
@@ -181,37 +171,7 @@ bool Renderer::setTearingFlag()
     return allowTearing == TRUE;
 }
 
-HRESULT Renderer::compileShaderFromFile(const std::wstring& filename, const std::string& entryPoint,
-                                        const std::string& target, ComPtr<ID3DBlob>& shaderBlob)
-{
-    UINT compileFlags = 0;
-#ifdef _DEBUG
-    compileFlags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
 
-    if (!std::filesystem::exists(filename))
-    {
-        OutputDebugStringA("Shader file not found.\n");
-        std::cout << "Shader file not found\n";
-        return E_FAIL;
-    }
-
-    ComPtr<ID3DBlob> errorBlob;
-    HRESULT hr = D3DCompileFromFile(filename.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
-                                    entryPoint.c_str(), target.c_str(), compileFlags, 0,
-                                    &shaderBlob, &errorBlob);
-
-    if (FAILED(hr))
-    {
-        if (errorBlob)
-        {
-            OutputDebugStringA((char*) errorBlob->GetBufferPointer());
-        }
-        return hr;
-    }
-
-    return S_OK;
-}
 
 void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 {
@@ -271,8 +231,8 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
         _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, _swapChain_buffer_count));
 
     _renderGraph = new RenderGraph();
-    
-        setTearingFlag();
+
+    setTearingFlag();
 
     const DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {_width,
                                                   _height,
@@ -296,7 +256,7 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     for (int i = 0; i < _swapChain_buffer_count; i++)
     {
         _swapchain->GetBuffer(i, IID_PPV_ARGS(&swapChainResources[i]->_resource));
-        swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT);
+        swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT, toS(RName::backbuffers));
     }
 
     auto texs_render0 = _resourceManager->createTexture2DFrameResource(
@@ -311,16 +271,6 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     uavDesc_render0.Texture2D.PlaneSlice = 0;
     _resourceManager->createView(toS(VName::UAV_render0), texs_render0, uavDesc_render0,
                                  _descriptorHeapAllocator_CBV_SRV_UAV);
-
-    camera =
-        Camera({0, 0, -10}, {0, 0, 1}, {0, 1, 0}, 80, (float) _width / (float) _height, 0.1f, 100);
-
-    CameraBuffer cameraBufferData = camera.getCameraBuffer();
-    // auto camResource = _resourceManager->createBufferResource(
-    //     _resourceManager->AlignUp(sizeof(cameraBufferData), 256), D3D12_RESOURCE_STATE_COMMON,
-    //     D3D12_HEAP_TYPE_DEFAULT, "camera_buffer");
-
-    //_resourceManager->createCBV("CBV_camera", camResource, _descriptorHeapAllocator_CBV_SRV_UAV);
 
     std::wstring shader_dir;
     shader_dir = std::filesystem::current_path().filename() == "build" ? L"../src/Shaders"
@@ -374,8 +324,6 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     initImgui(hWnd, clientWidth, clientHeight);
 
     _isInitialized = true;
-
-    // InitWorld();
 }
 
 inline bool testimgui = true;
@@ -404,16 +352,13 @@ void Renderer::flush()
         q->flush();
     }
 
+    delete _fenceManager;
     _swapchain.Reset();
+    _debug_controller.Reset();
     _device.Reset();
 
-    delete _fenceManager;
-}
-
-void Renderer::computeAndUploadCameraBuffer()
-{
-    CameraBuffer cameraBufferData = camera.getCameraBuffer();
-    // cameraBuffer.CreateOrUpdate(device.Get(), command_list.Get(), cameraBufferData,
-    // 	descriptor_heap.Get(), currentlyInitDescriptor);
+    // ComPtr<IDXGIDebug1> dxgiDebug;
+    // DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug));
+    // dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
 }
 }  // namespace rayvox

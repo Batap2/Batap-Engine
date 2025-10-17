@@ -61,8 +61,11 @@ struct RenderGraph
             auto& cmd = queue->getCommand(frameIndex);
 
             if (!queue->isCommandComplete(cmd))
+            {
                 continue;
+            }
 
+            cmd._commandAllocator->Reset();
             cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
             for (auto& step : pass._recordSteps)
                 step(cmd._commandList.Get(), frameIndex);

@@ -3,6 +3,7 @@
 #include <handleapi.h>
 
 #include <cstdint>
+#include <string>
 
 #include "AssertUtils.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
@@ -37,9 +38,13 @@ CommandQueue::CommandQueue(Microsoft::WRL::ComPtr<ID3D12Device2>& device,
     _fenceId = fenceManager_.createFence(name);
 
     _commands.resize(allocatorNumber);
-    for (auto& cmd : _commands)
+    for (int i = 0; i < allocatorNumber; ++i)
     {
+        auto& cmd = _commands[i];
+        std::string nameNum = name + std::to_string(i);
         ThrowIfFailed(device->CreateCommandAllocator(type, IID_PPV_ARGS(&cmd._commandAllocator)));
+        std::wstring wname(nameNum.begin(), nameNum.end());
+        cmd._commandAllocator->SetName(wname.c_str());
         ThrowIfFailed(device->CreateCommandList(0, type, cmd._commandAllocator.Get(), nullptr,
                                                 IID_PPV_ARGS(&cmd._commandList)));
         cmd._commandList->Close();
@@ -76,6 +81,11 @@ uint64_t CommandQueue::executeCommand(uint32_t index)
     cmd._fenceValue = _fenceValue;
 
     return _fenceValue;
+}
+
+void CommandQueue::waitForFence(Command& cmd) const
+{
+    _fenceManager.waitForFence(_fenceId, cmd._fenceValue);
 }
 
 void CommandQueue::flush()

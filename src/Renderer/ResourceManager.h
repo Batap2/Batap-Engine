@@ -77,8 +77,11 @@ struct GPUResource
         return _currentState;
     }
 
-    void setResource(D3D12_RESOURCE_STATES currentState)
+    void setResource(D3D12_RESOURCE_STATES currentState,
+                     std::string_view name = "Unnamed Empty Resource")
     {
+        std::wstring wname(name.begin(), name.end());
+        _resource->SetName(wname.c_str());
         _currentState = currentState;
         _init = true;
     };
@@ -220,7 +223,6 @@ struct ResourceManager
     std::vector<GPUResource*> getFrameResource(RName n);
     GPUView& getStaticView(VName n);
     std::vector<GPUView>& getFrameView(VName n);
-
 
     ComPtr<ID3D12Device2> _device;
     uint8_t _frameCount;

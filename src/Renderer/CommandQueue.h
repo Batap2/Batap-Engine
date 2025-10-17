@@ -18,7 +18,7 @@ struct CommandQueue
 
     struct Command
     {
-        uint64_t _fenceValue;
+        uint64_t _fenceValue = 0;
         Microsoft::WRL::ComPtr<ID3D12CommandAllocator> _commandAllocator;
         Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> _commandList;
     };
@@ -26,7 +26,7 @@ struct CommandQueue
     Command& getCommand(uint32_t index);
     uint64_t executeCommand(uint32_t index);
     bool isCommandComplete(Command& cmd) const;
-    void waitForFence(uint64_t value);
+    void waitForFence(Command& cmd) const;
     void flush();
 
     D3D12_COMMAND_LIST_TYPE _commandListType;

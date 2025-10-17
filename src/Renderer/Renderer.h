@@ -2,10 +2,7 @@
 #include <vector>
 #include <memory>
 
-#include "../Camera.h"
-#include "../VoxelDataStructs.h"
 #include "CommandQueue.h"
-#include "DX12Buffers.h"
 #include "DescriptorHeapAllocator.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
 #include "FenceManager.h"
@@ -55,8 +52,6 @@ struct Renderer
     ResourceManager* _resourceManager;
     RenderGraph* _renderGraph;
 
-    unsigned int _currentlyInitDescriptor = 0;
-
     bool _isInitialized = false;
 
     uint32_t _width, _height;
@@ -77,16 +72,5 @@ struct Renderer
     void initRenderPasses();
 
     void render();
-
-    // Il va falloir scinder les truc du haut qui appartiennent au Renderer et les truc du bas, des
-    // objets basique, camera, les voxels etc
-
-    Camera camera;
-    DX12ConstantBuffer cameraBuffer;
-
-    std::vector<Voxel> voxelMap;
-    DX12StructuredBuffer voxelMapBuffer;
-
-    void InitWorld();
 };
 }  // namespace rayvox

@@ -40,6 +40,17 @@
             }
         },
         {
+            "name": "msvc-debug-asan",
+            "displayName": "MSVC Debug Asan",
+            "description": "Debug build with MSVC and ASAN",
+            "inherits": "windows-msvc-base",
+            "binaryDir": "${sourceDir}/build/debug",
+            "environment": {
+                "CFLAGS": "/fsanitize=address",
+                "CXXFLAGS": "/fsanitize=address"
+            }
+        },
+        {
             "name": "msvc-release",
             "displayName": "MSVC Release",
             "description": "Release build with MSVC and Ninja",
@@ -55,6 +66,12 @@
             "name": "msvc-debug",
             "displayName": "Build Debug",
             "configurePreset": "msvc-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "msvc-debug-asan",
+            "displayName": "Build Debug Asan",
+            "configurePreset": "msvc-debug-asan",
             "configuration": "Debug"
         },
         {
