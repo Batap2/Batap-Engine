@@ -94,6 +94,72 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
     ImGui_ImplDX12_Init(&init_info);
 }
 
+void Renderer::initRessourcesAndViews(HWND hwnd)
+{
+    const DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {_width,
+                                                  _height,
+                                                  DXGI_FORMAT_R8G8B8A8_UNORM,
+                                                  FALSE,
+                                                  {1, 0},
+                                                  DXGI_USAGE_BACK_BUFFER,
+                                                  _swapChain_buffer_count,
+                                                  DXGI_SCALING_STRETCH,
+                                                  DXGI_SWAP_EFFECT_FLIP_DISCARD,
+                                                  DXGI_ALPHA_MODE_UNSPECIFIED,
+                                                  _tearingFlag};
+    // Create and upgrade swapchain to our version(ComPtr<IDXGISwapChain4> swapchain)
+    ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
+    ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_commandQueues[0]->_commandQueue.Get(),
+                                                        hwnd, &swapchain_desc, nullptr, nullptr,
+                                                        &swapchain_tier_dx12));
+    ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
+
+    auto swapChainResources = _resourceManager->createEmptyFrameResource(toS(RName::backbuffers));
+    for (int i = 0; i < _swapChain_buffer_count; i++)
+    {
+        _swapchain->GetBuffer(i, IID_PPV_ARGS(&swapChainResources[i]->_resource));
+        swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT, toS(RName::backbuffers));
+    }
+
+    auto texs_render0 = _resourceManager->createTexture2DFrameResource(
+        _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
+        toS(RName::texture2D_render0));
+
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
+    uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    uavDesc_render0.Texture2D.MipSlice = 0;
+    uavDesc_render0.Texture2D.PlaneSlice = 0;
+    _resourceManager->createView(toS(VName::UAV_render0), texs_render0, uavDesc_render0,
+                                 _descriptorHeapAllocator_CBV_SRV_UAV);
+}
+
+void Renderer::initPsosAndShaders()
+{
+    std::string shader_dir;
+    shader_dir = std::filesystem::current_path().filename() == "build" ? "../src/Shaders"
+                                                                       : "src/Shaders";
+
+    // Shader and its layout
+    auto shader_compute0 = _psoManager->compileShaderFromFile(
+        "shader_compute0", shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_0");
+
+    RootSignatureDescription rDesc{
+        {
+            {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+            {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+            {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+        },
+        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
+
+    _psoManager->createComputePipelineState("pso_compute0", rDesc,
+                                            [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d) {
+                                                d.CS = {shader_compute0->_blob->GetBufferPointer(),
+                                                        shader_compute0->_blob->GetBufferSize()};
+                                            });
+}
+
 void Renderer::initRenderPasses()
 {
     _renderGraph->addPass("render0", RenderPass::QueueType::Direct)
@@ -232,66 +298,8 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
     setTearingFlag();
 
-    const DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {_width,
-                                                  _height,
-                                                  DXGI_FORMAT_R8G8B8A8_UNORM,
-                                                  FALSE,
-                                                  {1, 0},
-                                                  DXGI_USAGE_BACK_BUFFER,
-                                                  _swapChain_buffer_count,
-                                                  DXGI_SCALING_STRETCH,
-                                                  DXGI_SWAP_EFFECT_FLIP_DISCARD,
-                                                  DXGI_ALPHA_MODE_UNSPECIFIED,
-                                                  _tearingFlag};
-    // Create and upgrade swapchain to our version(ComPtr<IDXGISwapChain4> swapchain)
-    ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
-    ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_commandQueues[0]->_commandQueue.Get(),
-                                                        hWnd, &swapchain_desc, nullptr, nullptr,
-                                                        &swapchain_tier_dx12));
-    ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
-
-    auto swapChainResources = _resourceManager->createEmptyFrameResource(toS(RName::backbuffers));
-    for (int i = 0; i < _swapChain_buffer_count; i++)
-    {
-        _swapchain->GetBuffer(i, IID_PPV_ARGS(&swapChainResources[i]->_resource));
-        swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT, toS(RName::backbuffers));
-    }
-
-    auto texs_render0 = _resourceManager->createTexture2DFrameResource(
-        _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
-        toS(RName::texture2D_render0));
-
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
-    uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    uavDesc_render0.Texture2D.MipSlice = 0;
-    uavDesc_render0.Texture2D.PlaneSlice = 0;
-    _resourceManager->createView(toS(VName::UAV_render0), texs_render0, uavDesc_render0,
-                                 _descriptorHeapAllocator_CBV_SRV_UAV);
-
-    std::string shader_dir;
-    shader_dir = std::filesystem::current_path().filename() == "build" ? "../src/Shaders"
-                                                                       : "src/Shaders";
-
-    // Shader and its layout
-    auto shader_compute0 = _psoManager->compileShaderFromFile(
-        "shader_compute0", shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_0");
-
-    RootSignatureDescription rDesc{
-        {
-            {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-            {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-            {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-        },
-        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
-
-    _psoManager->createComputePipelineState("pso_compute0", rDesc,
-                                            [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d) {
-                                                d.CS = {shader_compute0->_blob->GetBufferPointer(),
-                                                        shader_compute0->_blob->GetBufferSize()};
-                                            });
-
+    initRessourcesAndViews(hWnd);
+    initPsosAndShaders();
     initRenderPasses();
     initImgui(hWnd, clientWidth, clientHeight);
 

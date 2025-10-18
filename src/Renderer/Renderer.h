@@ -1,14 +1,16 @@
 #pragma once
-#include <vector>
 #include <memory>
+#include <vector>
+
 
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
 #include "FenceManager.h"
-#include "ResourceManager.h"
 #include "RenderGraph.h"
+#include "ResourceManager.h"
 #include "Shaders.h"
+
 
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
@@ -67,6 +69,8 @@ struct Renderer
 
     void init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight);
     void initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight);
+    void initRessourcesAndViews(HWND hwnd);
+    void initPsosAndShaders();
     void initRenderPasses();
 
     void render();
