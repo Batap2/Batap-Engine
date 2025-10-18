@@ -8,6 +8,7 @@
 #include "FenceManager.h"
 #include "ResourceManager.h"
 #include "RenderGraph.h"
+#include "Shaders.h"
 
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
@@ -38,10 +39,6 @@ struct Renderer
     // Command interfaces
     std::vector<std::unique_ptr<CommandQueue>> _commandQueues;
 
-    // Shader layout and pipeline state
-    ComPtr<ID3D12RootSignature> _root_signature;
-    ComPtr<ID3D12PipelineState> _pso;
-
     // Resource descriptors(views)
     DescriptorHeapAllocator _descriptorHeapAllocator_CBV_SRV_UAV;
     DescriptorHeapAllocator _descriptorHeapAllocator_SAMPLER;
@@ -50,6 +47,7 @@ struct Renderer
 
     FenceManager* _fenceManager;
     ResourceManager* _resourceManager;
+    PipelineStateManager* _psoManager;
     RenderGraph* _renderGraph;
 
     bool _isInitialized = false;

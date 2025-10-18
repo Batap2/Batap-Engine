@@ -15,6 +15,7 @@
 #include "FenceManager.h"
 #include "RenderGraph.h"
 #include "ResourceManager.h"
+#include "Shaders.h"
 
 namespace rayvox
 {
@@ -107,8 +108,7 @@ void Renderer::initRenderPasses()
                 ID3D12DescriptorHeap* heaps[] = {_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
                 cmdList->SetDescriptorHeaps(1, heaps);
 
-                cmdList->SetPipelineState(_pso.Get());
-                cmdList->SetComputeRootSignature(_root_signature.Get());
+                _psoManager->bindPipelineState(cmdList, "pso_compute0");
 
                 uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -171,8 +171,6 @@ bool Renderer::setTearingFlag()
     return allowTearing == TRUE;
 }
 
-
-
 void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 {
     _width = clientHeight;
@@ -229,7 +227,7 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
                                            64 * 1024 * 1024);
     _commandQueues.emplace_back(std::make_unique<CommandQueue>(
         _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, _swapChain_buffer_count));
-
+    _psoManager = new PipelineStateManager(_device.Get());
     _renderGraph = new RenderGraph();
 
     setTearingFlag();
@@ -272,53 +270,27 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     _resourceManager->createView(toS(VName::UAV_render0), texs_render0, uavDesc_render0,
                                  _descriptorHeapAllocator_CBV_SRV_UAV);
 
-    std::wstring shader_dir;
-    shader_dir = std::filesystem::current_path().filename() == "build" ? L"../src/Shaders"
-                                                                       : L"src/Shaders";
+    std::string shader_dir;
+    shader_dir = std::filesystem::current_path().filename() == "build" ? "../src/Shaders"
+                                                                       : "src/Shaders";
 
     // Shader and its layout
-    ComPtr<ID3DBlob> computeShaderBlob;
-    ThrowIfFailed(compileShaderFromFile(shader_dir + L"/ComputeShader_test.hlsl", "main", "cs_5_0",
-                                        computeShaderBlob));
+    auto shader_compute0 = _psoManager->compileShaderFromFile(
+        "shader_compute0", shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_0");
 
-    {
-        // Description des éléments de la signature racine
-        CD3DX12_DESCRIPTOR_RANGE1 ranges[3];
-        ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                       0);  // Un UAV à l'emplacement 0 | framebuffer
-        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);  // camera
-        ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);  // voxel map
+    RootSignatureDescription rDesc{
+        {
+            {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+            {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+            {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+        },
+        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
-        CD3DX12_ROOT_PARAMETER1 rootParameters[3];
-        rootParameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_ALL);
-        rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_ALL);
-        rootParameters[2].InitAsDescriptorTable(1, &ranges[2], D3D12_SHADER_VISIBILITY_ALL);
-
-        // Définir les flags de la signature racine
-        D3D12_ROOT_SIGNATURE_FLAGS computeRootSignatureFlags =
-            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-        // Créer la signature racine
-        CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC computeRootSignatureDesc;
-        computeRootSignatureDesc.Init_1_1(ARRAYSIZE(rootParameters), rootParameters, 0, nullptr,
-                                          computeRootSignatureFlags);
-
-        ComPtr<ID3DBlob> signature;
-        ComPtr<ID3DBlob> error;
-
-        ThrowIfFailed(
-            D3D12SerializeVersionedRootSignature(&computeRootSignatureDesc, &signature, &error));
-
-        ThrowIfFailed(_device->CreateRootSignature(0, signature->GetBufferPointer(),
-                                                   signature->GetBufferSize(),
-                                                   IID_PPV_ARGS(&_root_signature)));
-    }
-
-    D3D12_COMPUTE_PIPELINE_STATE_DESC pso_desc = {};
-    pso_desc.pRootSignature = _root_signature.Get();
-    pso_desc.CS.BytecodeLength = computeShaderBlob->GetBufferSize();
-    pso_desc.CS.pShaderBytecode = computeShaderBlob->GetBufferPointer();
-    ThrowIfFailed(_device->CreateComputePipelineState(&pso_desc, IID_PPV_ARGS(&_pso)));
+    _psoManager->createComputePipelineState("pso_compute0", rDesc,
+                                            [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d) {
+                                                d.CS = {shader_compute0->_blob->GetBufferPointer(),
+                                                        shader_compute0->_blob->GetBufferSize()};
+                                            });
 
     initRenderPasses();
     initImgui(hWnd, clientWidth, clientHeight);
@@ -338,6 +310,8 @@ void Renderer::render()
     _renderGraph->execute(_commandQueues, _buffer_index);
 
     _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
+
+    _psoManager->resetLastBound();
     _buffer_index = (_buffer_index + 1) % _swapChain_buffer_count;
 }
 
