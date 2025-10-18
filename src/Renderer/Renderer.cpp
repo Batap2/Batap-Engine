@@ -15,6 +15,7 @@
 #include "FenceManager.h"
 #include "RenderGraph.h"
 #include "ResourceManager.h"
+#include "ResourceName.h"
 #include "Shaders.h"
 
 namespace rayvox
@@ -25,6 +26,7 @@ struct ImguiUserData
     DescriptorHeapAllocator* descriptorHeapAllocator;
     UINT heapIdx = 0;
 };
+//TODO : leak potentiel
 void imguiSrvAlloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cH,
                    D3D12_GPU_DESCRIPTOR_HANDLE* gH)
 {
@@ -114,25 +116,34 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
                                                         &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
 
-    auto swapChainResources = _resourceManager->createEmptyFrameResource(toS(RName::backbuffers));
+    auto swapChainResources =
+        _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
     for (int i = 0; i < _swapChain_buffer_count; i++)
     {
         _swapchain->GetBuffer(i, IID_PPV_ARGS(&swapChainResources[i]->_resource));
-        swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT, toS(RName::backbuffers));
+        swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT,
+                                           toS(RN::texture2D_backbuffers));
     }
 
     auto texs_render0 = _resourceManager->createTexture2DFrameResource(
         _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
-        toS(RName::texture2D_render0));
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render0));
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
     uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
     uavDesc_render0.Texture2D.MipSlice = 0;
     uavDesc_render0.Texture2D.PlaneSlice = 0;
-    _resourceManager->createView(toS(VName::UAV_render0), texs_render0, uavDesc_render0,
+    _resourceManager->createView(toS(RN::UAV_render0), texs_render0, uavDesc_render0,
                                  _descriptorHeapAllocator_CBV_SRV_UAV);
+
+    D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_imgui = {};
+    rtvDesc_imgui.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    rtvDesc_imgui.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+    rtvDesc_imgui.Texture2D.MipSlice = 0;
+    rtvDesc_imgui.Texture2D.PlaneSlice = 0;
+    _resourceManager->createView(toS(RN::RTV_imgui), swapChainResources, rtvDesc_imgui,
+                                 _descriptorHeapAllocator_RTV);
 }
 
 void Renderer::initPsosAndShaders()
@@ -143,7 +154,7 @@ void Renderer::initPsosAndShaders()
 
     // Shader and its layout
     auto shader_compute0 = _psoManager->compileShaderFromFile(
-        "shader_compute0", shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_0");
+        toS(RN::shader_compute0), shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_0");
 
     RootSignatureDescription rDesc{
         {
@@ -153,7 +164,7 @@ void Renderer::initPsosAndShaders()
         },
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
-    _psoManager->createComputePipelineState("pso_compute0", rDesc,
+    _psoManager->createComputePipelineState(toS(RN::pso_compute0), rDesc,
                                             [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d) {
                                                 d.CS = {shader_compute0->_blob->GetBufferPointer(),
                                                         shader_compute0->_blob->GetBufferSize()};
@@ -162,19 +173,18 @@ void Renderer::initPsosAndShaders()
 
 void Renderer::initRenderPasses()
 {
-    _renderGraph->addPass("render0", RenderPass::QueueType::Direct)
+    _renderGraph->addPass(toS(RN::pass_render0), RenderPass::QueueType::Direct)
         .addRecordStep(
             [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
             {
                 auto backBuffer =
-                    _resourceManager->getFrameResource(RName::backbuffers)[_buffer_index];
-                auto uav_render0 =
-                    _resourceManager->getFrameView(VName::UAV_render0)[_buffer_index];
+                    _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_buffer_index];
+                auto uav_render0 = _resourceManager->getFrameView(RN::UAV_render0)[_buffer_index];
 
                 ID3D12DescriptorHeap* heaps[] = {_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
                 cmdList->SetDescriptorHeaps(1, heaps);
 
-                _psoManager->bindPipelineState(cmdList, "pso_compute0");
+                _psoManager->bindPipelineState(cmdList, toS(RN::pso_compute0));
 
                 uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -190,10 +200,37 @@ void Renderer::initRenderPasses()
                 uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
                 cmdList->CopyResource(backBuffer->_resource.Get(), uav_render0._resource->get());
                 uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
+            });
 
+    _renderGraph->addPass(toS(RN::pass_imgui), RenderPass::QueueType::Direct)
+        .addRecordStep(
+            [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
+            {
+                ImGui_ImplDX12_NewFrame();
+                ImGui_ImplWin32_NewFrame();
+                ImGui::NewFrame();
+                ImGui::ShowDemoWindow(&testimgui);
+                ImGui::Render();
+
+                auto backBuffer =
+                    _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_buffer_index];
+                auto rtv_imgui = _resourceManager->getFrameView(RN::RTV_imgui)[_buffer_index];
+
+                ID3D12DescriptorHeap* heaps[] = {_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
+                cmdList->SetDescriptorHeaps(1, heaps);
+
+                // Transition vers RENDER_TARGET pour dessiner ImGui
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+                // Set le render target
+                cmdList->OMSetRenderTargets(1, &rtv_imgui._descriptorHandle->cpuHandle, FALSE,
+                                            nullptr);
+
+                // Render ImGui
                 ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList);
 
+                // Transition finale vers PRESENT
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
             });
 }
@@ -239,7 +276,7 @@ bool Renderer::setTearingFlag()
 
 void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 {
-    _width = clientHeight;
+    _width = clientWidth;
     _height = clientHeight;
 
     _threadGroupCountX = (_width + _threadGroupSizeX - 1) / _threadGroupSizeX;
@@ -285,7 +322,7 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
     _descriptorHeapAllocator_CBV_SRV_UAV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128);
     _descriptorHeapAllocator_SAMPLER.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 8);
-    _descriptorHeapAllocator_RTV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
+    _descriptorHeapAllocator_RTV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 3);
     _descriptorHeapAllocator_DSV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
 
     _fenceManager = new FenceManager(_device.Get());
@@ -306,15 +343,8 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     _isInitialized = true;
 }
 
-inline bool testimgui = true;
 void Renderer::render()
 {
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
-    ImGui::ShowDemoWindow(&testimgui);
-    ImGui::Render();
-
     _renderGraph->execute(_commandQueues, _buffer_index);
 
     _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);

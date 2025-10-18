@@ -10,6 +10,9 @@
 
 #define MYICON 101
 #pragma optimize("", off)
+
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 namespace rayvox
 {
 HWND createWindow(const wchar_t* windowClassName, HINSTANCE hInst, const wchar_t* windowTitle,
@@ -134,7 +137,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     if (AppInitialized)
     {
-        Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
+
+        if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+        return true;
+
+        //Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
         int centerX = (windowRect.left + windowRect.right) / 2;
         int centerY = (windowRect.top + windowRect.bottom) / 2;
 
@@ -284,7 +291,7 @@ void InitApp(HINSTANCE hInstance)
     // Initialize the global window rect variable.
     ::GetWindowRect(hWnd, &windowRect);
 
-    ShowCursor(FALSE);
+    ShowCursor(TRUE);
 
     RegisterRawInputDevices(hWnd);
 

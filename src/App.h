@@ -19,8 +19,8 @@ namespace rayvox
 {
 inline HWND hWnd;
 inline RECT windowRect;
-inline uint32_t clientWidth = 1024;
-inline uint32_t clientHeight = 1024;
+inline uint32_t clientWidth = 1280;
+inline uint32_t clientHeight = 720;
 
 inline bool AppInitialized = false;
 inline Context Ctx;

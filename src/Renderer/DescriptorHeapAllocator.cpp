@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "Descriptorhandle.h"
+#include "DirectX-Headers/include/directx/d3d12.h"
 
 namespace rayvox
 {
@@ -12,9 +13,9 @@ void DescriptorHeapAllocator::init(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTO
     type = type_;
     capacity = numDescriptors;
     D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+    descHeapDesc.Type = type_;
     descHeapDesc.NumDescriptors = numDescriptors;
-    if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ||
-        type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
+    if (type_ == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || type_ == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
     {
         descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     }
@@ -54,19 +55,23 @@ DescriptorHandle* DescriptorHeapAllocator::alloc()
     DescriptorHandle* handle = new DescriptorHandle();
     handle->heapIdx = idx;
     handle->cpuHandle.ptr = heap->GetCPUDescriptorHandleForHeapStart().ptr + idx * descriptorSize;
-    handle->gpuHandle.ptr = heap->GetGPUDescriptorHandleForHeapStart().ptr + idx * descriptorSize;
+    if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+    {
+        handle->gpuHandle.ptr =
+            heap->GetGPUDescriptorHandleForHeapStart().ptr + idx * descriptorSize;
+    }
 
     return handle;
 }
 
 void DescriptorHeapAllocator::free(const DescriptorHandle& desc)
 {
-    freeList.push(desc.heapIdx);
-    createdDescriptorHandles.erase(desc.heapIdx);
+    free(desc.heapIdx);
 }
 void DescriptorHeapAllocator::free(UINT heapIdx)
 {
     freeList.push(heapIdx);
+    delete createdDescriptorHandles[heapIdx];
     createdDescriptorHandles.erase(heapIdx);
 }
 }  // namespace rayvox

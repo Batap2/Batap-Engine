@@ -7,7 +7,7 @@ RWTexture2D<float4> buffer_render0 : register(u0);
   uint width, height;
   buffer_render0.GetDimensions(width, height);
 
-  float4 finalColor = float4(1, 0, 0, 1);
+  float4 finalColor = float4(float(dt_id.x)/width, float(dt_id.y)/height, 0, 1);
 
   buffer_render0[screen_coord.xy] = finalColor;
 }

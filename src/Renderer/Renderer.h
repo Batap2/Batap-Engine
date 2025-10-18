@@ -2,7 +2,6 @@
 #include <memory>
 #include <vector>
 
-
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
@@ -10,7 +9,6 @@
 #include "RenderGraph.h"
 #include "ResourceManager.h"
 #include "Shaders.h"
-
 
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
@@ -51,6 +49,8 @@ struct Renderer
     ResourceManager* _resourceManager;
     PipelineStateManager* _psoManager;
     RenderGraph* _renderGraph;
+
+    bool testimgui = true;
 
     bool _isInitialized = false;
 

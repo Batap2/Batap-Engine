@@ -6,11 +6,10 @@
 #include "DirectX-Headers/include/directx/d3d12.h"
 using namespace Microsoft::WRL;
 
-#include <magic_enum/magic_enum.hpp>
-
 #include "AssertUtils.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
+#include "ResourceName.h"
 
 #include <intsafe.h>
 #include <concepts>
@@ -23,27 +22,6 @@ using namespace Microsoft::WRL;
 
 namespace rayvox
 {
-
-enum class RName
-{
-    backbuffers,
-    texture2D_render0,
-    buffer_camera,
-};
-enum class VName
-{
-    UAV_render0,
-    CBV_camera,
-};
-inline std::string_view toS(RName r)
-{
-    return magic_enum::enum_name(r);
-}
-inline std::string_view toS(VName v)
-{
-    return magic_enum::enum_name(v);
-}
-
 struct DescriptorHeapAllocator;
 
 struct GPUResource
@@ -219,10 +197,10 @@ struct ResourceManager
         }
     }
 
-    GPUResource* getStaticResource(RName n);
-    std::vector<GPUResource*> getFrameResource(RName n);
-    GPUView& getStaticView(VName n);
-    std::vector<GPUView>& getFrameView(VName n);
+    GPUResource* getStaticResource(RN n);
+    std::vector<GPUResource*> getFrameResource(RN n);
+    GPUView& getStaticView(RN n);
+    std::vector<GPUView>& getFrameView(RN n);
 
     ComPtr<ID3D12Device2> _device;
     uint8_t _frameCount;

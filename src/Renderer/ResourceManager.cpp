@@ -323,7 +323,7 @@ std::vector<GPUResource*> ResourceManager::createTexture2DFrameResource(
     return ptrs;
 }
 
-GPUResource* ResourceManager::getStaticResource(RName n)
+GPUResource* ResourceManager::getStaticResource(RN n)
 {
     auto key = std::string(toS(n));
     if (!_staticResources.contains(key))
@@ -333,7 +333,7 @@ GPUResource* ResourceManager::getStaticResource(RName n)
     return _staticResources[key].get();
 }
 
-std::vector<GPUResource*> ResourceManager::getFrameResource(RName n)
+std::vector<GPUResource*> ResourceManager::getFrameResource(RN n)
 {
     auto key = std::string(toS(n));
     if (!_frameResource.contains(key))
@@ -347,7 +347,7 @@ std::vector<GPUResource*> ResourceManager::getFrameResource(RName n)
     return result;
 }
 
-GPUView& ResourceManager::getStaticView(VName n)
+GPUView& ResourceManager::getStaticView(RN n)
 {
     auto key = std::string(toS(n));
     if (!_staticViews.contains(key))
@@ -357,7 +357,7 @@ GPUView& ResourceManager::getStaticView(VName n)
     return _staticViews[key];
 }
 
-std::vector<GPUView>& ResourceManager::getFrameView(VName n)
+std::vector<GPUView>& ResourceManager::getFrameView(RN n)
 {
     auto key = std::string(toS(n));
     if (!_frameViews.contains(key))
