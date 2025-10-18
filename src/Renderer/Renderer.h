@@ -1,6 +1,8 @@
 #pragma once
+#include <chrono>
 #include <memory>
 #include <vector>
+
 
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
@@ -9,11 +11,6 @@
 #include "RenderGraph.h"
 #include "ResourceManager.h"
 #include "Shaders.h"
-
-#include "imgui.h"
-#include "imgui/backends/imgui_impl_dx12.h"
-#include "imgui/backends/imgui_impl_win32.h"
-#include "includeDX12.h"
 
 namespace rayvox
 {
@@ -50,7 +47,8 @@ struct Renderer
     PipelineStateManager* _psoManager;
     RenderGraph* _renderGraph;
 
-    bool testimgui = true;
+    float _frameMs = 0;
+    std::chrono::time_point<std::chrono::high_resolution_clock> _lastFrameTimePoint;
 
     bool _isInitialized = false;
 

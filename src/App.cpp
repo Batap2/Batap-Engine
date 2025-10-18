@@ -11,7 +11,8 @@
 #define MYICON 101
 #pragma optimize("", off)
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam,
+                                                             LPARAM lParam);
 
 namespace rayvox
 {
@@ -137,47 +138,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     if (AppInitialized)
     {
-
         if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
-        return true;
+            return true;
 
-        //Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
+        Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
         int centerX = (windowRect.left + windowRect.right) / 2;
         int centerY = (windowRect.top + windowRect.bottom) / 2;
 
         switch (message)
         {
+
             case WM_INPUT:
-                if (isWindowFocused)
-                {
-                    // SetCursorPos(centerX, centerY);
-                }
+                // Seulement si tu en as vraiment besoin
+                Ctx._inputManager->ProcessWindowsRawInput(lParam);
+                //Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
                 break;
 
-            case WM_PAINT:
-                break;
-            case WM_SYSKEYDOWN:
-            case WM_KEYDOWN:
-            {
-                bool alt = (::GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-
-                switch (wParam)
-                {
-                    case VK_ESCAPE:
-                        ::PostQuitMessage(0);
-                        break;
-
-                    case VK_RETURN:
-                        if (alt)
-                            SetFullscreen(!Ctx._renderer->_fullscreen);
-                        break;
-
-                    case VK_F11:
-                        SetFullscreen(!Ctx._renderer->_fullscreen);
-                        break;
-                }
-            }
-            break;
             // The default window procedure will play a system notification sound
             // when pressing the Alt+Enter keyboard combination if this message is
             // not handled.
@@ -262,7 +238,7 @@ void RegisterRawInputDevices(HWND hwnd)
     // Enregistrer les données de la souris
     rid[0].usUsagePage = 0x01;         // Page de périphérique générique
     rid[0].usUsage = 0x02;             // Usage : souris
-    rid[0].dwFlags = RIDEV_INPUTSINK;  // Recevoir les entrées même lorsque la fenêtre est inactive
+    rid[0].dwFlags = 0;  // Recevoir les entrées même lorsque la fenêtre est inactive
     rid[0].hwndTarget = hwnd;
 
     if (!RegisterRawInputDevices(rid, 1, sizeof(rid[0])))

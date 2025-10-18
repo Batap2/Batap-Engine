@@ -18,6 +18,10 @@
 #include "ResourceName.h"
 #include "Shaders.h"
 
+#include "imgui.h"
+#include "imgui/backends/imgui_impl_dx12.h"
+#include "imgui/backends/imgui_impl_win32.h"
+
 namespace rayvox
 {
 
@@ -26,7 +30,7 @@ struct ImguiUserData
     DescriptorHeapAllocator* descriptorHeapAllocator;
     UINT heapIdx = 0;
 };
-//TODO : leak potentiel
+// TODO : leak potentiel
 void imguiSrvAlloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cH,
                    D3D12_GPU_DESCRIPTOR_HANDLE* gH)
 {
@@ -210,7 +214,11 @@ void Renderer::initRenderPasses()
                 ImGui_ImplDX12_NewFrame();
                 ImGui_ImplWin32_NewFrame();
                 ImGui::NewFrame();
-                ImGui::ShowDemoWindow(&testimgui);
+
+                ImGui::Begin("test window");
+                ImGui::Text(("frame time : " + std::to_string(_frameMs)).c_str());
+                ImGui::End();
+
                 ImGui::Render();
 
                 auto backBuffer =
@@ -351,6 +359,11 @@ void Renderer::render()
 
     _psoManager->resetLastBound();
     _buffer_index = (_buffer_index + 1) % _swapChain_buffer_count;
+
+    std::chrono::duration<float> frameDuration =
+        std::chrono::high_resolution_clock::now() - _lastFrameTimePoint;
+    _frameMs = frameDuration.count() * 1000;
+    _lastFrameTimePoint = std::chrono::high_resolution_clock::now();
 }
 
 void Renderer::flush()

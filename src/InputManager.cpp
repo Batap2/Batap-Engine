@@ -4,7 +4,6 @@
 
 #include <iostream>
 
-
 namespace rayvox
 {
 
@@ -16,7 +15,6 @@ void InputManager::ProcessWindowsEvent(UINT message, WPARAM wParam, LPARAM lPara
             if (!KeysDown.contains(wParam))
                 KeysPressed.insert(wParam);
             KeysDown.insert(wParam);
-            std::cout << (char) wParam << "inserted\n";
             break;
 
         case WM_KEYUP:
@@ -52,7 +50,6 @@ void InputManager::ProcessWindowsEvent(UINT message, WPARAM wParam, LPARAM lPara
         case WM_MOUSEMOVE:
             MousePosition.x = GET_X_LPARAM(lParam);
             MousePosition.y = GET_Y_LPARAM(lParam);
-            std::cout << "mouse :" << MousePosition.x << " " << MousePosition.y << "\n";
             break;
     }
 }
@@ -60,7 +57,6 @@ void InputManager::ProcessWindowsEvent(UINT message, WPARAM wParam, LPARAM lPara
 void InputManager::ProcessWindowsRawInput(LPARAM lParam)
 {
     UINT dwSize;
-    std::cout << "mouse event : begin\n";
     // Get size
     GetRawInputData((HRAWINPUT) lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
 
@@ -76,8 +72,6 @@ void InputManager::ProcessWindowsRawInput(LPARAM lParam)
 
     if (raw->header.dwType == RIM_TYPEMOUSE)
     {
-        std::cout << "mouse event : " << MouseDeltaAccumulated.x << " " << MouseDeltaAccumulated.y
-                  << "\n";
         MouseDeltaAccumulated.x += raw->data.mouse.lLastX;
         MouseDeltaAccumulated.y += raw->data.mouse.lLastY;
     }
