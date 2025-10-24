@@ -120,8 +120,10 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
                                                         &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
 
-    auto swapChainResources =
+    auto swapChainResourcesGUID =
         _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
+
+    auto swapChainResources = _resourceManager->getFrameResource(swapChainResourcesGUID);
     for (int i = 0; i < _swapChain_buffer_count; i++)
     {
         _swapchain->GetBuffer(i, IID_PPV_ARGS(&swapChainResources[i]->_resource));
@@ -129,25 +131,28 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
                                            toS(RN::texture2D_backbuffers));
     }
 
-    auto texs_render0 = _resourceManager->createTexture2DFrameResource(
+    _resourceManager->createTexture2DFrameResource(
         _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render0));
+
+    auto texs_render0 = _resourceManager->getFrameResource(RN::texture2D_render0);
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
     uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
     uavDesc_render0.Texture2D.MipSlice = 0;
     uavDesc_render0.Texture2D.PlaneSlice = 0;
-    _resourceManager->createView(toS(RN::UAV_render0), texs_render0, uavDesc_render0,
-                                 _descriptorHeapAllocator_CBV_SRV_UAV);
+
+    _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(texs_render0, uavDesc_render0, _descriptorHeapAllocator_CBV_SRV_UAV, toS(RN::UAV_render0));
+
 
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_imgui = {};
     rtvDesc_imgui.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     rtvDesc_imgui.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
     rtvDesc_imgui.Texture2D.MipSlice = 0;
     rtvDesc_imgui.Texture2D.PlaneSlice = 0;
-    _resourceManager->createView(toS(RN::RTV_imgui), swapChainResources, rtvDesc_imgui,
-                                 _descriptorHeapAllocator_RTV);
+
+    _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(swapChainResources, rtvDesc_imgui, _descriptorHeapAllocator_RTV, toS(RN::RTV_imgui));
 }
 
 void Renderer::initPsosAndShaders()

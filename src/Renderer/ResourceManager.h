@@ -40,7 +40,7 @@ struct GPU_GUID
     } _type;
     uint64_t _guid;
 
-    GPU_GUID();
+    GPU_GUID(){};
 
     GPU_GUID(GPUObject type) : _type(type)
     {
@@ -215,22 +215,41 @@ struct ResourceManager
         return guid;
     }
 
-    template <typename T, std::ranges::range R, std::ranges::range V>
-        requires std::same_as<std::ranges::range_value_t<R>, GPUResource*> &&
-                 std::same_as<std::ranges::range_value_t<V>, T>
-    GPU_GUID createFrameView(const R& resources, V& viewDesc,
+    template <typename T, std::ranges::range R, typename D>
+        requires(std::same_as<D, T> ||
+                 (std::ranges::range<D> && std::same_as<std::ranges::range_value_t<D>, T>) )
+    GPU_GUID createFrameView(const R& resources, D& viewDesc,
                              DescriptorHeapAllocator& descriptorHeapAllocator,
                              std::optional<std::string_view> name = std::nullopt)
     {
         GPU_GUID guid = generateGUID(GPU_GUID::GPUObject::FrameView, name);
 
-        auto& vec = _frameViews[guid];
-        for (auto resource : resources)
+        _frameViews[guid] = std::vector<GPUView>();
+        _frameViews[guid].reserve(_frameCount);
+
+        if constexpr (std::ranges::range<D> && !std::same_as<D, T>)
         {
-            GPUView view;
-            createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
-            vec.push_back(view);
+            ThrowAssert(viewDesc.size() == resources.size(),
+                        "resources and viewDesc must have the same size");
+
+            int i = 0;
+            for (auto resource : resources)
+            {
+                GPUView view;
+                createSingleView(resource, &view, viewDesc[i++], descriptorHeapAllocator);
+                _frameViews[guid].push_back(view);
+            }
         }
+        else
+        {
+            for (auto resource : resources)
+            {
+                GPUView view;
+                createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
+                _frameViews[guid].push_back(view);
+            }
+        }
+
         return guid;
     }
 

@@ -417,8 +417,9 @@ GPU_GUID ResourceManager::generateGUID(GPU_GUID::GPUObject type,
     if (name.has_value())
     {
         auto guid = GPU_GUID(type, name.value().data());
-        _nameToGuidMap[name->data()] = guid;
         ThrowAssert(!_frameViews.contains(guid), "Resource name already exists");
+        _nameToGuidMap[name->data()] = guid;
+        _createdGPU_GUID.insert(guid);
         return guid;
     }
     else
@@ -428,6 +429,7 @@ GPU_GUID ResourceManager::generateGUID(GPU_GUID::GPUObject type,
         {
             guid = GPU_GUID(type);
         }
+        _createdGPU_GUID.insert(guid);
         return guid;
     }
 }
