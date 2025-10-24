@@ -35,6 +35,7 @@ struct Camera
 
     glm::vec3 getPosVec() const
     {
+        glm::mat4x4 aa;
         return pos;
     }
 

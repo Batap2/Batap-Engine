@@ -14,7 +14,7 @@ namespace rayvox
 CommandQueue::CommandQueue(Microsoft::WRL::ComPtr<ID3D12Device2>& device,
                            FenceManager& fenceManager_, D3D12_COMMAND_LIST_TYPE type,
                            uint32_t allocatorNumber)
-    : _device(device), _fenceManager(fenceManager_)
+    : _commandListType(type) , _device(device), _fenceManager(fenceManager_)
 {
     D3D12_COMMAND_QUEUE_DESC desc = {};
     desc.Type = type;

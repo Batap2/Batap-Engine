@@ -22,6 +22,8 @@ struct Entity
     template <typename T>
     T* getComponent()
     {
+        struct A{};
+        auto aa = _registry->view<A>();
         return _registry->try_get<T>(_handle);
     }
 

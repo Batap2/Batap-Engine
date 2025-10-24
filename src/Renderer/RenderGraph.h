@@ -3,6 +3,7 @@
 #include <DirectX-Headers/include/directx/d3dx12.h>
 
 #include "CommandQueue.h"
+#include "DirectX-Headers/include/directx/d3d12.h"
 
 #include <functional>
 #include <memory>
@@ -12,17 +13,10 @@ namespace rayvox
 {
 struct RenderPass
 {
-    enum class QueueType
-    {
-        Direct,
-        Compute,
-        Copy
-    };
-
     using RecordFunction = std::function<void(ID3D12GraphicsCommandList*, uint32_t frameIndex)>;
 
-    RenderPass(const std::string& name, QueueType queue = QueueType::Direct)
-        : _name(name), _queueType(queue)
+    RenderPass(const std::string& name, D3D12_COMMAND_LIST_TYPE cmdListType = D3D12_COMMAND_LIST_TYPE_DIRECT)
+        : _name(name), _commandListType(cmdListType)
     {
     }
 
@@ -41,34 +35,38 @@ struct RenderPass
     }
 
     std::string _name;
-    QueueType _queueType;
+    D3D12_COMMAND_LIST_TYPE _commandListType;
     std::vector<RecordFunction> _recordSteps;
 };
 
 struct RenderGraph
 {
-    RenderPass& addPass(const std::string& name, RenderPass::QueueType queueType)
+    RenderPass& addPass(const std::string& name, D3D12_COMMAND_LIST_TYPE cmdListType)
     {
-        _passes.emplace_back(name, queueType);
+        _passes.emplace_back(name, cmdListType);
         return _passes.back();
     }
 
     void execute(std::vector<std::unique_ptr<CommandQueue>>& queues, uint32_t frameIndex)
     {
-        for (auto& pass : _passes)
+        for (auto& queue : queues)
         {
-            auto* queue = queues[static_cast<int>(pass._queueType)].get();
             auto& cmd = queue->getCommand(frameIndex);
 
             if (!queue->isCommandComplete(cmd))
-            {
                 continue;
-            }
 
             cmd._commandAllocator->Reset();
             cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
-            for (auto& step : pass._recordSteps)
-                step(cmd._commandList.Get(), frameIndex);
+
+            for (auto& pass : _passes)
+            {
+                if (pass._commandListType != queue->_commandListType)
+                    continue;
+
+                for (auto& step : pass._recordSteps)
+                    step(cmd._commandList.Get(), frameIndex);
+            }
 
             queue->executeCommand(frameIndex);
         }

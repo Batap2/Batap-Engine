@@ -177,7 +177,7 @@ void Renderer::initPsosAndShaders()
 
 void Renderer::initRenderPasses()
 {
-    _renderGraph->addPass(toS(RN::pass_render0), RenderPass::QueueType::Direct)
+    _renderGraph->addPass(toS(RN::pass_render0), D3D12_COMMAND_LIST_TYPE_DIRECT)
         .addRecordStep(
             [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
             {
@@ -207,7 +207,7 @@ void Renderer::initRenderPasses()
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
             });
 
-    _renderGraph->addPass(toS(RN::pass_imgui), RenderPass::QueueType::Direct)
+    _renderGraph->addPass(toS(RN::pass_imgui), D3D12_COMMAND_LIST_TYPE_DIRECT)
         .addRecordStep(
             [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
             {

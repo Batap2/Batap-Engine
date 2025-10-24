@@ -1,5 +1,8 @@
 #pragma once
 
+#include <optional>
+#include <unordered_set>
+#include "magic_enum/magic_enum.hpp"
 #define NOMINMAX
 #include <wrl.h>
 #include <wrl/client.h>
@@ -14,7 +17,9 @@ using namespace Microsoft::WRL;
 #include <intsafe.h>
 #include <concepts>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <random>
 #include <ranges>
 #include <string>
 #include <string_view>
@@ -24,15 +29,66 @@ namespace rayvox
 {
 struct DescriptorHeapAllocator;
 
+struct GPU_GUID
+{
+    enum class GPUObject
+    {
+        FrameResource,
+        FrameView,
+        StaticResource,
+        StaticView
+    } _type;
+    uint64_t _guid;
+
+    GPU_GUID();
+
+    GPU_GUID(GPUObject type) : _type(type)
+    {
+        std::random_device rd;
+        uint64_t high = static_cast<uint64_t>(rd()) << 32;
+        uint64_t low = static_cast<uint64_t>(rd());
+        _guid = high | low;
+    }
+
+    GPU_GUID(GPUObject type, const std::string& path) : _type(type)
+    {
+        uint64_t pathHash = std::hash<std::string>{}(path);
+        _guid = static_cast<uint64_t>(_type) ^ (pathHash << 1);
+    }
+
+    bool operator==(const GPU_GUID& other) const
+    {
+        return _type == other._type && _guid == other._guid;
+    }
+
+    std::string toString()
+    {
+        return magic_enum::enum_name(_type).data() + std::to_string(_guid);
+    }
+};
+}  // namespace rayvox
+
+namespace std
+{
+template <>
+struct hash<rayvox::GPU_GUID>
+{
+    size_t operator()(const rayvox::GPU_GUID& g) const noexcept
+    {
+        return std::hash<uint64_t>{}(g._guid) ^ (std::hash<int>{}(static_cast<int>(g._type)) << 1);
+    }
+};
+}  // namespace std
+
+namespace rayvox
+{
+
 struct GPUResource
 {
     GPUResource(D3D12_RESOURCE_STATES initialState)
     {
         _currentState = initialState;
     }
-
-    ComPtr<ID3D12Resource> _resource;
-    bool _init = false;
 
     void transitionTo(ComPtr<ID3D12GraphicsCommandList> commandList, D3D12_RESOURCE_STATES newState)
     {
@@ -63,6 +119,9 @@ struct GPUResource
         _currentState = currentState;
         _init = true;
     };
+
+    ComPtr<ID3D12Resource> _resource;
+    bool _init = false;
 
    protected:
     D3D12_RESOURCE_STATES _currentState = D3D12_RESOURCE_STATE_COMMON;
@@ -111,96 +170,122 @@ struct ResourceManager
                         uint32_t alignment, uint32_t frameIndex, bool isFrameResource,
                         uint64_t destinationOffset = 0);
 
+    void updateResource(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
+                        GPU_GUID& guid, void* data, uint64_t dataSize, uint32_t alignment,
+                        uint32_t frameIndex, bool isFrameResource, uint64_t destinationOffset = 0);
+
     // You must call setResource() of the GPUResource* after this
-    GPUResource* createEmptyStaticResource(std::string_view name);
-    std::vector<GPUResource*> createEmptyFrameResource(std::string_view name);
+    GPU_GUID createEmptyStaticResource(std::optional<std::string_view> name = std::nullopt);
+    GPU_GUID createEmptyFrameResource(std::optional<std::string_view> name = std::nullopt);
 
-    GPUResource* createBufferStaticResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
-                                            D3D12_HEAP_TYPE heapType,
-                                            std::string_view name = "unnamed_buffer",
-                                            D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
+    GPU_GUID createBufferStaticResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
+                                        D3D12_HEAP_TYPE heapType,
+                                        std::optional<std::string_view> name = std::nullopt,
+                                        D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
-    std::vector<GPUResource*>
+    GPU_GUID
     createBufferFrameResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
-                              D3D12_HEAP_TYPE heapType, std::string_view name,
+                              D3D12_HEAP_TYPE heapType,
+                              std::optional<std::string_view> name = std::nullopt,
                               D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
-    GPUResource* createTexture2DStaticResource(uint32_t width, uint32_t height, DXGI_FORMAT format,
-                                               D3D12_RESOURCE_FLAGS flags,
-                                               D3D12_RESOURCE_STATES initialState,
-                                               D3D12_HEAP_TYPE heapType,
-                                               std::string_view name = "unnamed_texture",
-                                               D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
+    GPU_GUID createTexture2DStaticResource(uint32_t width, uint32_t height, DXGI_FORMAT format,
+                                           D3D12_RESOURCE_FLAGS flags,
+                                           D3D12_RESOURCE_STATES initialState,
+                                           D3D12_HEAP_TYPE heapType,
+                                           std::optional<std::string_view> name = std::nullopt,
+                                           D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
-    std::vector<GPUResource*>
+    GPU_GUID
     createTexture2DFrameResource(uint32_t width, uint32_t height, DXGI_FORMAT format,
                                  D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initialState,
-                                 D3D12_HEAP_TYPE heapType, std::string_view name,
+                                 D3D12_HEAP_TYPE heapType,
+                                 std::optional<std::string_view> name = std::nullopt,
                                  D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
     template <typename T>
-    void createView(std::string_view name, GPUResource* resource, T& viewDesc,
-                    DescriptorHeapAllocator& descriptorHeapAllocator)
+    GPU_GUID createStaticView(GPUResource* resource, T& viewDesc,
+                              DescriptorHeapAllocator& descriptorHeapAllocator,
+                              std::optional<std::string_view> name = std::nullopt)
     {
+        GPU_GUID guid = generateGUID(GPU_GUID::GPUObject::FrameView, name);
         GPUView view;
         createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
-        _staticViews[name.data()] = view;
+        _staticViews[guid] = view;
+        return guid;
     }
 
-    template <typename T, std::ranges::range R>
-        requires std::same_as<std::ranges::range_value_t<R>, GPUResource*>
-    void createView(std::string_view name, const R& resources, T& viewDesc,
-                    DescriptorHeapAllocator& descriptorHeapAllocator)
+    template <typename T, std::ranges::range R, std::ranges::range V>
+        requires std::same_as<std::ranges::range_value_t<R>, GPUResource*> &&
+                 std::same_as<std::ranges::range_value_t<V>, T>
+    GPU_GUID createFrameView(const R& resources, V& viewDesc,
+                             DescriptorHeapAllocator& descriptorHeapAllocator,
+                             std::optional<std::string_view> name = std::nullopt)
     {
-        ThrowAssert(!_frameViews.contains(name.data()), "View name already exists");
-        auto& vec = _frameViews[name.data()];
+        GPU_GUID guid = generateGUID(GPU_GUID::GPUObject::FrameView, name);
 
+        auto& vec = _frameViews[guid];
         for (auto resource : resources)
         {
             GPUView view;
             createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
             vec.push_back(view);
         }
+        return guid;
     }
 
     // offset and size must be aligned to 256
-    void createCBV(std::string_view name, GPUResource* resource, DescriptorHeapAllocator& allocator,
-                   uint64_t offset = 0, uint64_t size = 0)
+    GPU_GUID createStaticCBV(GPU_GUID resource_guid, DescriptorHeapAllocator& allocator,
+                             std::optional<std::string_view> name = std::nullopt,
+                             uint64_t offset = 0, uint64_t size = 0)
     {
-        ThrowAssert(!_staticViews.contains(name.data()), "View name already exists");
+        auto* resource = getStaticResource(resource_guid);
         const auto& descRes = resource->_resource->GetDesc();
 
         D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
         desc.BufferLocation = resource->_resource->GetGPUVirtualAddress() + offset;
         desc.SizeInBytes = static_cast<UINT>(AlignUp(size > 0 ? size : descRes.Width, 256));
 
-        createView(name, resource, desc, allocator);
+        auto guid = createStaticView(resource, desc, allocator, name);
+
+        return guid;
     }
 
-    // offset and size must be aligned to 256
-    template <typename T, std::ranges::range R>
-        requires std::same_as<std::ranges::range_value_t<R>, GPUResource*>
-    void createCBV(std::string_view name, const R& resources, DescriptorHeapAllocator& allocator,
-                   uint64_t offset = 0, uint64_t size = 0)
+    GPU_GUID createFrameCBV(GPU_GUID resource_guid, DescriptorHeapAllocator& allocator,
+                            std::optional<std::string_view> name = std::nullopt,
+                            uint64_t offset = 0, uint64_t size = 0)
     {
-        ThrowAssert(!_frameViews.contains(name.data()), "View name already exists");
+        auto resources = getFrameResource(resource_guid);
+
+        std::vector<D3D12_CONSTANT_BUFFER_VIEW_DESC> descs;
+        descs.reserve(_frameCount);
 
         for (auto resource : resources)
         {
             const auto& descRes = resource->get()->GetDesc();
 
-            D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
+            D3D12_CONSTANT_BUFFER_VIEW_DESC desc{};
             desc.BufferLocation = resource->get()->GetGPUVirtualAddress() + offset;
             desc.SizeInBytes = static_cast<UINT>(AlignUp(size > 0 ? size : descRes.Width, 256));
-
-            createView(name, resource, desc, allocator);
+            descs.push_back(desc);
         }
+
+        return createFrameView<D3D12_CONSTANT_BUFFER_VIEW_DESC>(resources, descs, allocator, name);
     }
 
     GPUResource* getStaticResource(RN n);
     std::vector<GPUResource*> getFrameResource(RN n);
     GPUView& getStaticView(RN n);
     std::vector<GPUView>& getFrameView(RN n);
+
+    GPUResource* getStaticResource(GPU_GUID& guid);
+    std::vector<GPUResource*> getFrameResource(GPU_GUID& guid);
+    GPUView& getStaticView(GPU_GUID& guid);
+    std::vector<GPUView>& getFrameView(GPU_GUID& guid);
+
+    GPU_GUID nameToGuid(const std::string name);
+    GPU_GUID generateGUID(GPU_GUID::GPUObject type,
+                          std::optional<std::string_view> name = std::nullopt);
 
     ComPtr<ID3D12Device2> _device;
     uint8_t _frameCount;
@@ -209,10 +294,10 @@ struct ResourceManager
     // buffers)
     // Static resources: rarely updated, must wait for GPU before re-upload
 
-    std::unordered_map<std::string, std::vector<std::unique_ptr<GPUResource>>> _frameResource;
-    std::unordered_map<std::string, std::unique_ptr<GPUResource>> _staticResources;
-    std::unordered_map<std::string, std::vector<GPUView>> _frameViews;
-    std::unordered_map<std::string, GPUView> _staticViews;
+    std::unordered_map<GPU_GUID, std::vector<std::unique_ptr<GPUResource>>> _frameResource;
+    std::unordered_map<GPU_GUID, std::unique_ptr<GPUResource>> _staticResources;
+    std::unordered_map<GPU_GUID, std::vector<GPUView>> _frameViews;
+    std::unordered_map<GPU_GUID, GPUView> _staticViews;
 
     FenceManager& _fenceManager;
     uint32_t _fenceId;
@@ -259,5 +344,8 @@ struct ResourceManager
                                             view->_descriptorHandle->cpuHandle);
         }
     };
+
+    std::unordered_map<std::string, GPU_GUID> _nameToGuidMap;
+    std::unordered_set<GPU_GUID> _createdGPU_GUID;
 };
 }  // namespace rayvox
