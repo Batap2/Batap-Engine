@@ -10,6 +10,7 @@
 #include "FenceManager.h"
 #include "RenderGraph.h"
 #include "ResourceManager.h"
+#include "SceneRenderer.h"
 #include "Shaders.h"
 
 namespace rayvox
@@ -46,6 +47,7 @@ struct Renderer
     ResourceManager* _resourceManager;
     PipelineStateManager* _psoManager;
     RenderGraph* _renderGraph;
+    SceneRenderer* _sceneRenderer;
 
     float _frameMs = 0;
     std::chrono::time_point<std::chrono::high_resolution_clock> _lastFrameTimePoint;

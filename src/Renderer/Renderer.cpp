@@ -16,6 +16,7 @@
 #include "RenderGraph.h"
 #include "ResourceManager.h"
 #include "ResourceName.h"
+#include "SceneRenderer.h"
 #include "Shaders.h"
 
 #include "imgui.h"
@@ -220,9 +221,7 @@ void Renderer::initRenderPasses()
                 ImGui_ImplWin32_NewFrame();
                 ImGui::NewFrame();
 
-                ImGui::Begin("test window");
-                ImGui::Text(("frame time : " + std::to_string(_frameMs)).c_str());
-                ImGui::End();
+                
 
                 ImGui::Render();
 
@@ -345,6 +344,7 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
         _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, _swapChain_buffer_count));
     _psoManager = new PipelineStateManager(_device.Get());
     _renderGraph = new RenderGraph();
+    _sceneRenderer = new SceneRenderer(_resourceManager);
 
     setTearingFlag();
 
@@ -358,8 +358,8 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
 void Renderer::render()
 {
+    //_sceneRenderer->uploadDirtyBuffers();
     _renderGraph->execute(_commandQueues, _buffer_index);
-
     _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
 
     _psoManager->resetLastBound();

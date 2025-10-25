@@ -19,6 +19,7 @@ set(include_dir "${PROJECT_SOURCE_DIR}/include")
 # Définir le répertoire de sortie des exécutables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
 
+include_directories(${source_dir})
 include_directories(${include_dir})
 add_subdirectory(${include_dir}/DirectX-Headers)
 include_directories(${include_dir}/glm)
@@ -48,6 +49,9 @@ add_executable(RayVox_Engine WIN32 ${source_files}
         )
 
 target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.lib)
+
+#target_include_directories(RayVox_Engine PRIVATE ${source_dir})
+
 
 # Définir _DEBUG pour les builds Debug
 target_compile_definitions(RayVox_Engine

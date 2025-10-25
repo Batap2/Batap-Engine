@@ -13,6 +13,7 @@ using namespace Microsoft::WRL;
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
 #include "ResourceName.h"
+#include "GPU_GUID.h"
 
 #include <intsafe.h>
 #include <concepts>
@@ -25,48 +26,7 @@ using namespace Microsoft::WRL;
 #include <string_view>
 #include <unordered_map>
 
-namespace rayvox
-{
 struct DescriptorHeapAllocator;
-
-struct GPU_GUID
-{
-    enum class GPUObject
-    {
-        FrameResource,
-        FrameView,
-        StaticResource,
-        StaticView
-    } _type;
-    uint64_t _guid;
-
-    GPU_GUID(){};
-
-    GPU_GUID(GPUObject type) : _type(type)
-    {
-        std::random_device rd;
-        uint64_t high = static_cast<uint64_t>(rd()) << 32;
-        uint64_t low = static_cast<uint64_t>(rd());
-        _guid = high | low;
-    }
-
-    GPU_GUID(GPUObject type, const std::string& path) : _type(type)
-    {
-        uint64_t pathHash = std::hash<std::string>{}(path);
-        _guid = static_cast<uint64_t>(_type) ^ (pathHash << 1);
-    }
-
-    bool operator==(const GPU_GUID& other) const
-    {
-        return _type == other._type && _guid == other._guid;
-    }
-
-    std::string toString()
-    {
-        return magic_enum::enum_name(_type).data() + std::to_string(_guid);
-    }
-};
-}  // namespace rayvox
 
 namespace std
 {
