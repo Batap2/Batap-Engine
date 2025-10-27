@@ -8,7 +8,6 @@
 
 namespace rayvox
 {
-
 struct GPU_GUID
 {
     enum class GPUObject
@@ -46,5 +45,16 @@ struct GPU_GUID
         return magic_enum::enum_name(_type).data() + std::to_string(_guid);
     }
 };
-
 }  // namespace rayvox
+
+namespace std
+{
+template <>
+struct hash<rayvox::GPU_GUID>
+{
+    size_t operator()(const rayvox::GPU_GUID& g) const noexcept
+    {
+        return std::hash<uint64_t>{}(g._guid) ^ (std::hash<int>{}(static_cast<int>(g._type)) << 1);
+    }
+};
+}  // namespace std

@@ -15,7 +15,8 @@ struct RenderPass
 {
     using RecordFunction = std::function<void(ID3D12GraphicsCommandList*, uint32_t frameIndex)>;
 
-    RenderPass(const std::string& name, D3D12_COMMAND_LIST_TYPE cmdListType = D3D12_COMMAND_LIST_TYPE_DIRECT)
+    RenderPass(const std::string& name,
+               D3D12_COMMAND_LIST_TYPE cmdListType = D3D12_COMMAND_LIST_TYPE_DIRECT)
         : _name(name), _commandListType(cmdListType)
     {
     }
@@ -41,10 +42,22 @@ struct RenderPass
 
 struct RenderGraph
 {
-    RenderPass& addPass(const std::string& name, D3D12_COMMAND_LIST_TYPE cmdListType)
+    RenderPass& addPass(const std::string& name, D3D12_COMMAND_LIST_TYPE cmdListType,
+                        int passIndex = -1)
     {
-        _passes.emplace_back(name, cmdListType);
-        return _passes.back();
+        RenderPass pass{name, cmdListType};
+
+        if (passIndex < 0 || passIndex >= static_cast<int>(_passes.size()))
+        {
+            _passes.push_back(std::move(pass));
+            return _passes.back();
+        }
+        else
+        {
+            auto it = _passes.begin() + passIndex;
+            it = _passes.insert(it, std::move(pass));
+            return *it;
+        }
     }
 
     void execute(std::vector<std::unique_ptr<CommandQueue>>& queues, uint32_t frameIndex)

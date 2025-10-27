@@ -12,8 +12,9 @@ using namespace Microsoft::WRL;
 #include "AssertUtils.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
-#include "ResourceName.h"
 #include "GPU_GUID.h"
+#include "ResourceName.h"
+
 
 #include <intsafe.h>
 #include <concepts>
@@ -27,18 +28,6 @@ using namespace Microsoft::WRL;
 #include <unordered_map>
 
 struct DescriptorHeapAllocator;
-
-namespace std
-{
-template <>
-struct hash<rayvox::GPU_GUID>
-{
-    size_t operator()(const rayvox::GPU_GUID& g) const noexcept
-    {
-        return std::hash<uint64_t>{}(g._guid) ^ (std::hash<int>{}(static_cast<int>(g._type)) << 1);
-    }
-};
-}  // namespace std
 
 namespace rayvox
 {
@@ -122,17 +111,17 @@ struct ResourceManager
     std::vector<UploadBuffer> uploadBuffers;
 
     void uploadToResource(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
-                          GPUResource* destination, void* data, uint64_t dataSize,
+                          GPUResource* destination, const void* data, uint64_t dataSize,
                           uint32_t alignment, uint32_t frameIndex, uint64_t destinationOffset = 0);
 
     void updateResource(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
-                        const std::string_view& name, void* data, uint64_t dataSize,
+                        const std::string_view& name, const void* data, uint64_t dataSize,
                         uint32_t alignment, uint32_t frameIndex, bool isFrameResource,
                         uint64_t destinationOffset = 0);
 
     void updateResource(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
-                        GPU_GUID& guid, void* data, uint64_t dataSize, uint32_t alignment,
-                        uint32_t frameIndex, bool isFrameResource, uint64_t destinationOffset = 0);
+                        GPU_GUID& guid, const void* data, uint64_t dataSize, uint32_t alignment,
+                        uint32_t frameIndex, uint64_t destinationOffset = 0);
 
     // You must call setResource() of the GPUResource* after this
     GPU_GUID createEmptyStaticResource(std::optional<std::string_view> name = std::nullopt);

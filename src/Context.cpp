@@ -5,7 +5,8 @@
 
 #include "InputManager.h"
 #include "Renderer/Renderer.h"
-#include "Scene.h"
+#include "Renderer/SceneRenderer.h"
+#include "VoxelRayScene.h"
 
 
 void printDeltaTime(float dt)
@@ -45,6 +46,12 @@ Context::Context()
     _lastTime = std::chrono::high_resolution_clock::now();
 }
 
+void Context::init(){
+    _scene = new VoxelRayScene();
+    _sceneRenderer = new SceneRenderer(_renderer);
+    _sceneRenderer->_scene = _scene;
+}
+
 void Context::update()
 {
     std::chrono::duration<float> dt = std::chrono::high_resolution_clock::now() - _lastTime;
@@ -55,7 +62,9 @@ void Context::update()
     _inputManager->DispatchEvents();
     _inputManager->ClearFrameState();
 
-    //_scene->update(1);
+    _scene->update(1);
+    //_sceneRenderer->
+    
 
     _renderer->render();
 }

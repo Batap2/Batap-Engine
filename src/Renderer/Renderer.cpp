@@ -144,8 +144,8 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
     uavDesc_render0.Texture2D.MipSlice = 0;
     uavDesc_render0.Texture2D.PlaneSlice = 0;
 
-    _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(texs_render0, uavDesc_render0, _descriptorHeapAllocator_CBV_SRV_UAV, toS(RN::UAV_render0));
-
+    _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(
+        texs_render0, uavDesc_render0, _descriptorHeapAllocator_CBV_SRV_UAV, toS(RN::UAV_render0));
 
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_imgui = {};
     rtvDesc_imgui.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -153,7 +153,8 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
     rtvDesc_imgui.Texture2D.MipSlice = 0;
     rtvDesc_imgui.Texture2D.PlaneSlice = 0;
 
-    _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(swapChainResources, rtvDesc_imgui, _descriptorHeapAllocator_RTV, toS(RN::RTV_imgui));
+    _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
+        swapChainResources, rtvDesc_imgui, _descriptorHeapAllocator_RTV, toS(RN::RTV_imgui));
 }
 
 void Renderer::initPsosAndShaders()
@@ -183,28 +184,13 @@ void Renderer::initPsosAndShaders()
 
 void Renderer::initRenderPasses()
 {
-    _renderGraph->addPass(toS(RN::pass_render0), D3D12_COMMAND_LIST_TYPE_DIRECT)
+    _renderGraph->addPass(toS(RN::pass_composition), D3D12_COMMAND_LIST_TYPE_DIRECT)
         .addRecordStep(
             [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
             {
                 auto backBuffer =
                     _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_buffer_index];
                 auto uav_render0 = _resourceManager->getFrameView(RN::UAV_render0)[_buffer_index];
-
-                ID3D12DescriptorHeap* heaps[] = {_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
-                cmdList->SetDescriptorHeaps(1, heaps);
-
-                _psoManager->bindPipelineState(cmdList, toS(RN::pso_compute0));
-
-                uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-                cmdList->SetComputeRootDescriptorTable(
-                    0, uav_render0._descriptorHandle->gpuHandle);  // UAV framebuffer
-                // cmdList->SetComputeRootDescriptorTable(1, cameraBufferView.gpuHandle); // CBV
-                // camera cmdList->SetComputeRootDescriptorTable(2, voxelMapView.gpuHandle); // SRV
-                // voxel map
-
-                cmdList->Dispatch(_threadGroupCountX, _threadGroupCountY, _threadGroupCountZ);
 
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
                 uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -220,9 +206,7 @@ void Renderer::initRenderPasses()
                 ImGui_ImplDX12_NewFrame();
                 ImGui_ImplWin32_NewFrame();
                 ImGui::NewFrame();
-
-                
-
+                ImGui::ShowDemoWindow();
                 ImGui::Render();
 
                 auto backBuffer =
@@ -344,7 +328,6 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
         _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, _swapChain_buffer_count));
     _psoManager = new PipelineStateManager(_device.Get());
     _renderGraph = new RenderGraph();
-    _sceneRenderer = new SceneRenderer(_resourceManager);
 
     setTearingFlag();
 

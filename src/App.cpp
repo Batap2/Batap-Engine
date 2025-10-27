@@ -272,6 +272,7 @@ void InitApp(HINSTANCE hInstance)
     RegisterRawInputDevices(hWnd);
 
     Ctx._renderer->init(hWnd, clientWidth, clientHeight);
+    Ctx.init();
 
     ::ShowWindow(hWnd, SW_SHOW);
 

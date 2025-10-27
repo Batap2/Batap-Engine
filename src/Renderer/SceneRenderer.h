@@ -3,18 +3,24 @@
 #include "DirectX-Headers/include/directx/d3d12.h"
 #include "entt/entt.hpp"
 
-#include "ResourceManager.h"
+#include "Scene.h"
+#include "Renderer.h"
+#include "Components/Camera_C.h"
+#include "Components/Transform_C.h"
 
 #include <cstdint>
+#include <vector>
 
 namespace rayvox
 {
 struct SceneRenderer
 {
-    SceneRenderer(ResourceManager* resourceManager) : _resourceManager(resourceManager)
+    SceneRenderer(Renderer* renderer) : _renderer(renderer)
     {
-        //setupCallbacks();
+        initRenderPasses();
     }
+
+
 
     // ~SceneRenderer()
     // {
@@ -26,12 +32,12 @@ struct SceneRenderer
     //     _registry.on_destroy<TransformComponent>().disconnect(this);
     // }
 
-    // // Setup des callbacks EnTT
-    // void setupCallbacks()
-    // {
-    //     registerComponent<CameraComponent>();
-    //     registerComponent<TransformComponent>();
-    // }
+    // Setup des callbacks EnTT
+    void setupCallbacks()
+    {
+        registerComponent<Camer>();
+        registerComponent<Transform>();
+    }
 
     // // Prépare la frame (collecte et upload les données dirty)
     // void prepareFrame(uint32_t frameIndex)
@@ -98,9 +104,11 @@ struct SceneRenderer
     //     // ...
     // }
 
+    Scene* _scene = nullptr;
    private:
-    entt::registry _registry;
-    ResourceManager* _resourceManager;
+    Renderer* _renderer;
+
+    void initRenderPasses();
 
     // Template pour enregistrer n'importe quel composant IGPUComponent
     // template <typename T>

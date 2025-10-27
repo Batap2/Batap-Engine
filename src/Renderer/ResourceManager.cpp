@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "DirectX-Headers/include/directx/d3d12.h"
+#include "GPU_GUID.h"
 
 namespace rayvox
 {
@@ -72,7 +73,7 @@ ResourceManager::ResourceManager(const ComPtr<ID3D12Device2>& device, FenceManag
 
 void ResourceManager::uploadToResource(ID3D12GraphicsCommandList* cmdList,
                                        ID3D12CommandQueue* commandQueue, GPUResource* destination,
-                                       void* data, uint64_t dataSize, uint32_t alignment,
+                                       const void* data, uint64_t dataSize, uint32_t alignment,
                                        uint32_t frameIndex, uint64_t destinationOffset)
 {
     auto& upload = uploadBuffers[frameIndex];
@@ -87,7 +88,7 @@ void ResourceManager::uploadToResource(ID3D12GraphicsCommandList* cmdList,
         uint64_t chunkSize = std::min(upload._size - upload._currentOffset, remainingData);
 
         memcpy(static_cast<uint8_t*>(upload._mappedData) + upload._currentOffset,
-               static_cast<uint8_t*>(data) + dataOffset, chunkSize);
+               static_cast<const uint8_t*>(data) + dataOffset, chunkSize);
         cmdList->CopyBufferRegion(destination->get(), destinationOffset, upload._buffer.Get(),
                                   upload._currentOffset, chunkSize);
 
@@ -110,7 +111,7 @@ void ResourceManager::uploadToResource(ID3D12GraphicsCommandList* cmdList,
 
 void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
                                      ID3D12CommandQueue* commandQueue, const std::string_view& name,
-                                     void* data, uint64_t dataSize, uint32_t alignment,
+                                     const void* data, uint64_t dataSize, uint32_t alignment,
                                      uint32_t frameIndex, bool isFrameResource,
                                      uint64_t destinationOffset)
 {
@@ -128,12 +129,12 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
 }
 
 void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
-                                     ID3D12CommandQueue* commandQueue, GPU_GUID& guid, void* data,
-                                     uint64_t dataSize, uint32_t alignment, uint32_t frameIndex,
-                                     bool isFrameResource, uint64_t destinationOffset)
+                                     ID3D12CommandQueue* commandQueue, GPU_GUID& guid,
+                                     const void* data, uint64_t dataSize, uint32_t alignment,
+                                     uint32_t frameIndex, uint64_t destinationOffset)
 {
     GPUView* gpuView;
-    if (isFrameResource)
+    if (guid._type == GPU_GUID::GPUObject::FrameView)
     {
         gpuView = &_frameViews.at(guid)[frameIndex];
     }
@@ -319,7 +320,8 @@ GPU_GUID ResourceManager::createTexture2DFrameResource(
 
         ThrowIfFailed(hr);
 
-        if(name){
+        if (name)
+        {
             std::wstring wname(name->begin(), name->end());
             resource->_resource->SetName(wname.c_str());
             resource->_init = true;
@@ -380,16 +382,14 @@ std::vector<GPUView>& ResourceManager::getFrameView(RN n)
 GPUResource* ResourceManager::getStaticResource(GPU_GUID& guid)
 {
     auto itRes = _staticResources.find(guid);
-    ThrowAssert(itRes != _staticResources.end(),
-                "resource " + guid.toString() + " not found.");
+    ThrowAssert(itRes != _staticResources.end(), "resource " + guid.toString() + " not found.");
     return itRes->second.get();
 }
 
 std::vector<GPUResource*> ResourceManager::getFrameResource(GPU_GUID& guid)
 {
     auto itRes = _frameResource.find(guid);
-    ThrowAssert(itRes != _frameResource.end(),
-                "resource " + guid.toString() + " not found.");
+    ThrowAssert(itRes != _frameResource.end(), "resource " + guid.toString() + " not found.");
 
     std::vector<GPUResource*> result;
     for (auto& res : itRes->second)

@@ -19,6 +19,7 @@ enum class RN
 
     // Render Passes
     pass_render0,
+    pass_composition,
     pass_imgui,
 
     // Shaders

@@ -2,12 +2,14 @@
 
 #include <entt/entt.hpp>
 
-#include "Camera.h"
+namespace rayvox
+{
+struct Scene
+{
+    Scene();
 
-struct Scene{
-    Camera Camera;
-
-    void update(float deltaTime);
+    virtual void update(float deltaTime);
 
     entt::registry _registry;
 };
+}  // namespace rayvox
