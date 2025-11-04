@@ -6,9 +6,9 @@ namespace rayvox
 {
 struct Scene
 {
-    Scene();
+    Scene() = default;
 
-    virtual void update(float deltaTime);
+    virtual void update(float deltaTime){};
 
     entt::registry _registry;
 };

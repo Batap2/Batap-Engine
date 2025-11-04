@@ -36,12 +36,6 @@ struct Renderer
     // Command interfaces
     std::vector<std::unique_ptr<CommandQueue>> _commandQueues;
 
-    // Resource descriptors(views)
-    DescriptorHeapAllocator _descriptorHeapAllocator_CBV_SRV_UAV;
-    DescriptorHeapAllocator _descriptorHeapAllocator_SAMPLER;
-    DescriptorHeapAllocator _descriptorHeapAllocator_RTV;
-    DescriptorHeapAllocator _descriptorHeapAllocator_DSV;
-
     FenceManager* _fenceManager;
     ResourceManager* _resourceManager;
     PipelineStateManager* _psoManager;

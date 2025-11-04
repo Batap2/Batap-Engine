@@ -49,7 +49,8 @@ Context::Context()
 void Context::init(){
     _scene = new VoxelRayScene();
     _sceneRenderer = new SceneRenderer(_renderer);
-    _sceneRenderer->_scene = _scene;
+    _sceneRenderer->loadScene(_scene);
+    _sceneRenderer->initRenderPasses();
 }
 
 void Context::update()

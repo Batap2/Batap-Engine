@@ -4,6 +4,7 @@
 
 #include "CommandQueue.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
+#include "ResourceManager.h"
 
 #include <functional>
 #include <memory>
@@ -42,6 +43,8 @@ struct RenderPass
 
 struct RenderGraph
 {
+    RenderGraph(ResourceManager* resourceManager) : _resourceManager(resourceManager){};
+
     RenderPass& addPass(const std::string& name, D3D12_COMMAND_LIST_TYPE cmdListType,
                         int passIndex = -1)
     {
@@ -65,6 +68,10 @@ struct RenderGraph
         for (auto& queue : queues)
         {
             auto& cmd = queue->getCommand(frameIndex);
+
+            if(queue->_commandListType == D3D12_COMMAND_LIST_TYPE_DIRECT){
+                _resourceManager->flushUploadRequests(cmd._commandList.Get(), queue->_commandQueue.Get(), frameIndex);
+            }
 
             if (!queue->isCommandComplete(cmd))
                 continue;
@@ -102,5 +109,6 @@ struct RenderGraph
 
    private:
     std::vector<RenderPass> _passes;
+    ResourceManager* _resourceManager;
 };
 }  // namespace rayvox

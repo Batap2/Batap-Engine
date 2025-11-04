@@ -23,9 +23,14 @@ ResourceManager::ResourceManager(const ComPtr<ID3D12Device2>& device, FenceManag
                                  uint8_t frameCount, uint32_t uploadBufferSize)
     : _device(device), _frameCount(frameCount), _fenceManager(fenceManager)
 {
+    _descriptorHeapAllocator_CBV_SRV_UAV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128);
+    _descriptorHeapAllocator_SAMPLER.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 8);
+    _descriptorHeapAllocator_RTV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 3);
+    _descriptorHeapAllocator_DSV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
+
     for (int i = 0; i < frameCount; ++i)
     {
-        auto& buffer = uploadBuffers.emplace_back();
+        auto& buffer = _uploadBuffers.emplace_back();
 
         buffer._size = AlignUp(uploadBufferSize, 256);
         buffer._currentOffset = 0;
@@ -71,12 +76,29 @@ ResourceManager::ResourceManager(const ComPtr<ID3D12Device2>& device, FenceManag
     }
 }
 
+void ResourceManager::requestUpload(GPU_GUID guid, const void* data, uint64_t dataSize,
+                                    uint32_t alignement, uint64_t destinationOffset)
+{
+    _uploadRequests.push_back({guid, data, dataSize, alignement, destinationOffset});
+}
+
+void ResourceManager::flushUploadRequests(ID3D12GraphicsCommandList* cmdList,
+                                          ID3D12CommandQueue* commandQueue, uint32_t frameIndex)
+{
+    for (auto& req : _uploadRequests)
+    {
+        updateResource(cmdList, commandQueue, req._guid, req._data, req._dataSize, req._alignement,
+                       frameIndex, req._destinationOffset);
+    }
+    _uploadRequests.clear();
+}
+
 void ResourceManager::uploadToResource(ID3D12GraphicsCommandList* cmdList,
                                        ID3D12CommandQueue* commandQueue, GPUResource* destination,
                                        const void* data, uint64_t dataSize, uint32_t alignment,
                                        uint32_t frameIndex, uint64_t destinationOffset)
 {
-    auto& upload = uploadBuffers[frameIndex];
+    auto& upload = _uploadBuffers[frameIndex];
 
     upload._currentOffset = AlignUp(upload._currentOffset, alignment);
 

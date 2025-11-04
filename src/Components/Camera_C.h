@@ -3,6 +3,7 @@
 #include "Renderer/GPU_GUID.h"
 #include "Renderer/ResourceManager.h"
 
+#include "glm/fwd.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
@@ -19,5 +20,8 @@ struct Camera_C
     float Zfar;
     glm::vec3 right;
     float fov;
+
+    glm::mat4x4 view;
+    glm::mat4x4 proj;
 };
 }  // namespace rayvox

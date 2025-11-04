@@ -2,6 +2,7 @@
 
 #include "SceneRenderer.h"
 #include "ResourceManager.h"
+#include "Scene.h"
 
 namespace rayvox
 {
@@ -11,6 +12,10 @@ namespace rayvox
         
     // }
 
+    void SceneRenderer::loadScene(Scene* scene){
+        _scene = scene;
+    }
+
     void SceneRenderer::initRenderPasses(){
         _renderer->_renderGraph->addPass(toS(RN::pass_render0), D3D12_COMMAND_LIST_TYPE_DIRECT, 0)
         .addRecordStep(
@@ -19,7 +24,7 @@ namespace rayvox
                 auto* r = _renderer;
                 auto uav_render0 = r->_resourceManager->getFrameView(RN::UAV_render0)[r->_buffer_index];
 
-                ID3D12DescriptorHeap* heaps[] = {r->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
+                ID3D12DescriptorHeap* heaps[] = {r->_resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
                 cmdList->SetDescriptorHeaps(1, heaps);
 
                 r->_psoManager->bindPipelineState(cmdList, toS(RN::pso_compute0));

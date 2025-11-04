@@ -94,10 +94,10 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
     // Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks.
     // (current version of the backend will only allocate one descriptor, future versions will need
     // to allocate more)
-    init_info.SrvDescriptorHeap = _descriptorHeapAllocator_CBV_SRV_UAV.heap.Get();
+    init_info.SrvDescriptorHeap = _resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get();
     init_info.SrvDescriptorAllocFn = imguiSrvAlloc;
     init_info.SrvDescriptorFreeFn = imguiSrvFree;
-    init_info.UserData = new ImguiUserData{&_descriptorHeapAllocator_CBV_SRV_UAV, 0};
+    init_info.UserData = new ImguiUserData{&_resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV, 0};
     ImGui_ImplDX12_Init(&init_info);
 }
 
@@ -145,7 +145,7 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
     uavDesc_render0.Texture2D.PlaneSlice = 0;
 
     _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(
-        texs_render0, uavDesc_render0, _descriptorHeapAllocator_CBV_SRV_UAV, toS(RN::UAV_render0));
+        texs_render0, uavDesc_render0, toS(RN::UAV_render0));
 
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_imgui = {};
     rtvDesc_imgui.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -154,7 +154,7 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
     rtvDesc_imgui.Texture2D.PlaneSlice = 0;
 
     _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
-        swapChainResources, rtvDesc_imgui, _descriptorHeapAllocator_RTV, toS(RN::RTV_imgui));
+        swapChainResources, rtvDesc_imgui, toS(RN::RTV_imgui));
 }
 
 void Renderer::initPsosAndShaders()
@@ -213,7 +213,7 @@ void Renderer::initRenderPasses()
                     _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_buffer_index];
                 auto rtv_imgui = _resourceManager->getFrameView(RN::RTV_imgui)[_buffer_index];
 
-                ID3D12DescriptorHeap* heaps[] = {_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
+                ID3D12DescriptorHeap* heaps[] = {_resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
                 cmdList->SetDescriptorHeaps(1, heaps);
 
                 // Transition vers RENDER_TARGET pour dessiner ImGui
@@ -316,18 +316,13 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     // WARP(no gpu)
     ThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&_device)));
 
-    _descriptorHeapAllocator_CBV_SRV_UAV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128);
-    _descriptorHeapAllocator_SAMPLER.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 8);
-    _descriptorHeapAllocator_RTV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 3);
-    _descriptorHeapAllocator_DSV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
-
     _fenceManager = new FenceManager(_device.Get());
     _resourceManager = new ResourceManager(_device.Get(), *_fenceManager, _swapChain_buffer_count,
                                            64 * 1024 * 1024);
     _commandQueues.emplace_back(std::make_unique<CommandQueue>(
         _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, _swapChain_buffer_count));
     _psoManager = new PipelineStateManager(_device.Get());
-    _renderGraph = new RenderGraph();
+    _renderGraph = new RenderGraph(_resourceManager);
 
     setTearingFlag();
 
@@ -341,7 +336,6 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
 void Renderer::render()
 {
-    //_sceneRenderer->uploadDirtyBuffers();
     _renderGraph->execute(_commandQueues, _buffer_index);
     _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
 

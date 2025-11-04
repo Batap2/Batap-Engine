@@ -3,10 +3,11 @@
 #include "DirectX-Headers/include/directx/d3d12.h"
 #include "entt/entt.hpp"
 
-#include "Scene.h"
-#include "Renderer.h"
 #include "Components/Camera_C.h"
 #include "Components/Transform_C.h"
+#include "Renderer.h"
+#include "Scene.h"
+
 
 #include <cstdint>
 #include <vector>
@@ -17,11 +18,11 @@ struct SceneRenderer
 {
     SceneRenderer(Renderer* renderer) : _renderer(renderer)
     {
-        initRenderPasses();
     }
 
+    void initRenderPasses();
 
-
+    void loadScene(Scene* scene);
     // ~SceneRenderer()
     // {
     //     // Détacher tous les callbacks
@@ -35,8 +36,8 @@ struct SceneRenderer
     // Setup des callbacks EnTT
     void setupCallbacks()
     {
-        registerComponent<Camer>();
-        registerComponent<Transform>();
+        registerComponent<Camera_C>();
+        registerComponent<Transform_C>();
     }
 
     // // Prépare la frame (collecte et upload les données dirty)
@@ -81,72 +82,37 @@ struct SceneRenderer
     //     }
     // }
 
-    // void recordCommandsShadows(ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
-    // {
-    //     auto lightView = _registry.view<LightComponent>();
-
-    //     for (auto lightEntity : lightView)
-    //     {
-    //         auto& light = lightView.get<LightComponent>(lightEntity);
-
-    //         if (!light.castsShadows)
-    //             continue;
-
-    //         // Render shadow map pour cette light
-    //         // ... (similar à recordCommandsOpaque mais avec shadow PSO)
-    //     }
-    // }
-
-    // void recordCommandsCompute(ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
-    // {
-    //     // Exemple: particle system compute
-    //     // auto view = _registry.view<ParticleSystemComponent>();
-    //     // ...
-    // }
-
     Scene* _scene = nullptr;
+
    private:
     Renderer* _renderer;
 
-    void initRenderPasses();
-
     // Template pour enregistrer n'importe quel composant IGPUComponent
-    // template <typename T>
-    // void registerComponent()
-    // {
-    //     static_assert(std::is_base_of_v<IGPUComponent, T>,
-    //                   "Component must inherit from IGPUComponent");
+    template <typename T>
+    void registerComponent()
+    {
+        _scene->_registry.on_construct<T>().template connect<&SceneRenderer::onComponentAdded<T>>(
+            this);
+        //_scene->_registry.on_destroy<T>().template
+        //connect<&SceneRenderer::onComponentDestroyed<T>>(this);
+    }
 
-    //     _registry.on_construct<T>().template connect<&SceneRenderer::onComponentAdded<T>>(this);
-    //     _registry.on_destroy<T>().template connect<&SceneRenderer::onComponentDestroyed<T>>(this);
-    // }
+    // soit faire une fonction ça par component, y compris onComponentDestroyed et uploadIfDirty
+    template <typename T>
+    void onComponentAdded(entt::registry& reg, entt::entity entity)
+    {
+        auto& component = reg.get<T>(entity);
+    }
 
-    // template <typename T>
-    // void onComponentAdded(entt::registry& reg, entt::entity entity)
-    // {
-    //     auto& component = reg.get<T>(entity);
-    //     component.allocateGPUResources(_renderer);
-    // }
-
-    // template <typename T>
-    // void onComponentDestroyed(entt::registry& reg, entt::entity entity)
-    // {
-    //     auto& component = reg.get<T>(entity);
-    //     component.releaseGPUResources(_renderer);
-    // }
-
-    // template <typename T>
-    // void uploadComponentType(uint32_t frameIndex)
-    // {
-    //     auto view = _registry.view<T>();
-    //     for (auto entity : view)
-    //     {
-    //         auto& component = view.get<T>(entity);
-
-    //         // Certains composants n'ont pas besoin d'upload chaque frame
-    //         if (component.needsPerFrameUpload())
-    //         {
-    //             component.uploadIfDirty(_renderer, frameIndex);
+    // template<typename T>
+    // void uploadDirty(uint32_t frameIndex) {
+    //     const uint32_t bit = 1u << frameIndex;
+    //     auto view = _reg.view<T>();
+    //     for (auto e : view) {
+    //         auto& c = view.get<T>(e);
+    //         if (c.dirtyMask & bit) {
+    //             ComponentTraits<T>::upload(_renderer, c.buffer_ID, c, frameIndex);
+    //             c.dirtyMask &= ~bit;
     //         }
     //     }
     // }
