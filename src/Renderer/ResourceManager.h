@@ -97,7 +97,7 @@ struct ResourceManager
     ResourceManager(const ComPtr<ID3D12Device2>& device, FenceManager& fenceManager,
                     uint8_t frameCount, uint32_t uploadBufferSize);
 
-    uint64_t AlignUp(uint64_t value, uint64_t alignment)
+    static uint64_t AlignUp(uint64_t value, uint64_t alignment)
     {
         // alignment must be power of 2
         return (value + alignment - 1) & ~(alignment - 1);
@@ -256,6 +256,8 @@ struct ResourceManager
 
         return createFrameView<D3D12_CONSTANT_BUFFER_VIEW_DESC>(resources, descs, name);
     }
+
+    void destroyResource(GPU_GUID guid);
 
     GPUResource* getStaticResource(RN n);
     std::vector<GPUResource*> getFrameResource(RN n);

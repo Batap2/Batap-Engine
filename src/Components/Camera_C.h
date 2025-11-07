@@ -1,27 +1,44 @@
 #pragma once
 
+#include "EigenTypes.h"
 #include "Renderer/GPU_GUID.h"
-#include "Renderer/ResourceManager.h"
+#include "DirtyBits.h"
 
-#include "glm/fwd.hpp"
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
+#include <cstdint>
+#include <span>
 
 namespace rayvox
 {
 struct Camera_C
 {
-    GPU_GUID buffer_ID;
-    byte isDirty = 0;
+    GPU_GUID _buffer_ID{};
+    DirtyBits _dirty{};
 
-    glm::vec3 pos;
-    float Znear;
-    glm::vec3 forward;
-    float Zfar;
-    glm::vec3 right;
-    float fov;
+    v3f _pos;
+    float _znear;
+    v3f _forward;
+    float _zfar;
+    v3f _right;
+    float _fov;
+    m4f _view;
+    m4f _proj;
 
-    glm::mat4x4 view;
-    glm::mat4x4 proj;
+    struct alignas(16) Data
+    {
+        v3f _pos;
+        float _znear;
+        v3f _forward;
+        float _zfar;
+        v3f _right;
+        float _fov;
+        m4f _view;
+        m4f _proj;
+    };
+
+    std::span<const std::byte> dataView() const noexcept
+    {
+        auto* begin = reinterpret_cast<const std::byte*>(&_pos);
+        return {begin, sizeof(Data)};
+    }
 };
 }  // namespace rayvox

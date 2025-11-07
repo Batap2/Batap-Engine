@@ -48,8 +48,8 @@ void InputManager::ProcessWindowsEvent(UINT message, WPARAM wParam, LPARAM lPara
             break;
 
         case WM_MOUSEMOVE:
-            MousePosition.x = GET_X_LPARAM(lParam);
-            MousePosition.y = GET_Y_LPARAM(lParam);
+            // MousePosition.x = GET_X_LPARAM(lParam);
+            // MousePosition.y = GET_Y_LPARAM(lParam);
             break;
     }
 }
@@ -72,8 +72,8 @@ void InputManager::ProcessWindowsRawInput(LPARAM lParam)
 
     if (raw->header.dwType == RIM_TYPEMOUSE)
     {
-        MouseDeltaAccumulated.x += raw->data.mouse.lLastX;
-        MouseDeltaAccumulated.y += raw->data.mouse.lLastY;
+        // MouseDeltaAccumulated.x += raw->data.mouse.lLastX;
+        // MouseDeltaAccumulated.y += raw->data.mouse.lLastY;
     }
 }
 
@@ -97,7 +97,7 @@ void InputManager::DispatchEvents()
             e.Type = MouseEvent::Type::Click;
             e.KeyState = KeyState::Pressed;
             e.Button = (MouseButton) i;
-            e.ScreenPosition = MousePosition;
+            // e.ScreenPosition = MousePosition;
             MouseSignal.fire(e);
         }
 
@@ -107,28 +107,28 @@ void InputManager::DispatchEvents()
             e.Type = MouseEvent::Type::Click;
             e.KeyState = KeyState::Released;
             e.Button = (MouseButton) i;
-            e.ScreenPosition = MousePosition;
+            // e.ScreenPosition = MousePosition;
             MouseSignal.fire(e);
         }
     }
 
-    if (MouseDeltaAccumulated.x != 0 || MouseDeltaAccumulated.y != 0)
-    {
-        MouseEvent e;
-        e.Type = MouseEvent::Type::Move;
-        e.Delta = MouseDeltaAccumulated;
-        e.ScreenPosition = MousePosition;
-        MouseSignal.fire(e);
-    }
+    // if (MouseDeltaAccumulated.x != 0 || MouseDeltaAccumulated.y != 0)
+    // {
+    //     MouseEvent e;
+    //     e.Type = MouseEvent::Type::Move;
+    //     e.Delta = MouseDeltaAccumulated;
+    //     e.ScreenPosition = MousePosition;
+    //     MouseSignal.fire(e);
+    // }
 
-    if (MouseWheelAccumulated != 0.0f)
-    {
-        MouseEvent e;
-        e.Type = MouseEvent::Type::Wheel;
-        e.Wheel = MouseWheelAccumulated;
-        e.ScreenPosition = MousePosition;
-        MouseSignal.fire(e);
-    }
+    // if (MouseWheelAccumulated != 0.0f)
+    // {
+    //     MouseEvent e;
+    //     e.Type = MouseEvent::Type::Wheel;
+    //     e.Wheel = MouseWheelAccumulated;
+    //     e.ScreenPosition = MousePosition;
+    //     MouseSignal.fire(e);
+    // }
 }
 
 void InputManager::ClearFrameState()
@@ -139,7 +139,7 @@ void InputManager::ClearFrameState()
     MouseButtonsPressed[0] = MouseButtonsPressed[1] = MouseButtonsPressed[2] = false;
     MouseButtonsReleased[0] = MouseButtonsReleased[1] = MouseButtonsReleased[2] = false;
 
-    MouseDeltaAccumulated = {0, 0};
+    // MouseDeltaAccumulated = {0, 0};
     MouseWheelAccumulated = 0.0f;
 }
 
@@ -153,8 +153,8 @@ bool InputManager::IsMouseButtonDown(MouseButton button)
     return MouseButtonsDown[(int) button];
 }
 
-ivec2 InputManager::GetMouseDelta()
-{
-    return MouseDeltaAccumulated;
-}
+// ivec2 InputManager::GetMouseDelta()
+// {
+//     return MouseDeltaAccumulated;
+// }
 }  // namespace rayvox

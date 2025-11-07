@@ -87,6 +87,7 @@ void ResourceManager::flushUploadRequests(ID3D12GraphicsCommandList* cmdList,
 {
     for (auto& req : _uploadRequests)
     {
+        
         updateResource(cmdList, commandQueue, req._guid, req._data, req._dataSize, req._alignement,
                        frameIndex, req._destinationOffset);
     }
@@ -146,6 +147,7 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
     {
         gpuView = &_staticViews.at(_nameToGuidMap.at(name.data()));
     }
+    gpuView->_resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
     uploadToResource(cmdList, commandQueue, gpuView->_resource, data, dataSize, alignment,
                      frameIndex, destinationOffset);
 }
@@ -164,6 +166,7 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
     {
         gpuView = &_staticViews.at(guid);
     }
+    gpuView->_resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
     uploadToResource(cmdList, commandQueue, gpuView->_resource, data, dataSize, alignment,
                      frameIndex, destinationOffset);
 }
@@ -351,6 +354,10 @@ GPU_GUID ResourceManager::createTexture2DFrameResource(
     }
 
     return guid;
+}
+
+void ResourceManager::destroyResource(GPU_GUID guid){
+    //TODO
 }
 
 GPUResource* ResourceManager::getStaticResource(RN n)

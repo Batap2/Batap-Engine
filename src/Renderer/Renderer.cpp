@@ -5,7 +5,6 @@
 #include "DirectX-Headers/include/directx/d3d12.h"
 
 #include <filesystem>
-#include <glm/glm.hpp>
 #include <memory>
 #include <string>
 

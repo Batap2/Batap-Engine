@@ -2,12 +2,10 @@
 
 #include <wrl.h>
 using namespace Microsoft::WRL;
-#include <glm/glm.hpp>
 #include <unordered_set>
 
 #include "nano_signal_slot.hpp"
 
-using namespace glm;
 namespace rayvox
 {
 struct Context;
@@ -34,8 +32,8 @@ struct InputManager
     bool MouseButtonsDown[3] = {false};
     bool MouseButtonsPressed[3] = {false};
     bool MouseButtonsReleased[3] = {false};
-    ivec2 MouseDeltaAccumulated = {0, 0};
-    ivec2 MousePosition = {0, 0};
+    // ivec2 MouseDeltaAccumulated = {0, 0};
+    // ivec2 MousePosition = {0, 0};
     float MouseWheelAccumulated = 0.0f;
 
     struct KeyEvent
@@ -54,8 +52,8 @@ struct InputManager
         KeyState KeyState;
         MouseButton Button;
         float Wheel;
-        vec2 Delta;
-        vec2 ScreenPosition;
+        // vec2 Delta;
+        // vec2 ScreenPosition;
     };
 
     Nano::Signal<void(KeyEvent)> KeySignal;
@@ -68,6 +66,6 @@ struct InputManager
 
     bool IsKeyDown(unsigned long long key);
     bool IsMouseButtonDown(MouseButton button);
-    ivec2 GetMouseDelta();
+    // ivec2 GetMouseDelta();
 };
 }  // namespace rayvox

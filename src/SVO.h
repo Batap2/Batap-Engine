@@ -36,15 +36,15 @@ struct LeafNode {
 
 struct SVO {
 public:
-	void generate(const SparseGrid& sparseGrid);
-private:
-	AABB3<vec3> bbox;
-	uint maxDepth = 0;
-	std::vector<uint32_t> data;
+// 	void generate(const SparseGrid& sparseGrid);
+// private:
+// 	AABB3<vec3> bbox;
+// 	uint maxDepth = 0;
+// 	std::vector<uint32_t> data;
 
-	SVOHelperNode populate(const SparseGrid& sparseGrid, const AABB3<vec3>& bbox);
+// 	SVOHelperNode populate(const SparseGrid& sparseGrid, const AABB3<vec3>& bbox);
 
-	void addNode(LeafNode node);
-	void addNode(BranchNode node);
-	void addNode(FarNode node);
+// 	void addNode(LeafNode node);
+// 	void addNode(BranchNode node);
+// 	void addNode(FarNode node);
 };

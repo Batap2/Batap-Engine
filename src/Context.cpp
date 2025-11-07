@@ -8,6 +8,8 @@
 #include "Renderer/SceneRenderer.h"
 #include "VoxelRayScene.h"
 
+#include "EigenTypes.h"
+
 
 void printDeltaTime(float dt)
 {
@@ -65,7 +67,6 @@ void Context::update()
 
     _scene->update(1);
     //_sceneRenderer->
-    
 
     _renderer->render();
 }

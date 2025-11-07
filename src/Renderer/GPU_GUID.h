@@ -17,7 +17,7 @@ struct GPU_GUID
         StaticResource,
         StaticView
     } _type;
-    uint64_t _guid;
+    uint64_t _guid = 0;
 
     GPU_GUID() {};
 

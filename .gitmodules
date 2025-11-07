@@ -1,9 +1,6 @@
 [submodule "include/DirectX-Headers"]
 	path = include/DirectX-Headers
 	url = https://github.com/microsoft/DirectX-Headers
-[submodule "include/glm"]
-	path = include/glm
-	url = https://github.com/g-truc/glm
 [submodule "include/nano-signal-slot"]
 	path = include/nano-signal-slot
 	url = https://github.com/NoAvailableAlias/nano-signal-slot.git
@@ -16,3 +13,6 @@
 [submodule "include/magic_enum"]
 	path = include/magic_enum
 	url = https://github.com/Neargye/magic_enum.git
+[submodule "include/eigen"]
+	path = include/eigen
+	url = https://gitlab.com/libeigen/eigen

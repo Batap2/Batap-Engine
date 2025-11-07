@@ -1,49 +1,48 @@
 #pragma once
+#include <optional>
 #include "Camera_C.h"
+#include "DirectX-Headers/include/directx/d3d12.h"
+#include "Renderer/GPU_GUID.h"
 #include "Renderer/ResourceManager.h"
 #include "Transform_C.h"
 
+namespace rayvox
+{
 template <typename T>
-struct ComponentTraits;  // déclaration générique
+struct ComponentTraits
+{
+    static void destroy(ResourceManager& r, const T& c)
+    {
+    }
+    static void upload(ResourceManager&, T&, uint32_t)
+    {
+    }
+};
 
-using namespace rayvox;
-
-// ---- Camera ----
 template <>
 struct ComponentTraits<Camera_C>
 {
-    static GPU_GUID create(ResourceManager& r, const Camera_C&)
+    static void destroy(ResourceManager& r, const Camera_C& c)
     {
-        // ici je peux soit faire un static buffer soit un frame buffer (1 par in flight frame)
-        r.createStaticCBV(GPU_GUID resource_guid, DescriptorHeapAllocator & allocator);
-        r.createFrameCBV(GPU_GUID resource_guid, DescriptorHeapAllocator & allocator);
+        r.destroyResource(c._buffer_ID);
     }
-    static void destroy(ResourceManager& r, GPU_GUID id)
+    static void upload(ResourceManager& r, Camera_C& c, uint32_t frameIndex)
     {
-        r.destroyResource(id);
-    }
-    static void upload(ResourceManager& r, GPU_GUID id, const Camera_C& c, uint32_t frameIndex)
-    {
-        r.updateResource(ID3D12GraphicsCommandList * cmdList, ID3D12CommandQueue * commandQueue,
-                         GPU_GUID & guid, const void* data, uint64_t dataSize, uint32_t alignment,
-                         uint32_t frameIndex, uint64_t destinationOffset = 0);
-    }
-};
+        if (!c._buffer_ID._guid)
+        {
+            auto resourceGuid =
+                r.createBufferFrameResource(ResourceManager::AlignUp(sizeof(Camera_C::Data), 256),
+                                            D3D12_RESOURCE_STATE_COMMON, D3D12_HEAP_TYPE_DEFAULT);
+            c._buffer_ID = r.createFrameCBV(resourceGuid, std::nullopt, 0, sizeof(Camera_C::Data));
+        }
 
-// ---- Transform ----
-template <>
-struct ComponentTraits<Transform_C>
-{
-    static GPU_GUID create(ResourceManager& r, const Transform_C&)
-    {
-        return r.createConstantBuffer(sizeof(Transform_C));
-    }
-    static void destroy(ResourceManager& r, GPU_GUID id)
-    {
-        r.destroyResource(id);
-    }
-    static void upload(ResourceManager& r, GPU_GUID id, const Transform_C& t, uint32_t frameIndex)
-    {
-        r.uploadConstant(id, frameIndex, &t, sizeof(Transform_C));
+        if (!c._dirty.isDirty(frameIndex))
+            return;
+
+        auto data = c.dataView();
+        r.requestUpload(c._buffer_ID, data.data(), data.size(), 256);
+
+        c._dirty.clear(frameIndex);
     }
 };
+}  // namespace rayvox
