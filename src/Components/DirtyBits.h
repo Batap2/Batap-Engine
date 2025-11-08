@@ -7,17 +7,9 @@ namespace rayvox
 struct DirtyBits
 {
     uint8_t bits = 0;
-    void mark(uint8_t frameIndex)
-    {
-        bits |= (1u << frameIndex);
-    }
-    void clear(uint8_t frameIndex)
-    {
-        bits &= ~(1u << frameIndex);
-    }
-    bool isDirty(uint8_t frameIndex) const
-    {
-        return (bits >> frameIndex) & 1u;
-    }
+    void mark(uint8_t frameIndex) { bits |= (1u << frameIndex); }
+    void markAll(bool val) {bits = val ? 0xFF : 0x00;}
+    void clear(uint8_t frameIndex) { bits &= ~(1u << frameIndex); }
+    bool isDirty(uint8_t frameIndex) const { return (bits >> frameIndex) & 1u; }
 };
 }  // namespace rayvox

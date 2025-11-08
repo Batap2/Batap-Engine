@@ -1,16 +1,41 @@
 # Base du style
-BasedOnStyle: Google    # lisible et populaire
+BasedOnStyle: Google
 IndentWidth: 4
 TabWidth: 4
-UseTab: Never           # toujours des espaces
+UseTab: Never
 
-# Accolades et blocs
-AlwaysBreakAfterReturnType: None
-AlwaysBreakAfterDefinitionReturnType: None
-BreakBeforeBraces: Allman       # accolades sur une nouvelle ligne
-AllowShortFunctionsOnASingleLine: false
+# Accolades et blocs (Allman global + exceptions fines)
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterControlStatement: true
+  AfterEnum: true
+  AfterFunction: true         # Allman pour fonctions multi-lignes
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: true
+  BeforeWhile: true           # pour 'do { } while (...)'
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: true
+
+# Autoriser UNIQUEMENT les très petites fonctions en une ligne (getters/setters simples)
+AllowShortFunctionsOnASingleLine: Inline
+
+# Garder le style "bloc sur plusieurs lignes" pour le reste
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+
+# Retour de type
+AlwaysBreakAfterReturnType: None
+AlwaysBreakAfterDefinitionReturnType: None
 
 # Limite de ligne
 ColumnLimit: 100
@@ -39,4 +64,5 @@ PenaltyReturnTypeOnItsOwnLine: 60
 # Style d’initialisation
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
 
+# Includes
 IncludeBlocks: Preserve

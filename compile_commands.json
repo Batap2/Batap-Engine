@@ -73,6 +73,12 @@
 },
 {
   "directory": "D:/Dossier_Bat/ProjetProg/RayVox-Engine/build/debug",
+  "command": "C:\\PROGRA~1\\MICROS~2\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1441~1.341\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -D_DEBUG -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\src -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\eigen -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\imgui -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\nano-signal-slot -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\magic_enum\\include -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\entt\\single_include /DWIN32 /D_WINDOWS /GR /EHsc /Ob0 /Od /RTC1 -std:c++20 -MDd -ZI /FoCMakeFiles\\RayVox_Engine.dir\\src\\VoxelRayScene.cpp.obj /FdTARGET_COMPILE_PDB /FS -c D:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\src\\VoxelRayScene.cpp",
+  "file": "D:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\src\\VoxelRayScene.cpp",
+  "output": "CMakeFiles\\RayVox_Engine.dir\\src\\VoxelRayScene.cpp.obj"
+},
+{
+  "directory": "D:/Dossier_Bat/ProjetProg/RayVox-Engine/build/debug",
   "command": "C:\\PROGRA~1\\MICROS~2\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1441~1.341\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -D_DEBUG -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\src -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\eigen -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\imgui -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\nano-signal-slot -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\magic_enum\\include -ID:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\include\\entt\\single_include /DWIN32 /D_WINDOWS /GR /EHsc /Ob0 /Od /RTC1 -std:c++20 -MDd -ZI /FoCMakeFiles\\RayVox_Engine.dir\\src\\main.cpp.obj /FdTARGET_COMPILE_PDB /FS -c D:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\src\\main.cpp",
   "file": "D:\\Dossier_Bat\\ProjetProg\\RayVox-Engine\\src\\main.cpp",
   "output": "CMakeFiles\\RayVox_Engine.dir\\src\\main.cpp.obj"

@@ -19,8 +19,7 @@ struct RenderPass
     RenderPass(const std::string& name,
                D3D12_COMMAND_LIST_TYPE cmdListType = D3D12_COMMAND_LIST_TYPE_DIRECT)
         : _name(name), _commandListType(cmdListType)
-    {
-    }
+    {}
 
     RenderPass& addRecordStep(RecordFunction func)
     {
@@ -43,7 +42,7 @@ struct RenderPass
 
 struct RenderGraph
 {
-    RenderGraph(ResourceManager* resourceManager) : _resourceManager(resourceManager){};
+    RenderGraph(ResourceManager* resourceManager) : _resourceManager(resourceManager) {};
 
     RenderPass& addPass(const std::string& name, D3D12_COMMAND_LIST_TYPE cmdListType,
                         int passIndex = -1)
@@ -69,16 +68,19 @@ struct RenderGraph
         {
             auto& cmd = queue->getCommand(frameIndex);
 
-            if(queue->_commandListType == D3D12_COMMAND_LIST_TYPE_DIRECT){
-                _resourceManager->flushUploadRequests(cmd._commandList.Get(), queue->_commandQueue.Get(), frameIndex);
-            }
-
             if (!queue->isCommandComplete(cmd))
                 continue;
 
+            
             cmd._commandAllocator->Reset();
             cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
-
+            
+            if (queue->_commandListType == D3D12_COMMAND_LIST_TYPE_DIRECT)
+            {
+                _resourceManager->flushUploadRequests(cmd._commandList.Get(),
+                                                      queue->_commandQueue.Get(), frameIndex);
+            }
+            
             for (auto& pass : _passes)
             {
                 if (pass._commandListType != queue->_commandListType)
@@ -102,10 +104,7 @@ struct RenderGraph
         return nullptr;
     }
 
-    void clear()
-    {
-        _passes.clear();
-    }
+    void clear() { _passes.clear(); }
 
    private:
     std::vector<RenderPass> _passes;

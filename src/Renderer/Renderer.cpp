@@ -96,7 +96,8 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
     init_info.SrvDescriptorHeap = _resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get();
     init_info.SrvDescriptorAllocFn = imguiSrvAlloc;
     init_info.SrvDescriptorFreeFn = imguiSrvFree;
-    init_info.UserData = new ImguiUserData{&_resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV, 0};
+    init_info.UserData =
+        new ImguiUserData{&_resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV, 0};
     ImGui_ImplDX12_Init(&init_info);
 }
 
@@ -162,9 +163,8 @@ void Renderer::initPsosAndShaders()
     shader_dir = std::filesystem::current_path().filename() == "build" ? "../src/Shaders"
                                                                        : "src/Shaders";
 
-    // Shader and its layout
     auto shader_compute0 = _psoManager->compileShaderFromFile(
-        toS(RN::shader_compute0), shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_0");
+        toS(RN::shader_compute0), shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_1");
 
     RootSignatureDescription rDesc{
         {
@@ -188,8 +188,8 @@ void Renderer::initRenderPasses()
             [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
             {
                 auto backBuffer =
-                    _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_buffer_index];
-                auto uav_render0 = _resourceManager->getFrameView(RN::UAV_render0)[_buffer_index];
+                    _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_frameIndex];
+                auto uav_render0 = _resourceManager->getFrameView(RN::UAV_render0)[_frameIndex];
 
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
                 uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -209,10 +209,11 @@ void Renderer::initRenderPasses()
                 ImGui::Render();
 
                 auto backBuffer =
-                    _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_buffer_index];
-                auto rtv_imgui = _resourceManager->getFrameView(RN::RTV_imgui)[_buffer_index];
+                    _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_frameIndex];
+                auto rtv_imgui = _resourceManager->getFrameView(RN::RTV_imgui)[_frameIndex];
 
-                ID3D12DescriptorHeap* heaps[] = {_resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
+                ID3D12DescriptorHeap* heaps[] = {
+                    _resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
                 cmdList->SetDescriptorHeaps(1, heaps);
 
                 // Transition vers RENDER_TARGET pour dessiner ImGui
@@ -335,11 +336,11 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
 void Renderer::render()
 {
-    _renderGraph->execute(_commandQueues, _buffer_index);
+    _renderGraph->execute(_commandQueues, _frameIndex);
     _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
 
     _psoManager->resetLastBound();
-    _buffer_index = (_buffer_index + 1) % _swapChain_buffer_count;
+    _frameIndex = (_frameIndex + 1) % _swapChain_buffer_count;
 
     std::chrono::duration<float> frameDuration =
         std::chrono::high_resolution_clock::now() - _lastFrameTimePoint;

@@ -103,7 +103,7 @@ void ResourceManager::uploadToResource(ID3D12GraphicsCommandList* cmdList,
 
     upload._currentOffset = AlignUp(upload._currentOffset, alignment);
 
-    uint64_t remainingData = AlignUp(dataSize, alignment);
+    uint64_t remainingData = dataSize;
     uint64_t dataOffset = 0;
 
     while (remainingData)

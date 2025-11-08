@@ -3,7 +3,6 @@
 #include <memory>
 #include <vector>
 
-
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
@@ -27,7 +26,7 @@ struct Renderer
     ComPtr<IDXGIFactory4> _dxgi_factory;
     ComPtr<IDXGISwapChain4> _swapchain;
     static const uint32_t _swapChain_buffer_count = 3;
-    uint32_t _buffer_index = 0;
+    uint32_t _frameIndex = 0;
 
     // D3D12 core interfaces
     ComPtr<ID3D12Debug6> _debug_controller;

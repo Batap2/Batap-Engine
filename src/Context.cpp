@@ -66,7 +66,7 @@ void Context::update()
     _inputManager->ClearFrameState();
 
     _scene->update(1);
-    //_sceneRenderer->
+    _sceneRenderer->uploadDirty();
 
     _renderer->render();
 }
