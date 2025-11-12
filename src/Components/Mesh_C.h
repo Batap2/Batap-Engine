@@ -1,13 +1,13 @@
 #pragma once
 
-#include <vector>
 #include <cstdint>
+#include <vector>
+
 
 namespace rayvox
 {
 struct Mesh_C
 {
-    std::vector<float> vertices;
-    std::vector<uint32_t> indices;
+    // que des guid, on mettra les donnée dans le renderer
 };
 }  // namespace rayvox
