@@ -4,6 +4,7 @@
 using namespace Microsoft::WRL;
 #include <unordered_set>
 
+#include "EigenTypes.h"
 #include "nano_signal_slot.hpp"
 
 namespace rayvox
@@ -32,8 +33,8 @@ struct InputManager
     bool MouseButtonsDown[3] = {false};
     bool MouseButtonsPressed[3] = {false};
     bool MouseButtonsReleased[3] = {false};
-    // ivec2 MouseDeltaAccumulated = {0, 0};
-    // ivec2 MousePosition = {0, 0};
+    v2i MouseDeltaAccumulated = {0, 0};
+    v2i MousePosition = {0, 0};
     float MouseWheelAccumulated = 0.0f;
 
     struct KeyEvent
@@ -52,8 +53,8 @@ struct InputManager
         KeyState KeyState;
         MouseButton Button;
         float Wheel;
-        // vec2 Delta;
-        // vec2 ScreenPosition;
+        v2i Delta;
+        v2i ScreenPosition;
     };
 
     Nano::Signal<void(KeyEvent)> KeySignal;
@@ -66,6 +67,6 @@ struct InputManager
 
     bool IsKeyDown(unsigned long long key);
     bool IsMouseButtonDown(MouseButton button);
-    // ivec2 GetMouseDelta();
+    v2i GetMouseDelta();
 };
 }  // namespace rayvox

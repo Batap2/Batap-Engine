@@ -16,17 +16,17 @@ struct Camera_C
 
     struct alignas(16) Data
     {
-        v3f _pos = v3f(1, 0, 0);
+        v3f _pos = v3f(0, 0, 0);
         float _znear = 0;
-        v3f _forward = v3f(4, 5, 6);
+        v3f _forward = v3f(0, 0, 0);
         float _zfar = 0;
-        v3f _right = v3f(7, 8, 9);
+        v3f _right = v3f(0, 0, 0);
         float _fov = 0;
         m4f _view = m4f::Identity();
         m4f _proj = m4f::Identity();
     } _data{};
 
-    v3f& _pos() { return _data._pos; }
+    v3f& _pos() { return _data._pos; }      
     const v3f& _pos() const { return _data._pos; }
 
     float& _znear() { return _data._znear; }
