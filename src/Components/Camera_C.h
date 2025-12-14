@@ -2,7 +2,7 @@
 
 #include "DirtyBits.h"
 #include "EigenTypes.h"
-#include "Renderer/GPU_GUID.h"
+#include "Renderer/GPUHandle.h"
 
 #include <cstdint>
 #include <span>
@@ -11,7 +11,7 @@ namespace rayvox
 {
 struct Camera_C
 {
-    GPU_GUID _buffer_ID{};
+    GPUHandle _buffer_ID;
     DirtyBits _dirty{};
 
     struct alignas(16) Data
@@ -26,7 +26,7 @@ struct Camera_C
         m4f _proj = m4f::Identity();
     } _data{};
 
-    v3f& _pos() { return _data._pos; }      
+    v3f& _pos() { return _data._pos; }
     const v3f& _pos() const { return _data._pos; }
 
     float& _znear() { return _data._znear; }

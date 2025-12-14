@@ -16,3 +16,6 @@
 [submodule "include/eigen"]
 	path = include/eigen
 	url = https://gitlab.com/libeigen/eigen
+[submodule "include/assimp"]
+	path = include/assimp
+	url = https://github.com/assimp/assimp.git

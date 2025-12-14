@@ -27,6 +27,7 @@ include_directories(${include_dir}/imgui)
 include_directories(${include_dir}/nano-signal-slot)
 include_directories(${include_dir}/magic_enum/include)
 include_directories(${include_dir}/entt/single_include)
+include_directories(${include_dir}/assimp/include)
 
 
 # Ajouter les fichiers source

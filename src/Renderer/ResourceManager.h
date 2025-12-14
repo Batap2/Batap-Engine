@@ -12,7 +12,7 @@ using namespace Microsoft::WRL;
 #include "AssertUtils.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
-#include "GPU_GUID.h"
+#include "GPUHandle.h"
 #include "ResourceName.h"
 
 #include <intsafe.h>
@@ -36,10 +36,7 @@ inline constexpr bool false_v = false;
 
 struct GPUResource
 {
-    GPUResource(D3D12_RESOURCE_STATES initialState)
-    {
-        _currentState = initialState;
-    }
+    GPUResource(D3D12_RESOURCE_STATES initialState) { _currentState = initialState; }
 
     void transitionTo(ComPtr<ID3D12GraphicsCommandList> commandList, D3D12_RESOURCE_STATES newState)
     {
@@ -52,15 +49,9 @@ struct GPUResource
         }
     }
 
-    ID3D12Resource* get()
-    {
-        return _resource.Get();
-    }
+    ID3D12Resource* get() { return _resource.Get(); }
 
-    D3D12_RESOURCE_STATES getState()
-    {
-        return _currentState;
-    }
+    D3D12_RESOURCE_STATES getState() { return _currentState; }
 
     void setResource(D3D12_RESOURCE_STATES currentState,
                      std::string_view name = "Unnamed Empty Resource")
@@ -113,17 +104,18 @@ struct ResourceManager
 
     struct UploadRequest
     {
-        GPU_GUID _guid;
+        GPUHandle _guid;
         const void* _data;
         uint64_t _dataSize;
         uint32_t _alignement;
         uint64_t _destinationOffset;
     };
 
-    void requestUpload(GPU_GUID guid, const void* data, uint64_t dataSize, uint32_t alignement,
+    void requestUpload(GPUHandle guid, const void* data, uint64_t dataSize, uint32_t alignement,
                        uint64_t destinationOffset = 0);
 
-    void flushUploadRequests(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue, uint32_t frameIndex);
+    void flushUploadRequests(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
+                             uint32_t frameIndex);
 
     void uploadToResource(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
                           GPUResource* destination, const void* data, uint64_t dataSize,
@@ -135,43 +127,42 @@ struct ResourceManager
                         uint64_t destinationOffset = 0);
 
     void updateResource(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
-                        GPU_GUID& guid, const void* data, uint64_t dataSize, uint32_t alignment,
+                        GPUHandle& guid, const void* data, uint64_t dataSize, uint32_t alignment,
                         uint32_t frameIndex, uint64_t destinationOffset = 0);
 
     // You must call setResource() of the GPUResource* after this
-    GPU_GUID createEmptyStaticResource(std::optional<std::string_view> name = std::nullopt);
-    GPU_GUID createEmptyFrameResource(std::optional<std::string_view> name = std::nullopt);
+    GPUHandle createEmptyStaticResource(std::optional<std::string_view> name = std::nullopt);
+    GPUHandle createEmptyFrameResource(std::optional<std::string_view> name = std::nullopt);
 
-    GPU_GUID createBufferStaticResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
+    GPUHandle createBufferStaticResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
+                                         D3D12_HEAP_TYPE heapType,
+                                         std::optional<std::string_view> name = std::nullopt,
+                                         D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
+
+    GPUHandle createBufferFrameResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
                                         D3D12_HEAP_TYPE heapType,
                                         std::optional<std::string_view> name = std::nullopt,
                                         D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
-    GPU_GUID
-    createBufferFrameResource(uint64_t size, D3D12_RESOURCE_STATES initialState,
-                              D3D12_HEAP_TYPE heapType,
-                              std::optional<std::string_view> name = std::nullopt,
-                              D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
+    GPUHandle createTexture2DStaticResource(uint32_t width, uint32_t height, DXGI_FORMAT format,
+                                            D3D12_RESOURCE_FLAGS flags,
+                                            D3D12_RESOURCE_STATES initialState,
+                                            D3D12_HEAP_TYPE heapType,
+                                            std::optional<std::string_view> name = std::nullopt,
+                                            D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
-    GPU_GUID createTexture2DStaticResource(uint32_t width, uint32_t height, DXGI_FORMAT format,
+    GPUHandle createTexture2DFrameResource(uint32_t width, uint32_t height, DXGI_FORMAT format,
                                            D3D12_RESOURCE_FLAGS flags,
                                            D3D12_RESOURCE_STATES initialState,
                                            D3D12_HEAP_TYPE heapType,
                                            std::optional<std::string_view> name = std::nullopt,
                                            D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
-    GPU_GUID
-    createTexture2DFrameResource(uint32_t width, uint32_t height, DXGI_FORMAT format,
-                                 D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initialState,
-                                 D3D12_HEAP_TYPE heapType,
-                                 std::optional<std::string_view> name = std::nullopt,
-                                 D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
-
     template <typename T>
-    GPU_GUID createStaticView(GPUResource* resource, T& viewDesc,
-                              std::optional<std::string_view> name = std::nullopt)
+    GPUHandle createStaticView(GPUResource* resource, T& viewDesc,
+                               std::optional<std::string_view> name = std::nullopt)
     {
-        GPU_GUID guid = generateGUID(GPU_GUID::GPUObject::StaticView, name);
+        GPUHandle guid = generateGUID(GPUHandle::GPUObject::StaticView, name);
         GPUView view;
         DescriptorHeapAllocator& descriptorHeapAllocator = getHeapForDesc<T>();
         createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
@@ -182,10 +173,10 @@ struct ResourceManager
     template <typename T, std::ranges::range R, typename D>
         requires(std::same_as<D, T> ||
                  (std::ranges::range<D> && std::same_as<std::ranges::range_value_t<D>, T>) )
-    GPU_GUID createFrameView(const R& resources, D& viewDesc,
-                             std::optional<std::string_view> name = std::nullopt)
+    GPUHandle createFrameView(const R& resources, D& viewDesc,
+                              std::optional<std::string_view> name = std::nullopt)
     {
-        GPU_GUID guid = generateGUID(GPU_GUID::GPUObject::FrameView, name);
+        GPUHandle guid = generateGUID(GPUHandle::GPUObject::FrameView, name);
 
         _frameViews[guid] = std::vector<GPUView>();
         _frameViews[guid].reserve(_frameCount);
@@ -219,9 +210,9 @@ struct ResourceManager
     }
 
     // offset and size must be aligned to 256
-    GPU_GUID createStaticCBV(GPU_GUID resource_guid,
-                             std::optional<std::string_view> name = std::nullopt,
-                             uint64_t offset = 0, uint64_t size = 0)
+    GPUHandle createStaticCBV(GPUHandle resource_guid,
+                              std::optional<std::string_view> name = std::nullopt,
+                              uint64_t offset = 0, uint64_t size = 0)
     {
         auto* resource = getStaticResource(resource_guid);
         const auto& descRes = resource->_resource->GetDesc();
@@ -235,9 +226,9 @@ struct ResourceManager
         return guid;
     }
 
-    GPU_GUID createFrameCBV(GPU_GUID resource_guid,
-                            std::optional<std::string_view> name = std::nullopt,
-                            uint64_t offset = 0, uint64_t size = 0)
+    GPUHandle createFrameCBV(GPUHandle resource_guid,
+                             std::optional<std::string_view> name = std::nullopt,
+                             uint64_t offset = 0, uint64_t size = 0)
     {
         auto resources = getFrameResource(resource_guid);
 
@@ -257,21 +248,21 @@ struct ResourceManager
         return createFrameView<D3D12_CONSTANT_BUFFER_VIEW_DESC>(resources, descs, name);
     }
 
-    void destroyResource(GPU_GUID guid);
+    void destroyResource(GPUHandle guid);
 
     GPUResource* getStaticResource(RN n);
     std::vector<GPUResource*> getFrameResource(RN n);
     GPUView& getStaticView(RN n);
     std::vector<GPUView>& getFrameView(RN n);
 
-    GPUResource* getStaticResource(GPU_GUID& guid);
-    std::vector<GPUResource*> getFrameResource(GPU_GUID& guid);
-    GPUView& getStaticView(GPU_GUID& guid);
-    std::vector<GPUView>& getFrameView(GPU_GUID& guid);
+    GPUResource* getStaticResource(GPUHandle& guid);
+    std::vector<GPUResource*> getFrameResource(GPUHandle& guid);
+    GPUView& getStaticView(GPUHandle& guid);
+    std::vector<GPUView>& getFrameView(GPUHandle& guid);
 
-    GPU_GUID nameToGuid(const std::string name);
-    GPU_GUID generateGUID(GPU_GUID::GPUObject type,
-                          std::optional<std::string_view> name = std::nullopt);
+    GPUHandle nameToGuid(const std::string name);
+    GPUHandle generateGUID(GPUHandle::GPUObject type,
+                           std::optional<std::string_view> name = std::nullopt);
 
     ComPtr<ID3D12Device2> _device;
     uint8_t _frameCount;
@@ -280,10 +271,10 @@ struct ResourceManager
     // buffers)
     // Static resources: rarely updated, must wait for GPU before re-upload
 
-    std::unordered_map<GPU_GUID, std::vector<std::unique_ptr<GPUResource>>> _frameResource;
-    std::unordered_map<GPU_GUID, std::unique_ptr<GPUResource>> _staticResources;
-    std::unordered_map<GPU_GUID, std::vector<GPUView>> _frameViews;
-    std::unordered_map<GPU_GUID, GPUView> _staticViews;
+    std::unordered_map<GPUHandle, std::vector<std::unique_ptr<GPUResource>>> _frameResource;
+    std::unordered_map<GPUHandle, std::unique_ptr<GPUResource>> _staticResources;
+    std::unordered_map<GPUHandle, std::vector<GPUView>> _frameViews;
+    std::unordered_map<GPUHandle, GPUView> _staticViews;
 
     FenceManager& _fenceManager;
     uint32_t _fenceId;
@@ -355,8 +346,8 @@ struct ResourceManager
             static_assert(false_v<Desc>, "Unsupported DX12 descriptor type");
     }
 
-    std::unordered_map<std::string, GPU_GUID> _nameToGuidMap;
-    std::unordered_set<GPU_GUID> _createdGPU_GUID;
+    std::unordered_map<std::string, GPUHandle> _nameToGuidMap;
+    std::unordered_set<GPUHandle> _createdGPUHandle;
 
     std::vector<UploadRequest> _uploadRequests;
 };
