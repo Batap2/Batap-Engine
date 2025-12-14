@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "DirectX-Headers/include/directx/d3d12.h"
-#include "GPUHandle.h"
+#include "Handles.h"
 
 namespace rayvox
 {
@@ -157,7 +157,7 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
                                      uint32_t frameIndex, uint64_t destinationOffset)
 {
     GPUView* gpuView;
-    if (guid._type == GPUHandle::GPUObject::FrameView)
+    if (guid._type == GPUHandle::ObjectType::FrameView)
     {
         gpuView = &_frameViews.at(guid)[frameIndex];
     }
@@ -172,14 +172,14 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
 
 GPUHandle ResourceManager::createEmptyStaticResource(std::optional<std::string_view> name)
 {
-    GPUHandle guid = generateGUID(GPUHandle::GPUObject::StaticResource, name);
+    GPUHandle guid = generateGUID(GPUHandle::ObjectType::StaticResource, name);
     _staticResources.emplace(guid, std::make_unique<GPUResource>(D3D12_RESOURCE_STATE_COMMON));
     return guid;
 }
 
 GPUHandle ResourceManager::createEmptyFrameResource(std::optional<std::string_view> name)
 {
-    GPUHandle guid = generateGUID(GPUHandle::GPUObject::FrameResource, name);
+    GPUHandle guid = generateGUID(GPUHandle::ObjectType::FrameResource, name);
     _frameResource[guid] = std::vector<std::unique_ptr<GPUResource>>();
     for (uint8_t i = 0; i < _frameCount; ++i)
     {
@@ -195,7 +195,7 @@ GPUHandle ResourceManager::createBufferStaticResource(uint64_t size,
                                                       std::optional<std::string_view> name,
                                                       D3D12_HEAP_FLAGS heapFlags)
 {
-    GPUHandle guid = generateGUID(GPUHandle::GPUObject::StaticResource, name);
+    GPUHandle guid = generateGUID(GPUHandle::ObjectType::StaticResource, name);
 
     _staticResources.emplace(guid, std::make_unique<GPUResource>(initialState));
     auto res = _staticResources.at(guid).get();
@@ -223,7 +223,7 @@ GPUHandle ResourceManager::createBufferFrameResource(uint64_t size,
                                                      std::optional<std::string_view> name,
                                                      D3D12_HEAP_FLAGS heapFlags)
 {
-    GPUHandle guid = generateGUID(GPUHandle::GPUObject::FrameResource, name);
+    GPUHandle guid = generateGUID(GPUHandle::ObjectType::FrameResource, name);
 
     auto& resources = _frameResource[guid];
     resources.reserve(_frameCount);
@@ -257,7 +257,7 @@ GPUHandle ResourceManager::createTexture2DStaticResource(
     D3D12_RESOURCE_STATES initialState, D3D12_HEAP_TYPE heapType,
     std::optional<std::string_view> name, D3D12_HEAP_FLAGS heapFlags)
 {
-    GPUHandle guid = generateGUID(GPUHandle::GPUObject::StaticResource, name);
+    GPUHandle guid = generateGUID(GPUHandle::ObjectType::StaticResource, name);
 
     _staticResources.emplace(guid, std::make_unique<GPUResource>(initialState));
     auto resource = _staticResources.at(guid).get();
@@ -306,7 +306,7 @@ GPUHandle ResourceManager::createTexture2DFrameResource(
     D3D12_RESOURCE_STATES initialState, D3D12_HEAP_TYPE heapType,
     std::optional<std::string_view> name, D3D12_HEAP_FLAGS heapFlags)
 {
-    GPUHandle guid = generateGUID(GPUHandle::GPUObject::FrameResource, name);
+    GPUHandle guid = generateGUID(GPUHandle::ObjectType::FrameResource, name);
 
     auto& resources = _frameResource[guid];
     resources.reserve(_frameCount);
@@ -440,7 +440,7 @@ std::vector<GPUView>& ResourceManager::getFrameView(GPUHandle& guid)
     return itView->second;
 }
 
-GPUHandle ResourceManager::generateGUID(GPUHandle::GPUObject type,
+GPUHandle ResourceManager::generateGUID(GPUHandle::ObjectType type,
                                         std::optional<std::string_view> name)
 {
     if (name.has_value())

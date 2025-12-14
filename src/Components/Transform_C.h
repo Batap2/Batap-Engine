@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Renderer/GPUHandle.h"
+#include "Handles.h"
 #include "Renderer/ResourceManager.h"
 
 namespace rayvox

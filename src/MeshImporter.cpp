@@ -1,16 +1,20 @@
 #include "MeshImporter.h"
 
-// #include "assimp/Importer.hpp"
+//#include "assimp/Importer.hpp"
 // #include "assimp/postprocess.h"
 // #include "assimp/scene.h"
 // #include "stb_image.h"
 
 #include <iostream>
 #include <vector>
+#include "Handles.h"
 
 namespace rayvox
 {
 
+AssetHandle importMeshFromFile(std::string_view path) {
+    return AssetHandle();
+}
 // std::vector<EntityHandle> CreateEntitiesFromFile(MeshImporter_Params& args)
 // {
 //     args.area->BeginUpdate();

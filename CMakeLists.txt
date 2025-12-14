@@ -19,6 +19,13 @@ set(include_dir "${PROJECT_SOURCE_DIR}/include")
 # Définir le répertoire de sortie des exécutables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
 
+
+# set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+# set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+# set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+# set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+# set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+
 include_directories(${source_dir})
 include_directories(${include_dir})
 add_subdirectory(${include_dir}/DirectX-Headers)
@@ -27,8 +34,7 @@ include_directories(${include_dir}/imgui)
 include_directories(${include_dir}/nano-signal-slot)
 include_directories(${include_dir}/magic_enum/include)
 include_directories(${include_dir}/entt/single_include)
-include_directories(${include_dir}/assimp/include)
-
+#add_subdirectory(${include_dir}/assimp)
 
 # Ajouter les fichiers source
 file(GLOB_RECURSE source_files "${source_dir}/*.cpp")

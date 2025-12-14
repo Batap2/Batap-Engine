@@ -2,7 +2,7 @@
 #include <optional>
 #include "Camera_C.h"
 #include "DirectX-Headers/include/directx/d3d12.h"
-#include "Renderer/GPUHandle.h"
+#include "Handles.h"
 #include "Renderer/ResourceManager.h"
 #include "Transform_C.h"
 

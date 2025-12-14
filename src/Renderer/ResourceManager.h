@@ -12,7 +12,7 @@ using namespace Microsoft::WRL;
 #include "AssertUtils.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
-#include "GPUHandle.h"
+#include "Handles.h"
 #include "ResourceName.h"
 
 #include <intsafe.h>
@@ -162,7 +162,7 @@ struct ResourceManager
     GPUHandle createStaticView(GPUResource* resource, T& viewDesc,
                                std::optional<std::string_view> name = std::nullopt)
     {
-        GPUHandle guid = generateGUID(GPUHandle::GPUObject::StaticView, name);
+        GPUHandle guid = generateGUID(GPUHandle::ObjectType::StaticView, name);
         GPUView view;
         DescriptorHeapAllocator& descriptorHeapAllocator = getHeapForDesc<T>();
         createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
@@ -176,7 +176,7 @@ struct ResourceManager
     GPUHandle createFrameView(const R& resources, D& viewDesc,
                               std::optional<std::string_view> name = std::nullopt)
     {
-        GPUHandle guid = generateGUID(GPUHandle::GPUObject::FrameView, name);
+        GPUHandle guid = generateGUID(GPUHandle::ObjectType::FrameView, name);
 
         _frameViews[guid] = std::vector<GPUView>();
         _frameViews[guid].reserve(_frameCount);
@@ -261,7 +261,7 @@ struct ResourceManager
     std::vector<GPUView>& getFrameView(GPUHandle& guid);
 
     GPUHandle nameToGuid(const std::string name);
-    GPUHandle generateGUID(GPUHandle::GPUObject type,
+    GPUHandle generateGUID(GPUHandle::ObjectType type,
                            std::optional<std::string_view> name = std::nullopt);
 
     ComPtr<ID3D12Device2> _device;

@@ -2,7 +2,7 @@
 
 #include "DirtyBits.h"
 #include "EigenTypes.h"
-#include "Renderer/GPUHandle.h"
+#include "Handles.h"
 
 #include <cstdint>
 #include <span>

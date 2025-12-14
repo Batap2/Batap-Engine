@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DirectX-Headers/include/directx/d3dx12.h>
-#include "Renderer/GPUHandle.h"
+#include "Handles.h"
 
 namespace rayvox
 {

@@ -8,26 +8,21 @@
 
 namespace rayvox
 {
-struct GPUHandle
+
+template <typename TypeEnum>
+    requires std::is_enum_v<TypeEnum>
+struct Handle
 {
-    enum class GPUObject : uint8_t
-    {
-        FrameResource,
-        FrameView,
-        StaticResource,
-        StaticView,
-        Unknown
-    };
+    using ObjectType = TypeEnum;
+    Handle() = default;
 
-    GPUHandle() = default;
+    explicit Handle(ObjectType type) : _type(type), _guid(random64()) {}
 
-    explicit GPUHandle(GPUObject type) : _type(type), _guid(random64()) {}
-
-    GPUHandle(GPUObject type, std::string_view path)
+    Handle(ObjectType type, std::string_view path)
         : _type(type), _guid(hash64(path) ^ (uint64_t(type) * 0x9e3779b97f4a7c15ull))
     {}
 
-    bool operator==(const GPUHandle& other) const
+    bool operator==(const Handle& other) const
     {
         return _type == other._type && _guid == other._guid;
     }
@@ -40,7 +35,7 @@ struct GPUHandle
         return s;
     }
 
-    GPUObject _type = GPUObject::Unknown;
+    ObjectType _type{};
     uint64_t _guid = 0;
 
    private:
@@ -62,14 +57,34 @@ struct GPUHandle
         return h;
     }
 };
+
+enum class GPUObjectType : uint8_t
+{
+    FrameResource,
+    FrameView,
+    StaticResource,
+    StaticView,
+    Unknown
+};
+using GPUHandle = Handle<GPUObjectType>;
+
+enum class AssetType : uint8_t
+{
+    Mesh,
+    Texture,
+    Material,
+    Shader,
+    Unknown
+};
+using AssetHandle = Handle<AssetType>;
 }  // namespace rayvox
 
 namespace std
 {
-template <>
-struct hash<rayvox::GPUHandle>
+template <typename T>
+struct hash<rayvox::Handle<T>>
 {
-    size_t operator()(const rayvox::GPUHandle& g) const noexcept
+    size_t operator()(const rayvox::Handle<T>& g) const noexcept
     {
         return std::hash<uint64_t>{}(g._guid);
     }
