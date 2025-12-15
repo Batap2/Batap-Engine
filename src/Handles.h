@@ -18,8 +18,8 @@ struct Handle
 
     explicit Handle(ObjectType type) : _type(type), _guid(random64()) {}
 
-    Handle(ObjectType type, std::string_view path)
-        : _type(type), _guid(hash64(path) ^ (uint64_t(type) * 0x9e3779b97f4a7c15ull))
+    Handle(ObjectType type, std::string_view name)
+        : _type(type), _guid(hash64(name) ^ (uint64_t(type) * 0x9e3779b97f4a7c15ull))
     {}
 
     bool operator==(const Handle& other) const

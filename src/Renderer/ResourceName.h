@@ -19,6 +19,7 @@ enum class RN
 
     // Render Passes
     pass_render0,
+    pass_mesh,
     pass_composition,
     pass_imgui,
 
@@ -31,7 +32,8 @@ enum class RN
 
 inline const std::string& toS(RN n)
 {
-    static const auto names = []{
+    static const auto names = []
+    {
         std::array<std::string, magic_enum::enum_count<RN>()> arr{};
         size_t i = 0;
         for (auto r : magic_enum::enum_values<RN>())

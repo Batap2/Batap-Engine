@@ -1,10 +1,13 @@
 #pragma once
 
+#include "Assets/AssetManager.h"
 #include "Handles.h"
 
 #include <string_view>
 
 namespace rayvox
 {
-inline AssetHandle importMeshFromFile(std::string_view path);
-}
+struct AssetManager;
+inline std::vector<AssetHandle> importMeshFromFile(std::string_view path,
+                                                   AssetManager* assetManager);
+}  // namespace rayvox

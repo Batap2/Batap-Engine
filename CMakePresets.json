@@ -14,7 +14,9 @@
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "cl",
                 "CMAKE_CXX_COMPILER": "cl",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_NINJA_CMCLDEPS_RC": "OFF",
+                "CMAKE_RC_COMPILER_LAUNCHER": ""
             },
             "condition": {
                 "type": "equals",

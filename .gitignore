@@ -9,3 +9,4 @@ x64
 build
 .cache
 compile_commands.json
+CMakeCache.txt

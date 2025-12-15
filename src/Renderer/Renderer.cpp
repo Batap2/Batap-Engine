@@ -215,18 +215,10 @@ void Renderer::initRenderPasses()
                 ID3D12DescriptorHeap* heaps[] = {
                     _resourceManager->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
                 cmdList->SetDescriptorHeaps(1, heaps);
-
-                // Transition vers RENDER_TARGET pour dessiner ImGui
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-                // Set le render target
                 cmdList->OMSetRenderTargets(1, &rtv_imgui._descriptorHandle->cpuHandle, FALSE,
                                             nullptr);
-
-                // Render ImGui
                 ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList);
-
-                // Transition finale vers PRESENT
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
             });
 }

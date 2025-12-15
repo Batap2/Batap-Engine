@@ -21,18 +21,17 @@ void SceneRenderer::uploadDirty()
 
     auto& reg = _scene->_registry;
 
-    auto processTupleAll = [&]<typename... Ts>(std::type_identity<std::tuple<Ts...>>)
+    auto processAny = [&]<typename... Ts>(std::type_identity<std::tuple<Ts...>>)
     {
-        auto view = reg.view<Ts...>();
-        for (auto e : view)
-        {
-            (ComponentTraits<Ts>::upload(*_renderer->_resourceManager, reg.get<Ts>(e),
-                                         _renderer->_frameIndex),
-             ...);
-        }
+        (reg.view<Ts>().each(
+             [&](entt::entity e, Ts& c) {
+                 ComponentTraits<Ts>::upload(*_renderer->_resourceManager, c,
+                                             _renderer->_frameIndex);
+             }),
+         ...);
     };
 
-    processTupleAll(std::type_identity<GPUComponent>{});
+    processAny(std::type_identity<GPUComponent>{});
 }
 
 void SceneRenderer::initRenderPasses()
@@ -55,12 +54,13 @@ void SceneRenderer::initRenderPasses()
 
                 VoxelRayScene* scene = static_cast<VoxelRayScene*>(_scene);
                 auto* cam = _scene->_registry.try_get<Camera_C>(scene->_camera);
-                auto& camBufferView = r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
+                auto& camBufferView =
+                    r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
 
                 camBufferView._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_GENERIC_READ);
-                cmdList->SetComputeRootDescriptorTable(
-                    0, uav_render0._descriptorHandle->gpuHandle);
-                cmdList->SetComputeRootDescriptorTable(1, camBufferView._descriptorHandle->gpuHandle);
+                cmdList->SetComputeRootDescriptorTable(0, uav_render0._descriptorHandle->gpuHandle);
+                cmdList->SetComputeRootDescriptorTable(1,
+                                                       camBufferView._descriptorHandle->gpuHandle);
                 // camera cmdList->SetComputeRootDescriptorTable(2, voxelMapView.gpuHandle);
 
                 cmdList->Dispatch(r->_threadGroupCountX, r->_threadGroupCountY,
