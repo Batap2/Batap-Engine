@@ -45,8 +45,9 @@ struct Renderer
 
     bool _isInitialized = false;
 
-    uint32_t _width, _height;
+    bool _ImGuiLastFrameRendered = true;
 
+    uint32_t _width, _height;
     uint32_t _threadGroupCountX, _threadGroupCountY, _threadGroupCountZ;
 
     void computeAndUploadCameraBuffer();
@@ -65,5 +66,6 @@ struct Renderer
     void initRenderPasses();
 
     void render();
+    void beginImGuiFrame();
 };
 }  // namespace rayvox

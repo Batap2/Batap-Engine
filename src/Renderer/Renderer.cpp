@@ -65,7 +65,7 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    (void) io;
+
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
 
@@ -202,11 +202,8 @@ void Renderer::initRenderPasses()
         .addRecordStep(
             [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
             {
-                ImGui_ImplDX12_NewFrame();
-                ImGui_ImplWin32_NewFrame();
-                ImGui::NewFrame();
-                ImGui::ShowDemoWindow();
                 ImGui::Render();
+                _ImGuiLastFrameRendered = true;
 
                 auto backBuffer =
                     _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_frameIndex];
@@ -338,6 +335,16 @@ void Renderer::render()
         std::chrono::high_resolution_clock::now() - _lastFrameTimePoint;
     _frameMs = frameDuration.count() * 1000;
     _lastFrameTimePoint = std::chrono::high_resolution_clock::now();
+}
+
+void Renderer::beginImGuiFrame()
+{
+    if(_ImGuiLastFrameRendered){
+        ImGui_ImplDX12_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+        _ImGuiLastFrameRendered = false;
+    }
 }
 
 void Renderer::flush()

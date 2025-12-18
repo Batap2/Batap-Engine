@@ -7,13 +7,11 @@ namespace rayvox
 {
 struct Mesh
 {
-    // Streams (Structure of Arrays)
-    GPUHandle posBuffer;  // float3 * vertexCount
-    GPUHandle nrmBuffer;  // float3 * vertexCount
-    GPUHandle tanBuffer;  // float4 * vertexCount (optional)
-    GPUHandle uv0Buffer;  // float2 * vertexCount (optional)
+    GPUHandle posBuffer;
+    GPUHandle nrmBuffer;
+    GPUHandle tanBuffer;
+    GPUHandle uv0Buffer;
 
-    // Indices
     GPUHandle indexBuffer;
     DXGI_FORMAT indexFormat = DXGI_FORMAT_R32_UINT;
 

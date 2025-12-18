@@ -26,7 +26,7 @@ cbuffer CameraCB : register(b0)
 
   float4 finalColor = float4(float(dt_id.x)/width, float(dt_id.y)/height, 0, 1);
 
-  finalColor = float4(cam._pos,1);
+  finalColor = float4(0.2,0.2,0.2,1);
 
   buffer_render0[screen_coord.xy] = finalColor;
 }
