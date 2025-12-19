@@ -67,11 +67,11 @@ add_executable(RayVox_Engine WIN32 ${source_files}
         resources.rc
         )
 
-        #Tracy::TracyClient
-target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.lib assimp Tracy::TracyClient)
+#Tracy::TracyClient
+target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.lib assimp)
 
 #target_include_directories(RayVox_Engine PRIVATE ${source_dir})
-target_precompile_headers(RayVox_Engine PRIVATE ${source_dir}/TracyInclude.h)
+#target_precompile_headers(RayVox_Engine PRIVATE ${source_dir}/TracyInclude.h)
 
 # Définir _DEBUG pour les builds Debug
 target_compile_definitions(RayVox_Engine

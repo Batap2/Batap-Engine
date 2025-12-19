@@ -25,6 +25,7 @@ struct Renderer
     // DXGI
     ComPtr<IDXGIFactory4> _dxgi_factory;
     ComPtr<IDXGISwapChain4> _swapchain;
+    HANDLE _frameLatencyWaitableObject;
     static const uint32_t _swapChain_buffer_count = 3;
     uint32_t _frameIndex = 0;
 

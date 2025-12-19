@@ -69,7 +69,6 @@ void Context::init()
 
 void Context::update()
 {
-    ZoneScoped;
     std::chrono::duration<float> dt = std::chrono::high_resolution_clock::now() - _lastTime;
     _lastTime = std::chrono::high_resolution_clock::now();
     _deltaTime = dt.count();
@@ -94,8 +93,6 @@ void Context::update()
     _uiPanels->Draw();
 
     _renderer->render();
-
-    FrameMark;
 }
 
 void Context::render() {}

@@ -105,23 +105,28 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
 
 void Renderer::initRessourcesAndViews(HWND hwnd)
 {
-    const DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {_width,
-                                                  _height,
-                                                  DXGI_FORMAT_R8G8B8A8_UNORM,
-                                                  FALSE,
-                                                  {1, 0},
-                                                  DXGI_USAGE_BACK_BUFFER,
-                                                  _swapChain_buffer_count,
-                                                  DXGI_SCALING_STRETCH,
-                                                  DXGI_SWAP_EFFECT_FLIP_DISCARD,
-                                                  DXGI_ALPHA_MODE_UNSPECIFIED,
-                                                  _tearingFlag};
+    const DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {
+        _width,
+        _height,
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        FALSE,
+        {1, 0},
+        DXGI_USAGE_BACK_BUFFER,
+        _swapChain_buffer_count,
+        DXGI_SCALING_STRETCH,
+        DXGI_SWAP_EFFECT_FLIP_DISCARD,
+        DXGI_ALPHA_MODE_UNSPECIFIED,
+        _tearingFlag | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT};
+
     // Create and upgrade swapchain to our version(ComPtr<IDXGISwapChain4> swapchain)
     ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
     ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_commandQueues[0]->_commandQueue.Get(),
                                                         hwnd, &swapchain_desc, nullptr, nullptr,
                                                         &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
+
+    ThrowIfFailed(_swapchain->SetMaximumFrameLatency(1));
+    _frameLatencyWaitableObject = _swapchain->GetFrameLatencyWaitableObject();
 
     auto swapChainResourcesGUID =
         _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
@@ -327,11 +332,17 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
 void Renderer::render()
 {
-    ZoneScoped;
+    // Without this, when the window is not focused, the CPU keeps producing frames
+    // while the Desktop Window Manager (DWM) consumes them at a much lower rate.
+    // This causes the DXGI frame queue to fill up, eventually forcing a long stall
+    // (typically observed during Present()).
+    WaitForSingleObject(_frameLatencyWaitableObject, INFINITE);
+
     _renderGraph->execute(_commandQueues, _frameIndex);
     HRESULT hr = _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
 
-    if (hr == DXGI_STATUS_OCCLUDED){
+    if (hr == DXGI_STATUS_OCCLUDED)
+    {
         std::cout << "_____OCCLUDED\n";
     }
 
@@ -346,8 +357,8 @@ void Renderer::render()
 
 void Renderer::beginImGuiFrame()
 {
-    ZoneScoped
-    if(_ImGuiLastFrameRendered){
+    if (_ImGuiLastFrameRendered)
+    {
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
