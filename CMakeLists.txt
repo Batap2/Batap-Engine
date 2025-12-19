@@ -1,9 +1,16 @@
 ﻿cmake_minimum_required (VERSION 3.19)
 
-# Enable Hot Reload for MSVC compilers if supported.
+# Enable Hot Reload for MSVC compilers if supported. /ZI
+# if (POLICY CMP0141)
+#   cmake_policy(SET CMP0141 NEW)
+#   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
+# endif()
+
+# Debug symbols without Edit&Continue (fixes Tracy / constexpr __LINE__)
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
-  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
+  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+      "$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>")
 endif()
 
 project ("RayVox-Engine")
@@ -26,6 +33,10 @@ set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
 set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 
+option ( TRACY_ENABLE "" ON )
+option ( TRACY_CALLSTACK "" ON )
+
+
 include_directories(${source_dir})
 include_directories(${include_dir})
 add_subdirectory(${include_dir}/DirectX-Headers)
@@ -35,6 +46,7 @@ include_directories(${include_dir}/nano-signal-slot)
 include_directories(${include_dir}/magic_enum/include)
 include_directories(${include_dir}/entt/single_include)
 add_subdirectory(${include_dir}/assimp)
+add_subdirectory(${include_dir}/tracy)
 
 # Ajouter les fichiers source
 file(GLOB_RECURSE source_files "${source_dir}/*.cpp")
@@ -55,10 +67,11 @@ add_executable(RayVox_Engine WIN32 ${source_files}
         resources.rc
         )
 
-target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.lib assimp)
+        #Tracy::TracyClient
+target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.lib assimp Tracy::TracyClient)
 
 #target_include_directories(RayVox_Engine PRIVATE ${source_dir})
-
+target_precompile_headers(RayVox_Engine PRIVATE ${source_dir}/TracyInclude.h)
 
 # Définir _DEBUG pour les builds Debug
 target_compile_definitions(RayVox_Engine

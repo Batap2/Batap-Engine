@@ -64,6 +64,7 @@ struct RenderGraph
 
     void execute(std::vector<std::unique_ptr<CommandQueue>>& queues, uint32_t frameIndex)
     {
+        ZoneScoped
         for (auto& queue : queues)
         {
             auto& cmd = queue->getCommand(frameIndex);

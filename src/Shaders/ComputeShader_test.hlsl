@@ -24,6 +24,7 @@ cbuffer CameraCB : register(b0)
   uint width, height;
   buffer_render0.GetDimensions(width, height);
 
+
   float4 finalColor = float4(float(dt_id.x)/width, float(dt_id.y)/height, 0, 1);
 
   finalColor = float4(0.2,0.2,0.2,1);

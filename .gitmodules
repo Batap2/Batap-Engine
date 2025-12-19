@@ -19,3 +19,6 @@
 [submodule "include/assimp"]
 	path = include/assimp
 	url = https://github.com/assimp/assimp.git
+[submodule "include/tracy"]
+	path = include/tracy
+	url = https://github.com/wolfpld/tracy.git

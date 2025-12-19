@@ -61,7 +61,9 @@ void UIPanels::DrawLeftPanel()
     ImVec2 gripPos(panelWidth - resizeGrip, 0);
     ImGui::SetCursorPos(gripPos);
 
-    ImGui::InvisibleButton("##LeftPanelResize", ImVec2(resizeGrip * 2.0f, vp->Size.y));
+    if(vp->Size.y != 0){
+        ImGui::InvisibleButton("##LeftPanelResize", ImVec2(resizeGrip * 2.0f, vp->Size.y));
+    }
 
     if (ImGui::IsItemHovered() || ImGui::IsItemActive())
         ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);

@@ -22,6 +22,8 @@
 #include "imgui/backends/imgui_impl_dx12.h"
 #include "imgui/backends/imgui_impl_win32.h"
 
+#include "tracy/public/tracy/Tracy.hpp"
+
 namespace rayvox
 {
 
@@ -325,8 +327,13 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
 void Renderer::render()
 {
+    ZoneScoped;
     _renderGraph->execute(_commandQueues, _frameIndex);
-    _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
+    HRESULT hr = _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
+
+    if (hr == DXGI_STATUS_OCCLUDED){
+        std::cout << "_____OCCLUDED\n";
+    }
 
     _psoManager->resetLastBound();
     _frameIndex = (_frameIndex + 1) % _swapChain_buffer_count;
@@ -339,6 +346,7 @@ void Renderer::render()
 
 void Renderer::beginImGuiFrame()
 {
+    ZoneScoped
     if(_ImGuiLastFrameRendered){
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();

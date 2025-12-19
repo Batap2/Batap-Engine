@@ -4,6 +4,8 @@
 
 #include <iostream>
 
+#include "tracy/public/tracy/Tracy.hpp"
+
 namespace rayvox
 {
 
