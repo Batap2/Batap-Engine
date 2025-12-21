@@ -11,8 +11,14 @@ Make sure you have the following installed before building:
 #### Using CMake Presets
 This project includes a `CMakePresets.json` file, so you can build it easily:
 
-```bash
-cmake --preset debug
-cmake --build --preset debug
+```bat
+build_msvc.bat <preset-name> [--configure]
 ```
-Or with the CMake Tools extension if you're using vscode
+
+- `<preset-name>` : name of the CMake preset to use (as defined in `CMakePresets.json`)
+  - `msvc-debug`
+  - `msvc-release`
+  - `msvc-debug-asan`
+- `--configure` : forces a CMake reconfiguration before building (use when CMake files or source layout change)
+
+VSCode users: build tasks are already defined in the `.vscode` folder.
