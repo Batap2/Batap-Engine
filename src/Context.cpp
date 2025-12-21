@@ -78,7 +78,7 @@ void Context::update()
         [&](FileDialogMsg&& msg)
         {
             for(auto& path : msg){
-                std::cout << path << "\n";
+                
             }
         });
 

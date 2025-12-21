@@ -18,14 +18,12 @@ project ("RayVox-Engine")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-
 # Définir le répertoire des sources et include
 set(source_dir "${PROJECT_SOURCE_DIR}/src")
 set(include_dir "${PROJECT_SOURCE_DIR}/include")
 
 # Définir le répertoire de sortie des exécutables
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
-
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
@@ -36,20 +34,18 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 option ( TRACY_ENABLE "" ON )
 option ( TRACY_CALLSTACK "" ON )
 
-
-include_directories(${source_dir})
-include_directories(${include_dir})
 add_subdirectory(${include_dir}/DirectX-Headers)
-include_directories(${include_dir}/eigen)
-include_directories(${include_dir}/imgui)
-include_directories(${include_dir}/nano-signal-slot)
-include_directories(${include_dir}/magic_enum/include)
-include_directories(${include_dir}/entt/single_include)
 add_subdirectory(${include_dir}/assimp)
 add_subdirectory(${include_dir}/tracy)
 
 # Ajouter les fichiers source
-file(GLOB_RECURSE source_files "${source_dir}/*.cpp")
+file(GLOB_RECURSE source_files CONFIGURE_DEPENDS
+    "${source_dir}/*.cpp"
+    "${source_dir}/*.c"
+    "${source_dir}/*.h"
+    "${source_dir}/*.hpp"
+)
+
 
 file(GLOB IMGUI_SOURCES
     "${include_dir}/imgui/imgui.cpp"
@@ -73,14 +69,28 @@ target_link_libraries(RayVox_Engine d3d12.lib dxgi.lib dxguid.lib D3DCompiler.li
 #target_include_directories(RayVox_Engine PRIVATE ${source_dir})
 #target_precompile_headers(RayVox_Engine PRIVATE ${source_dir}/TracyInclude.h)
 
+target_include_directories(RayVox_Engine PRIVATE
+    ${source_dir}
+    ${include_dir}
+    ${include_dir}/eigen
+    ${include_dir}/imgui
+    ${include_dir}/nano-signal-slot
+    ${include_dir}/magic_enum/include
+    ${include_dir}/entt/single_include
+)
+
 # Définir _DEBUG pour les builds Debug
 target_compile_definitions(RayVox_Engine
         PRIVATE
         $<$<CONFIG:Debug>:_DEBUG>
 )
 
+target_compile_definitions(RayVox_Engine PRIVATE
+    RAYVOX_ROOT_DIR="${CMAKE_SOURCE_DIR}"
+)
+
 # Définir les drapeaux de compilation
-add_compile_options(/WX)
+target_compile_options(RayVox_Engine PRIVATE /WX)
 target_compile_options(RayVox_Engine PRIVATE
         $<$<CONFIG:Release>:/O2>
         $<$<CONFIG:RelWithDebInfo>:/O2>

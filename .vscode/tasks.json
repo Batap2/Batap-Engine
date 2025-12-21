@@ -2,12 +2,12 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "CMake Build",
+            "label": "Build (msvc-debug)",
             "type": "shell",
             "command": "cmd.exe",
             "args": [
                 "/c",
-                "${workspaceFolder}\\build.bat"
+                "call \"${workspaceFolder}\\build_msvc.bat\" msvc-debug"
             ],
             "group": {
                 "kind": "build",
@@ -18,17 +18,41 @@
             ]
         },
         {
-            "label": "CMake Build2",
+            "label": "Build (msvc-debug) Reconfigure",
             "type": "shell",
             "command": "cmd.exe",
             "args": [
                 "/c",
-                "${workspaceFolder}\\build.bat"
+                "call \"${workspaceFolder}\\build_msvc.bat\" msvc-debug --configure"
             ],
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
+            "problemMatcher": [
+                "$msCompile"
+            ]
+        },
+        {
+            "label": "Build (msvc-release)",
+            "type": "shell",
+            "command": "cmd.exe",
+            "args": [
+                "/c",
+                "call \"${workspaceFolder}\\build_msvc.bat\" msvc-release"
+            ],
+            "problemMatcher": [
+                "$msCompile"
+            ]
+        },
+        {
+            "label": "Build (msvc-debug-asan)",
+            "type": "shell",
+            "command": "cmd.exe",
+            "args": [
+                "/c",
+                "call \"${workspaceFolder}\\build_msvc.bat\" msvc-debug-asan"
+            ],
             "problemMatcher": [
                 "$msCompile"
             ]
