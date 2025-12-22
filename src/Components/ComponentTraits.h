@@ -1,7 +1,8 @@
 #pragma once
+#include <cstdint>
 #include <optional>
 #include "Camera_C.h"
-#include "DirectX-Headers/include/directx/d3d12.h"
+#include "Renderer/includeDX12.h"
 #include "Handles.h"
 #include "Renderer/ResourceManager.h"
 #include "Transform_C.h"
@@ -12,14 +13,14 @@ template <typename T>
 struct ComponentTraits
 {
     static void destroy(ResourceManager& r, const T& c) {}
-    static void upload(ResourceManager&, T&, uint32_t) {}
+    static void upload(ResourceManager&, T&, uint8_t) {}
 };
 
 template <>
 struct ComponentTraits<Camera_C>
 {
     static void destroy(ResourceManager& r, const Camera_C& c) { r.destroyResource(c._buffer_ID); }
-    static void upload(ResourceManager& r, Camera_C& c, uint32_t frameIndex)
+    static void upload(ResourceManager& r, Camera_C& c, uint8_t frameIndex)
     {
         if (!c._buffer_ID._guid)
         {

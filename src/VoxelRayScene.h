@@ -8,7 +8,7 @@ struct VoxelRayScene : Scene
 {
     VoxelRayScene();
     
-    void update(float deltaTime) override{};
+    void update(float deltaTime) override{}
     
     entt::entity _camera;
 };

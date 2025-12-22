@@ -3,7 +3,8 @@
 #include <stdexcept>
 
 #include "Descriptorhandle.h"
-#include "DirectX-Headers/include/directx/d3d12.h"
+
+using namespace Microsoft::WRL;
 
 namespace rayvox
 {

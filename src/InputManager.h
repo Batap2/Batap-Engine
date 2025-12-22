@@ -1,7 +1,6 @@
 #pragma once
 
 #include <wrl.h>
-using namespace Microsoft::WRL;
 #include <unordered_set>
 
 #include "EigenTypes.h"
@@ -30,9 +29,9 @@ struct InputManager
     std::unordered_set<unsigned long long> KeysDown;
     std::unordered_set<unsigned long long> KeysPressed;
     std::unordered_set<unsigned long long> KeysReleased;
-    bool MouseButtonsDown[3] = {false};
-    bool MouseButtonsPressed[3] = {false};
-    bool MouseButtonsReleased[3] = {false};
+    std::array<bool, 3> MouseButtonsDown = {false};
+    std::array<bool, 3> MouseButtonsPressed = {false};
+    std::array<bool, 3> MouseButtonsReleased = {false};
     v2i MouseDeltaAccumulated = {0, 0};
     v2i MousePosition = {0, 0};
     float MouseWheelAccumulated = 0.0f;

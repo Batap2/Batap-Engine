@@ -2,9 +2,7 @@
 
 #include "AssertUtils.h"
 
-#include <d3dcompiler.h>
-#include "DirectX-Headers/include/directx/d3d12.h"
-#include "DirectX-Headers/include/directx/d3dx12.h"
+#include "Renderer/includeDX12.h"
 
 #include <cassert>
 #include <filesystem>
@@ -17,8 +15,7 @@ namespace rayvox
 
 Shader::Shader(std::string_view entryPoint, std::string_view target)
     : _entryPoint(entryPoint), _target(target)
-{
-}
+{}
 
 HRESULT Shader::compileShaderFromFile(const std::wstring& filename)
 {
@@ -34,7 +31,7 @@ HRESULT Shader::compileShaderFromFile(const std::wstring& filename)
         return E_FAIL;
     }
 
-    ComPtr<ID3DBlob> errorBlob;
+    Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
     HRESULT hr = D3DCompileFromFile(filename.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
                                     _entryPoint.c_str(), _target.c_str(), compileFlags, 0, &_blob,
                                     &errorBlob);
@@ -43,7 +40,7 @@ HRESULT Shader::compileShaderFromFile(const std::wstring& filename)
     {
         if (errorBlob)
         {
-            OutputDebugStringA((char*) errorBlob->GetBufferPointer());
+            OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
         }
         return hr;
     }
@@ -51,9 +48,7 @@ HRESULT Shader::compileShaderFromFile(const std::wstring& filename)
     return S_OK;
 }
 
-PipelineStateManager::PipelineStateManager(ID3D12Device2* device) : _device(device)
-{
-}
+PipelineStateManager::PipelineStateManager(ID3D12Device2* device) : _device(device) {}
 
 ID3D12RootSignature* PipelineStateManager::createRootSignature(RootSignatureDescription& desc)
 {
@@ -75,14 +70,14 @@ ID3D12RootSignature* PipelineStateManager::createRootSignature(RootSignatureDesc
     vdesc.Init_1_1(static_cast<UINT>(rootParams.size()), rootParams.data(), 0, nullptr,
                    desc._flags);
 
-    ComPtr<ID3DBlob> signatureBlob;
-    ComPtr<ID3DBlob> errorBlob;
+    Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
+    Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
     HRESULT hr = D3D12SerializeVersionedRootSignature(&vdesc, &signatureBlob, &errorBlob);
     if (FAILED(hr))
     {
         if (errorBlob)
         {
-            OutputDebugStringA((char*) errorBlob->GetBufferPointer());
+            OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
         }
         throw std::runtime_error("Failed to serialize root signature");
     }
@@ -170,7 +165,9 @@ void PipelineStateManager::bindPipelineState(ID3D12GraphicsCommandList* cmdList,
     _lastBoundRootSignature = pso->_rootSignature;
 }
 
-void PipelineStateManager::bindPipelineState(ID3D12GraphicsCommandList* cmdList, const std::string& name){
+void PipelineStateManager::bindPipelineState(ID3D12GraphicsCommandList* cmdList,
+                                             const std::string& name)
+{
     bindPipelineState(cmdList, _psos[name].get());
 }
 
@@ -195,7 +192,8 @@ PipelineState* PipelineStateManager::getPipelineState(std::string_view name)
     return nullptr;
 }
 
-void PipelineStateManager::resetLastBound(){
+void PipelineStateManager::resetLastBound()
+{
     _lastBoundPSO = nullptr;
     _lastBoundRootSignature = nullptr;
 }

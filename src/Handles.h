@@ -49,7 +49,7 @@ struct Handle
     static constexpr uint64_t hash64(std::string_view s)
     {
         uint64_t h = 14695981039346656037ull;
-        for (unsigned char c : s)
+        for (const char c : s)
         {
             h ^= uint64_t(c);
             h *= 1099511628211ull;

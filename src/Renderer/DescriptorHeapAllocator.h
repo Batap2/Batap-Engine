@@ -5,8 +5,7 @@
 
 #include <unordered_map>
 
-using namespace Microsoft::WRL;
-#include <DirectX-Headers/include/directx/d3dx12.h>
+#include "Renderer/includeDX12.h"
 
 #include <queue>
 
@@ -16,7 +15,7 @@ namespace rayvox
 {
 struct DescriptorHeapAllocator
 {
-    ComPtr<ID3D12DescriptorHeap> heap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
     D3D12_DESCRIPTOR_HEAP_TYPE type;
     UINT descriptorSize = 0;
     UINT capacity = 0;
@@ -25,7 +24,7 @@ struct DescriptorHeapAllocator
 
     std::unordered_map<UINT, DescriptorHandle*> createdDescriptorHandles;
 
-    void init(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type_, UINT numDescriptors);
+    void init(Microsoft::WRL::ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type_, UINT numDescriptors);
 
     DescriptorHandle* alloc();
     void free(const DescriptorHandle& desc);

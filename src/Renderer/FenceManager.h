@@ -2,10 +2,7 @@
 
 #include <wrl/client.h>
 
-#include "DirectX-Headers/include/directx/d3d12.h"
-
-using namespace Microsoft::WRL;
-#include <DirectX-Headers/include/directx/d3dx12.h>
+#include "Renderer/includeDX12.h"
 
 namespace rayvox
 {
@@ -86,10 +83,7 @@ struct FenceManager
    private:
     struct FenceData
     {
-        ~FenceData(){
-            _fence.Reset();
-        }
-        ComPtr<ID3D12Fence> _fence;
+        Microsoft::WRL::ComPtr<ID3D12Fence> _fence;
         uint64_t _currentValue = 0;
         std::string name;
     };

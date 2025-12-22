@@ -3,6 +3,7 @@
 #include <shobjidl.h>
 #include <windows.h>
 
+#include <cstddef>
 #include <string>
 #include <thread>
 
@@ -13,9 +14,9 @@ static std::wstring ToW(std::string_view s)
 {
     if (s.empty())
         return L"";
-    int len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int) s.size(), nullptr, 0);
-    std::wstring out(len, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, s.data(), (int) s.size(), out.data(), len);
+    int len = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
+    std::wstring out(static_cast<size_t>(len), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), out.data(), len);
     return out;
 }
 
@@ -57,7 +58,7 @@ std::vector<std::string> OpenFilesDialog(std::span<const FileDialogFilter> filte
         specs.push_back(COMDLG_FILTERSPEC{labelsW.back().c_str(), patternsW.back().c_str()});
     }
 
-    dialog->SetFileTypes((UINT) specs.size(), specs.data());
+    dialog->SetFileTypes(static_cast<UINT>(specs.size()), specs.data());
     dialog->SetFileTypeIndex(1);  // 1-based
 
     // ---- Show + collect ----
@@ -80,7 +81,7 @@ std::vector<std::string> OpenFilesDialog(std::span<const FileDialogFilter> filte
                         int bufferSize =
                             WideCharToMultiByte(CP_UTF8, 0, path, -1, nullptr, 0, nullptr, nullptr);
 
-                        std::string pathStr(bufferSize - 1, '\0');
+                        std::string pathStr(static_cast<size_t>(bufferSize - 1), '\0');
 
                         WideCharToMultiByte(CP_UTF8, 0, path, -1, &pathStr[0], bufferSize, nullptr,
                                             nullptr);

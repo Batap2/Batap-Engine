@@ -4,9 +4,10 @@
 
 #include <cstdint>
 #include <string>
+#include <iostream>
 
 #include "AssertUtils.h"
-#include "DirectX-Headers/include/directx/d3d12.h"
+#include "Renderer/includeDX12.h"
 #include "FenceManager.h"
 
 namespace rayvox
@@ -38,7 +39,7 @@ CommandQueue::CommandQueue(Microsoft::WRL::ComPtr<ID3D12Device2>& device,
     _fenceId = fenceManager_.createFence(name);
 
     _commands.resize(allocatorNumber);
-    for (int i = 0; i < allocatorNumber; ++i)
+    for (size_t i = 0; i < allocatorNumber; ++i)
     {
         auto& cmd = _commands[i];
         std::string nameNum = name + std::to_string(i);

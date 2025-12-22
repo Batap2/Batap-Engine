@@ -4,8 +4,8 @@
 #include <string_view>
 #include <unordered_map>
 #include "AssertUtils.h"
-using namespace Microsoft::WRL;
-#include "DirectX-Headers/include/directx/d3d12.h"
+
+#include "Renderer/includeDX12.h"
 
 #include <functional>
 #include <memory>
@@ -19,7 +19,7 @@ struct Shader
     Shader(std::string_view entryPoint, std::string_view target);
     ~Shader() = default;
 
-    ComPtr<ID3DBlob> _blob;
+    Microsoft::WRL::ComPtr<ID3DBlob> _blob;
     std::string _entryPoint;
     std::string _target;
 
@@ -31,7 +31,7 @@ struct PipelineState
     virtual ~PipelineState() = default;
     virtual void bind(ID3D12GraphicsCommandList* cmdList) = 0;
 
-    ComPtr<ID3D12PipelineState> _pso = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> _pso = nullptr;
     ID3D12RootSignature* _rootSignature = nullptr;
 };
 
@@ -95,7 +95,7 @@ struct PipelineStateManager
     ID3D12Device2* _device;
     ID3D12RootSignature* _lastBoundRootSignature = nullptr;
     PipelineState* _lastBoundPSO = nullptr;
-    std::vector<ComPtr<ID3D12RootSignature>> _rootSignatures;
+    std::vector<Microsoft::WRL::ComPtr<ID3D12RootSignature>> _rootSignatures;
     std::unordered_map<std::string, std::unique_ptr<Shader>> _shaders;
     std::unordered_map<std::string, std::unique_ptr<PipelineState>> _psos;
 };

@@ -1,5 +1,3 @@
-#pragma once
-
 #include "SceneRenderer.h"
 #include "Components/Camera_C.h"
 #include "Components/ComponentTraits.h"

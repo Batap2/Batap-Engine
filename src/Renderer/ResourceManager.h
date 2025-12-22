@@ -1,13 +1,13 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <unordered_set>
 #include "magic_enum/magic_enum.hpp"
 #define NOMINMAX
-#include <wrl.h>
+
 #include <wrl/client.h>
-#include "DirectX-Headers/include/directx/d3d12.h"
-using namespace Microsoft::WRL;
+#include "Renderer/includeDX12.h"
 
 #include "AssertUtils.h"
 #include "DescriptorHeapAllocator.h"
@@ -38,7 +38,7 @@ struct GPUResource
 {
     GPUResource(D3D12_RESOURCE_STATES initialState) { _currentState = initialState; }
 
-    void transitionTo(ComPtr<ID3D12GraphicsCommandList> commandList, D3D12_RESOURCE_STATES newState)
+    void transitionTo(Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList, D3D12_RESOURCE_STATES newState)
     {
         if (_currentState != newState)
         {
@@ -60,9 +60,9 @@ struct GPUResource
         _resource->SetName(wname.c_str());
         _currentState = currentState;
         _init = true;
-    };
+    }
 
-    ComPtr<ID3D12Resource> _resource;
+    Microsoft::WRL::ComPtr<ID3D12Resource> _resource;
     bool _init = false;
 
    protected:
@@ -85,7 +85,7 @@ struct GPUView
 
 struct ResourceManager
 {
-    ResourceManager(const ComPtr<ID3D12Device2>& device, FenceManager& fenceManager,
+    ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& device, FenceManager& fenceManager,
                     uint8_t frameCount, uint32_t uploadBufferSize);
 
     static uint64_t AlignUp(uint64_t value, uint64_t alignment)
@@ -96,7 +96,7 @@ struct ResourceManager
 
     struct UploadBuffer
     {
-        ComPtr<ID3D12Resource> _buffer;
+        Microsoft::WRL::ComPtr<ID3D12Resource> _buffer;
         void* _mappedData = nullptr;
         uint64_t _currentOffset = 0;
         uint64_t _size = 0;
@@ -188,7 +188,7 @@ struct ResourceManager
             ThrowAssert(viewDesc.size() == resources.size(),
                         "resources and viewDesc must have the same size");
 
-            int i = 0;
+            size_t i = 0;
             for (auto resource : resources)
             {
                 GPUView view;
@@ -264,7 +264,7 @@ struct ResourceManager
     GPUHandle generateGUID(GPUHandle::ObjectType type,
                            std::optional<std::string_view> name = std::nullopt);
 
-    ComPtr<ID3D12Device2> _device;
+    Microsoft::WRL::ComPtr<ID3D12Device2> _device;
     uint8_t _frameCount;
 
     // Frame resources: change every frame, duplicated per frame (e.g., constant
@@ -327,7 +327,7 @@ struct ResourceManager
             _device->CreateDepthStencilView(resource->get(), &viewDesc,
                                             view->_descriptorHandle->cpuHandle);
         }
-    };
+    }
 
     template <typename Desc>
     DescriptorHeapAllocator& getHeapForDesc()

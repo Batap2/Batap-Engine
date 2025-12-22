@@ -4,11 +4,13 @@
 #include "assimp/postprocess.h"
 #include "assimp/scene.h"
 
-#include "Handles.h"
 #include "Assets/AssetManager.h"
 #include "EigenTypes.h"
+#include "Handles.h"
+
 // #include "stb_image.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <vector>
@@ -18,6 +20,8 @@ namespace rayvox
 
 std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager* assetManager)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
     Assimp::Importer importer;
     importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 45.0f);
 
@@ -42,10 +46,10 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager*
         return {};
     }
 
-    int meshNumber = aiScene_mesh->mNumMeshes;
-    int textureNumber = aiScene_mesh->mNumTextures;
+    auto meshNumber = aiScene_mesh->mNumMeshes;
+    // auto textureNumber = aiScene_mesh->mNumTextures;
 
-    for (int i = 0; i < meshNumber; ++i)
+    for (size_t i = 0; i < meshNumber; ++i)
     {
         aiMesh* aiMesh_mesh = aiScene_mesh->mMeshes[i];
 
@@ -69,13 +73,13 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager*
             if (aiMesh_mesh->HasVertexColors(0))
             {
                 c = {aiMesh_mesh->mColors[0][j].r, aiMesh_mesh->mColors[0][j].g,
-                        aiMesh_mesh->mColors[0][j].b, aiMesh_mesh->mColors[0][j].a};
+                     aiMesh_mesh->mColors[0][j].b, aiMesh_mesh->mColors[0][j].a};
             }
             else
             {
                 c = {1, 1, 1, 1};
             }
-            
+
             colors.push_back(c);
 
             if (aiMesh_mesh->HasTextureCoords(0))
@@ -94,11 +98,12 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager*
 
         std::string sceneName = aiScene_mesh->mName.C_Str();
         std::string meshName = aiScene_mesh->mName.C_Str();
-        auto ent = assetManager->emplaceMesh(sceneName+":"+meshName);
+        auto ent = assetManager->emplaceMesh(sceneName + ":" + meshName);
         result.push_back(ent.first);
     }
 
     return result;
+#pragma clang diagnostic pop
 }
 
 // --------------- TEXTURE ---------------- //

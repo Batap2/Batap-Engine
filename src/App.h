@@ -9,7 +9,6 @@
 
 // Windows Runtime Library. Needed for Microsoft::WRL::ComPtr<> template class.
 #include <wrl.h>
-using namespace Microsoft::WRL;
 
 #include "Context.h"
 
@@ -23,7 +22,6 @@ inline uint32_t clientWidth = 1280;
 inline uint32_t clientHeight = 720;
 
 inline bool AppInitialized = false;
-inline Context Ctx;
 
 inline bool isWindowFocused = false;
 
@@ -42,5 +40,5 @@ void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName);
 
 void RegisterRawInputDevices(HWND hwnd);
 
-void InitApp(HINSTANCE hInstance);
+void InitApp(HINSTANCE hInstance, Context& ctx);
 }  // namespace rayvox

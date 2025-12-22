@@ -1,26 +1,26 @@
 #include "ResourceManager.h"
 
 #include <wrl/client.h>
-
-#include <cstdint>
+#include "Renderer/includeDX12.h"
 
 #include "AssertUtils.h"
 #include "CommandQueue.h"
 #include "FenceManager.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
-#include "DirectX-Headers/include/directx/d3d12.h"
 #include "Handles.h"
 
 namespace rayvox
 {
-ResourceManager::ResourceManager(const ComPtr<ID3D12Device2>& device, FenceManager& fenceManager,
-                                 uint8_t frameCount, uint32_t uploadBufferSize)
+ResourceManager::ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& device,
+                                 FenceManager& fenceManager, uint8_t frameCount,
+                                 uint32_t uploadBufferSize)
     : _device(device), _frameCount(frameCount), _fenceManager(fenceManager)
 {
     _descriptorHeapAllocator_CBV_SRV_UAV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128);
@@ -109,10 +109,13 @@ void ResourceManager::uploadToResource(ID3D12GraphicsCommandList* cmdList,
     {
         uint64_t chunkSize = std::min(upload._size - upload._currentOffset, remainingData);
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
         memcpy(static_cast<uint8_t*>(upload._mappedData) + upload._currentOffset,
                static_cast<const uint8_t*>(data) + dataOffset, chunkSize);
         cmdList->CopyBufferRegion(destination->get(), destinationOffset, upload._buffer.Get(),
                                   upload._currentOffset, chunkSize);
+#pragma clang diagnostic pop
 
         destinationOffset += chunkSize;
         dataOffset += chunkSize;

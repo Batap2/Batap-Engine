@@ -2,6 +2,7 @@
 
 #include <Windowsx.h>
 
+#include <cstddef>
 #include <iostream>
 
 #include "tracy/public/tracy/Tracy.hpp"
@@ -27,8 +28,8 @@ void InputManager::ProcessWindowsEvent(UINT message, WPARAM wParam, LPARAM lPara
         case WM_LBUTTONDOWN:
         case WM_RBUTTONDOWN:
         case WM_MBUTTONDOWN: {
-            int btn = (message == WM_LBUTTONDOWN) ? 0 : (message == WM_RBUTTONDOWN) ? 1 : 2;
-            if (!MouseButtonsDown[btn])
+            size_t btn = (message == WM_LBUTTONDOWN) ? 0 : (message == WM_RBUTTONDOWN) ? 1 : 2;
+            if (!MouseButtonsDown.at(btn))
                 MouseButtonsPressed[btn] = true;
             MouseButtonsDown[btn] = true;
             break;
@@ -37,7 +38,7 @@ void InputManager::ProcessWindowsEvent(UINT message, WPARAM wParam, LPARAM lPara
         case WM_LBUTTONUP:
         case WM_RBUTTONUP:
         case WM_MBUTTONUP: {
-            int btn = (message == WM_LBUTTONUP) ? 0 : (message == WM_RBUTTONUP) ? 1 : 2;
+            size_t btn = (message == WM_LBUTTONUP) ? 0 : (message == WM_RBUTTONUP) ? 1 : 2;
             MouseButtonsReleased[btn] = true;
             MouseButtonsDown[btn] = false;
             break;
@@ -56,19 +57,16 @@ void InputManager::ProcessWindowsEvent(UINT message, WPARAM wParam, LPARAM lPara
 
 void InputManager::ProcessWindowsRawInput(LPARAM lParam)
 {
-    UINT dwSize;
-    // Get size
-    GetRawInputData((HRAWINPUT) lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
+    static constexpr UINT staticBufferSize = 256;
+    static std::array<std::byte, staticBufferSize> staticBuffer;
 
-    // Allocate buffer (RAII)
-    std::vector<BYTE> buffer(dwSize);
+    UINT bufferSize = staticBufferSize;
+    std::byte* bufferPtr = staticBuffer.data();
 
-    // Get data
-    if (GetRawInputData((HRAWINPUT) lParam, RID_INPUT, buffer.data(), &dwSize,
-                        sizeof(RAWINPUTHEADER)) != dwSize)
-        return;
+    GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, bufferPtr,
+                                  &bufferSize, sizeof(RAWINPUTHEADER));
 
-    RAWINPUT* raw = (RAWINPUT*) buffer.data();
+    RAWINPUT* raw = reinterpret_cast<RAWINPUT*>(bufferPtr);
 
     if (raw->header.dwType == RIM_TYPEMOUSE)
     {
@@ -89,14 +87,14 @@ void InputManager::DispatchEvents()
         KeySignal.fire(KeyEvent{KeyState::Released, key});
     }
 
-    for (int i = 0; i < 3; i++)
+    for (size_t i = 0; i < 3; i++)
     {
         if (MouseButtonsPressed[i])
         {
             MouseEvent e;
             e.Type = MouseEvent::Type::Click;
             e.KeyState = KeyState::Pressed;
-            e.Button = (MouseButton) i;
+            e.Button = static_cast<MouseButton>(i);
             e.ScreenPosition = MousePosition;
             MouseSignal.fire(e);
         }
@@ -106,7 +104,7 @@ void InputManager::DispatchEvents()
             MouseEvent e;
             e.Type = MouseEvent::Type::Click;
             e.KeyState = KeyState::Released;
-            e.Button = (MouseButton) i;
+            e.Button = static_cast<MouseButton>(i);
             e.ScreenPosition = MousePosition;
             MouseSignal.fire(e);
         }
@@ -150,7 +148,7 @@ bool InputManager::IsKeyDown(unsigned long long key)
 
 bool InputManager::IsMouseButtonDown(MouseButton button)
 {
-    return MouseButtonsDown[(int) button];
+    return MouseButtonsDown[static_cast<size_t>(button)];
 }
 
 v2i InputManager::GetMouseDelta()

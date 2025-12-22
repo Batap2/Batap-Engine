@@ -1,9 +1,8 @@
 #pragma once
 
-#include <DirectX-Headers/include/directx/d3dx12.h>
+#include "Renderer/includeDX12.h"
 
 #include "CommandQueue.h"
-#include "DirectX-Headers/include/directx/d3d12.h"
 #include "ResourceManager.h"
 
 #include <functional>
@@ -42,7 +41,7 @@ struct RenderPass
 
 struct RenderGraph
 {
-    RenderGraph(ResourceManager* resourceManager) : _resourceManager(resourceManager) {};
+    RenderGraph(ResourceManager* resourceManager) : _resourceManager(resourceManager) {}
 
     RenderPass& addPass(const std::string& name, D3D12_COMMAND_LIST_TYPE cmdListType,
                         int passIndex = -1)

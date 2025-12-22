@@ -2,11 +2,13 @@
 
 #include <dxgidebug.h>
 #include <wrl/client.h>
-#include "DirectX-Headers/include/directx/d3d12.h"
+#include "Renderer/includeDX12.h"
 
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <iostream>
 
 #include "AssertUtils.h"
 #include "CommandQueue.h"
@@ -33,7 +35,7 @@ struct ImguiUserData
     UINT heapIdx = 0;
 };
 // TODO : leak potentiel
-void imguiSrvAlloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cH,
+static void imguiSrvAlloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cH,
                    D3D12_GPU_DESCRIPTOR_HANDLE* gH)
 {
     ImguiUserData* usrData = static_cast<ImguiUserData*>(info->UserData);
@@ -44,7 +46,7 @@ void imguiSrvAlloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* c
     info->UserData = new ImguiUserData{usrData->descriptorHeapAllocator, res->heapIdx};
     delete usrData;
 };
-void imguiSrvFree(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cH,
+static void imguiSrvFree(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cH,
                   D3D12_GPU_DESCRIPTOR_HANDLE gH)
 {
     if (!info->UserData)
@@ -119,7 +121,7 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         _tearingFlag | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT};
 
     // Create and upgrade swapchain to our version(ComPtr<IDXGISwapChain4> swapchain)
-    ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
+    Microsoft::WRL::ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
     ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_commandQueues[0]->_commandQueue.Get(),
                                                         hwnd, &swapchain_desc, nullptr, nullptr,
                                                         &swapchain_tier_dx12));
@@ -132,9 +134,9 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
 
     auto swapChainResources = _resourceManager->getFrameResource(swapChainResourcesGUID);
-    for (int i = 0; i < _swapChain_buffer_count; i++)
+    for (size_t i = 0; i < _swapChain_buffer_count; i++)
     {
-        _swapchain->GetBuffer(i, IID_PPV_ARGS(&swapChainResources[i]->_resource));
+        _swapchain->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(&swapChainResources[i]->_resource));
         swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT,
                                            toS(RN::texture2D_backbuffers));
     }
@@ -240,10 +242,10 @@ bool Renderer::setTearingFlag()
     // DXGI 1.4 interface and query for the 1.5 interface. This is to enable the
     // graphics debugging tools which will not support the 1.5 factory interface
     // until a future update.
-    ComPtr<IDXGIFactory4> factory4;
+    Microsoft::WRL::ComPtr<IDXGIFactory4> factory4;
     if (SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory4))))
     {
-        ComPtr<IDXGIFactory5> factory5;
+        Microsoft::WRL::ComPtr<IDXGIFactory5> factory5;
         if (SUCCEEDED(factory4.As(&factory5)))
         {
             if (FAILED(factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING,
@@ -280,7 +282,7 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
      * And enable validations(has to be done before device creation)
      */
     std::cout << "debug version\n";
-    ComPtr<ID3D12Debug> debug_controller_tier0;
+    Microsoft::WRL::ComPtr<ID3D12Debug> debug_controller_tier0;
     ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller_tier0)));
     ThrowIfFailed(debug_controller_tier0->QueryInterface(IID_PPV_ARGS(&_debug_controller)));
     _debug_controller->SetEnableSynchronizedCommandQueueValidation(true);
@@ -292,10 +294,10 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
 
     ThrowIfFailed(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgi_factory)));
 
-    ComPtr<IDXGIAdapter1> adapter;
+    Microsoft::WRL::ComPtr<IDXGIAdapter1> adapter;
     for (UINT i = 0;; ++i)
     {
-        ComPtr<IDXGIAdapter1> temp;
+        Microsoft::WRL::ComPtr<IDXGIAdapter1> temp;
         if (_dxgi_factory->EnumAdapters1(i, &temp) == DXGI_ERROR_NOT_FOUND)
             break;
 

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstddef>
 #include <memory>
+#include <iostream>
 
 #include "Assets/AssetManager.h"
 #include "InputManager.h"
@@ -15,10 +16,10 @@
 #include "EigenTypes.h"
 
 
-void printDeltaTime(float dt)
+static void printDeltaTime(float dt)
 {
     static int counter = 0;
-    static float deltaTimeBuffer[100];
+    static std::array<float, 100> deltaTimeBuffer;
     static size_t dt_index = 0;
     static std::chrono::time_point<std::chrono::high_resolution_clock> lastPrint =
         std::chrono::high_resolution_clock::now();
@@ -31,12 +32,12 @@ void printDeltaTime(float dt)
     std::chrono::duration<float> dtp = std::chrono::high_resolution_clock::now() - lastPrint;
     if (dtp.count() > 1)
     {
-        float dtAvg = 0;
-        for (int i = 0; i < 100; i++)
-        {
-            dtAvg += deltaTimeBuffer[i];
-        }
-        dtAvg /= 100;
+        // float dtAvg = 0;
+        // for (int i = 0; i < 100; i++)
+        // {
+        //     dtAvg += deltaTimeBuffer[i];
+        // }
+        // dtAvg /= 100;
 
         std::cout << counter << "\n";
         counter = 0;
@@ -74,13 +75,13 @@ void Context::update()
     _deltaTime = dt.count();
     printDeltaTime(_deltaTime);
 
-    _fileDialogMsgBus->pumpType<FileDialogMsg>(
-        [&](FileDialogMsg&& msg)
-        {
-            for(auto& path : msg){
+    // _fileDialogMsgBus->pumpType<FileDialogMsg>(
+    //     [&](FileDialogMsg&& msg)
+    //     {
+    //         for(auto& path : msg){
                 
-            }
-        });
+    //         }
+    //     });
 
     _renderer->beginImGuiFrame();
 

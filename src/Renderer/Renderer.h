@@ -1,11 +1,12 @@
 #pragma once
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
-#include "DirectX-Headers/include/directx/d3d12.h"
+#include "Renderer/includeDX12.h"
 #include "FenceManager.h"
 #include "RenderGraph.h"
 #include "ResourceManager.h"
@@ -23,15 +24,15 @@ struct Renderer
     bool _fullscreen = false;
 
     // DXGI
-    ComPtr<IDXGIFactory4> _dxgi_factory;
-    ComPtr<IDXGISwapChain4> _swapchain;
+    Microsoft::WRL::ComPtr<IDXGIFactory4> _dxgi_factory;
+    Microsoft::WRL::ComPtr<IDXGISwapChain4> _swapchain;
     HANDLE _frameLatencyWaitableObject;
     static const uint32_t _swapChain_buffer_count = 3;
-    uint32_t _frameIndex = 0;
+    uint8_t _frameIndex = 0;
 
     // D3D12 core interfaces
-    ComPtr<ID3D12Debug6> _debug_controller;
-    ComPtr<ID3D12Device2> _device;
+    Microsoft::WRL::ComPtr<ID3D12Debug6> _debug_controller;
+    Microsoft::WRL::ComPtr<ID3D12Device2> _device;
 
     // Command interfaces
     std::vector<std::unique_ptr<CommandQueue>> _commandQueues;
@@ -56,7 +57,7 @@ struct Renderer
     bool setTearingFlag();
 
     HRESULT compileShaderFromFile(const std::wstring& filename, const std::string& entryPoint,
-                                  const std::string& target, ComPtr<ID3DBlob>& shaderBlob);
+                                  const std::string& target, Microsoft::WRL::ComPtr<ID3DBlob>& shaderBlob);
 
     void flush();
 

@@ -32,6 +32,8 @@ enum class RN
 
 inline const std::string& toS(RN n)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexit-time-destructors"
     static const auto names = []
     {
         std::array<std::string, magic_enum::enum_count<RN>()> arr{};
@@ -41,5 +43,6 @@ inline const std::string& toS(RN n)
         return arr;
     }();
     return names[static_cast<size_t>(n)];
+#pragma clang diagnostic push
 }
 }  // namespace rayvox

@@ -1,4 +1,6 @@
 #include "App.h"
+#include <basetsd.h>
+#include <windef.h>
 
 #include <algorithm>
 #include <cassert>
@@ -22,7 +24,7 @@ HWND createWindow(const wchar_t* windowClassName, HINSTANCE hInst, const wchar_t
     int screenWidth = ::GetSystemMetrics(SM_CXSCREEN);
     int screenHeight = ::GetSystemMetrics(SM_CYSCREEN);
 
-    RECT windowRect = {0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
+    windowRect = {0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
     ::AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
     int windowWidth = windowRect.right - windowRect.left;
@@ -31,8 +33,8 @@ HWND createWindow(const wchar_t* windowClassName, HINSTANCE hInst, const wchar_t
     // Center the window within the screen. Clamp to 0, 0 for the top-left corner.
     int windowX = std::max<int>(0, (screenWidth - windowWidth) / 2);
     int windowY = std::max<int>(0, (screenHeight - windowHeight) / 2);
-    HWND hWnd = ::CreateWindowExW(NULL, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW, windowX,
-                                  windowY, windowWidth, windowHeight, NULL, NULL, hInst, nullptr);
+    hWnd = ::CreateWindowExW(0, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW, windowX, windowY,
+                             windowWidth, windowHeight, nullptr, nullptr, hInst, nullptr);
 
     assert(hWnd && "Failed to create window");
 
@@ -40,8 +42,8 @@ HWND createWindow(const wchar_t* windowClassName, HINSTANCE hInst, const wchar_t
     if (hIcon)
     {
         // Définir l'icône pour la fenêtre
-        SendMessage(hWnd, WM_SETICON, ICON_BIG, (LPARAM) hIcon);
-        SendMessage(hWnd, WM_SETICON, ICON_SMALL, (LPARAM) hIcon);
+        SendMessage(hWnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(hIcon));
+        SendMessage(hWnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(hIcon));
     }
 
     return hWnd;
@@ -141,17 +143,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
             return true;
 
-        Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
-        int centerX = (windowRect.left + windowRect.right) / 2;
-        int centerY = (windowRect.top + windowRect.bottom) / 2;
+        auto* Ctx = reinterpret_cast<Context*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
+        if (!Ctx)
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+
+        Ctx->_inputManager->ProcessWindowsEvent(message, wParam, lParam);
+        // int centerX = (windowRect.left + windowRect.right) / 2;
+        // int centerY = (windowRect.top + windowRect.bottom) / 2;
 
         switch (message)
         {
-
             case WM_INPUT:
                 // Seulement si tu en as vraiment besoin
-                Ctx._inputManager->ProcessWindowsRawInput(lParam);
-                //Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
+                Ctx->_inputManager->ProcessWindowsRawInput(lParam);
+                // Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
                 break;
 
             // The default window procedure will play a system notification sound
@@ -159,15 +165,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             // not handled.
             case WM_SYSCHAR:
                 break;
-            case WM_SIZE:
-            {
+            case WM_SIZE: {
                 RECT clientRect = {};
                 ::GetClientRect(hWnd, &clientRect);
 
-                int width = clientRect.right - clientRect.left;
-                int height = clientRect.bottom - clientRect.top;
+                auto width = clientRect.right - clientRect.left;
+                auto height = clientRect.bottom - clientRect.top;
 
-                Resize(width, height);
+                Resize(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
             }
             break;
             case WM_SETFOCUS:
@@ -203,12 +208,12 @@ void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName)
     windowClass.cbClsExtra = 0;
     windowClass.cbWndExtra = 0;
     windowClass.hInstance = hInst;
-    windowClass.hIcon = ::LoadIcon(hInst, NULL);
-    windowClass.hCursor = ::LoadCursor(NULL, IDC_ARROW);
-    windowClass.hbrBackground = (HBRUSH) (COLOR_WINDOW + 1);
-    windowClass.lpszMenuName = NULL;
+    windowClass.hIcon = ::LoadIcon(hInst, nullptr);
+    windowClass.hCursor = ::LoadCursor(nullptr, IDC_ARROW);
+    windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    windowClass.lpszMenuName = nullptr;
     windowClass.lpszClassName = windowClassName;
-    windowClass.hIconSm = ::LoadIcon(hInst, NULL);
+    windowClass.hIconSm = ::LoadIcon(hInst, nullptr);
 
     static ATOM atom = ::RegisterClassExW(&windowClass);
     assert(atom > 0);
@@ -233,21 +238,26 @@ void RedirectIOToConsole()
 
 void RegisterRawInputDevices(HWND hwnd)
 {
-    RAWINPUTDEVICE rid[1];
+    RAWINPUTDEVICE rid[2];
 
     // Enregistrer les données de la souris
-    rid[0].usUsagePage = 0x01;         // Page de périphérique générique
-    rid[0].usUsage = 0x02;             // Usage : souris
-    rid[0].dwFlags = 0;  // Recevoir les entrées même lorsque la fenêtre est inactive
+    rid[0].usUsagePage = 0x01;  // Page de périphérique générique
+    rid[0].usUsage = 0x02;      // Usage : souris
+    rid[0].dwFlags = 0;         // Recevoir les entrées même lorsque la fenêtre est inactive
     rid[0].hwndTarget = hwnd;
 
-    if (!RegisterRawInputDevices(rid, 1, sizeof(rid[0])))
+    rid[1].usUsagePage = 0x01;  // Page de périphérique générique
+    rid[1].usUsage = 0x05;      // Usage : manette
+    rid[1].dwFlags = 0;         // Recevoir les entrées même lorsque la fenêtre est inactive
+    rid[1].hwndTarget = hwnd;
+
+    if (!RegisterRawInputDevices(rid, 2, sizeof(RAWINPUTDEVICE)))
     {
         std::cerr << "Failed to register raw input devices." << std::endl;
     }
 }
 
-void InitApp(HINSTANCE hInstance)
+void InitApp(HINSTANCE hInstance, Context& ctx)
 {
 #if defined(_DEBUG)
     RedirectIOToConsole();
@@ -271,11 +281,12 @@ void InitApp(HINSTANCE hInstance)
 
     RegisterRawInputDevices(hWnd);
 
-    Ctx._renderer->init(hWnd, clientWidth, clientHeight);
-    Ctx.init();
+    ctx._renderer->init(hWnd, clientWidth, clientHeight);
+    ctx.init();
 
     ::ShowWindow(hWnd, SW_SHOW);
 
+    SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&ctx));
     AppInitialized = true;
 }
 }  // namespace rayvox

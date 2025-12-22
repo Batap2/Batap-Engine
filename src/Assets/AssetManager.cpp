@@ -1,5 +1,3 @@
-#pragma once
-
 #include "AssetManager.h"
 #include <utility>
 #include "Handles.h"
