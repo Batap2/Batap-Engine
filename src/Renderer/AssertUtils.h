@@ -31,3 +31,4 @@ inline constexpr void ThrowAssert(bool condition, std::string_view msg)
     (void) msg;
 #endif
 }
+

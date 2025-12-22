@@ -78,13 +78,10 @@ add_executable(RayVox_Engine WIN32 ${source_files}
 add_library(rayvox_warnings INTERFACE)
 
 target_compile_options(rayvox_warnings INTERFACE
-    -Wall
-    -Wextra
-    -Wpedantic
+    -Weverything
     -Werror
     -Wno-c++98-compat
     -Wno-c++98-compat-pedantic
-    -Wno-newline-eof
     -Wno-reserved-macro-identifier
     -Wno-nonportable-system-include-path
     -Wno-microsoft-enum-value
@@ -93,7 +90,7 @@ target_compile_options(rayvox_warnings INTERFACE
     -Wno-switch-enum
     -Wno-switch-default
     -Wno-unused-parameter
-    # -Wno-unsafe-buffer-usage
+    #-Wno-unsafe-buffer-usage
     -Wno-unsafe-buffer-usage-in-libc-call
 )
 

@@ -2,10 +2,12 @@
 
 #include <chrono>
 #include <cstddef>
-#include <memory>
 #include <iostream>
+#include <memory>
+
 
 #include "Assets/AssetManager.h"
+#include "EigenTypes.h"
 #include "InputManager.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
@@ -13,8 +15,6 @@
 #include "UI/UIPanels.h"
 #include "VoxelRayScene.h"
 #include "WindowsUtils/FileDialog.h"
-#include "EigenTypes.h"
-
 
 static void printDeltaTime(float dt)
 {
@@ -79,7 +79,7 @@ void Context::update()
     //     [&](FileDialogMsg&& msg)
     //     {
     //         for(auto& path : msg){
-                
+
     //         }
     //     });
 
