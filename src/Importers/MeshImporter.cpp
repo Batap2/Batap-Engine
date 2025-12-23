@@ -1,12 +1,15 @@
 #include "MeshImporter.h"
+#include <directx/d3d12.h>
 
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
 #include "assimp/scene.h"
 
 #include "Assets/AssetManager.h"
+#include "Assets/Mesh.h"
 #include "EigenTypes.h"
 #include "Handles.h"
+#include "Renderer/ResourceManager.h"
 
 // #include "stb_image.h"
 
@@ -18,11 +21,13 @@
 namespace rayvox
 {
 
-std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager* assetManager)
+std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager& assetManager)
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+    auto& rm = assetManager._resourceManager;
     Assimp::Importer importer;
+
     importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 45.0f);
 
     std::vector<AssetHandle> result;
@@ -98,7 +103,22 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager*
 
         std::string sceneName = aiScene_mesh->mName.C_Str();
         std::string meshName = aiScene_mesh->mName.C_Str();
-        auto ent = assetManager->emplaceMesh(sceneName + ":" + meshName);
+        auto ent = assetManager.emplaceMesh(sceneName + ":" + meshName);
+
+        auto* newMesh = ent.second;
+
+
+        // {
+        //     auto resourceGuid = rm.createBufferStaticResource(sizeof(uint32_t) * indices.size(),
+        //                                                      D3D12_RESOURCE_STATE_COPY_DEST,
+        //                                                      D3D12_HEAP_TYPE_DEFAULT);
+        //     newMesh->indexBuffer = rm.createFrameCBV(resourceGuid, std::nullopt, 0, sizeof(uint32_t) * indices.size());
+        // }
+        // newMesh->indexBuffer = rm.createBufferStaticResource(sizeof(uint32_t) * indices.size(),
+        //                                                      D3D12_RESOURCE_STATE_INDEX_BUFFER,
+        //                                                      D3D12_HEAP_TYPE_DEFAULT);
+        // rm.requestUpload(newMesh->indexBuffer, indices.data(), sizeof(uint32_t) * indices.size(), 256);
+
         result.push_back(ent.first);
     }
 

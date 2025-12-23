@@ -19,7 +19,7 @@ struct ComponentTraits
 template <>
 struct ComponentTraits<Camera_C>
 {
-    static void destroy(ResourceManager& r, const Camera_C& c) { r.destroyResource(c._buffer_ID); }
+    static void destroy(ResourceManager& r, const Camera_C& c) { r.destroyGPUObject(c._buffer_ID); }
     static void upload(ResourceManager& r, Camera_C& c, uint8_t frameIndex)
     {
         if (!c._buffer_ID._guid)

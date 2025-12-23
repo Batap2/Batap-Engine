@@ -5,7 +5,6 @@
 #include <iostream>
 #include <memory>
 
-
 #include "Assets/AssetManager.h"
 #include "EigenTypes.h"
 #include "InputManager.h"
@@ -15,6 +14,7 @@
 #include "UI/UIPanels.h"
 #include "VoxelRayScene.h"
 #include "WindowsUtils/FileDialog.h"
+#include "Importers/FileImporter.h"
 
 static void printDeltaTime(float dt)
 {
@@ -55,6 +55,7 @@ Context::Context()
     _inputManager->Ctx = this;
     _lastTime = std::chrono::high_resolution_clock::now();
     _uiPanels = std::make_unique<UIPanels>(*this);
+    _assetManager = std::make_unique<AssetManager>(*_renderer->_resourceManager);
     _fileDialogMsgBus = std::make_unique<FileDialogMsgBus>();
 }
 
@@ -75,13 +76,14 @@ void Context::update()
     _deltaTime = dt.count();
     printDeltaTime(_deltaTime);
 
-    // _fileDialogMsgBus->pumpType<FileDialogMsg>(
-    //     [&](FileDialogMsg&& msg)
-    //     {
-    //         for(auto& path : msg){
-
-    //         }
-    //     });
+    _fileDialogMsgBus->pumpType<FileDialogMsg>(
+        [&](FileDialogMsg&& msg)
+        {
+            for (auto& path : msg)
+            {
+                importFile(path, *_assetManager.get());
+            }
+        });
 
     _renderer->beginImGuiFrame();
 

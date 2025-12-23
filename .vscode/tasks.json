@@ -18,6 +18,22 @@
             ]
         },
         {
+            "label": "Build (msvc-debug) No Format",
+            "type": "shell",
+            "command": "cmd.exe",
+            "args": [
+                "/c",
+                "call \"${workspaceFolder}\\build_msvc.bat\" msvc-debug --no-format"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$msCompile"
+            ]
+        },
+        {
             "label": "Build (msvc-debug) Reconfigure",
             "type": "shell",
             "command": "cmd.exe",

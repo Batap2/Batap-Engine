@@ -8,6 +8,6 @@
 namespace rayvox
 {
 struct AssetManager;
-inline std::vector<AssetHandle> importMeshFromFile(std::string_view path,
-                                                   AssetManager* assetManager);
+std::vector<AssetHandle> importMeshFromFile(std::string_view path,
+                                                   AssetManager& assetManager);
 }  // namespace rayvox

@@ -7,7 +7,7 @@ namespace rayvox
 {
 struct Transform_C
 {
-    GPUHandle buffer_ID;
+    GPUViewHandle buffer_ID;
     byte isDirty = 0;
 
     // glm::mat4x4 transform;

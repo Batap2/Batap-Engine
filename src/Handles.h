@@ -58,26 +58,34 @@ struct Handle
     }
 };
 
-enum class GPUObjectType : uint8_t
+enum class GPUResourceType : uint8_t
 {
+    Unknown,
     FrameResource,
-    FrameView,
-    StaticResource,
-    StaticView,
-    Unknown
+    StaticResource
 };
-using GPUHandle = Handle<GPUObjectType>;
+using GPUResourceHandle = Handle<GPUResourceType>;
+
+enum class GPUViewType : uint8_t
+{
+    Unknown,
+    FrameView,
+    StaticView
+};
+using GPUViewHandle = Handle<GPUViewType>;
 
 enum class AssetType : uint8_t
 {
+    Unknown,
     Mesh,
     Texture,
     Material,
-    Shader,
-    Unknown
+    Shader
 };
 using AssetHandle = Handle<AssetType>;
 }  // namespace rayvox
+
+
 
 namespace std
 {

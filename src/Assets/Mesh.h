@@ -1,19 +1,19 @@
 #pragma once
 
-#include "Renderer/includeDX12.h"
+#include "Renderer/ResourceFormatWrapper.h"
 #include "Handles.h"
 
 namespace rayvox
 {
 struct Mesh
 {
-    GPUHandle posBuffer;
-    GPUHandle nrmBuffer;
-    GPUHandle tanBuffer;
-    GPUHandle uv0Buffer;
+    GPUViewHandle indexBuffer;
+    GPUViewHandle posBuffer;
+    GPUViewHandle nrmBuffer;
+    GPUViewHandle tanBuffer;
+    GPUViewHandle uv0Buffer;
 
-    GPUHandle indexBuffer;
-    DXGI_FORMAT indexFormat = DXGI_FORMAT_R32_UINT;
+    ResourceFormat indexFormat = ResourceFormat::R32_UINT;
 
     uint32_t vertexCount = 0;
     uint32_t indexCount = 0;

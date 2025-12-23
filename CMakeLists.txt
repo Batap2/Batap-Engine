@@ -90,6 +90,7 @@ target_compile_options(rayvox_warnings INTERFACE
     -Wno-switch-enum
     -Wno-switch-default
     -Wno-unused-parameter
+    -Wno-unused-variable
     #-Wno-unsafe-buffer-usage
     -Wno-unsafe-buffer-usage-in-libc-call
 )

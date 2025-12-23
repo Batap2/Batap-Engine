@@ -11,7 +11,7 @@ namespace rayvox
 {
 struct Camera_C
 {
-    GPUHandle _buffer_ID;
+    GPUViewHandle _buffer_ID;
     DirtyBits _dirty{};
 
     struct alignas(16) Data
