@@ -7,11 +7,11 @@ namespace rayvox
 {
 struct Mesh
 {
-    GPUViewHandle indexBuffer;
-    GPUViewHandle posBuffer;
-    GPUViewHandle nrmBuffer;
-    GPUViewHandle tanBuffer;
-    GPUViewHandle uv0Buffer;
+    GPUMeshViewHandle indexBuffer;
+    GPUMeshViewHandle posBuffer;
+    GPUMeshViewHandle nrmBuffer;
+    GPUMeshViewHandle tanBuffer;
+    GPUMeshViewHandle uv0Buffer;
 
     ResourceFormat indexFormat = ResourceFormat::R32_UINT;
 

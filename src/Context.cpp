@@ -50,12 +50,11 @@ namespace rayvox
 {
 Context::Context()
 {
-    _renderer = std::make_unique<Renderer>();
+    _renderer = std::make_unique<Renderer>(); // inited just before Context::init()
     _inputManager = std::make_unique<InputManager>();
     _inputManager->Ctx = this;
     _lastTime = std::chrono::high_resolution_clock::now();
     _uiPanels = std::make_unique<UIPanels>(*this);
-    _assetManager = std::make_unique<AssetManager>(*_renderer->_resourceManager);
     _fileDialogMsgBus = std::make_unique<FileDialogMsgBus>();
 }
 
@@ -63,6 +62,7 @@ Context::~Context() = default;
 
 void Context::init()
 {
+    _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
     _scene = std::make_unique<VoxelRayScene>();
     _sceneRenderer = std::make_unique<SceneRenderer>(_renderer.get());
     _sceneRenderer->loadScene(_scene.get());

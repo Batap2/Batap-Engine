@@ -1,20 +1,23 @@
 #include "MeshImporter.h"
-#include <directx/d3d12.h>
-
-#include "assimp/Importer.hpp"
-#include "assimp/postprocess.h"
-#include "assimp/scene.h"
 
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "EigenTypes.h"
 #include "Handles.h"
+#include "Renderer/ResourceFormatWrapper.h"
 #include "Renderer/ResourceManager.h"
+#include "Renderer/includeDX12.h"
+
+
+#include "assimp/Importer.hpp"
+#include "assimp/postprocess.h"
+#include "assimp/scene.h"
 
 // #include "stb_image.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <vector>
 
@@ -107,17 +110,16 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager&
 
         auto* newMesh = ent.second;
 
+        {
+            auto resourceGuid = rm->createBufferStaticResource(sizeof(uint32_t) * indices.size(),
+                                                              D3D12_RESOURCE_STATE_COPY_DEST,
+                                                              D3D12_HEAP_TYPE_DEFAULT, "meshResource");
 
-        // {
-        //     auto resourceGuid = rm.createBufferStaticResource(sizeof(uint32_t) * indices.size(),
-        //                                                      D3D12_RESOURCE_STATE_COPY_DEST,
-        //                                                      D3D12_HEAP_TYPE_DEFAULT);
-        //     newMesh->indexBuffer = rm.createFrameCBV(resourceGuid, std::nullopt, 0, sizeof(uint32_t) * indices.size());
-        // }
-        // newMesh->indexBuffer = rm.createBufferStaticResource(sizeof(uint32_t) * indices.size(),
-        //                                                      D3D12_RESOURCE_STATE_INDEX_BUFFER,
-        //                                                      D3D12_HEAP_TYPE_DEFAULT);
-        // rm.requestUpload(newMesh->indexBuffer, indices.data(), sizeof(uint32_t) * indices.size(), 256);
+            newMesh->indexBuffer = rm->createStaticIBV(resourceGuid, ResourceFormat::R32_UINT, "meshView");
+
+            auto dataSpan = rm->requestUploadOwned(resourceGuid, sizeof(uint32_t) * indices.size(),0);
+            std::memcpy(dataSpan.data(), indices.data(), indices.size() * sizeof(uint32_t));
+        }
 
         result.push_back(ent.first);
     }

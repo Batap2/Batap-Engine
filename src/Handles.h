@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <random>
 #include <string>
+#include <variant>
 
 #include "magic_enum/magic_enum.hpp"
 
@@ -61,16 +62,16 @@ struct Handle
 enum class GPUResourceType : uint8_t
 {
     Unknown,
-    FrameResource,
-    StaticResource
+    StaticResource,
+    FrameResource
 };
 using GPUResourceHandle = Handle<GPUResourceType>;
 
 enum class GPUViewType : uint8_t
 {
     Unknown,
-    FrameView,
-    StaticView
+    StaticView,
+    FrameView
 };
 using GPUViewHandle = Handle<GPUViewType>;
 
@@ -83,6 +84,16 @@ enum class AssetType : uint8_t
     Shader
 };
 using AssetHandle = Handle<AssetType>;
+
+enum class GPUMeshViewType : uint8_t
+{
+    Unknown,
+    StaticMeshView,
+    FrameMeshView
+};
+using GPUMeshViewHandle = Handle<GPUMeshViewType>;
+
+using GPUHandle = std::variant<GPUResourceHandle, GPUViewHandle, GPUMeshViewHandle>;
 }  // namespace rayvox
 
 

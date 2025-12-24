@@ -8,7 +8,7 @@
 
 namespace rayvox
 {
-AssetManager::AssetManager(ResourceManager& rm) : _resourceManager(rm) {}
+AssetManager::AssetManager(ResourceManager* rm) : _resourceManager(rm) {}
 AssetManager::~AssetManager() = default;
 
 std::pair<AssetHandle, Mesh*> AssetManager::emplaceMesh(std::optional<std::string> name)

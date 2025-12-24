@@ -6,6 +6,9 @@
 #include "AssertUtils.h"
 #include "CommandQueue.h"
 #include "FenceManager.h"
+#include "Handles.h"
+#include "ResourceFormatWrapper.h"
+#include "VariantUtils.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -14,8 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Handles.h"
-
+#pragma clang optimize off
 namespace rayvox
 {
 ResourceManager::ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& device,
@@ -76,10 +78,27 @@ ResourceManager::ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& de
     }
 }
 
-void ResourceManager::requestUpload(GPUViewHandle guid, const void* data, uint64_t dataSize,
+void ResourceManager::requestUpload(GPUHandle guid, const void* data, uint64_t dataSize,
                                     uint32_t alignement, uint64_t destinationOffset)
 {
-    _uploadRequests.push_back({guid, data, dataSize, alignement, destinationOffset});
+    auto& req = _uploadRequests.emplace_back();
+    req._guid = guid;
+    req._data = data;
+    req._dataSize = dataSize;
+    req._alignment = alignement;
+    req._destinationOffset = destinationOffset;
+}
+
+std::span<std::byte> ResourceManager::requestUploadOwned(GPUHandle guid, uint64_t dataSize,
+                                                         uint32_t alignment,
+                                                         uint64_t destinationOffset)
+{
+    auto& req = _uploadRequests.emplace_back();
+    req._guid = guid;
+    req._alignment = alignment;
+    req._destinationOffset = destinationOffset;
+    req._ownedData.resize(dataSize);
+    return std::span<std::byte>(req._ownedData);
 }
 
 void ResourceManager::flushUploadRequests(ID3D12GraphicsCommandList* cmdList,
@@ -87,7 +106,7 @@ void ResourceManager::flushUploadRequests(ID3D12GraphicsCommandList* cmdList,
 {
     for (auto& req : _uploadRequests)
     {
-        updateResource(cmdList, commandQueue, req._guid, req._data, req._dataSize, req._alignement,
+        updateResource(cmdList, commandQueue, req._guid, req.dataPtr(), req.size(), req._alignment,
                        frameIndex, req._destinationOffset);
     }
     _uploadRequests.clear();
@@ -155,22 +174,53 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
 }
 
 void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
-                                     ID3D12CommandQueue* commandQueue, GPUViewHandle& guid,
+                                     ID3D12CommandQueue* commandQueue, GPUHandle& handle,
                                      const void* data, uint64_t dataSize, uint32_t alignment,
                                      uint32_t frameIndex, uint64_t destinationOffset)
 {
-    GPUView* gpuView;
-    if (guid._type == GPUViewHandle::ObjectType::FrameView)
-    {
-        gpuView = &_frameViews.at(guid)[frameIndex];
-    }
-    else
-    {
-        gpuView = &_staticViews.at(guid);
-    }
-    gpuView->_resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
-    uploadToResource(cmdList, commandQueue, gpuView->_resource, data, dataSize, alignment,
-                     frameIndex, destinationOffset);
+    GPUResource* resource = nullptr;
+
+    std::visit(overloaded{[&](GPUResourceHandle& h)
+                          {
+                              if (h._type == GPUResourceHandle::ObjectType::FrameResource)
+                              {
+                                  resource = _frameResource.at(h)[frameIndex].get();
+                              }
+                              else
+                              {
+                                  resource = _staticResources.at(h).get();
+                              }
+                          },
+                          [&](GPUViewHandle& h)
+                          {
+                              if (h._type == GPUViewHandle::ObjectType::FrameView)
+                              {
+                                  resource = _frameViews.at(h)[frameIndex]._resource;
+                              }
+                              else
+                              {
+                                  resource = _staticViews.at(h)._resource;
+                              }
+                          },
+                          [&](GPUMeshViewHandle& h)
+                          {
+                              if (h._type == GPUMeshViewHandle::ObjectType::FrameMeshView)
+                              {
+                                  // todo
+                              }
+                              else
+                              {
+                                  resource = _staticMeshViews.at(h)._resource;
+                              }
+                          }},
+               handle);
+
+    if (!resource)
+        return;
+
+    resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
+    uploadToResource(cmdList, commandQueue, resource, data, dataSize, alignment, frameIndex,
+                     destinationOffset);
 }
 
 GPUResourceHandle ResourceManager::createEmptyStaticResource(std::optional<std::string_view> name)
@@ -193,10 +243,10 @@ GPUResourceHandle ResourceManager::createEmptyFrameResource(std::optional<std::s
 }
 
 GPUResourceHandle ResourceManager::createBufferStaticResource(uint64_t size,
-                                                      D3D12_RESOURCE_STATES initialState,
-                                                      D3D12_HEAP_TYPE heapType,
-                                                      std::optional<std::string_view> name,
-                                                      D3D12_HEAP_FLAGS heapFlags)
+                                                              D3D12_RESOURCE_STATES initialState,
+                                                              D3D12_HEAP_TYPE heapType,
+                                                              std::optional<std::string_view> name,
+                                                              D3D12_HEAP_FLAGS heapFlags)
 {
     GPUResourceHandle guid = generateGUID(GPUResourceHandle::ObjectType::StaticResource, name);
 
@@ -221,10 +271,10 @@ GPUResourceHandle ResourceManager::createBufferStaticResource(uint64_t size,
 }
 
 GPUResourceHandle ResourceManager::createBufferFrameResource(uint64_t size,
-                                                     D3D12_RESOURCE_STATES initialState,
-                                                     D3D12_HEAP_TYPE heapType,
-                                                     std::optional<std::string_view> name,
-                                                     D3D12_HEAP_FLAGS heapFlags)
+                                                             D3D12_RESOURCE_STATES initialState,
+                                                             D3D12_HEAP_TYPE heapType,
+                                                             std::optional<std::string_view> name,
+                                                             D3D12_HEAP_FLAGS heapFlags)
 {
     GPUResourceHandle guid = generateGUID(GPUResourceHandle::ObjectType::FrameResource, name);
 
@@ -358,6 +408,115 @@ GPUResourceHandle ResourceManager::createTexture2DFrameResource(
     return guid;
 }
 
+GPUViewHandle ResourceManager::createStaticCBV(GPUResourceHandle resource_guid,
+                                               std::optional<std::string_view> name,
+                                               uint64_t offset, uint64_t size)
+{
+    auto* resource = getStaticResource(resource_guid);
+    const auto& descRes = resource->_resource->GetDesc();
+
+    D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
+    desc.BufferLocation = resource->_resource->GetGPUVirtualAddress() + offset;
+    desc.SizeInBytes = static_cast<UINT>(AlignUp(size > 0 ? size : descRes.Width, 256));
+
+    auto guid = createStaticView(resource, desc, name);
+
+    return guid;
+}
+
+GPUViewHandle ResourceManager::createFrameCBV(GPUResourceHandle resource_guid,
+                                              std::optional<std::string_view> name, uint64_t offset,
+                                              uint64_t size)
+{
+    auto resources = getFrameResource(resource_guid);
+
+    std::vector<D3D12_CONSTANT_BUFFER_VIEW_DESC> descs;
+    descs.reserve(_frameCount);
+
+    for (auto resource : resources)
+    {
+        const auto& descRes = resource->get()->GetDesc();
+
+        D3D12_CONSTANT_BUFFER_VIEW_DESC desc{};
+        desc.BufferLocation = resource->get()->GetGPUVirtualAddress() + offset;
+        desc.SizeInBytes = static_cast<UINT>(AlignUp(size > 0 ? size : descRes.Width, 256));
+        descs.push_back(desc);
+    }
+
+    return createFrameView<D3D12_CONSTANT_BUFFER_VIEW_DESC>(resources, descs, name);
+}
+
+GPUMeshViewHandle ResourceManager::createStaticIBV(GPUResourceHandle resource_guid,
+                                                   ResourceFormat format,
+                                                   std::optional<std::string_view> name,
+                                                   uint64_t offset, uint64_t size)
+{
+    auto* resource = getStaticResource(resource_guid);
+    ThrowAssert(resource && resource->get(), "createStaticIBV: resource not created");
+
+    const auto descRes = resource->get()->GetDesc();
+    ThrowAssert(descRes.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER,
+                "createStaticIBV: resource is not a buffer");
+
+    const uint64_t totalSize = descRes.Width;
+
+    ThrowAssert(offset <= totalSize, "createStaticIBV: offset out of bounds");
+    if (size == 0)
+        size = totalSize - offset;
+    ThrowAssert(offset + size <= totalSize, "createStaticIBV: (offset+size) out of bounds");
+
+    // Alignment check (R16 -> 2, R32 -> 4)
+    const uint64_t align = (format == ResourceFormat::R16_UINT) ? 2ull : 4ull;
+    ThrowAssert((offset % align) == 0, "createStaticIBV: offset misaligned for index format");
+    ThrowAssert((size % align) == 0, "createStaticIBV: size misaligned for index format");
+
+    GPUMeshViewHandle guid = generateGUID(GPUMeshViewHandle::ObjectType::StaticMeshView, name);
+
+    GPUMeshView view{};
+    view._resource = resource;
+    view._type = GPUMeshView::Type::Index;
+
+    view.ibv.BufferLocation = resource->get()->GetGPUVirtualAddress() + offset;
+    view.ibv.SizeInBytes = static_cast<UINT>(size);
+    view.ibv.Format = static_cast<DXGI_FORMAT>(format);
+
+    _staticMeshViews[guid] = view;
+    return guid;
+}
+
+GPUMeshViewHandle ResourceManager::createStaticVBV(GPUResourceHandle resource_guid,
+                                                   uint32_t strideBytes,
+                                                   std::optional<std::string_view> name,
+                                                   uint64_t offset, uint64_t size)
+{
+    auto* resource = getStaticResource(resource_guid);
+    ThrowAssert(resource && resource->get(), "createStaticVBV: resource not created");
+
+    const auto descRes = resource->get()->GetDesc();
+    ThrowAssert(descRes.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER,
+                "createStaticVBV: resource is not a buffer");
+
+    const uint64_t totalSize = descRes.Width;
+
+    ThrowAssert(offset <= totalSize, "createStaticVBV: offset out of bounds");
+    if (size == 0)
+        size = totalSize - offset;
+    ThrowAssert(offset + size <= totalSize, "createStaticVBV: (offset+size) out of bounds");
+
+    GPUMeshViewHandle guid = generateGUID(GPUMeshViewHandle::ObjectType::StaticMeshView, name);
+
+    GPUMeshView view{};
+    view._resource = resource;
+    view._type = GPUMeshView::Type::Vertex;
+
+    view.vbv.BufferLocation = resource->get()->GetGPUVirtualAddress() + offset;
+    view.vbv.SizeInBytes = static_cast<UINT>(size);
+    view.vbv.StrideInBytes = strideBytes;
+
+    _staticMeshViews[guid] = view;
+    return guid;
+}
+
 void ResourceManager::destroyGPUObject(GPUResourceHandle guid)
 {
     // TODO
@@ -373,10 +532,7 @@ GPUResource* ResourceManager::getStaticResource(RN n)
     auto itGuid = _nameToResourceGuidMap.find(toS(n));
     ThrowAssert(itGuid != _nameToResourceGuidMap.end(), "guid name " + toS(n) + " not found.");
 
-    auto itRes = _staticResources.find(itGuid->second);
-    ThrowAssert(itRes != _staticResources.end(),
-                "resource " + itGuid->second.toString() + " not found.");
-    return itRes->second.get();
+    return getStaticResource(itGuid->second);
 }
 
 std::vector<GPUResource*> ResourceManager::getFrameResource(RN n)
@@ -384,14 +540,7 @@ std::vector<GPUResource*> ResourceManager::getFrameResource(RN n)
     auto itGuid = _nameToResourceGuidMap.find(toS(n));
     ThrowAssert(itGuid != _nameToResourceGuidMap.end(), "guid name " + toS(n) + " not found.");
 
-    auto itRes = _frameResource.find(itGuid->second);
-    ThrowAssert(itRes != _frameResource.end(),
-                "resource " + itGuid->second.toString() + " not found.");
-
-    std::vector<GPUResource*> result;
-    for (auto& res : itRes->second)
-        result.push_back(res.get());
-    return result;
+    return getFrameResource(itGuid->second);
 }
 
 GPUView& ResourceManager::getStaticView(RN n)
@@ -399,10 +548,7 @@ GPUView& ResourceManager::getStaticView(RN n)
     auto itGuid = _nameToViewGuidMap.find(toS(n));
     ThrowAssert(itGuid != _nameToViewGuidMap.end(), "guid name " + toS(n) + " not found.");
 
-    auto itView = _staticViews.find(itGuid->second);
-    ThrowAssert(itView != _staticViews.end(), "view " + itGuid->second.toString() + " not found.");
-
-    return itView->second;
+    return getStaticView(itGuid->second);
 }
 
 std::vector<GPUView>& ResourceManager::getFrameView(RN n)
@@ -410,10 +556,15 @@ std::vector<GPUView>& ResourceManager::getFrameView(RN n)
     auto itGuid = _nameToViewGuidMap.find(toS(n));
     ThrowAssert(itGuid != _nameToViewGuidMap.end(), "guid name " + toS(n) + " not found.");
 
-    auto itView = _frameViews.find(itGuid->second);
-    ThrowAssert(itView != _frameViews.end(), "view " + itGuid->second.toString() + " not found.");
+    return getFrameView(itGuid->second);
+}
 
-    return itView->second;
+GPUMeshView& ResourceManager::getStaticMeshView(RN n)
+{
+    auto itGuid = _nameToMeshViewGuidMap.find(toS(n));
+    ThrowAssert(itGuid != _nameToMeshViewGuidMap.end(), "guid name " + toS(n) + " not found.");
+
+    return getStaticMeshView(itGuid->second);
 }
 
 GPUResource* ResourceManager::getStaticResource(GPUResourceHandle& guid)
@@ -448,8 +599,15 @@ std::vector<GPUView>& ResourceManager::getFrameView(GPUViewHandle& guid)
     return itView->second;
 }
 
+GPUMeshView& ResourceManager::getStaticMeshView(GPUMeshViewHandle& guid)
+{
+    auto itView = _staticMeshViews.find(guid);
+    ThrowAssert(itView != _staticMeshViews.end(), "view " + guid.toString() + " not found.");
+    return itView->second;
+}
+
 GPUResourceHandle ResourceManager::generateGUID(GPUResourceHandle::ObjectType type,
-                                        std::optional<std::string_view> name)
+                                                std::optional<std::string_view> name)
 {
     if (name.has_value())
     {
@@ -472,7 +630,7 @@ GPUResourceHandle ResourceManager::generateGUID(GPUResourceHandle::ObjectType ty
 }
 
 GPUViewHandle ResourceManager::generateGUID(GPUViewHandle::ObjectType type,
-                                        std::optional<std::string_view> name)
+                                            std::optional<std::string_view> name)
 {
     if (name.has_value())
     {
@@ -490,6 +648,28 @@ GPUViewHandle ResourceManager::generateGUID(GPUViewHandle::ObjectType type,
             guid = GPUViewHandle(type);
         }
         _createdGPUViewHandle.insert(guid);
+        return guid;
+    }
+}
+GPUMeshViewHandle ResourceManager::generateGUID(GPUMeshViewHandle::ObjectType type,
+                                                std::optional<std::string_view> name)
+{
+    if (name.has_value())
+    {
+        auto guid = GPUMeshViewHandle(type, name.value().data());
+        ThrowAssert(!_createdGPUMeshViewHandle.contains(guid), "View name already exists");
+        _nameToMeshViewGuidMap[name->data()] = guid;
+        _createdGPUMeshViewHandle.insert(guid);
+        return guid;
+    }
+    else
+    {
+        auto guid = GPUMeshViewHandle(type);
+        while (_createdGPUMeshViewHandle.contains(guid))
+        {
+            guid = GPUMeshViewHandle(type);
+        }
+        _createdGPUMeshViewHandle.insert(guid);
         return guid;
     }
 }

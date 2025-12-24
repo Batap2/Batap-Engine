@@ -4,6 +4,7 @@
 #include <optional>
 #include <unordered_set>
 #include <variant>
+#include "Renderer/ResourceFormatWrapper.h"
 #include "magic_enum/magic_enum.hpp"
 #define NOMINMAX
 
@@ -58,10 +59,12 @@ struct GPUResource
     void setResource(D3D12_RESOURCE_STATES currentState,
                      std::string_view name = "Unnamed Empty Resource")
     {
-        std::wstring wname(name.begin(), name.end());
-        _resource->SetName(wname.c_str());
+        assert(_resource && "GPUResource::setResource called with null ID3D12Resource");
+
         _currentState = currentState;
         _init = true;
+        std::wstring wname(name.begin(), name.end());
+        _resource->SetName(wname.c_str());
     }
 
     Microsoft::WRL::ComPtr<ID3D12Resource> _resource;
@@ -73,8 +76,8 @@ struct GPUResource
 
 struct GPUView
 {
-    GPUResource* _resource;
-    DescriptorHandle* _descriptorHandle;
+    GPUResource* _resource = nullptr;
+    DescriptorHandle* _descriptorHandle = nullptr;
     enum class Type
     {
         CBV,
@@ -83,6 +86,23 @@ struct GPUView
         RTV,
         DSV
     } _type;
+};
+
+struct GPUMeshView
+{
+    GPUResource* _resource = nullptr;
+
+    enum class Type
+    {
+        Vertex,
+        Index
+    } _type;
+
+    union
+    {
+        D3D12_VERTEX_BUFFER_VIEW vbv;
+        D3D12_INDEX_BUFFER_VIEW ibv;
+    };
 };
 
 struct ResourceManager
@@ -106,15 +126,22 @@ struct ResourceManager
 
     struct UploadRequest
     {
-        GPUViewHandle _guid;
+        const void* dataPtr() const { return _ownedData.empty() ? _data : _ownedData.data(); }
+        uint64_t size() const { return _ownedData.empty() ? _dataSize : _ownedData.size(); }
+
+        GPUHandle _guid;
         const void* _data;
+        std::vector<std::byte> _ownedData;  // optional : for requestUploadOwned()
         uint64_t _dataSize;
-        uint32_t _alignement;
+        uint32_t _alignment;
         uint64_t _destinationOffset;
     };
 
-    void requestUpload(GPUViewHandle guid, const void* data, uint64_t dataSize, uint32_t alignement,
+    void requestUpload(GPUHandle guid, const void* data, uint64_t dataSize, uint32_t alignement,
                        uint64_t destinationOffset = 0);
+
+    std::span<std::byte> requestUploadOwned(GPUHandle guid, uint64_t dataSize, uint32_t alignment,
+                                            uint64_t destinationOffset = 0);
 
     void flushUploadRequests(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
                              uint32_t frameIndex);
@@ -129,8 +156,8 @@ struct ResourceManager
                         uint64_t destinationOffset = 0);
 
     void updateResource(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
-                        GPUViewHandle& guid, const void* data, uint64_t dataSize,
-                        uint32_t alignment, uint32_t frameIndex, uint64_t destinationOffset = 0);
+                        GPUHandle& handle, const void* data, uint64_t dataSize, uint32_t alignment,
+                        uint32_t frameIndex, uint64_t destinationOffset = 0);
 
     // You must call setResource() of the GPUResource* after this
     GPUResourceHandle
@@ -216,41 +243,20 @@ struct ResourceManager
     // offset and size must be aligned to 256
     GPUViewHandle createStaticCBV(GPUResourceHandle resource_guid,
                                   std::optional<std::string_view> name = std::nullopt,
-                                  uint64_t offset = 0, uint64_t size = 0)
-    {
-        auto* resource = getStaticResource(resource_guid);
-        const auto& descRes = resource->_resource->GetDesc();
-
-        D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
-        desc.BufferLocation = resource->_resource->GetGPUVirtualAddress() + offset;
-        desc.SizeInBytes = static_cast<UINT>(AlignUp(size > 0 ? size : descRes.Width, 256));
-
-        auto guid = createStaticView(resource, desc, name);
-
-        return guid;
-    }
+                                  uint64_t offset = 0, uint64_t size = 0);
 
     GPUViewHandle createFrameCBV(GPUResourceHandle resource_guid,
                                  std::optional<std::string_view> name = std::nullopt,
-                                 uint64_t offset = 0, uint64_t size = 0)
-    {
-        auto resources = getFrameResource(resource_guid);
+                                 uint64_t offset = 0, uint64_t size = 0);
 
-        std::vector<D3D12_CONSTANT_BUFFER_VIEW_DESC> descs;
-        descs.reserve(_frameCount);
+    GPUMeshViewHandle createStaticIBV(GPUResourceHandle resource_guid,
+                                      ResourceFormat format = ResourceFormat::R32_UINT,
+                                      std::optional<std::string_view> name = std::nullopt,
+                                      uint64_t offset = 0, uint64_t size = 0);
 
-        for (auto resource : resources)
-        {
-            const auto& descRes = resource->get()->GetDesc();
-
-            D3D12_CONSTANT_BUFFER_VIEW_DESC desc{};
-            desc.BufferLocation = resource->get()->GetGPUVirtualAddress() + offset;
-            desc.SizeInBytes = static_cast<UINT>(AlignUp(size > 0 ? size : descRes.Width, 256));
-            descs.push_back(desc);
-        }
-
-        return createFrameView<D3D12_CONSTANT_BUFFER_VIEW_DESC>(resources, descs, name);
-    }
+    GPUMeshViewHandle createStaticVBV(GPUResourceHandle resource_guid, uint32_t strideBytes,
+                                      std::optional<std::string_view> name = std::nullopt,
+                                      uint64_t offset = 0, uint64_t size = 0);
 
     void destroyGPUObject(GPUResourceHandle guid);
     void destroyGPUObject(GPUViewHandle guid);
@@ -259,16 +265,20 @@ struct ResourceManager
     std::vector<GPUResource*> getFrameResource(RN n);
     GPUView& getStaticView(RN n);
     std::vector<GPUView>& getFrameView(RN n);
+    GPUMeshView& getStaticMeshView(RN n);
 
     GPUResource* getStaticResource(GPUResourceHandle& guid);
     std::vector<GPUResource*> getFrameResource(GPUResourceHandle& guid);
     GPUView& getStaticView(GPUViewHandle& guid);
     std::vector<GPUView>& getFrameView(GPUViewHandle& guid);
+    GPUMeshView& getStaticMeshView(GPUMeshViewHandle& guid);
 
     // GPUHandle nameToGuid(const std::string name);
     GPUResourceHandle generateGUID(GPUResourceHandle::ObjectType type,
                                    std::optional<std::string_view> name = std::nullopt);
     GPUViewHandle generateGUID(GPUViewHandle::ObjectType type,
+                               std::optional<std::string_view> name = std::nullopt);
+    GPUMeshViewHandle generateGUID(GPUMeshViewHandle::ObjectType type,
                                    std::optional<std::string_view> name = std::nullopt);
 
     Microsoft::WRL::ComPtr<ID3D12Device2> _device;
@@ -282,6 +292,7 @@ struct ResourceManager
     std::unordered_map<GPUResourceHandle, std::unique_ptr<GPUResource>> _staticResources;
     std::unordered_map<GPUViewHandle, std::vector<GPUView>> _frameViews;
     std::unordered_map<GPUViewHandle, GPUView> _staticViews;
+    std::unordered_map<GPUMeshViewHandle, GPUMeshView> _staticMeshViews;
 
     FenceManager& _fenceManager;
     uint32_t _fenceId;
@@ -354,10 +365,12 @@ struct ResourceManager
     }
 
     std::unordered_map<std::string, GPUResourceHandle> _nameToResourceGuidMap;
-    std::unordered_map<std::string, GPUViewHandle> _nameToViewGuidMap; 
-    
+    std::unordered_map<std::string, GPUViewHandle> _nameToViewGuidMap;
+    std::unordered_map<std::string, GPUMeshViewHandle> _nameToMeshViewGuidMap;
+
     std::unordered_set<GPUResourceHandle> _createdGPUResourceHandle;
     std::unordered_set<GPUViewHandle> _createdGPUViewHandle;
+    std::unordered_set<GPUMeshViewHandle> _createdGPUMeshViewHandle;
 
     std::vector<UploadRequest> _uploadRequests;
 };
