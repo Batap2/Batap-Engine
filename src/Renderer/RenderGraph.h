@@ -69,7 +69,6 @@ struct RenderGraph
 
             if (!queue->isCommandComplete(cmd))
                 continue;
-
             
             cmd._commandAllocator->Reset();
             cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);

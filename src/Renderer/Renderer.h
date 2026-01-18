@@ -27,7 +27,6 @@ struct Renderer
     Microsoft::WRL::ComPtr<IDXGIFactory4> _dxgi_factory;
     Microsoft::WRL::ComPtr<IDXGISwapChain4> _swapchain;
     HANDLE _frameLatencyWaitableObject;
-    static const uint32_t _swapChain_buffer_count = 3;
     uint8_t _frameIndex = 0;
 
     // D3D12 core interfaces

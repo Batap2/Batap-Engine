@@ -1,0 +1,3 @@
+[submodule "include/emhash"]
+	path = include/emhash
+	url = https://github.com/ktprime/emhash.git

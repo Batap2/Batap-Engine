@@ -1,10 +1,10 @@
 struct VS_OUTPUT {
-    float4 position : SV_POSITION; // Transformed position
-    float4 color    : COLOR;       // Passed color
+    float4 _position : SV_POSITION;
+    float3 _normal : TEXCOORD0;
+    float2 _uv : TEXCOORD1;
 };
 
 float4 main(VS_OUTPUT input) : SV_Target
 {
-    // Return the color as the output pixel color
-    return input.color;
+    return float4(input._normal, 1);
 }

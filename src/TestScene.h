@@ -4,12 +4,12 @@
 
 namespace rayvox
 {
-struct VoxelRayScene : Scene
+struct TestScene : Scene
 {
-    VoxelRayScene();
-    
-    void update(float deltaTime) override{}
-    
+    TestScene();
+
+    void update(float deltaTime) override {}
+
     entt::entity _camera;
 };
 }  // namespace rayvox

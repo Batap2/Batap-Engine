@@ -1,13 +1,16 @@
 #pragma once
 
+#include "DirtyFlag.h"
+#include "Handles.h"
+#include "EigenTypes.h"
+
 #include <cstdint>
 #include <vector>
-
 
 namespace rayvox
 {
 struct Mesh_C
 {
-    // que des guid, on mettra les donnée dans le renderer
+    AssetHandle _mesh;
 };
 }  // namespace rayvox

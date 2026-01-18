@@ -11,7 +11,9 @@
 #include "VariantUtils.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
@@ -21,16 +23,15 @@
 namespace rayvox
 {
 ResourceManager::ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& device,
-                                 FenceManager& fenceManager, uint8_t frameCount,
-                                 uint32_t uploadBufferSize)
-    : _device(device), _frameCount(frameCount), _fenceManager(fenceManager)
+                                 FenceManager& fenceManager, uint32_t uploadBufferSize)
+    : _device(device), _fenceManager(fenceManager)
 {
     _descriptorHeapAllocator_CBV_SRV_UAV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128);
     _descriptorHeapAllocator_SAMPLER.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 8);
     _descriptorHeapAllocator_RTV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 3);
     _descriptorHeapAllocator_DSV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
 
-    for (int i = 0; i < frameCount; ++i)
+    for (size_t i = 0; i < FramesInFlight; ++i)
     {
         auto& buffer = _uploadBuffers.emplace_back();
 
@@ -89,9 +90,9 @@ void ResourceManager::requestUpload(GPUHandle guid, const void* data, uint64_t d
     req._destinationOffset = destinationOffset;
 }
 
-std::span<std::byte> ResourceManager::requestUploadOwned(GPUHandle guid, uint64_t dataSize,
-                                                         uint32_t alignment,
-                                                         uint64_t destinationOffset)
+[nodiscard("You must handle the returned GPU upload span")] std::span<std::byte>
+ResourceManager::requestUploadOwned(GPUHandle guid, uint64_t dataSize, uint32_t alignment,
+                                    uint64_t destinationOffset)
 {
     auto& req = _uploadRequests.emplace_back();
     req._guid = guid;
@@ -110,6 +111,7 @@ void ResourceManager::flushUploadRequests(ID3D12GraphicsCommandList* cmdList,
                        frameIndex, req._destinationOffset);
     }
     _uploadRequests.clear();
+    _uploadBuffers[frameIndex]._currentOffset = 0;  // reset upload buffer
 }
 
 void ResourceManager::uploadToResource(ID3D12GraphicsCommandList* cmdList,
@@ -149,6 +151,7 @@ void ResourceManager::uploadToResource(ID3D12GraphicsCommandList* cmdList,
         {
             _fenceManager.signal(_fenceId, commandQueue);
             _fenceManager.waitForLastSignal(_fenceId);
+            std::cout << "FIXME : remainingData -> wait : repenser l'upload des cbv instanceData\n";
         }
     }
 }
@@ -234,7 +237,7 @@ GPUResourceHandle ResourceManager::createEmptyFrameResource(std::optional<std::s
 {
     GPUResourceHandle guid = generateGUID(GPUResourceHandle::ObjectType::FrameResource, name);
     _frameResource[guid] = std::vector<std::unique_ptr<GPUResource>>();
-    for (uint8_t i = 0; i < _frameCount; ++i)
+    for (uint8_t i = 0; i < FramesInFlight; ++i)
     {
         auto res = std::make_unique<GPUResource>(D3D12_RESOURCE_STATE_COMMON);
         _frameResource.at(guid).push_back(std::move(res));
@@ -279,9 +282,9 @@ GPUResourceHandle ResourceManager::createBufferFrameResource(uint64_t size,
     GPUResourceHandle guid = generateGUID(GPUResourceHandle::ObjectType::FrameResource, name);
 
     auto& resources = _frameResource[guid];
-    resources.reserve(_frameCount);
+    resources.reserve(FramesInFlight);
 
-    for (uint8_t i = 0; i < _frameCount; ++i)
+    for (uint8_t i = 0; i < FramesInFlight; ++i)
     {
         auto res = resources.emplace_back(std::make_unique<GPUResource>(initialState)).get();
 
@@ -362,7 +365,7 @@ GPUResourceHandle ResourceManager::createTexture2DFrameResource(
     GPUResourceHandle guid = generateGUID(GPUResourceHandle::ObjectType::FrameResource, name);
 
     auto& resources = _frameResource[guid];
-    resources.reserve(_frameCount);
+    resources.reserve(FramesInFlight);
 
     CD3DX12_HEAP_PROPERTIES heapProps(heapType);
     CD3DX12_RESOURCE_DESC textureDesc =
@@ -388,7 +391,7 @@ GPUResourceHandle ResourceManager::createTexture2DFrameResource(
         clearValue = &clearValueData;
     }
 
-    for (uint8_t i = 0; i < _frameCount; ++i)
+    for (uint8_t i = 0; i < FramesInFlight; ++i)
     {
         auto resource = resources.emplace_back(std::make_unique<GPUResource>(initialState)).get();
         HRESULT hr = _device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
@@ -431,7 +434,7 @@ GPUViewHandle ResourceManager::createFrameCBV(GPUResourceHandle resource_guid,
     auto resources = getFrameResource(resource_guid);
 
     std::vector<D3D12_CONSTANT_BUFFER_VIEW_DESC> descs;
-    descs.reserve(_frameCount);
+    descs.reserve(FramesInFlight);
 
     for (auto resource : resources)
     {

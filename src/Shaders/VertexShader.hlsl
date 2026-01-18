@@ -1,22 +1,53 @@
+struct CameraData
+{
+    float3  _pos;
+    float   _znear;
+    float3  _forward;
+    float   _zfar;
+    float3  _right;
+    float   _fov;
+    float4x4 _view;
+    float4x4 _proj;
+};
+
+cbuffer CameraCB : register(b0)
+{
+    CameraData cam;
+};
+
+struct InstanceData
+{
+    float4x4 _world;
+    float3x3 _normalMatrix;
+};
+
+cbuffer InstanceCB : register(b1)
+{
+    InstanceData inst;
+};
+
 struct VS_INPUT {
-    float3 position : POSITION; // Vertex position
+    float3 _position : POSITION;
+    float3 _normal : NORMAL;
+    float2 _uv : TEXCOORD0;
 };
 
-// Output structure
 struct VS_OUTPUT {
-    float4 position : SV_POSITION; // Transformed position
-    float4 color    : COLOR;       // Passed color
+    float4 _position : SV_POSITION;
+    float3 _normal : TEXCOORD0;
+    float2 _uv : TEXCOORD1;
 };
 
-// Shader main function
 VS_OUTPUT main(VS_INPUT input) {
     VS_OUTPUT output;
 
-    // Convert 3D position to homogeneous clip space (4D)
-    output.position = float4(input.position, 1.0f);
+    float4 posWS = mul(float4(input._position, 1.0f), inst._world);
+    float4 posVS = mul(posWS, cam._view);
+    output._position   = mul(posVS, cam._proj);
 
-    // Pass through the color
-    output.color = output.position;
+    //output._normal = normalize(mul(input._normal, inst._normalMatrix));
+    output._normal = input._normal;
+    output._uv = input._uv;
 
     return output;
 }

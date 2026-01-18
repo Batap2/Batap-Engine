@@ -2,10 +2,10 @@
 
 #include "Handles.h"
 
-
 #include <memory>
-#include <unordered_map>
 #include <optional>
+#include <unordered_map>
+
 
 namespace rayvox
 {
@@ -20,7 +20,13 @@ struct AssetManager
 
     std::unordered_map<AssetHandle, std::unique_ptr<Mesh>> _meshes;
 
-    std::pair<AssetHandle, Mesh*> emplaceMesh(std::optional<std::string> name = std::nullopt);
+    struct MeshEmplaceResult
+    {
+        Mesh* _mesh = nullptr;
+        AssetHandle _handle;
+        bool _alreadyExist = false;
+    };
+    MeshEmplaceResult emplaceMesh(std::optional<std::string> name = std::nullopt);
 
     ResourceManager* _resourceManager;
 };

@@ -1,14 +1,15 @@
 #include "Renderer.h"
 
+#include <directx/d3d12.h>
 #include <dxgidebug.h>
 #include <wrl/client.h>
 #include "Renderer/includeDX12.h"
 
 #include <cstddef>
 #include <filesystem>
+#include <iostream>
 #include <memory>
 #include <string>
-#include <iostream>
 
 #include "AssertUtils.h"
 #include "CommandQueue.h"
@@ -19,6 +20,7 @@
 #include "ResourceName.h"
 #include "SceneRenderer.h"
 #include "Shaders.h"
+#include "Renderer/EngineConfig.h"
 
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
@@ -36,7 +38,7 @@ struct ImguiUserData
 };
 // TODO : leak potentiel
 static void imguiSrvAlloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cH,
-                   D3D12_GPU_DESCRIPTOR_HANDLE* gH)
+                          D3D12_GPU_DESCRIPTOR_HANDLE* gH)
 {
     ImguiUserData* usrData = static_cast<ImguiUserData*>(info->UserData);
 
@@ -47,7 +49,7 @@ static void imguiSrvAlloc(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HA
     delete usrData;
 };
 static void imguiSrvFree(ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cH,
-                  D3D12_GPU_DESCRIPTOR_HANDLE gH)
+                         D3D12_GPU_DESCRIPTOR_HANDLE gH)
 {
     if (!info->UserData)
         return;
@@ -91,7 +93,7 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
     ImGui_ImplDX12_InitInfo init_info = {};
     init_info.Device = _device.Get();
     init_info.CommandQueue = _commandQueues[0]->_commandQueue.Get();
-    init_info.NumFramesInFlight = _swapChain_buffer_count;
+    init_info.NumFramesInFlight = FramesInFlight;
     init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
     // Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks.
@@ -114,7 +116,7 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         FALSE,
         {1, 0},
         DXGI_USAGE_BACK_BUFFER,
-        _swapChain_buffer_count,
+        FramesInFlight,
         DXGI_SCALING_STRETCH,
         DXGI_SWAP_EFFECT_FLIP_DISCARD,
         DXGI_ALPHA_MODE_UNSPECIFIED,
@@ -134,36 +136,61 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
 
     auto swapChainResources = _resourceManager->getFrameResource(swapChainResourcesGUID);
-    for (size_t i = 0; i < _swapChain_buffer_count; i++)
+    for (size_t i = 0; i < FramesInFlight; i++)
     {
-        _swapchain->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(&swapChainResources[i]->_resource));
+        _swapchain->GetBuffer(static_cast<UINT>(i),
+                              IID_PPV_ARGS(&swapChainResources[i]->_resource));
         swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT,
                                            toS(RN::texture2D_backbuffers));
     }
 
-    _resourceManager->createTexture2DFrameResource(
-        _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render0));
+    // compute render resources and views
+    {
+        _resourceManager->createTexture2DFrameResource(
+            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render0));
+    
+        auto texs_render0 = _resourceManager->getFrameResource(RN::texture2D_render0);
+    
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
+        uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+        uavDesc_render0.Texture2D.MipSlice = 0;
+        uavDesc_render0.Texture2D.PlaneSlice = 0;
+    
+        _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(
+            texs_render0, uavDesc_render0, toS(RN::UAV_render0));
+    }
 
-    auto texs_render0 = _resourceManager->getFrameResource(RN::texture2D_render0);
+    // imgui resources and views
+    {
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_imgui = {};
+        rtvDesc_imgui.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rtvDesc_imgui.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtvDesc_imgui.Texture2D.MipSlice = 0;
+        rtvDesc_imgui.Texture2D.PlaneSlice = 0;
+    
+        _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
+            swapChainResources, rtvDesc_imgui, toS(RN::RTV_imgui));
+    }
 
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
-    uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    uavDesc_render0.Texture2D.MipSlice = 0;
-    uavDesc_render0.Texture2D.PlaneSlice = 0;
-
-    _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(
-        texs_render0, uavDesc_render0, toS(RN::UAV_render0));
-
-    D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_imgui = {};
-    rtvDesc_imgui.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    rtvDesc_imgui.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-    rtvDesc_imgui.Texture2D.MipSlice = 0;
-    rtvDesc_imgui.Texture2D.PlaneSlice = 0;
-
-    _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
-        swapChainResources, rtvDesc_imgui, toS(RN::RTV_imgui));
+    // 3D render resources and views
+    {
+        auto resourceRender3DHandle = _resourceManager->createTexture2DFrameResource(
+            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render3D));
+    
+        auto render3DResources = _resourceManager->getFrameResource(resourceRender3DHandle);
+    
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_render3D = {};
+        rtvDesc_render3D.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rtvDesc_render3D.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtvDesc_render3D.Texture2D.MipSlice = 0;
+        rtvDesc_render3D.Texture2D.PlaneSlice = 0;
+    
+        _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
+            render3DResources, rtvDesc_render3D, toS(RN::RTV_render_3d));
+    }
 }
 
 void Renderer::initPsosAndShaders()
@@ -171,23 +198,57 @@ void Renderer::initPsosAndShaders()
     std::string shader_dir;
     shader_dir = std::filesystem::current_path().filename() == "build" ? "../src/Shaders"
                                                                        : "src/Shaders";
+    {
+        auto vs = _psoManager->compileShaderFromFile(
+            toS(RN::shader_3D_VS), shader_dir + "/VertexShader.hlsl", "main", "vs_5_1");
 
-    auto shader_compute0 = _psoManager->compileShaderFromFile(
-        toS(RN::shader_compute0), shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_1");
+        auto ps = _psoManager->compileShaderFromFile(
+            toS(RN::shader_3D_PS), shader_dir + "/PixelShader.hlsl", "main", "ps_5_1");
 
-    RootSignatureDescription rDesc{
-        {
-            {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-            {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-            {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-        },
-        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
+        RootSignatureDescription rsDesc_VS{
+            {
+                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, D3D12_SHADER_VISIBILITY_VERTEX},
+            },
+            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
-    _psoManager->createComputePipelineState(toS(RN::pso_compute0), rDesc,
-                                            [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d) {
-                                                d.CS = {shader_compute0->_blob->GetBufferPointer(),
+        D3D12_INPUT_ELEMENT_DESC layout[] = {
+            {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+            {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 1, 0,
+             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 2, 0,
+             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        };
+
+        _psoManager->createGraphicsPipelineState(
+            toS(RN::pso_geometry_pass), rsDesc_VS,
+            [&](D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc)
+            {
+                desc.InputLayout = {layout, _countof(layout)};
+                desc.VS = {vs->_blob->GetBufferPointer(), vs->_blob->GetBufferSize()};
+                desc.PS = {ps->_blob->GetBufferPointer(), ps->_blob->GetBufferSize()};
+            });
+    }
+    {
+        auto shader_compute0 = _psoManager->compileShaderFromFile(
+            toS(RN::shader_compute0), shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_1");
+
+        RootSignatureDescription rDesc{
+            {
+                {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+                {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
+            },
+            D3D12_ROOT_SIGNATURE_FLAG_NONE};
+
+        _psoManager->createComputePipelineState(toS(RN::pso_compute0), rDesc,
+                                                [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d) {
+                                                    d.CS = {
+                                                        shader_compute0->_blob->GetBufferPointer(),
                                                         shader_compute0->_blob->GetBufferSize()};
-                                            });
+                                                });
+    }
 }
 
 void Renderer::initRenderPasses()
@@ -315,10 +376,10 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     ThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&_device)));
 
     _fenceManager = new FenceManager(_device.Get());
-    _resourceManager = new ResourceManager(_device.Get(), *_fenceManager, _swapChain_buffer_count,
+    _resourceManager = new ResourceManager(_device.Get(), *_fenceManager, FramesInFlight,
                                            64 * 1024 * 1024);
     _commandQueues.emplace_back(std::make_unique<CommandQueue>(
-        _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, _swapChain_buffer_count));
+        _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, FramesInFlight));
     _psoManager = new PipelineStateManager(_device.Get());
     _renderGraph = new RenderGraph(_resourceManager);
 
@@ -349,7 +410,7 @@ void Renderer::render()
     }
 
     _psoManager->resetLastBound();
-    _frameIndex = (_frameIndex + 1) % _swapChain_buffer_count;
+    _frameIndex = (_frameIndex + 1) % FramesInFlight;
 
     std::chrono::duration<float> frameDuration =
         std::chrono::high_resolution_clock::now() - _lastFrameTimePoint;

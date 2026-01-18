@@ -10,24 +10,31 @@ enum class RN
     // ID3D12Resources
     texture2D_backbuffers,
     texture2D_render0,
+    texture2D_render3D,
+    texture2D_render3D_depthStencil,
     buffer_camera,
 
     // Resource Views
     UAV_render0,
     CBV_camera,
     RTV_imgui,
+    RTV_render_3d,
+    DSV_render_3d,
 
     // Render Passes
     pass_render0,
-    pass_mesh,
+    pass_geometry,
     pass_composition,
     pass_imgui,
 
     // Shaders
     shader_compute0,
+    shader_3D_VS,
+    shader_3D_PS,
 
     // PSOs
     pso_compute0,
+    pso_geometry_pass
 };
 
 inline const std::string& toS(RN n)

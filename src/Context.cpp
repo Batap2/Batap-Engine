@@ -7,14 +7,16 @@
 
 #include "Assets/AssetManager.h"
 #include "EigenTypes.h"
+#include "Importers/FileImporter.h"
 #include "InputManager.h"
+#include "Instance/InstanceManager.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
 #include "Scene.h"
 #include "UI/UIPanels.h"
-#include "VoxelRayScene.h"
+#include "TestScene.h"
 #include "WindowsUtils/FileDialog.h"
-#include "Importers/FileImporter.h"
+
 
 static void printDeltaTime(float dt)
 {
@@ -50,7 +52,7 @@ namespace rayvox
 {
 Context::Context()
 {
-    _renderer = std::make_unique<Renderer>(); // inited just before Context::init()
+    _renderer = std::make_unique<Renderer>();  // inited just before Context::init()
     _inputManager = std::make_unique<InputManager>();
     _inputManager->Ctx = this;
     _lastTime = std::chrono::high_resolution_clock::now();
@@ -62,8 +64,9 @@ Context::~Context() = default;
 
 void Context::init()
 {
+    _gpuInstanceManager = std::make_unique<GPUInstanceManager>(*_renderer->_resourceManager);
     _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
-    _scene = std::make_unique<VoxelRayScene>();
+    _scene = std::make_unique<TestScene>();
     _sceneRenderer = std::make_unique<SceneRenderer>(_renderer.get());
     _sceneRenderer->loadScene(_scene.get());
     _sceneRenderer->initRenderPasses();

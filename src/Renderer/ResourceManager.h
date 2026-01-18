@@ -1,10 +1,6 @@
 #pragma once
 
-#include <cstddef>
-#include <optional>
-#include <unordered_set>
-#include <variant>
-#include "Renderer/ResourceFormatWrapper.h"
+#include "EngineConfig.h"
 #include "magic_enum/magic_enum.hpp"
 #define NOMINMAX
 
@@ -15,18 +11,22 @@
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
 #include "Handles.h"
+#include "Renderer/EngineConfig.h"
+#include "Renderer/ResourceFormatWrapper.h"
 #include "ResourceName.h"
 
 #include <intsafe.h>
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <random>
+#include <optional>
 #include <ranges>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
+
 
 struct DescriptorHeapAllocator;
 
@@ -108,7 +108,7 @@ struct GPUMeshView
 struct ResourceManager
 {
     ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& device, FenceManager& fenceManager,
-                    uint8_t frameCount, uint32_t uploadBufferSize);
+                    uint32_t uploadBufferSize);
 
     static uint64_t AlignUp(uint64_t value, uint64_t alignment)
     {
@@ -210,7 +210,7 @@ struct ResourceManager
         GPUViewHandle guid = generateGUID(GPUViewHandle::ObjectType::FrameView, name);
 
         _frameViews[guid] = std::vector<GPUView>();
-        _frameViews[guid].reserve(_frameCount);
+        _frameViews[guid].reserve(FramesInFlight);
 
         DescriptorHeapAllocator& descriptorHeapAllocator = getHeapForDesc<T>();
 
@@ -282,7 +282,6 @@ struct ResourceManager
                                    std::optional<std::string_view> name = std::nullopt);
 
     Microsoft::WRL::ComPtr<ID3D12Device2> _device;
-    uint8_t _frameCount;
 
     // Frame resources: change every frame, duplicated per frame (e.g., constant
     // buffers)
