@@ -1,5 +1,6 @@
 #pragma once
 
+#include <directx/d3d12.h>
 #include "Components/EntityHandle.h"
 #include "DirtyFlag.h"
 #include "EigenTypes.h"
@@ -67,7 +68,14 @@ struct FrameInstancePool
     static_assert(HasUsedComponents<type>);
     using Id = uint32_t;
 
-    FrameInstancePool(size_t initPoolSize) { _gpuPoolSize = initPoolSize; }
+    FrameInstancePool(ResourceManager& rm, size_t initPoolSize, const std::string& name = "FrameInstancePool") : _resourceManager(rm)
+    {
+        _gpuPoolSize = initPoolSize;
+        _name = name;
+    }
+
+    ResourceManager& _resourceManager;
+    std::string _name;
 
     size_t _gpuPoolSize = 0;
     std::vector<type> _pool;
@@ -154,6 +162,26 @@ struct FrameInstancePool
     }
 
     size_t capacity() const { return _pool.size(); }
+
+    void createGPUResourcesAndViews(){
+        _resourceManager.createBufferFrameResource(_gpuPoolSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, _name);
+    }
+
+    void uploadAllInstances(){
+        for(auto& instance : _pool){
+            // matk all instance dirty
+        }
+    }
+
+    bool ensureCapacity()
+    {
+        if (_pool.size() > _gpuPoolSize)
+        {
+            _resourceManager.requestDestroy(_instancePoolViewHandle);
+            createGPUResourcesAndViews();
+            uploadAllInstances();
+        }
+    }
 };
 
 struct GPUInstanceManager

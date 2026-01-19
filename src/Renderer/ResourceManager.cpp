@@ -422,7 +422,7 @@ GPUViewHandle ResourceManager::createStaticCBV(GPUResourceHandle resource_guid,
     desc.BufferLocation = resource->_resource->GetGPUVirtualAddress() + offset;
     desc.SizeInBytes = static_cast<UINT>(AlignUp(size > 0 ? size : descRes.Width, 256));
 
-    auto guid = createStaticView(resource, desc, name);
+    auto guid = createStaticView(resource_guid, desc, name);
 
     return guid;
 }
@@ -446,7 +446,7 @@ GPUViewHandle ResourceManager::createFrameCBV(GPUResourceHandle resource_guid,
         descs.push_back(desc);
     }
 
-    return createFrameView<D3D12_CONSTANT_BUFFER_VIEW_DESC>(resources, descs, name);
+    return createFrameView<D3D12_CONSTANT_BUFFER_VIEW_DESC>(resource_guid, descs, name);
 }
 
 GPUMeshViewHandle ResourceManager::createStaticIBV(GPUResourceHandle resource_guid,
@@ -520,14 +520,105 @@ GPUMeshViewHandle ResourceManager::createStaticVBV(GPUResourceHandle resource_gu
     return guid;
 }
 
-void ResourceManager::destroyGPUObject(GPUResourceHandle guid)
+void ResourceManager::requestDestroy(GPUResourceHandle guid)
 {
-    // TODO
+    _deferredReleases.push_back(guid);
 }
 
-void ResourceManager::destroyGPUObject(GPUViewHandle guid)
+void ResourceManager::requestDestroy(GPUViewHandle guid, bool destroyAssociatedResources)
 {
-    // TODO
+    if (destroyAssociatedResources)
+    {
+        GPUResourceHandle rh;
+        if (guid._type == GPUViewHandle::ObjectType::FrameView)
+        {
+            rh = getFrameView(guid)[0]._resourceHandle;
+        }
+        else if (guid._type == GPUViewHandle::ObjectType::StaticView)
+        {
+            rh = getStaticView(guid)._resourceHandle;
+        }
+        _deferredReleases.push_back(rh);
+    }
+    _deferredReleases.push_back(guid);
+}
+
+void ResourceManager::flushDeferredReleases()
+{
+    for (auto& handle : _deferredReleases)
+    {
+        std::visit(
+            overloaded{
+                [&](GPUResourceHandle& h)
+                {
+                    if (h._type == GPUResourceHandle::ObjectType::FrameResource)
+                    {
+                        auto resources = getFrameResource(h);
+                        if (resources.empty())
+                        {
+                            return;
+                        }
+                        for (auto* r : resources)
+                        {
+                            r->_resource.Reset();
+                        }
+                        _frameResource.erase(h);
+                    }
+                    else if (h._type == GPUResourceHandle::ObjectType::StaticResource)
+                    {
+                        auto resource = getStaticResource(h);
+                        resource->_resource.Reset();
+                        _staticResources.erase(h);
+                    }
+                },
+                [&](GPUViewHandle& h)
+                {
+                    auto descriptirHeapFree = [&](GPUView& view)
+                    {
+                        if (view._type == GPUView::Type::CBV || view._type == GPUView::Type::SRV ||
+                            view._type == GPUView::Type::UAV)
+                        {
+                            _descriptorHeapAllocator_CBV_SRV_UAV.free(*view._descriptorHandle);
+                        }
+                        else if (view._type == GPUView::Type::DSV)
+                        {
+                            _descriptorHeapAllocator_DSV.free(*view._descriptorHandle);
+                        }
+                        else if (view._type == GPUView::Type::RTV)
+                        {
+                            _descriptorHeapAllocator_RTV.free(*view._descriptorHandle);
+                        }
+                    };
+                    if (h._type == GPUViewHandle::ObjectType::FrameView)
+                    {
+                        auto views = getFrameView(h);
+                        if(views.empty()){
+                            return;
+                        }
+                        for(auto& view : views){
+                            descriptirHeapFree(view);
+                        }
+                        _frameViews.erase(h);
+                    }
+                    else if (h._type == GPUViewHandle::ObjectType::StaticView)
+                    {
+                        auto& view = getStaticView(h);
+                        descriptirHeapFree(view);
+                        _staticViews.erase(h);
+                    }
+                },
+                [&](GPUMeshViewHandle& h)
+                {
+                    if (h._type == GPUMeshViewHandle::ObjectType::FrameMeshView)
+                    {
+                        // TODO
+                    }
+                    else
+                    {
+                    }
+                }},
+            handle);
+    }
 }
 
 GPUResource* ResourceManager::getStaticResource(RN n)
@@ -538,43 +629,19 @@ GPUResource* ResourceManager::getStaticResource(RN n)
     return getStaticResource(itGuid->second);
 }
 
+GPUResource* ResourceManager::getStaticResource(GPUResourceHandle& guid)
+{
+    auto itRes = _staticResources.find(guid);
+    ThrowAssert(itRes != _staticResources.end(), "resource " + guid.toString() + " not found.");
+    return itRes->second.get();
+}
+
 std::vector<GPUResource*> ResourceManager::getFrameResource(RN n)
 {
     auto itGuid = _nameToResourceGuidMap.find(toS(n));
     ThrowAssert(itGuid != _nameToResourceGuidMap.end(), "guid name " + toS(n) + " not found.");
 
     return getFrameResource(itGuid->second);
-}
-
-GPUView& ResourceManager::getStaticView(RN n)
-{
-    auto itGuid = _nameToViewGuidMap.find(toS(n));
-    ThrowAssert(itGuid != _nameToViewGuidMap.end(), "guid name " + toS(n) + " not found.");
-
-    return getStaticView(itGuid->second);
-}
-
-std::vector<GPUView>& ResourceManager::getFrameView(RN n)
-{
-    auto itGuid = _nameToViewGuidMap.find(toS(n));
-    ThrowAssert(itGuid != _nameToViewGuidMap.end(), "guid name " + toS(n) + " not found.");
-
-    return getFrameView(itGuid->second);
-}
-
-GPUMeshView& ResourceManager::getStaticMeshView(RN n)
-{
-    auto itGuid = _nameToMeshViewGuidMap.find(toS(n));
-    ThrowAssert(itGuid != _nameToMeshViewGuidMap.end(), "guid name " + toS(n) + " not found.");
-
-    return getStaticMeshView(itGuid->second);
-}
-
-GPUResource* ResourceManager::getStaticResource(GPUResourceHandle& guid)
-{
-    auto itRes = _staticResources.find(guid);
-    ThrowAssert(itRes != _staticResources.end(), "resource " + guid.toString() + " not found.");
-    return itRes->second.get();
 }
 
 std::vector<GPUResource*> ResourceManager::getFrameResource(GPUResourceHandle& guid)
@@ -588,6 +655,14 @@ std::vector<GPUResource*> ResourceManager::getFrameResource(GPUResourceHandle& g
     return result;
 }
 
+GPUView& ResourceManager::getStaticView(RN n)
+{
+    auto itGuid = _nameToViewGuidMap.find(toS(n));
+    ThrowAssert(itGuid != _nameToViewGuidMap.end(), "guid name " + toS(n) + " not found.");
+
+    return getStaticView(itGuid->second);
+}
+
 GPUView& ResourceManager::getStaticView(GPUViewHandle& guid)
 {
     auto itView = _staticViews.find(guid);
@@ -595,11 +670,27 @@ GPUView& ResourceManager::getStaticView(GPUViewHandle& guid)
     return itView->second;
 }
 
+std::vector<GPUView>& ResourceManager::getFrameView(RN n)
+{
+    auto itGuid = _nameToViewGuidMap.find(toS(n));
+    ThrowAssert(itGuid != _nameToViewGuidMap.end(), "guid name " + toS(n) + " not found.");
+
+    return getFrameView(itGuid->second);
+}
+
 std::vector<GPUView>& ResourceManager::getFrameView(GPUViewHandle& guid)
 {
     auto itView = _frameViews.find(guid);
     ThrowAssert(itView != _frameViews.end(), "view " + guid.toString() + " not found.");
     return itView->second;
+}
+
+GPUMeshView& ResourceManager::getStaticMeshView(RN n)
+{
+    auto itGuid = _nameToMeshViewGuidMap.find(toS(n));
+    ThrowAssert(itGuid != _nameToMeshViewGuidMap.end(), "guid name " + toS(n) + " not found.");
+
+    return getStaticMeshView(itGuid->second);
 }
 
 GPUMeshView& ResourceManager::getStaticMeshView(GPUMeshViewHandle& guid)

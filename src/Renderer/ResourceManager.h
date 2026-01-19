@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "EngineConfig.h"
 #include "magic_enum/magic_enum.hpp"
 #define NOMINMAX
@@ -26,7 +27,6 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
-
 
 struct DescriptorHeapAllocator;
 
@@ -77,6 +77,7 @@ struct GPUResource
 struct GPUView
 {
     GPUResource* _resource = nullptr;
+    GPUResourceHandle _resourceHandle;
     DescriptorHandle* _descriptorHandle = nullptr;
     enum class Type
     {
@@ -190,50 +191,76 @@ struct ResourceManager
                                  D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
     template <typename T>
-    GPUViewHandle createStaticView(GPUResource* resource, T& viewDesc,
+    GPUViewHandle createStaticView(GPUResourceHandle resourceHandle, T& viewDesc,
                                    std::optional<std::string_view> name = std::nullopt)
     {
+        assert(resourceHandle._type == GPUResourceHandle::ObjectType::StaticResource);
+
         GPUViewHandle guid = generateGUID(GPUViewHandle::ObjectType::StaticView, name);
         GPUView view;
         DescriptorHeapAllocator& descriptorHeapAllocator = getHeapForDesc<T>();
+        auto resource = getStaticResource(resourceHandle);
         createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
+        view._resourceHandle = resourceHandle;
         _staticViews[guid] = view;
         return guid;
     }
 
-    template <typename T, std::ranges::range R, typename D>
-        requires(std::same_as<D, T> ||
-                 (std::ranges::range<D> && std::same_as<std::ranges::range_value_t<D>, T>) )
-    GPUViewHandle createFrameView(const R& resources, D& viewDesc,
+    // viewDesc can be either a single DescType or a range of DescType
+    template <typename DescType, typename OneDescOrRange>
+        requires(std::same_as<std::remove_cvref_t<OneDescOrRange>, DescType> ||
+                 (std::ranges::input_range<OneDescOrRange> &&
+                  std::same_as<std::ranges::range_value_t<OneDescOrRange>, DescType>) )
+    GPUViewHandle createFrameView(GPUResourceHandle resourceHandle, OneDescOrRange& viewDesc,
                                   std::optional<std::string_view> name = std::nullopt)
     {
+        assert(resourceHandle._type == GPUResourceHandle::ObjectType::FrameResource);
+
+        auto resources = getFrameResource(resourceHandle);
         GPUViewHandle guid = generateGUID(GPUViewHandle::ObjectType::FrameView, name);
 
-        _frameViews[guid] = std::vector<GPUView>();
-        _frameViews[guid].reserve(FramesInFlight);
+        auto& out = _frameViews[guid];
+        out.clear();
+        out.reserve(FramesInFlight);
 
-        DescriptorHeapAllocator& descriptorHeapAllocator = getHeapForDesc<T>();
+        DescriptorHeapAllocator& descriptorHeapAllocator = getHeapForDesc<DescType>();
 
-        if constexpr (std::ranges::range<D> && !std::same_as<D, T>)
+        if constexpr (std::ranges::input_range<OneDescOrRange> &&
+                      !std::same_as<std::remove_cvref_t<OneDescOrRange>, DescType>)
         {
-            ThrowAssert(viewDesc.size() == resources.size(),
-                        "resources and viewDesc must have the same size");
-
-            size_t i = 0;
-            for (auto resource : resources)
+            // Range of descriptors: one per resource
+            if constexpr (std::ranges::sized_range<OneDescOrRange>)
             {
-                GPUView view;
-                createSingleView(resource, &view, viewDesc[i++], descriptorHeapAllocator);
-                _frameViews[guid].push_back(view);
+                ThrowAssert(std::ranges::size(viewDesc) == resources.size(),
+                            "resources and viewDesc must have the same size");
             }
+
+            auto it = std::ranges::begin(viewDesc);
+            auto end = std::ranges::end(viewDesc);
+
+            for (auto* resource : resources)
+            {
+                ThrowAssert(it != end, "viewDesc has fewer elements than resources");
+
+                GPUView view;
+                createSingleView(resource, &view, *it, descriptorHeapAllocator);
+                view._resourceHandle = resourceHandle;
+                out.push_back(view);
+
+                ++it;
+            }
+
+            ThrowAssert(it == end, "viewDesc has more elements than resources");
         }
         else
         {
-            for (auto resource : resources)
+            // Single descriptor: same for every resource
+            for (auto* resource : resources)
             {
                 GPUView view;
                 createSingleView(resource, &view, viewDesc, descriptorHeapAllocator);
-                _frameViews[guid].push_back(view);
+                view._resourceHandle = resourceHandle;
+                out.push_back(view);
             }
         }
 
@@ -258,19 +285,21 @@ struct ResourceManager
                                       std::optional<std::string_view> name = std::nullopt,
                                       uint64_t offset = 0, uint64_t size = 0);
 
-    void destroyGPUObject(GPUResourceHandle guid);
-    void destroyGPUObject(GPUViewHandle guid);
+    void requestDestroy(GPUResourceHandle guid);
+    void requestDestroy(GPUViewHandle guid, bool destroyAssociatedResources = false);
+    void flushDeferredReleases();
 
     GPUResource* getStaticResource(RN n);
-    std::vector<GPUResource*> getFrameResource(RN n);
-    GPUView& getStaticView(RN n);
-    std::vector<GPUView>& getFrameView(RN n);
-    GPUMeshView& getStaticMeshView(RN n);
-
     GPUResource* getStaticResource(GPUResourceHandle& guid);
+    std::vector<GPUResource*> getFrameResource(RN n);
     std::vector<GPUResource*> getFrameResource(GPUResourceHandle& guid);
+    
+    GPUView& getStaticView(RN n);
     GPUView& getStaticView(GPUViewHandle& guid);
+    std::vector<GPUView>& getFrameView(RN n);
     std::vector<GPUView>& getFrameView(GPUViewHandle& guid);
+    
+    GPUMeshView& getStaticMeshView(RN n);
     GPUMeshView& getStaticMeshView(GPUMeshViewHandle& guid);
 
     // GPUHandle nameToGuid(const std::string name);
@@ -292,6 +321,8 @@ struct ResourceManager
     std::unordered_map<GPUViewHandle, std::vector<GPUView>> _frameViews;
     std::unordered_map<GPUViewHandle, GPUView> _staticViews;
     std::unordered_map<GPUMeshViewHandle, GPUMeshView> _staticMeshViews;
+
+    std::vector<GPUHandle> _deferredReleases;
 
     FenceManager& _fenceManager;
     uint32_t _fenceId;
