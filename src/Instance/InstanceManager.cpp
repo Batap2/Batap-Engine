@@ -41,7 +41,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
 
                 auto patchRange = InstancePatches<StaticMeshInstance>::byBit[bitIndex];
                 
-                for (const PatchDesc& p : patchRange.span())
+                for (const PatchDesc& p : patchRange.patches)
                 {
                     std::byte* buf = tmp.get(p._size);
                     p.fill(*entityHandle._reg, entityHandle._entity, buf);

@@ -43,13 +43,7 @@ struct PatchDesc
 
 struct PatchRange
 {
-    const PatchDesc* ptr{};
-    uint32_t count{};
-
-    constexpr std::span<const PatchDesc> span() const noexcept
-    {
-        return {ptr, static_cast<size_t>(count)};
-    }
+    std::span<const PatchDesc> patches{};
 };
 
 struct StaticMeshInstance
@@ -77,7 +71,7 @@ struct InstancePatches<StaticMeshInstance>
             return;
 
         auto* out = reinterpret_cast<m4f*>(dst);
-        *out = t->_world;
+        *out = t->worldMatrix();
     }
 
     static constexpr PatchDesc _transformPatches[] = {
@@ -85,10 +79,10 @@ struct InstancePatches<StaticMeshInstance>
                   ._size = static_cast<uint32_t>(sizeof(m4f)),
                   .fill = &fillWorld}};
 
-    static constexpr std::array<PatchRange, 32> byBit = []
+    static constexpr std::array<PatchRange, 32> byBit = []()
     {
         std::array<PatchRange, 32> t{};
-        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatches, 1};
+        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatches};
         return t;
     }();
 };

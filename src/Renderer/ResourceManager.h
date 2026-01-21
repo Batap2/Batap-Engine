@@ -8,7 +8,7 @@
 #include <wrl/client.h>
 #include "Renderer/includeDX12.h"
 
-#include "AssertUtils.h"
+#include "DebugUtils.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
 #include "Handles.h"

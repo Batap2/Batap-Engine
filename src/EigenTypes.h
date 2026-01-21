@@ -47,7 +47,38 @@ using isometry3f = Eigen::Isometry3f;
 using affine3d   = Eigen::Affine3d;
 using isometry3d = Eigen::Isometry3d;
 
+using transform = Eigen::Transform<float, 3, Eigen::Affine>;
+using transformd = Eigen::Transform<double, 3, Eigen::Affine>;
+
 using m4f_ref      = Eigen::Ref<m4f>;
 using m4f_cref     = Eigen::Ref<const m4f>;
 using v3f_ref      = Eigen::Ref<v3f>;
 using v3f_cref     = Eigen::Ref<const v3f>;
+
+inline m4f TRS(const v3f& translation, const quatf& rotation, const v3f& scale)
+{
+    m4f m = m4f::Identity();
+
+    // Rotation
+    m.block<3,3>(0,0) = rotation.normalized().toRotationMatrix();
+
+    // Scale columns (Eigen column-major convention)
+    m.block<3,1>(0,0) *= scale.x();
+    m.block<3,1>(0,1) *= scale.y();
+    m.block<3,1>(0,2) *= scale.z();
+
+    // Translation
+    m.block<3,1>(0,3) = translation;
+
+    return m;
+}
+
+inline transform TRS_Transform(const v3f& translation,
+                               const quatf& rotation,
+                               const v3f& scale)
+{
+    transform t = transform::Identity();
+    t.linear() = rotation.normalized().toRotationMatrix() * scale.asDiagonal();
+    t.translation() = translation;
+    return t;
+}

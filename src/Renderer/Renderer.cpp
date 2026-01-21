@@ -11,16 +11,17 @@
 #include <memory>
 #include <string>
 
-#include "AssertUtils.h"
+#include "DebugUtils.h"
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
 #include "RenderGraph.h"
+#include "Renderer/EngineConfig.h"
 #include "ResourceManager.h"
 #include "ResourceName.h"
 #include "SceneRenderer.h"
 #include "Shaders.h"
-#include "Renderer/EngineConfig.h"
+
 
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
@@ -132,10 +133,10 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
     ThrowIfFailed(_swapchain->SetMaximumFrameLatency(1));
     _frameLatencyWaitableObject = _swapchain->GetFrameLatencyWaitableObject();
 
-    auto swapChainResourcesGUID =
+    auto swapChainResourcesHandle =
         _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
 
-    auto swapChainResources = _resourceManager->getFrameResource(swapChainResourcesGUID);
+    auto swapChainResources = _resourceManager->getFrameResource(swapChainResourcesHandle);
     for (size_t i = 0; i < FramesInFlight; i++)
     {
         _swapchain->GetBuffer(static_cast<UINT>(i),
@@ -146,20 +147,19 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
 
     // compute render resources and views
     {
-        _resourceManager->createTexture2DFrameResource(
+        auto handle = _resourceManager->createTexture2DFrameResource(
             _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render0));
-    
-        auto texs_render0 = _resourceManager->getFrameResource(RN::texture2D_render0);
-    
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
+            toS(RN::texture2D_render0));
+
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
         uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
         uavDesc_render0.Texture2D.MipSlice = 0;
         uavDesc_render0.Texture2D.PlaneSlice = 0;
-    
-        _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(
-            texs_render0, uavDesc_render0, toS(RN::UAV_render0));
+
+        _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(handle, uavDesc_render0,
+                                                                            toS(RN::UAV_render0));
     }
 
     // imgui resources and views
@@ -169,27 +169,26 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         rtvDesc_imgui.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         rtvDesc_imgui.Texture2D.MipSlice = 0;
         rtvDesc_imgui.Texture2D.PlaneSlice = 0;
-    
+
         _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
-            swapChainResources, rtvDesc_imgui, toS(RN::RTV_imgui));
+            swapChainResourcesHandle, rtvDesc_imgui, toS(RN::RTV_imgui));
     }
 
     // 3D render resources and views
     {
         auto resourceRender3DHandle = _resourceManager->createTexture2DFrameResource(
             _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
-            D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render3D));
-    
-        auto render3DResources = _resourceManager->getFrameResource(resourceRender3DHandle);
-    
+            D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT,
+            toS(RN::texture2D_render3D));
+
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_render3D = {};
         rtvDesc_render3D.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         rtvDesc_render3D.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         rtvDesc_render3D.Texture2D.MipSlice = 0;
         rtvDesc_render3D.Texture2D.PlaneSlice = 0;
-    
+
         _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
-            render3DResources, rtvDesc_render3D, toS(RN::RTV_render_3d));
+            resourceRender3DHandle, rtvDesc_render3D, toS(RN::RTV_render_3d));
     }
 }
 
@@ -376,8 +375,8 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     ThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&_device)));
 
     _fenceManager = new FenceManager(_device.Get());
-    _resourceManager = new ResourceManager(_device.Get(), *_fenceManager, FramesInFlight,
-                                           64 * 1024 * 1024);
+    _resourceManager =
+        new ResourceManager(_device.Get(), *_fenceManager, 64 * 1024 * 1024);
     _commandQueues.emplace_back(std::make_unique<CommandQueue>(
         _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, FramesInFlight));
     _psoManager = new PipelineStateManager(_device.Get());

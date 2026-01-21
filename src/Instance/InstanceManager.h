@@ -15,6 +15,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 namespace rayvox
@@ -80,8 +81,8 @@ struct FrameInstancePool
     size_t _gpuPoolSize = 0;
     std::vector<type> _pool;
     std::vector<Id> _freeList;
-    entt::dense_map<EntityHandle, Id> _byEntity;
-    entt::dense_map<EntityHandle, FrameDirtyFlag> _dirtyComponents;
+    std::unordered_map<EntityHandle, Id> _byEntity;
+    std::unordered_map<EntityHandle, FrameDirtyFlag> _dirtyComponents;
 
     static constexpr ComponentFlag _instanceUsedComponentFlag = type::OwnedFlag;
 
@@ -164,12 +165,14 @@ struct FrameInstancePool
     size_t capacity() const { return _pool.size(); }
 
     void createGPUResourcesAndViews(){
-        _resourceManager.createBufferFrameResource(_gpuPoolSize, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, _name);
+        _resourceManager.createBufferFrameResource(_gpuPoolSize * sizeof(type::GPUData), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, _name);
     }
 
-    void uploadAllInstances(){
-        for(auto& instance : _pool){
-            // matk all instance dirty
+    void markAllinstanceDirty(){
+        _dirtyComponents.clear();
+        for(auto&& [handle, _] : _byEntity){
+            auto& flags = _dirtyComponents[handle] = FrameDirtyFlag();
+            flags.setAll(_instanceUsedComponentFlag);
         }
     }
 
@@ -177,9 +180,10 @@ struct FrameInstancePool
     {
         if (_pool.size() > _gpuPoolSize)
         {
+            _gpuPoolSize *= 2;
             _resourceManager.requestDestroy(_instancePoolViewHandle);
             createGPUResourcesAndViews();
-            uploadAllInstances();
+            markAllinstanceDirty();
         }
     }
 };
@@ -192,6 +196,6 @@ struct GPUInstanceManager
     void markDirty(const EntityHandle& handle, ComponentFlag componentFlag);
 
     ResourceManager& _resourceManager;
-    FrameInstancePool<StaticMeshInstance> _meshInstancesPool{256};
+    FrameInstancePool<StaticMeshInstance> _meshInstancesPool{_resourceManager, 256, "StaticMeshInstancePool"};
 };
 };  // namespace rayvox

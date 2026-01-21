@@ -6,7 +6,7 @@
 #include <string>
 #include <iostream>
 
-#include "AssertUtils.h"
+#include "DebugUtils.h"
 #include "Renderer/includeDX12.h"
 #include "FenceManager.h"
 

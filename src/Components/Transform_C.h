@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+
 #include "EigenTypes.h"
 #include "Handles.h"
 
@@ -10,47 +11,47 @@ namespace rayvox
 enum class Space
 {
     Local,
+    Parent,
     World
 };
 
 struct Transform_C
 {
-    bool _dirty = false;
-    v3f _localPosition{0, 0, 0};
-    quatf _localRotation = quatf::Identity();
-    v3f _localScale{1, 1, 1};
-
-    // cache
-    m4f _local = m4f::Identity();
-    m4f _world = m4f::Identity();
-
     Transform_C* _parent = nullptr;
     std::vector<Transform_C*> children;
 
+    void setParent(Transform_C* newParent, bool keepWorld = true);
+
+    Transform_C* parent() const { return _parent; }
+
+    m4f localMatrix() const { return _local.matrix(); }
+    m4f worldMatrix() const { return _world.matrix(); }
+
+    // mark dirty
+    void setLocalPosition(const v3f& p);
+    void setLocalRotation(const quatf& q);
+    void setLocalScale(const v3f& s);
+
     void translate(const v3f& vec, Space space = Space::Local);
-    void rotate();
-    void scale(const v3f& vec, Space space = Space::Local);
+    void rotate(const quatf& delta, Space space = Space::Local);
+    void rotate(const v3f& axis, float radians, Space space = Space::Local);
+    void scale(const v3f& vec);
 
-    void UpdateWorldMatrix()
-    {
-        _local = TRS(_localPosition, _localRotation, _localScale);
+    void updateIfDirty();
+    void markDirty();
 
-        if (_parent)
-            _world = _parent->_world * _local;
-        else
-            _world = _local;
-    }
+private:
+    v3f _localPosition{0.f, 0.f, 0.f};
+    quatf _localRotation = quatf::Identity();
+    v3f _localScale{1.f, 1.f, 1.f};
 
-    // pour update et garder l'ordre, il faut que le parent soit update avant l'enfant
-    void UpdateIfDirty(Transform_C* t)
-    {
-        if (t->_dirty)
-        {
-            if (t->_parent)
-                UpdateIfDirty(t->_parent);  // garantit l’ordre
-            t->UpdateWorldMatrix();
-            t->_dirty = false;
-        }
-    }
+    bool _dirty = true;
+    transform _local = transform::Identity();
+    transform _world = transform::Identity();
+
+    void updateWorldMatrix_NoRecurse();
+    void setLocalFromTransform(const transform& t);
+    static quatf extractWorldRotation(const transform& t);
 };
+
 }  // namespace rayvox

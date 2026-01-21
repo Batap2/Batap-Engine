@@ -66,8 +66,8 @@ void Context::init()
 {
     _gpuInstanceManager = std::make_unique<GPUInstanceManager>(*_renderer->_resourceManager);
     _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
-    _scene = std::make_unique<TestScene>();
-    _sceneRenderer = std::make_unique<SceneRenderer>(_renderer.get());
+    _scene = std::make_unique<TestScene>(*_gpuInstanceManager.get());
+    _sceneRenderer = std::make_unique<SceneRenderer>(*this);
     _sceneRenderer->loadScene(_scene.get());
     _sceneRenderer->initRenderPasses();
 }

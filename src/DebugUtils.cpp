@@ -1,11 +1,15 @@
-#pragma once
+#include "DebugUtils.h"
 
+#include <windows.h>
 #include <winerror.h>
 #include <source_location>
 #include <stdexcept>
 #include <string>
 
-inline void ThrowIfFailed(HRESULT hr)
+namespace rayvox
+{
+
+void ThrowIfFailed(long hr)
 {
 #ifndef NDEBUG
     if (FAILED(hr))
@@ -17,7 +21,7 @@ inline void ThrowIfFailed(HRESULT hr)
 #endif
 }
 
-inline constexpr void ThrowAssert(bool condition, std::string_view msg)
+void ThrowAssert(bool condition, std::string_view msg)
 {
 #ifndef NDEBUG
     if (!condition)
@@ -32,3 +36,13 @@ inline constexpr void ThrowAssert(bool condition, std::string_view msg)
 #endif
 }
 
+[[noreturn]] void ThrowRuntime(const char* msg)
+{
+    OutputDebugStringA(msg);
+    OutputDebugStringA("\n");
+#ifdef _DEBUG
+    __debugbreak();  // break AVANT l'unwind
+#endif
+    throw std::runtime_error(msg);
+}
+}  // namespace rayvox

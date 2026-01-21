@@ -2,7 +2,7 @@
 
 #include "entt/entt.hpp"
 
-#include "Renderer.h"
+#include "Context.h"
 #include "Scene.h"
 
 #include <cstdint>
@@ -12,7 +12,7 @@ namespace rayvox
 {
 struct SceneRenderer
 {
-    SceneRenderer(Renderer* renderer) : _renderer(renderer) {}
+    SceneRenderer(Context& ctx) : _ctx(ctx) {}
 
     void initRenderPasses();
     void loadScene(Scene* scene);
@@ -20,6 +20,6 @@ struct SceneRenderer
 
    private:
     Scene* _scene = nullptr;
-    Renderer* _renderer;
+    Context& _ctx;
 };
 }  // namespace rayvox

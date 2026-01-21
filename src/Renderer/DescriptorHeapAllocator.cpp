@@ -1,8 +1,10 @@
 #include "DescriptorHeapAllocator.h"
 
-#include <stdexcept>
-
+#include "DebugUtils.h"
 #include "Descriptorhandle.h"
+
+
+#include <stdexcept>
 
 using namespace Microsoft::WRL;
 
@@ -16,7 +18,8 @@ void DescriptorHeapAllocator::init(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTO
     D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
     descHeapDesc.Type = type_;
     descHeapDesc.NumDescriptors = numDescriptors;
-    if (type_ == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || type_ == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
+    if (type_ == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ||
+        type_ == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
     {
         descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     }
@@ -48,7 +51,7 @@ DescriptorHandle* DescriptorHeapAllocator::alloc()
     {
         if (cursor >= capacity)
         {
-            throw std::runtime_error("DescriptorHeapAllocator out of descriptors!");
+            ThrowRuntime("DescriptorHeapAllocator out of descriptors!");
         }
         idx = cursor++;
     }

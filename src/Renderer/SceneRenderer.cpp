@@ -1,11 +1,11 @@
 #include "SceneRenderer.h"
 #include <cstddef>
 #include "Components/Camera_C.h"
-#include "Components/ComponentTraits.h"
 #include "Components/Mesh_C.h"
 #include "ResourceManager.h"
 #include "Scene.h"
-#include "VoxelRayScene.h"
+#include "Renderer/Renderer.h"
+#include "TestScene.h"
 
 namespace rayvox
 {
@@ -17,30 +17,18 @@ void SceneRenderer::loadScene(Scene* scene)
 
 void SceneRenderer::uploadDirty()
 {
-    using GPUComponent = std::tuple<Camera_C /*, Material_C, Light_C, ...*/>;
-
     auto& reg = _scene->_registry;
 
-    auto processAny = [&]<typename... Ts>(std::type_identity<std::tuple<Ts...>>)
-    {
-        (reg.view<Ts>().each(
-             [&](entt::entity e, Ts& c) {
-                 ComponentTraits<Ts>::upload(*_renderer->_resourceManager, c,
-                                             _renderer->_frameIndex);
-             }),
-         ...);
-    };
-
-    processAny(std::type_identity<GPUComponent>{});
+    
 }
 
 void SceneRenderer::initRenderPasses()
 {
-    _renderer->_renderGraph->addPass(toS(RN::pass_geometry), D3D12_COMMAND_LIST_TYPE_DIRECT)
+    _ctx._renderer->_renderGraph->addPass(toS(RN::pass_geometry), D3D12_COMMAND_LIST_TYPE_DIRECT)
         .addRecordStep(
             [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
             {
-                auto* r = _renderer;
+                auto* r = _ctx._renderer.get();
                 auto* rM = r->_resourceManager;
                 auto* psoM = r->_psoManager;
                 // Render target (couleur) + Depth
@@ -102,19 +90,19 @@ void SceneRenderer::initRenderPasses()
                 if (!cam)
                     return;
 
-                auto& camBufferView =
-                    r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
-                camBufferView._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_GENERIC_READ);
-                cmdList->SetComputeRootDescriptorTable(0,
-                                                       camBufferView._descriptorHandle->gpuHandle);
+                // auto& camBufferView =
+                //     r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
+                // camBufferView._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_GENERIC_READ);
+                // cmdList->SetComputeRootDescriptorTable(0,
+                //                                        camBufferView._descriptorHandle->gpuHandle);
 
                 auto meshes = _scene->_registry.view<Mesh_C>();
                 meshes.each(
                     [&](entt::entity e, Mesh_C& meshC)
                     {
-                        cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                        cmdList->IASetVertexBuffers(0, 1, &meshC.vbview);
-                        cmdList->IASetIndexBuffer(&meshC.ibview);
+                        // cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                        // cmdList->IASetVertexBuffers(0, 1, &meshC.vbview);
+                        // cmdList->IASetIndexBuffer(&meshC.ibview);
 
                         // // Bind per-object (matrices, material, SRV, etc.)
                         // // cmdList->SetGraphicsRootConstantBufferView(1, draw.cbObjectGpu);
@@ -137,11 +125,11 @@ void SceneRenderer::initRenderPasses()
                 // ou D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE si tu le samples en composition
             });
 
-    _renderer->_renderGraph->addPass(toS(RN::pass_render0), D3D12_COMMAND_LIST_TYPE_DIRECT, 1)
+    _ctx._renderer->_renderGraph->addPass(toS(RN::pass_render0), D3D12_COMMAND_LIST_TYPE_DIRECT, 1)
         .addRecordStep(
             [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
             {
-                auto* r = _renderer;
+                auto* r = _ctx._renderer.get();
                 auto uav_render0 =
                     r->_resourceManager->getFrameView(RN::UAV_render0)[r->_frameIndex];
 
@@ -164,13 +152,13 @@ void SceneRenderer::initRenderPasses()
                     });
                 if (!cam)
                     return;
-                auto& camBufferView =
-                    r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
+                // auto& camBufferView =
+                //     r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
 
-                camBufferView._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_GENERIC_READ);
-                cmdList->SetComputeRootDescriptorTable(0, uav_render0._descriptorHandle->gpuHandle);
-                cmdList->SetComputeRootDescriptorTable(1,
-                                                       camBufferView._descriptorHandle->gpuHandle);
+                // camBufferView._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_GENERIC_READ);
+                // cmdList->SetComputeRootDescriptorTable(0, uav_render0._descriptorHandle->gpuHandle);
+                // cmdList->SetComputeRootDescriptorTable(1,
+                //                                        camBufferView._descriptorHandle->gpuHandle);
                 // camera cmdList->SetComputeRootDescriptorTable(2, voxelMapView.gpuHandle);
 
                 cmdList->Dispatch(r->_threadGroupCountX, r->_threadGroupCountY,

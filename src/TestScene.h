@@ -6,7 +6,7 @@ namespace rayvox
 {
 struct TestScene : Scene
 {
-    TestScene();
+    TestScene(GPUInstanceManager& instanceManager);
 
     void update(float deltaTime) override {}
 
