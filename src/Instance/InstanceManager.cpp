@@ -40,7 +40,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
                 dirtyComponentsFlag &= (dirtyComponentsFlag - 1u);  // set lsb 1 to 0
 
                 auto patchRange = InstancePatches<StaticMeshInstance>::byBit[bitIndex];
-                
+
                 for (const PatchDesc& p : patchRange.patches)
                 {
                     std::byte* buf = tmp.get(p._size);
@@ -49,7 +49,8 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
                     const uint32_t stride = sizeof(StaticMeshInstance::GPUData);
                     const uint32_t byteOffset = instance->_gpuIndex * stride + p._offset;
 
-                    auto span = _resourceManager.requestUploadOwned(frameInstancePool._instancePoolViewHandle, p._size, 256);
+                    auto span = _resourceManager.requestUploadOwned(
+                        frameInstancePool._instancePoolViewHandle, p._size, 256);
                     std::memcpy(span.data(), buf, p._size);
                 }
             }
@@ -77,6 +78,8 @@ void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag com
     {
         case InstanceKind::StaticMesh:
             _meshInstancesPool._dirtyComponents[handle].setAll(componentFlag);
+            break;
+        case InstanceKind::Camera:
             break;
     }
 }

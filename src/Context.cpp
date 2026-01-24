@@ -94,7 +94,7 @@ void Context::update()
     _inputManager->ClearFrameState();
 
     _scene->update(1);
-    _sceneRenderer->uploadDirty();
+    _sceneRenderer->uploadDirty(_renderer->_frameIndex);
 
     _uiPanels->Draw();
 

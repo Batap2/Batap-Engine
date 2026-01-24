@@ -206,8 +206,8 @@ void Renderer::initPsosAndShaders()
 
         RootSignatureDescription rsDesc_VS{
             {
-                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, D3D12_SHADER_VISIBILITY_VERTEX},
+                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL}, // Camera
+                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, D3D12_SHADER_VISIBILITY_VERTEX}, // Mesh InstanceData
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
@@ -259,11 +259,12 @@ void Renderer::initRenderPasses()
                 auto backBuffer =
                     _resourceManager->getFrameResource(RN::texture2D_backbuffers)[_frameIndex];
                 auto uav_render0 = _resourceManager->getFrameView(RN::UAV_render0)[_frameIndex];
+                auto rtv_render3d = _resourceManager->getFrameView(RN::RTV_render_3d)[_frameIndex];
 
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
-                uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
-                cmdList->CopyResource(backBuffer->_resource.Get(), uav_render0._resource->get());
-                uav_render0._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                rtv_render3d._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
+                cmdList->CopyResource(backBuffer->_resource.Get(), rtv_render3d._resource->get());
+                rtv_render3d._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
                 backBuffer->transitionTo(cmdList, D3D12_RESOURCE_STATE_PRESENT);
             });
 

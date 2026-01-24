@@ -39,8 +39,6 @@ struct FrameDirtyFlag
         for (auto& f : _dirtyComponentsByFrame)
         {
             f |= flag;
-            unsigned long a;
-            _BitScanForward(&a, a);
         }
     }
 
@@ -69,10 +67,13 @@ struct FrameInstancePool
     static_assert(HasUsedComponents<type>);
     using Id = uint32_t;
 
-    FrameInstancePool(ResourceManager& rm, size_t initPoolSize, const std::string& name = "FrameInstancePool") : _resourceManager(rm)
+    FrameInstancePool(ResourceManager& rm, size_t initPoolSize,
+                      const std::string& name = "FrameInstancePool")
+        : _resourceManager(rm)
     {
         _gpuPoolSize = initPoolSize;
         _name = name;
+        createGPUResourcesAndViews();
     }
 
     ResourceManager& _resourceManager;
@@ -164,13 +165,29 @@ struct FrameInstancePool
 
     size_t capacity() const { return _pool.size(); }
 
-    void createGPUResourcesAndViews(){
-        _resourceManager.createBufferFrameResource(_gpuPoolSize * sizeof(type::GPUData), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, _name);
+    void createGPUResourcesAndViews()
+    {
+        auto rhandle = _resourceManager.createBufferFrameResource(
+            _gpuPoolSize * sizeof(typename type::GPUData), D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_HEAP_TYPE_DEFAULT, _name);
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC desc{};
+        desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        desc.Format = DXGI_FORMAT_UNKNOWN;
+        desc.Buffer.FirstElement = 0;
+        desc.Buffer.NumElements = static_cast<UINT>(_gpuPoolSize);
+        desc.Buffer.StructureByteStride = static_cast<UINT>(sizeof(typename type::GPUData));
+        desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+
+        _instancePoolViewHandle = _resourceManager.createFrameView<D3D12_SHADER_RESOURCE_VIEW_DESC>(rhandle, desc);
     }
 
-    void markAllinstanceDirty(){
+    void markAllinstanceDirty()
+    {
         _dirtyComponents.clear();
-        for(auto&& [handle, _] : _byEntity){
+        for (auto&& [handle, _] : _byEntity)
+        {
             auto& flags = _dirtyComponents[handle] = FrameDirtyFlag();
             flags.setAll(_instanceUsedComponentFlag);
         }
@@ -196,6 +213,7 @@ struct GPUInstanceManager
     void markDirty(const EntityHandle& handle, ComponentFlag componentFlag);
 
     ResourceManager& _resourceManager;
-    FrameInstancePool<StaticMeshInstance> _meshInstancesPool{_resourceManager, 256, "StaticMeshInstancePool"};
+    FrameInstancePool<StaticMeshInstance> _meshInstancesPool{_resourceManager, 256,
+                                                             "StaticMeshInstancePool"};
 };
 };  // namespace rayvox

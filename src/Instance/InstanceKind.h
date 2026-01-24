@@ -4,6 +4,7 @@ namespace rayvox
 {
 enum class InstanceKind
 {
-    StaticMesh
+    StaticMesh,
+    Camera
 };
 }

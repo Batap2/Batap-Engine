@@ -16,7 +16,7 @@ struct SceneRenderer
 
     void initRenderPasses();
     void loadScene(Scene* scene);
-    void uploadDirty();
+    void uploadDirty(uint8_t frameIndex);
 
    private:
     Scene* _scene = nullptr;

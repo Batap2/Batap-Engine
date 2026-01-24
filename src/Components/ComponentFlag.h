@@ -8,9 +8,7 @@ enum class ComponentFlag : uint32_t
 {
     None = 0,
     Transform = 1u << 0,
-    Mesh = 1u << 1,
-    Material = 1u << 2,
-    Light = 1u << 3,
+    Camera = 1u << 1,
 };
 
 constexpr ComponentFlag operator|(ComponentFlag a, ComponentFlag b)

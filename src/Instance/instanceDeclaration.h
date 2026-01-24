@@ -1,5 +1,6 @@
 #pragma once
 
+#include <assimp/code/AssetLib/Collada/ColladaHelper.h>
 #include "Components/ComponentFlag.h"
 #include "Components/Transform_C.h"
 #include "EigenTypes.h"
@@ -46,20 +47,30 @@ struct PatchRange
     std::span<const PatchDesc> patches{};
 };
 
+template <class Instance>
+struct InstancePatches;
+
+// ----------- Instances : 
+
 struct StaticMeshInstance
 {
     static constexpr ComponentFlag UsedComposents = ComponentFlag::Transform;
 
     uint32_t _gpuIndex;
 
-    struct GPUData
+    struct GPUData // needs to be multiple of 4
     {
         m4f _world;
     };
 };
 
-template <class Instance>
-struct InstancePatches;
+struct CameraInstance{
+    static constexpr ComponentFlag UsedComposents = ComponentFlag::Transform | ComponentFlag::Camera;
+
+    
+};
+
+// ----------- InstancePatches : How to get components data
 
 template <>
 struct InstancePatches<StaticMeshInstance>
