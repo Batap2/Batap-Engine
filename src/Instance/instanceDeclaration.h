@@ -1,6 +1,7 @@
 #pragma once
 
 #include <assimp/code/AssetLib/Collada/ColladaHelper.h>
+#include "Components/Camera_C.h"
 #include "Components/ComponentFlag.h"
 #include "Components/Transform_C.h"
 #include "EigenTypes.h"
@@ -50,7 +51,7 @@ struct PatchRange
 template <class Instance>
 struct InstancePatches;
 
-// ----------- Instances : 
+// ----------- Instances :
 
 struct StaticMeshInstance
 {
@@ -58,16 +59,27 @@ struct StaticMeshInstance
 
     uint32_t _gpuIndex;
 
-    struct GPUData // needs to be multiple of 4
+    struct GPUData  // needs to be multiple of 4
     {
         m4f _world;
     };
 };
 
-struct CameraInstance{
-    static constexpr ComponentFlag UsedComposents = ComponentFlag::Transform | ComponentFlag::Camera;
+struct CameraInstance
+{
+    static constexpr ComponentFlag UsedComposents = ComponentFlag::Transform |
+                                                    ComponentFlag::Camera;
 
-    
+    uint32_t _gpuIndex;
+
+    struct GPUData  // needs to be multiple of 4
+    {
+        float _znear;
+        float _zfar;
+        float _fov;
+        m4f _view;
+        m4f _proj;
+    };
 };
 
 // ----------- InstancePatches : How to get components data
@@ -89,6 +101,36 @@ struct InstancePatches<StaticMeshInstance>
         PatchDesc{._offset = static_cast<uint32_t>(offsetof(StaticMeshInstance::GPUData, _world)),
                   ._size = static_cast<uint32_t>(sizeof(m4f)),
                   .fill = &fillWorld}};
+
+    static constexpr std::array<PatchRange, 32> byBit = []()
+    {
+        std::array<PatchRange, 32> t{};
+        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatches};
+        return t;
+    }();
+};
+
+template <>
+struct InstancePatches<CameraInstance>
+{
+    static void fillCamData(const entt::registry& r, entt::entity e, void* dst)
+    {
+        auto* t = r.try_get<Camera_C>(e);
+        if (!t)
+            return;
+
+        auto* out = reinterpret_cast<CameraInstance::GPUData*>(dst);
+        out->_znear = t->_znear;
+        out ->_zfar = t->_zfar;
+        out->_fov = t->_fov;
+        out->_view = t->_view;
+        out->_proj = t->_proj;
+    }
+
+    static constexpr PatchDesc _transformPatches[] = {
+        PatchDesc{._offset = 0,
+                  ._size = static_cast<uint32_t>(sizeof(CameraInstance::GPUData)),
+                  .fill = &fillCamData}};
 
     static constexpr std::array<PatchRange, 32> byBit = []()
     {

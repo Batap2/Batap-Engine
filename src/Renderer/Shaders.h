@@ -10,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace rayvox
@@ -53,16 +54,33 @@ struct ComputePipelineState : PipelineState
     }
 };
 
-struct DescriptorRangeDesc
+struct DescriptorTableDesc
 {
     D3D12_DESCRIPTOR_RANGE_TYPE type;
     UINT numDescriptors;
     UINT baseShaderRegister;
+    UINT registerSpace = 0;
+
+    D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL;
+    D3D12_DESCRIPTOR_RANGE_FLAGS flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+};
+
+// Don't abuse this. Root constants consume 32-bit DWORDs directly in the root signature.
+// Wich is limited to 64 DWORDs (shared with root CBV/SRV/UAV).
+struct RootConstantsDesc
+{
+    UINT num32BitValues;  // # of dword
+    UINT shaderRegister;  // b#
+    UINT registerSpace = 0;
+
     D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL;
 };
 
-struct RootSignatureDescription{
-    std::vector<DescriptorRangeDesc> _descRanges;
+using RootParamDesc = std::variant<DescriptorTableDesc, RootConstantsDesc>;
+
+struct RootSignatureDescription
+{
+    std::vector<RootParamDesc> _params;
     D3D12_ROOT_SIGNATURE_FLAGS _flags;
 };
 
@@ -74,12 +92,13 @@ struct PipelineStateManager
     ID3D12RootSignature* createRootSignature(RootSignatureDescription& desc);
 
     GraphicsPipelineState*
-    createGraphicsPipelineState(const std::string& name, RootSignatureDescription& rootSignatureDesc,
+    createGraphicsPipelineState(const std::string& name,
+                                RootSignatureDescription& rootSignatureDesc,
                                 std::function<void(D3D12_GRAPHICS_PIPELINE_STATE_DESC&)> configure);
 
     ComputePipelineState*
     createComputePipelineState(const std::string& name, RootSignatureDescription& rootSignatureDesc,
-                                std::function<void(D3D12_COMPUTE_PIPELINE_STATE_DESC&)> configure);
+                               std::function<void(D3D12_COMPUTE_PIPELINE_STATE_DESC&)> configure);
 
     void bindPipelineState(ID3D12GraphicsCommandList* cmdList, PipelineState* pso);
     void bindPipelineState(ID3D12GraphicsCommandList* cmdList, const std::string& name);

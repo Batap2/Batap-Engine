@@ -11,8 +11,8 @@
 #include <memory>
 #include <string>
 
-#include "DebugUtils.h"
 #include "CommandQueue.h"
+#include "DebugUtils.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
 #include "RenderGraph.h"
@@ -21,7 +21,6 @@
 #include "ResourceName.h"
 #include "SceneRenderer.h"
 #include "Shaders.h"
-
 
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
@@ -189,6 +188,19 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
 
         _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
             resourceRender3DHandle, rtvDesc_render3D, toS(RN::RTV_render_3d));
+
+        auto resourceDSVRender3DHandle = _resourceManager->createTexture2DFrameResource(
+            _width, _height, DXGI_FORMAT_D32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
+            D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_HEAP_TYPE_DEFAULT,
+            toS(RN::texture2D_render3D_depthStencil));
+
+        D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc_render3D = {};
+        dsvDesc_render3D.Format = DXGI_FORMAT_D32_FLOAT;
+        dsvDesc_render3D.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+        dsvDesc_render3D.Texture2D.MipSlice = 0;
+
+        _resourceManager->createFrameView<D3D12_DEPTH_STENCIL_VIEW_DESC>(
+            resourceDSVRender3DHandle, dsvDesc_render3D, toS(RN::DSV_render_3d));
     }
 }
 
@@ -206,8 +218,11 @@ void Renderer::initPsosAndShaders()
 
         RootSignatureDescription rsDesc_VS{
             {
-                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL}, // Camera
-                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, D3D12_SHADER_VISIBILITY_VERTEX}, // Mesh InstanceData
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0,
+                                    D3D12_SHADER_VISIBILITY_ALL},  // Camera
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0,
+                                    D3D12_SHADER_VISIBILITY_VERTEX},  // Mesh InstanceData
+                RootConstantsDesc{2, 0, 0}                            // indices : Camera, Mesh
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
@@ -227,19 +242,25 @@ void Renderer::initPsosAndShaders()
                 desc.InputLayout = {layout, _countof(layout)};
                 desc.VS = {vs->_blob->GetBufferPointer(), vs->_blob->GetBufferSize()};
                 desc.PS = {ps->_blob->GetBufferPointer(), ps->_blob->GetBufferSize()};
+                desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+                desc.DepthStencilState.DepthEnable = 1;
+                desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+                desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
             });
     }
     {
         auto shader_compute0 = _psoManager->compileShaderFromFile(
             toS(RN::shader_compute0), shader_dir + "/ComputeShader_test.hlsl", "main", "cs_5_1");
 
-        RootSignatureDescription rDesc{
-            {
-                {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-                {D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-                {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, D3D12_SHADER_VISIBILITY_ALL},
-            },
-            D3D12_ROOT_SIGNATURE_FLAG_NONE};
+        RootSignatureDescription rDesc{{
+                                           DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
+                                                               0, 0, D3D12_SHADER_VISIBILITY_ALL},
+                                           DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1,
+                                                               0, 0, D3D12_SHADER_VISIBILITY_ALL},
+                                           DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
+                                                               0, 0, D3D12_SHADER_VISIBILITY_ALL},
+                                       },
+                                       D3D12_ROOT_SIGNATURE_FLAG_NONE};
 
         _psoManager->createComputePipelineState(toS(RN::pso_compute0), rDesc,
                                                 [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d) {
@@ -376,8 +397,7 @@ void Renderer::init(HWND hWnd, uint32_t clientWidth, uint32_t clientHeight)
     ThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&_device)));
 
     _fenceManager = new FenceManager(_device.Get());
-    _resourceManager =
-        new ResourceManager(_device.Get(), *_fenceManager, 64 * 1024 * 1024);
+    _resourceManager = new ResourceManager(_device.Get(), *_fenceManager, 64 * 1024 * 1024);
     _commandQueues.emplace_back(std::make_unique<CommandQueue>(
         _device, *_fenceManager, D3D12_COMMAND_LIST_TYPE_DIRECT, FramesInFlight));
     _psoManager = new PipelineStateManager(_device.Get());

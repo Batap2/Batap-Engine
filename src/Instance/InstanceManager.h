@@ -89,7 +89,7 @@ struct FrameInstancePool
 
     GPUViewHandle _instancePoolViewHandle;
 
-    Id assign(const EntityHandle& e, const entt::registry& r)
+    Id assign(const EntityHandle& e)
     {
         if (auto it = _byEntity.find(e); it != _byEntity.end())
             return it->second;
@@ -180,7 +180,8 @@ struct FrameInstancePool
         desc.Buffer.StructureByteStride = static_cast<UINT>(sizeof(typename type::GPUData));
         desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
-        _instancePoolViewHandle = _resourceManager.createFrameView<D3D12_SHADER_RESOURCE_VIEW_DESC>(rhandle, desc);
+        _instancePoolViewHandle =
+            _resourceManager.createFrameView<D3D12_SHADER_RESOURCE_VIEW_DESC>(rhandle, desc);
     }
 
     void markAllinstanceDirty()
@@ -215,5 +216,8 @@ struct GPUInstanceManager
     ResourceManager& _resourceManager;
     FrameInstancePool<StaticMeshInstance> _meshInstancesPool{_resourceManager, 256,
                                                              "StaticMeshInstancePool"};
+
+    FrameInstancePool<CameraInstance> _cameraInstancesPool{_resourceManager, 1,
+                                                             "CameraInstancePool"};
 };
 };  // namespace rayvox

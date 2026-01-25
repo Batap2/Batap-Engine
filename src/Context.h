@@ -3,6 +3,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include "Instance/EntityFactory.h"
 
 namespace rayvox
 {
@@ -32,6 +33,7 @@ struct Context
     std::unique_ptr<UIPanels> _uiPanels;
     std::unique_ptr<AssetManager> _assetManager;
     std::unique_ptr<GPUInstanceManager> _gpuInstanceManager;
+    std::unique_ptr<EntityFactory> _entityFactory;
     std::unique_ptr<FileDialogMsgBus> _fileDialogMsgBus;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> _lastTime;

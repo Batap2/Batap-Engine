@@ -3,6 +3,7 @@
 #include "DebugUtils.h"
 
 #include "Renderer/includeDX12.h"
+#include "VariantUtils.h"
 
 #include <cassert>
 #include <filesystem>
@@ -53,17 +54,28 @@ PipelineStateManager::PipelineStateManager(ID3D12Device2* device) : _device(devi
 ID3D12RootSignature* PipelineStateManager::createRootSignature(RootSignatureDescription& desc)
 {
     std::vector<CD3DX12_DESCRIPTOR_RANGE1> ranges;
-    ranges.reserve(desc._descRanges.size());
+    ranges.reserve(desc._params.size());
     std::vector<CD3DX12_ROOT_PARAMETER1> rootParams;
-    rootParams.reserve(desc._descRanges.size());
+    rootParams.reserve(desc._params.size());
 
-    for (auto& d : desc._descRanges)
+    for (auto& p : desc._params)
     {
-        auto& range = ranges.emplace_back();
-        range.Init(d.type, d.numDescriptors, d.baseShaderRegister);
-        CD3DX12_ROOT_PARAMETER1 param;
-        param.InitAsDescriptorTable(1, &range, d.visibility);
-        rootParams.push_back(param);
+        CD3DX12_ROOT_PARAMETER1 rp{};
+
+        std::visit(overloaded{[&](const DescriptorTableDesc& d)
+                              {
+                                  auto& range = ranges.emplace_back();
+                                  range.Init(d.type, d.numDescriptors, d.baseShaderRegister,
+                                             d.registerSpace, d.flags);
+                                  rp.InitAsDescriptorTable(1, &range, d.visibility);
+                              },
+                              [&](const RootConstantsDesc& c) {
+                                  rp.InitAsConstants(c.num32BitValues, c.shaderRegister,
+                                                     c.registerSpace, c.visibility);
+                              }},
+                   p);
+
+        rootParams.push_back(rp);
     }
 
     CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC vdesc;

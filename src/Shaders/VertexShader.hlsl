@@ -10,20 +10,19 @@ struct CameraData
     float4x4 _proj;
 };
 
-cbuffer CameraCB : register(b0)
-{
-    CameraData cam;
-};
-
 struct InstanceData
 {
     float4x4 _world;
-    float3x3 _normalMatrix;
+    //float3x3 _normalMatrix;
 };
 
-cbuffer InstanceCB : register(b1)
+StructuredBuffer<CameraData> CameraInstancebuffer :register(t0);
+StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
+
+cbuffer DrawParams : register(b0)
 {
-    InstanceData inst;
+    uint _cameraIndex;
+    uint _instanceIndex;
 };
 
 struct VS_INPUT {
@@ -40,6 +39,9 @@ struct VS_OUTPUT {
 
 VS_OUTPUT main(VS_INPUT input) {
     VS_OUTPUT output;
+
+    InstanceData inst = StaticMeshInstancebuffer[_instanceIndex];
+    CameraData cam = CameraInstancebuffer[_cameraIndex];
 
     float4 posWS = mul(float4(input._position, 1.0f), inst._world);
     float4 posVS = mul(posWS, cam._view);

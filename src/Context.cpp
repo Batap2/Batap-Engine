@@ -9,6 +9,7 @@
 #include "EigenTypes.h"
 #include "Importers/FileImporter.h"
 #include "InputManager.h"
+#include "Instance/EntityFactory.h"
 #include "Instance/InstanceManager.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
@@ -65,6 +66,7 @@ Context::~Context() = default;
 void Context::init()
 {
     _gpuInstanceManager = std::make_unique<GPUInstanceManager>(*_renderer->_resourceManager);
+    _entityFactory = std::make_unique<EntityFactory>(*_gpuInstanceManager.get());
     _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
     _scene = std::make_unique<TestScene>(*_gpuInstanceManager.get());
     _sceneRenderer = std::make_unique<SceneRenderer>(*this);

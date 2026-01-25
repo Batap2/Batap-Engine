@@ -80,6 +80,7 @@ void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag com
             _meshInstancesPool._dirtyComponents[handle].setAll(componentFlag);
             break;
         case InstanceKind::Camera:
+            _cameraInstancesPool._dirtyComponents[handle].setAll(componentFlag);
             break;
     }
 }
