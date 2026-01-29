@@ -7,12 +7,16 @@ namespace rayvox
 {
 struct EntityHandle
 {
-    const entt::entity _entity;
-    const entt::registry* _reg;
+    entt::entity _entity;
+    entt::registry* _reg = nullptr;
 
-    EntityHandle(entt::entity entity, const entt::registry* reg) noexcept
-        : _entity(entity), _reg(reg)
-    {}
+    EntityHandle() = default;
+
+    EntityHandle(entt::entity entity, entt::registry* reg) noexcept
+    {
+        _entity = entity;
+        _reg = reg;
+    }
 
     bool operator==(const EntityHandle& other) const noexcept
     {

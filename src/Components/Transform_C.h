@@ -24,8 +24,10 @@ struct Transform_C
 
     Transform_C* parent() const { return _parent; }
 
-    m4f localMatrix() const { return _local.matrix(); }
+    const transform& local() const { return _local; }
+    const transform& world() const { return _world; }
     m4f worldMatrix() const { return _world.matrix(); }
+    m4f localMatrix() const { return _local.matrix(); }
 
     // mark dirty
     void setLocalPosition(const v3f& p);
@@ -40,7 +42,7 @@ struct Transform_C
     void updateIfDirty();
     void markDirty();
 
-private:
+   private:
     v3f _localPosition{0.f, 0.f, 0.f};
     quatf _localRotation = quatf::Identity();
     v3f _localScale{1.f, 1.f, 1.f};

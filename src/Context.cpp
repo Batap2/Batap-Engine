@@ -14,10 +14,9 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
 #include "Scene.h"
-#include "UI/UIPanels.h"
 #include "TestScene.h"
+#include "UI/UIPanels.h"
 #include "WindowsUtils/FileDialog.h"
-
 
 static void printDeltaTime(float dt)
 {
@@ -65,10 +64,10 @@ Context::~Context() = default;
 
 void Context::init()
 {
-    _gpuInstanceManager = std::make_unique<GPUInstanceManager>(*_renderer->_resourceManager);
+    _gpuInstanceManager = std::make_unique<GPUInstanceManager>(*this);
     _entityFactory = std::make_unique<EntityFactory>(*_gpuInstanceManager.get());
     _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
-    _scene = std::make_unique<TestScene>(*_gpuInstanceManager.get());
+    _scene = std::make_unique<TestScene>(*this);
     _sceneRenderer = std::make_unique<SceneRenderer>(*this);
     _sceneRenderer->loadScene(_scene.get());
     _sceneRenderer->initRenderPasses();
@@ -104,4 +103,9 @@ void Context::update()
 }
 
 void Context::render() {}
+
+v2i Context::getFrameSize()
+{
+    return {_renderer->_width, _renderer->_height};
+}
 }  // namespace rayvox

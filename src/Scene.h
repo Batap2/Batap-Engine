@@ -2,15 +2,17 @@
 
 #include "Components/ComponentToFlag.h"
 #include "Components/EntityHandle.h"
+#include "Context.h"
 #include "Instance/InstanceManager.h"
 
 #include <entt/entt.hpp>
 
 namespace rayvox
 {
+
 struct Scene
 {
-    Scene(GPUInstanceManager& instanceManager) : _instanceManager(instanceManager) {}
+    Scene(Context& ctx) : _ctx(ctx), _instanceManager(*ctx._gpuInstanceManager.get()) {}
     virtual ~Scene() = default;
 
     virtual void update(float deltaTime) {}
@@ -24,6 +26,11 @@ struct Scene
         entt::entity e{entt::null};
         GPUInstanceManager* instanceManager = nullptr;
         T* ptr = nullptr;
+
+        WriteProxy() = default;
+        WriteProxy(entt::registry* r_, entt::entity e_, GPUInstanceManager* im_, T* ptr_) noexcept
+            : r(r_), e(e_), instanceManager(im_), ptr(ptr_)
+        {}
 
         // must not be copied, else commit() could be called several times
         WriteProxy(const WriteProxy&) = delete;
@@ -96,7 +103,7 @@ struct Scene
         return {};
     }
 
-   private:
+    Context& _ctx;
     GPUInstanceManager& _instanceManager;
 };
 }  // namespace rayvox

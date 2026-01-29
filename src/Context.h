@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include "Instance/EntityFactory.h"
+#include "EigenTypes.h"
 
 namespace rayvox
 {
@@ -42,5 +43,7 @@ struct Context
     void init();
     void update();
     void render();
+
+    v2i getFrameSize();
 };
 }  // namespace rayvox

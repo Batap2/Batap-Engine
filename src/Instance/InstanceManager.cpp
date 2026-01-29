@@ -5,12 +5,13 @@
 #include "Components/EntityHandle.h"
 #include "Components/RenderInstanceID_C.h"
 #include "InstanceKind.h"
+#include "Renderer/Renderer.h"
 #include "Renderer/ResourceManager.h"
 #include "instanceDeclaration.h"
 
 namespace rayvox
 {
-GPUInstanceManager::GPUInstanceManager(ResourceManager& rm) : _resourceManager(rm) {};
+GPUInstanceManager::GPUInstanceManager(Context& ctx) : _ctx(ctx), _resourceManager(*ctx._renderer->_resourceManager) {};
 
 void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
 {
@@ -44,7 +45,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
                 for (const PatchDesc& p : patchRange.patches)
                 {
                     std::byte* buf = tmp.get(p._size);
-                    p.fill(*entityHandle._reg, entityHandle._entity, buf);
+                    p.fill(_ctx, *entityHandle._reg, entityHandle._entity, buf);
 
                     const uint32_t stride = sizeof(StaticMeshInstance::GPUData);
                     const uint32_t byteOffset = instance->_gpuIndex * stride + p._offset;

@@ -4,8 +4,10 @@
 #include "Components/Camera_C.h"
 #include "Components/ComponentFlag.h"
 #include "Components/Transform_C.h"
+#include "Context.h"
 #include "EigenTypes.h"
 #include "Handles.h"
+
 
 #include "entt/entt.hpp"
 
@@ -40,7 +42,7 @@ struct PatchDesc
 {
     uint32_t _offset;
     uint32_t _size;
-    void (*fill)(const entt::registry& r, entt::entity e, void* dst);
+    void (*fill)(Context& ctx, const entt::registry& r, entt::entity e, void* dst);
 };
 
 struct PatchRange
@@ -87,7 +89,7 @@ struct CameraInstance
 template <>
 struct InstancePatches<StaticMeshInstance>
 {
-    static void fillWorld(const entt::registry& r, entt::entity e, void* dst)
+    static void fillWorld(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* t = r.try_get<Transform_C>(e);
         if (!t)
@@ -113,18 +115,26 @@ struct InstancePatches<StaticMeshInstance>
 template <>
 struct InstancePatches<CameraInstance>
 {
-    static void fillCamData(const entt::registry& r, entt::entity e, void* dst)
+    static void fillCamData(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
-        auto* t = r.try_get<Camera_C>(e);
-        if (!t)
+        auto* camC = r.try_get<Camera_C>(e);
+        if (!camC)
             return;
 
+        auto* transC = r.try_get<Transform_C>(e);
+
         auto* out = reinterpret_cast<CameraInstance::GPUData*>(dst);
-        out->_znear = t->_znear;
-        out ->_zfar = t->_zfar;
-        out->_fov = t->_fov;
-        out->_view = t->_view;
-        out->_proj = t->_proj;
+        out->_znear = camC->_znear;
+        out->_zfar = camC->_zfar;
+        out->_fov = camC->_fov;
+
+        if (transC)
+        {
+            out->_view = camC->make_view(transC->world());
+            auto frameSize = ctx.getFrameSize();
+            out->_proj = camC->make_proj(static_cast<float>(frameSize.x()) /
+                                         static_cast<float>(frameSize.y()));
+        }
     }
 
     static constexpr PatchDesc _transformPatches[] = {

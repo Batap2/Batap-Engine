@@ -1,15 +1,16 @@
 #pragma once
 
+#include "Components/EntityHandle.h"
 #include "Scene.h"
 
 namespace rayvox
 {
 struct TestScene : Scene
 {
-    TestScene(GPUInstanceManager& instanceManager);
+    TestScene(Context& ctx);
 
-    void update(float deltaTime) override {}
+    void update(float deltaTime) override;
 
-    entt::entity _camera;
+    EntityHandle _camera;
 };
 }  // namespace rayvox

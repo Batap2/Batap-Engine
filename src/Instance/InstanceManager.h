@@ -85,7 +85,7 @@ struct FrameInstancePool
     std::unordered_map<EntityHandle, Id> _byEntity;
     std::unordered_map<EntityHandle, FrameDirtyFlag> _dirtyComponents;
 
-    static constexpr ComponentFlag _instanceUsedComponentFlag = type::OwnedFlag;
+    static constexpr ComponentFlag _instanceUsedComponentFlag = type::UsedComposents;
 
     GPUViewHandle _instancePoolViewHandle;
 
@@ -208,11 +208,12 @@ struct FrameInstancePool
 
 struct GPUInstanceManager
 {
-    GPUInstanceManager(ResourceManager& rm);
+    GPUInstanceManager(Context& ctx);
 
     void uploadRemainingFrameDirty(uint8_t frameIndex);
     void markDirty(const EntityHandle& handle, ComponentFlag componentFlag);
 
+    Context& _ctx;
     ResourceManager& _resourceManager;
     FrameInstancePool<StaticMeshInstance> _meshInstancesPool{_resourceManager, 256,
                                                              "StaticMeshInstancePool"};

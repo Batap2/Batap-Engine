@@ -1,10 +1,6 @@
 #pragma once
 
 #include "EigenTypes.h"
-#include "Handles.h"
-
-#include <cstdint>
-#include <span>
 
 namespace rayvox
 {
@@ -14,7 +10,9 @@ struct Camera_C
     float _znear = 0;
     float _zfar = 0;
     float _fov = 0;
-    m4f _view = m4f::Identity();
-    m4f _proj = m4f::Identity();
+
+    // aspect = width / height
+    m4f make_proj(float aspect) const;
+    m4f make_view(const transform& worldFromCamera) const;
 };
 }  // namespace rayvox

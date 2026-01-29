@@ -91,11 +91,11 @@ void SceneRenderer::initRenderPasses()
                 if (!cam)
                     return;
 
-                // auto& camBufferView =
-                //     r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
-                // camBufferView._resource->transitionTo(cmdList,
-                // D3D12_RESOURCE_STATE_GENERIC_READ); cmdList->SetComputeRootDescriptorTable(0,
-                //                                        camBufferView._descriptorHandle->gpuHandle);
+                auto& camBufferView =
+                    r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
+                camBufferView._resource->transitionTo(cmdList,
+                D3D12_RESOURCE_STATE_GENERIC_READ); cmdList->SetComputeRootDescriptorTable(0,
+                                                       camBufferView._descriptorHandle->gpuHandle);
 
                 auto meshes = _scene->_registry.view<Mesh_C>();
                 meshes.each(
