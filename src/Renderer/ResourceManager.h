@@ -91,6 +91,7 @@ struct GPUView
 struct GPUMeshView
 {
     GPUResource* _resource = nullptr;
+    GPUResourceHandle _resourceHandle;
 
     enum class Type
     {
@@ -104,6 +105,8 @@ struct GPUMeshView
         D3D12_INDEX_BUFFER_VIEW ibv;
     };
 };
+
+using GPUObject = std::variant<GPUResource, GPUView, GPUMeshView>;
 
 struct ResourceManager
 {
@@ -136,6 +139,12 @@ struct ResourceManager
         uint64_t _dataSize;
         uint32_t _alignment;
         uint64_t _destinationOffset;
+    };
+
+    struct DeferredRelease
+    {
+        uint64_t fenceValue = 0;
+        GPUObject object;
     };
 
     void requestUpload(GPUHandle guid, const void* data, uint64_t dataSize, uint32_t alignement,
@@ -285,9 +294,15 @@ struct ResourceManager
                                       std::optional<std::string_view> name = std::nullopt,
                                       uint64_t offset = 0, uint64_t size = 0);
 
+    void releaseViewDescriptor(GPUView& v);
+
+    // requestDestroy() removes objects from active maps and moves them into
+    // _deferredReleases. Objects are actually destroyed later, when the GPU
+    // fence associated in flushDeferredReleases() is reached.
     void requestDestroy(GPUResourceHandle guid);
     void requestDestroy(GPUViewHandle guid, bool destroyAssociatedResources = false);
-    void flushDeferredReleases();
+    void requestDestroy(GPUMeshViewHandle guid, bool destroyAssociatedResources);
+    void flushDeferredReleases(ID3D12CommandQueue* commandQueue);
 
     GPUResource* getStaticResource(RN n);
     GPUResource* getStaticResource(GPUResourceHandle& guid);
@@ -322,7 +337,7 @@ struct ResourceManager
     std::unordered_map<GPUViewHandle, GPUView> _staticViews;
     std::unordered_map<GPUMeshViewHandle, GPUMeshView> _staticMeshViews;
 
-    std::vector<GPUHandle> _deferredReleases;
+    std::vector<DeferredRelease> _deferredReleases;
 
     FenceManager& _fenceManager;
     uint32_t _fenceId;
@@ -398,9 +413,9 @@ struct ResourceManager
     std::unordered_map<std::string, GPUViewHandle> _nameToViewGuidMap;
     std::unordered_map<std::string, GPUMeshViewHandle> _nameToMeshViewGuidMap;
 
-    std::unordered_set<GPUResourceHandle> _createdGPUResourceHandle;
-    std::unordered_set<GPUViewHandle> _createdGPUViewHandle;
-    std::unordered_set<GPUMeshViewHandle> _createdGPUMeshViewHandle;
+    std::unordered_set<GPUResourceHandle> _aliveGPUResourceHandle;
+    std::unordered_set<GPUViewHandle> _aliveGPUViewHandle;
+    std::unordered_set<GPUMeshViewHandle> _aliveGPUMeshViewHandle;
 
     std::vector<UploadRequest> _uploadRequests;
 };

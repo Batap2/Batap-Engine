@@ -96,7 +96,7 @@ void Context::update()
 
     _inputManager->DispatchEvents();
 
-    _scene->update(1);
+    _scene->update(_deltaTime);
     _systems->update(_deltaTime, _scene->_registry);
     _sceneRenderer->uploadDirty(_renderer->_frameIndex);
 

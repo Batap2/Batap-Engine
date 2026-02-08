@@ -89,6 +89,11 @@ struct RenderGraph
             }
 
             queue->executeCommand(frameIndex);
+
+            if (queue->_commandListType == D3D12_COMMAND_LIST_TYPE_DIRECT)
+            {
+                _resourceManager->flushDeferredReleases(queue->_commandQueue.Get());
+            }
         }
     }
 

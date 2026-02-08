@@ -137,6 +137,7 @@ struct FrameInstancePool
         }
         else
         {
+            ensureCapacity();
             _pool.emplace_back();
             id = static_cast<Id>(_pool.size() - 1);
         }
@@ -166,6 +167,10 @@ struct FrameInstancePool
 
     void createGPUResourcesAndViews()
     {
+        if(_instancePoolViewHandle.valid()){
+            _resourceManager.requestDestroy(_instancePoolViewHandle, true);
+        }
+
         auto rhandle = _resourceManager.createBufferFrameResource(
             _gpuPoolSize * sizeof(typename type::GPUData), D3D12_RESOURCE_STATE_COPY_DEST,
             D3D12_HEAP_TYPE_DEFAULT, _name);
@@ -198,10 +203,11 @@ struct FrameInstancePool
         if (_pool.size() > _gpuPoolSize)
         {
             _gpuPoolSize *= 2;
-            _resourceManager.requestDestroy(_instancePoolViewHandle);
             createGPUResourcesAndViews();
             markAllinstanceDirty();
+            return true;
         }
+        return false;
     }
 };
 

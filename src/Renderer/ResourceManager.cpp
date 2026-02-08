@@ -11,7 +11,6 @@
 #include "ResourceFormatWrapper.h"
 #include "VariantUtils.h"
 
-
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -483,6 +482,7 @@ GPUMeshViewHandle ResourceManager::createStaticIBV(GPUResourceHandle resource_gu
 
     GPUMeshView view{};
     view._resource = resource;
+    view._resourceHandle = resource_guid;
     view._type = GPUMeshView::Type::Index;
 
     view.ibv.BufferLocation = resource->get()->GetGPUVirtualAddress() + offset;
@@ -516,6 +516,7 @@ GPUMeshViewHandle ResourceManager::createStaticVBV(GPUResourceHandle resource_gu
 
     GPUMeshView view{};
     view._resource = resource;
+    view._resourceHandle = resource_guid;
     view._type = GPUMeshView::Type::Vertex;
 
     view.vbv.BufferLocation = resource->get()->GetGPUVirtualAddress() + offset;
@@ -526,107 +527,174 @@ GPUMeshViewHandle ResourceManager::createStaticVBV(GPUResourceHandle resource_gu
     return guid;
 }
 
+void ResourceManager::releaseViewDescriptor(GPUView& v)
+{
+    if (!v._descriptorHandle)
+        return;
+
+    switch (v._type)
+    {
+        case GPUView::Type::CBV:
+        case GPUView::Type::SRV:
+        case GPUView::Type::UAV:
+            _descriptorHeapAllocator_CBV_SRV_UAV.free(*v._descriptorHandle);
+            break;
+        case GPUView::Type::RTV:
+            _descriptorHeapAllocator_RTV.free(*v._descriptorHandle);
+            break;
+        case GPUView::Type::DSV:
+            _descriptorHeapAllocator_DSV.free(*v._descriptorHandle);
+            break;
+    }
+
+    v._descriptorHandle = nullptr;
+}
+
 void ResourceManager::requestDestroy(GPUResourceHandle guid)
 {
-    _deferredReleases.push_back(guid);
+    _aliveGPUResourceHandle.erase(guid);
+
+    if (guid._type == GPUResourceHandle::ObjectType::StaticResource)
+    {
+        auto it = _staticResources.find(guid);
+        if (it == _staticResources.end())
+            return;
+
+        _deferredReleases.push_back(
+            DeferredRelease{.fenceValue = 0, .object = GPUObject{std::move(*it->second)}});
+
+        _staticResources.erase(it);
+        return;
+    }
+
+    if (guid._type == GPUResourceHandle::ObjectType::FrameResource)
+    {
+        auto it = _frameResource.find(guid);
+        if (it == _frameResource.end())
+            return;
+
+        for (auto& uptr : it->second)
+        {
+            if (!uptr)
+                continue;
+
+            _deferredReleases.push_back(
+                DeferredRelease{.fenceValue = 0, .object = GPUObject{std::move(*uptr)}});
+        }
+
+        _frameResource.erase(it);
+        return;
+    }
 }
 
 void ResourceManager::requestDestroy(GPUViewHandle guid, bool destroyAssociatedResources)
 {
-    if (destroyAssociatedResources)
+    _aliveGPUViewHandle.erase(guid);
+
+    if (guid._type == GPUViewHandle::ObjectType::StaticView)
     {
-        GPUResourceHandle rh;
-        if (guid._type == GPUViewHandle::ObjectType::FrameView)
-        {
-            rh = getFrameView(guid)[0]._resourceHandle;
-        }
-        else if (guid._type == GPUViewHandle::ObjectType::StaticView)
-        {
-            rh = getStaticView(guid)._resourceHandle;
-        }
-        _deferredReleases.push_back(rh);
+        auto it = _staticViews.find(guid);
+        if (it == _staticViews.end())
+            return;
+
+        if (destroyAssociatedResources)
+            requestDestroy(it->second._resourceHandle);
+
+        _deferredReleases.push_back(
+            DeferredRelease{.fenceValue = 0, .object = GPUObject{std::move(it->second)}});
+
+        _staticViews.erase(it);
+        return;
     }
-    _deferredReleases.push_back(guid);
+
+    if (guid._type == GPUViewHandle::ObjectType::FrameView)
+    {
+        auto it = _frameViews.find(guid);
+        if (it == _frameViews.end())
+            return;
+
+        if (destroyAssociatedResources && !it->second.empty())
+        {
+            requestDestroy(
+                it->second[0]
+                    ._resourceHandle);  // only one request because all views of FrameViews have the same ResourceHandle (FrameResourceHandle)
+        }
+
+        for (auto& v : it->second)
+        {
+            _deferredReleases.push_back(
+                DeferredRelease{.fenceValue = 0, .object = GPUObject{std::move(v)}});
+        }
+
+        _frameViews.erase(it);
+        return;
+    }
 }
 
-void ResourceManager::flushDeferredReleases()
+void ResourceManager::requestDestroy(GPUMeshViewHandle guid, bool destroyAssociatedResources)
 {
-    for (auto& handle : _deferredReleases)
+    _aliveGPUMeshViewHandle.erase(guid);
+
+    auto it = _staticMeshViews.find(guid);
+    if (it == _staticMeshViews.end())
+        return;
+
+    if (destroyAssociatedResources)
+        requestDestroy(it->second._resourceHandle);
+
+    _deferredReleases.push_back(
+        DeferredRelease{.fenceValue = 0, .object = GPUObject{std::move(it->second)}});
+
+    _staticMeshViews.erase(it);
+}
+
+void ResourceManager::flushDeferredReleases(ID3D12CommandQueue* commandQueue)
+{
+    if(_deferredReleases.empty()) return;
+    
+    // 1: signal if resource are used by gpu
+    bool hasPending = false;
+    for (const auto& e : _deferredReleases)
     {
-        std::visit(
-            overloaded{
-                [&](GPUResourceHandle& h)
-                {
-                    if (h._type == GPUResourceHandle::ObjectType::FrameResource)
-                    {
-                        auto resources = getFrameResource(h);
-                        if (resources.empty())
-                        {
-                            return;
-                        }
-                        for (auto* r : resources)
-                        {
-                            r->_resource.Reset();
-                        }
-                        _frameResource.erase(h);
-                    }
-                    else if (h._type == GPUResourceHandle::ObjectType::StaticResource)
-                    {
-                        auto resource = getStaticResource(h);
-                        resource->_resource.Reset();
-                        _staticResources.erase(h);
-                    }
-                },
-                [&](GPUViewHandle& h)
-                {
-                    auto descriptirHeapFree = [&](GPUView& view)
-                    {
-                        if (view._type == GPUView::Type::CBV || view._type == GPUView::Type::SRV ||
-                            view._type == GPUView::Type::UAV)
-                        {
-                            _descriptorHeapAllocator_CBV_SRV_UAV.free(*view._descriptorHandle);
-                        }
-                        else if (view._type == GPUView::Type::DSV)
-                        {
-                            _descriptorHeapAllocator_DSV.free(*view._descriptorHandle);
-                        }
-                        else if (view._type == GPUView::Type::RTV)
-                        {
-                            _descriptorHeapAllocator_RTV.free(*view._descriptorHandle);
-                        }
-                    };
-                    if (h._type == GPUViewHandle::ObjectType::FrameView)
-                    {
-                        auto views = getFrameView(h);
-                        if (views.empty())
-                        {
-                            return;
-                        }
-                        for (auto& view : views)
-                        {
-                            descriptirHeapFree(view);
-                        }
-                        _frameViews.erase(h);
-                    }
-                    else if (h._type == GPUViewHandle::ObjectType::StaticView)
-                    {
-                        auto& view = getStaticView(h);
-                        descriptirHeapFree(view);
-                        _staticViews.erase(h);
-                    }
-                },
-                [&](GPUMeshViewHandle& h)
-                {
-                    if (h._type == GPUMeshViewHandle::ObjectType::FrameMeshView)
-                    {
-                        // TODO
-                    }
-                    else
-                    {
-                    }
-                }},
-            handle);
+        if (e.fenceValue == 0) { hasPending = true; break; }
     }
+
+    uint64_t stampedValue = 0;
+    if (hasPending)
+        stampedValue = _fenceManager.signal(_fenceId, commandQueue);
+
+    if (stampedValue != 0)
+    {
+        for (auto& e : _deferredReleases)
+        {
+            if (e.fenceValue == 0)
+                e.fenceValue = stampedValue;
+        }
+    }
+
+    // 2: release not stamped resources
+    size_t write = 0;
+    for (size_t read = 0; read < _deferredReleases.size(); ++read)
+    {
+        auto& entry = _deferredReleases[read];
+
+        if (!_fenceManager.isFenceComplete(_fenceId, entry.fenceValue))
+        {
+            _deferredReleases[write++] = std::move(entry);
+            continue;
+        }
+
+        std::visit([this](auto& obj)
+        {
+            using T = std::decay_t<decltype(obj)>;
+            if constexpr (std::is_same_v<T, GPUView>)
+            {
+                releaseViewDescriptor(obj);
+            }
+        }, entry.object);
+    }
+
+    _deferredReleases.erase(_deferredReleases.begin() + static_cast<long long>(write), _deferredReleases.end());
 }
 
 GPUResource* ResourceManager::getStaticResource(RN n)
@@ -714,19 +782,19 @@ GPUResourceHandle ResourceManager::generateGUID(GPUResourceHandle::ObjectType ty
     if (name.has_value())
     {
         auto guid = GPUResourceHandle(type, name.value().data());
-        ThrowAssert(!_createdGPUResourceHandle.contains(guid), "Resource name already exists");
+        ThrowAssert(!_aliveGPUResourceHandle.contains(guid), "Resource name already exists");
         _nameToResourceGuidMap[name->data()] = guid;
-        _createdGPUResourceHandle.insert(guid);
+        _aliveGPUResourceHandle.insert(guid);
         return guid;
     }
     else
     {
         auto guid = GPUResourceHandle(type);
-        while (_createdGPUResourceHandle.contains(guid))
+        while (_aliveGPUResourceHandle.contains(guid))
         {
             guid = GPUResourceHandle(type);
         }
-        _createdGPUResourceHandle.insert(guid);
+        _aliveGPUResourceHandle.insert(guid);
         return guid;
     }
 }
@@ -737,19 +805,19 @@ GPUViewHandle ResourceManager::generateGUID(GPUViewHandle::ObjectType type,
     if (name.has_value())
     {
         auto guid = GPUViewHandle(type, name.value().data());
-        ThrowAssert(!_createdGPUViewHandle.contains(guid), "View name already exists");
+        ThrowAssert(!_aliveGPUViewHandle.contains(guid), "View name already exists");
         _nameToViewGuidMap[name->data()] = guid;
-        _createdGPUViewHandle.insert(guid);
+        _aliveGPUViewHandle.insert(guid);
         return guid;
     }
     else
     {
         auto guid = GPUViewHandle(type);
-        while (_createdGPUViewHandle.contains(guid))
+        while (_aliveGPUViewHandle.contains(guid))
         {
             guid = GPUViewHandle(type);
         }
-        _createdGPUViewHandle.insert(guid);
+        _aliveGPUViewHandle.insert(guid);
         return guid;
     }
 }
@@ -759,19 +827,19 @@ GPUMeshViewHandle ResourceManager::generateGUID(GPUMeshViewHandle::ObjectType ty
     if (name.has_value())
     {
         auto guid = GPUMeshViewHandle(type, name.value().data());
-        ThrowAssert(!_createdGPUMeshViewHandle.contains(guid), "View name already exists");
+        ThrowAssert(!_aliveGPUMeshViewHandle.contains(guid), "View name already exists");
         _nameToMeshViewGuidMap[name->data()] = guid;
-        _createdGPUMeshViewHandle.insert(guid);
+        _aliveGPUMeshViewHandle.insert(guid);
         return guid;
     }
     else
     {
         auto guid = GPUMeshViewHandle(type);
-        while (_createdGPUMeshViewHandle.contains(guid))
+        while (_aliveGPUMeshViewHandle.contains(guid))
         {
             guid = GPUMeshViewHandle(type);
         }
-        _createdGPUMeshViewHandle.insert(guid);
+        _aliveGPUMeshViewHandle.insert(guid);
         return guid;
     }
 }

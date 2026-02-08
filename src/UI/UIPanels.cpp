@@ -67,11 +67,11 @@ void UIPanels::DrawLeftPanel()
         {
             for (size_t i = 0; i < 100; ++i)
             {
-                for (size_t ii = 0; ii < 1; ++ii)
+                for (size_t ii = 0; ii < 100; ++ii)
                 {
                     auto h = _ctx._entityFactory->createStaticMesh(_ctx._scene->_registry, handle);
                     _ctx._systems->_transforms->translate(
-                        h, v3f(static_cast<float>(i) * 2, 0, static_cast<float>(ii) * 2));
+                        h, v3f(static_cast<float>(i) * 2, 0, -static_cast<float>(ii) * 2));
                 }
             }
         }

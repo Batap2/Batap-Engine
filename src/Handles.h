@@ -23,6 +23,10 @@ struct Handle
         : _type(type), _guid(hash64(name) ^ (uint64_t(type) * 0x9e3779b97f4a7c15ull))
     {}
 
+    bool valid() const {
+        return _guid != 0;
+    }
+
     bool operator==(const Handle& other) const
     {
         return _type == other._type && _guid == other._guid;
