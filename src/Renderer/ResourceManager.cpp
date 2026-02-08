@@ -4,12 +4,13 @@
 #include "EngineConfig.h"
 #include "Renderer/includeDX12.h"
 
-#include "DebugUtils.h"
 #include "CommandQueue.h"
+#include "DebugUtils.h"
 #include "FenceManager.h"
 #include "Handles.h"
 #include "ResourceFormatWrapper.h"
 #include "VariantUtils.h"
+
 
 #include <algorithm>
 #include <cstddef>
@@ -27,10 +28,14 @@ ResourceManager::ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& de
                                  FenceManager& fenceManager, uint32_t uploadBufferSize)
     : _device(device), _fenceManager(fenceManager)
 {
-    _descriptorHeapAllocator_CBV_SRV_UAV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorHeapAllocator_CBV_SRV_UAV_size);
-    _descriptorHeapAllocator_SAMPLER.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, DescriptorHeapAllocator_Sampler_size);
-    _descriptorHeapAllocator_RTV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DescriptorHeapAllocator_RTV_size);
-    _descriptorHeapAllocator_DSV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DescriptorHeapAllocator_DSV_size);
+    _descriptorHeapAllocator_CBV_SRV_UAV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                                              DescriptorHeapAllocator_CBV_SRV_UAV_size);
+    _descriptorHeapAllocator_SAMPLER.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
+                                          DescriptorHeapAllocator_Sampler_size);
+    _descriptorHeapAllocator_RTV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+                                      DescriptorHeapAllocator_RTV_size);
+    _descriptorHeapAllocator_DSV.init(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+                                      DescriptorHeapAllocator_DSV_size);
 
     for (size_t i = 0; i < FramesInFlight; ++i)
     {
@@ -378,9 +383,9 @@ GPUResourceHandle ResourceManager::createTexture2DFrameResource(
     if (flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)
     {
         clearValueData.Format = format;
-        clearValueData.Color[0] = 0.0f;
-        clearValueData.Color[1] = 0.0f;
-        clearValueData.Color[2] = 0.0f;
+        clearValueData.Color[0] = 0.2f;
+        clearValueData.Color[1] = 0.2f;
+        clearValueData.Color[2] = 0.2f;
         clearValueData.Color[3] = 1.0f;
         clearValue = &clearValueData;
     }
@@ -593,10 +598,12 @@ void ResourceManager::flushDeferredReleases()
                     if (h._type == GPUViewHandle::ObjectType::FrameView)
                     {
                         auto views = getFrameView(h);
-                        if(views.empty()){
+                        if (views.empty())
+                        {
                             return;
                         }
-                        for(auto& view : views){
+                        for (auto& view : views)
+                        {
                             descriptirHeapFree(view);
                         }
                         _frameViews.erase(h);

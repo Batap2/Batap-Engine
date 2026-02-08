@@ -129,9 +129,14 @@ target_compile_definitions(RayVox_Engine PRIVATE
 
 # Définir les drapeaux de compilation
 target_compile_options(RayVox_Engine PRIVATE
-  $<$<CONFIG:Release>:-O3>
-  $<$<CONFIG:RelWithDebInfo>:-O3>
+  $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:MSVC>>:/O2>
+  $<$<AND:$<CONFIG:RelWithDebInfo>,$<CXX_COMPILER_ID:MSVC>>:/O2>
 )
+
+if(WIN32)
+    add_compile_definitions(NOMINMAX)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN)  # bonus: réduit la taille des headers Windows
+endif()
 
 # Link
 target_link_libraries(RayVox_Engine PRIVATE

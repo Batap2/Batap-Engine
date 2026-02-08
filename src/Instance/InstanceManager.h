@@ -65,6 +65,7 @@ struct FrameInstancePool
 {
     static_assert(requires { typename type::GPUData; });
     static_assert(HasUsedComponents<type>);
+    using InstanceType = type;
     using Id = uint32_t;
 
     FrameInstancePool(ResourceManager& rm, size_t initPoolSize,
@@ -100,8 +101,6 @@ struct FrameInstancePool
         _pool[id]._gpuIndex = id;
 
         auto [it, inserted] = _dirtyComponents.emplace(e, FrameDirtyFlag{});
-        FrameDirtyFlag& flag = it->second;
-        flag.assignAll(_instanceUsedComponentFlag);
 
         return id;
     }
@@ -219,6 +218,6 @@ struct GPUInstanceManager
                                                              "StaticMeshInstancePool"};
 
     FrameInstancePool<CameraInstance> _cameraInstancesPool{_resourceManager, 1,
-                                                             "CameraInstancePool"};
+                                                           "CameraInstancePool"};
 };
 };  // namespace rayvox

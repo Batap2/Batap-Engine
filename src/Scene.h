@@ -12,7 +12,7 @@ namespace rayvox
 
 struct Scene
 {
-    Scene(Context& ctx) : _ctx(ctx), _instanceManager(*ctx._gpuInstanceManager.get()) {}
+    Scene(Context& ctx);
     virtual ~Scene() = default;
 
     virtual void update(float deltaTime) {}
@@ -40,7 +40,7 @@ struct Scene
         {
             if (ptr && instanceManager)
             {
-                instanceManager->markDirty(EntityHandle(e, r), ComponentToFlag<T>::value);
+                instanceManager->markDirty(EntityHandle(r, e), ComponentToFlag<T>::value);
             }
             // avoid double commit
             ptr = nullptr;

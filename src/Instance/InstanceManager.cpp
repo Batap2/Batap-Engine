@@ -11,12 +11,16 @@
 
 namespace rayvox
 {
-GPUInstanceManager::GPUInstanceManager(Context& ctx) : _ctx(ctx), _resourceManager(*ctx._renderer->_resourceManager) {};
+GPUInstanceManager::GPUInstanceManager(Context& ctx)
+    : _ctx(ctx), _resourceManager(*ctx._renderer->_resourceManager) {};
 
 void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
 {
     auto upload = [&](auto& frameInstancePool)
     {
+        using PoolT = std::remove_reference_t<decltype(frameInstancePool)>;
+        using InstanceT = typename PoolT::InstanceType;
+
         TempBytes<256> tmp;
         auto& map = frameInstancePool._dirtyComponents;
         for (auto it = map.begin(); it != map.end();)
@@ -25,8 +29,10 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
             FrameDirtyFlag& frameDirtyFlag = it->second;
             uint32_t dirtyComponentsFlag =
                 static_cast<uint32_t>(frameDirtyFlag._dirtyComponentsByFrame[frameIndex]);
-            if (dirtyComponentsFlag == 0)
+            if (dirtyComponentsFlag == 0){
+                ++it;
                 continue;
+            }
 
             auto* instance = frameInstancePool.getOrNull(entityHandle);
             if (!instance)
@@ -40,18 +46,18 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
                 size_t bitIndex = static_cast<size_t>(std::countr_zero(dirtyComponentsFlag));
                 dirtyComponentsFlag &= (dirtyComponentsFlag - 1u);  // set lsb 1 to 0
 
-                auto patchRange = InstancePatches<StaticMeshInstance>::byBit[bitIndex];
+                auto patchRange = InstancePatches<InstanceT>::byBit[bitIndex];
 
                 for (const PatchDesc& p : patchRange.patches)
                 {
                     std::byte* buf = tmp.get(p._size);
                     p.fill(_ctx, *entityHandle._reg, entityHandle._entity, buf);
 
-                    const uint32_t stride = sizeof(StaticMeshInstance::GPUData);
+                    const uint32_t stride = sizeof(typename InstanceT::GPUData);
                     const uint32_t byteOffset = instance->_gpuIndex * stride + p._offset;
 
                     auto span = _resourceManager.requestUploadOwned(
-                        frameInstancePool._instancePoolViewHandle, p._size, 256);
+                        frameInstancePool._instancePoolViewHandle, p._size, 4, byteOffset);
                     std::memcpy(span.data(), buf, p._size);
                 }
             }
@@ -67,6 +73,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
     };
 
     upload(_meshInstancesPool);
+    upload(_cameraInstancesPool);
 }
 
 void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag componentFlag)

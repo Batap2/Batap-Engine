@@ -222,7 +222,7 @@ void Renderer::initPsosAndShaders()
                                     D3D12_SHADER_VISIBILITY_ALL},  // Camera
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0,
                                     D3D12_SHADER_VISIBILITY_VERTEX},  // Mesh InstanceData
-                RootConstantsDesc{2, 0, 0}                            // indices : Camera, Mesh
+                RootConstantsDesc{2, 0, 0, D3D12_SHADER_VISIBILITY_ALL}                            // indices : Camera, Mesh
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 

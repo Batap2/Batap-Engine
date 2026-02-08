@@ -17,7 +17,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
     InitApp(hInstance, Ctx);
 
     MSG msg = {};
-
+    
     while (msg.message != WM_QUIT)
     {
         while (::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))

@@ -20,6 +20,8 @@
 #include <iostream>
 #include <vector>
 
+#pragma clang optimize off
+
 namespace rayvox
 {
 
@@ -107,7 +109,7 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager&
         std::string meshName = aiScene_mesh->mName.C_Str();
         auto ent = assetManager.emplaceMesh(sceneName + ":" + meshName);
 
-        if (ent._alreadyExist)
+        if (!ent._alreadyExist)
         {
             auto* newMesh = ent._mesh;
             {
@@ -119,7 +121,7 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager&
                 newMesh->_indexBuffer = rm->createStaticIBV(resourceGuid, ResourceFormat::R32_UINT,
                                                             "meshView_i", 0, bufSize);
 
-                auto dataSpan = rm->requestUploadOwned(resourceGuid, bufSize, 0);
+                auto dataSpan = rm->requestUploadOwned(resourceGuid, bufSize, 4);
                 std::memcpy(dataSpan.data(), indices.data(), bufSize);
             }
             {
@@ -131,10 +133,38 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager&
                 newMesh->_vertexBuffer =
                     rm->createStaticVBV(resourceGuid, sizeof(v3f), "meshView_v", 0, bufSize);
 
-                auto dataSpan =
-                    rm->requestUploadOwned(resourceGuid, bufSize, 0);
+                auto dataSpan = rm->requestUploadOwned(resourceGuid, bufSize, 0);
                 std::memcpy(dataSpan.data(), vertices.data(), bufSize);
             }
+            {
+                auto bufSize = sizeof(v3f) * normals.size();
+                auto resourceGuid =
+                    rm->createBufferStaticResource(bufSize, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   D3D12_HEAP_TYPE_DEFAULT, "meshResource_n");
+
+                newMesh->_normalBuffer =
+                    rm->createStaticVBV(resourceGuid, sizeof(v3f), "meshView_n", 0, bufSize);
+
+                auto dataSpan = rm->requestUploadOwned(resourceGuid, bufSize, 0);
+                std::memcpy(dataSpan.data(), vertices.data(), bufSize);
+            }
+            {
+                auto bufSize = sizeof(v2f) * uvs.size();
+                auto resourceGuid =
+                    rm->createBufferStaticResource(bufSize, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   D3D12_HEAP_TYPE_DEFAULT, "meshResource_uv");
+
+                newMesh->_uv0Buffer =
+                    rm->createStaticVBV(resourceGuid, sizeof(v3f), "meshView_uv", 0, bufSize);
+
+                auto dataSpan = rm->requestUploadOwned(resourceGuid, bufSize, 0);
+                std::memcpy(dataSpan.data(), vertices.data(), bufSize);
+            }
+
+            newMesh->_indexCount = static_cast<uint32_t>(indices.size());
+            newMesh->_vertexCount = static_cast<uint32_t>(vertices.size());
+
+            newMesh->_indexFormat = ResourceFormat::R32_UINT;
         }
 
         result.push_back(ent._handle);

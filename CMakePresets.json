@@ -61,6 +61,15 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "msvc-relwithdebinfo",
+            "displayName": "MSVC RelWithDebInfo",
+            "inherits": "windows-msvc-base",
+            "binaryDir": "${sourceDir}/build/relwithdebinfo",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
         }
     ],
     "buildPresets": [
@@ -81,6 +90,12 @@
             "displayName": "Build Release",
             "configurePreset": "msvc-release",
             "configuration": "Release"
+        },
+        {
+            "name": "msvc-relwithdebinfo",
+            "displayName": "Build RelWithDebInfo",
+            "configurePreset": "msvc-relwithdebinfo",
+            "configuration": "RelWithDebInfo"
         }
     ]
 }

@@ -22,12 +22,11 @@ static std::string_view extractExtension(std::string_view path)
 
 std::vector<AssetHandle> importFile(std::string_view path, AssetManager& assetM)
 {
-    static const auto* meshExtensions =
-        new std::unordered_set<std::string_view>{"obj", "fbx", "gltf", "glb"};
-
+    static constexpr std::array<std::string_view, 4> meshExtensions{"obj", "fbx", "gltf", "glb"};
     auto extension = extractExtension(path);
 
-    if (meshExtensions->contains(extension)){
+    if (std::find(meshExtensions.begin(), meshExtensions.end(), extension) != meshExtensions.end())
+    {
         return importMeshFromFile(path, assetM);
     }
 

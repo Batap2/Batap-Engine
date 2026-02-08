@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 
@@ -14,6 +15,7 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
 #include "Scene.h"
+#include "Systems/Systems.h"
 #include "TestScene.h"
 #include "UI/UIPanels.h"
 #include "WindowsUtils/FileDialog.h"
@@ -58,6 +60,7 @@ Context::Context()
     _lastTime = std::chrono::high_resolution_clock::now();
     _uiPanels = std::make_unique<UIPanels>(*this);
     _fileDialogMsgBus = std::make_unique<FileDialogMsgBus>();
+    _systems = std::make_unique<Systems>(*this);
 }
 
 Context::~Context() = default;
@@ -92,10 +95,12 @@ void Context::update()
     _renderer->beginImGuiFrame();
 
     _inputManager->DispatchEvents();
-    _inputManager->ClearFrameState();
 
     _scene->update(1);
+    _systems->update(_deltaTime, _scene->_registry);
     _sceneRenderer->uploadDirty(_renderer->_frameIndex);
+
+    _inputManager->ClearFrameState();
 
     _uiPanels->Draw();
 
@@ -107,5 +112,10 @@ void Context::render() {}
 v2i Context::getFrameSize()
 {
     return {_renderer->_width, _renderer->_height};
+}
+
+uint8_t Context::getFrameindex()
+{
+    return _renderer->_frameIndex;
 }
 }  // namespace rayvox

@@ -1,9 +1,9 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
-#include "Instance/EntityFactory.h"
 #include "EigenTypes.h"
 
 namespace rayvox
@@ -15,6 +15,8 @@ struct SceneRenderer;
 struct AssetManager;
 struct UIPanels;
 struct GPUInstanceManager;
+struct Systems;
+struct EntityFactory;
 
 template <typename... Msgs>
 struct TSMsgBus;
@@ -36,6 +38,7 @@ struct Context
     std::unique_ptr<GPUInstanceManager> _gpuInstanceManager;
     std::unique_ptr<EntityFactory> _entityFactory;
     std::unique_ptr<FileDialogMsgBus> _fileDialogMsgBus;
+    std::unique_ptr<Systems> _systems;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> _lastTime;
     float _deltaTime = 0;
@@ -45,5 +48,6 @@ struct Context
     void render();
 
     v2i getFrameSize();
+    uint8_t getFrameindex();
 };
 }  // namespace rayvox

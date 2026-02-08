@@ -1,13 +1,17 @@
 #include "SceneRenderer.h"
 #include <cstddef>
 #include <cstdint>
+#include "Assets/AssetManager.h"
+#include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
+#include "Components/EntityHandle.h"
 #include "Components/Mesh_C.h"
+#include "Components/RenderInstanceID_C.h"
+#include "Components/Transform_C.h"
+#include "Instance/InstanceManager.h"
 #include "Renderer/Renderer.h"
 #include "ResourceManager.h"
 #include "Scene.h"
-#include "Instance/InstanceManager.h"
-
 
 namespace rayvox
 {
@@ -32,28 +36,27 @@ void SceneRenderer::initRenderPasses()
                 auto* r = _ctx._renderer.get();
                 auto* rM = r->_resourceManager;
                 auto* psoM = r->_psoManager;
+                auto& assetM = _ctx._assetManager;
+
                 // Render target (couleur) + Depth
                 auto rtv_render3d = rM->getFrameView(RN::RTV_render_3d)[r->_frameIndex];
-                // auto dsv_depth =_resourceManager->getFrameView(RN::DSV_depth)[_frameIndex];
+                auto dsv_depth = rM->getFrameView(RN::DSV_render_3d)[r->_frameIndex];
 
                 // 1) Transitions vers états de rendu
                 rtv_render3d._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
-                // dsv_depth._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+                dsv_depth._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
                 // 2) Clear
-                const float clearColor[4] = {0.3f, 0.1f, 0.f, 1.f};
+                const float clearColor[4] = {0.2f, 0.2f, 0.2f, 1.f};
                 cmdList->ClearRenderTargetView(rtv_render3d._descriptorHandle->cpuHandle,
                                                clearColor, 0, nullptr);
 
-                // cmdList->ClearDepthStencilView(dsv_depth._descriptorHandle->cpuHandle,
-                //                                D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+                cmdList->ClearDepthStencilView(dsv_depth._descriptorHandle->cpuHandle,
+                                               D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
                 // 3) Bind RT/DS
-                // cmdList->OMSetRenderTargets(1, &rtv_render3d._descriptorHandle->cpuHandle, FALSE,
-                //                             &dsv_depth._descriptorHandle->cpuHandle);
-
                 cmdList->OMSetRenderTargets(1, &rtv_render3d._descriptorHandle->cpuHandle, FALSE,
-                                            nullptr);
+                                            &dsv_depth._descriptorHandle->cpuHandle);
 
                 D3D12_VIEWPORT vp{};
                 vp.TopLeftX = 0;
@@ -79,45 +82,60 @@ void SceneRenderer::initRenderPasses()
 
                 r->_psoManager->bindPipelineState(cmdList, toS(RN::pso_geometry_pass));
 
-                Camera_C* cam = nullptr;
-                _scene->_registry.view<Camera_C>().each(
-                    [&](entt::entity e, Camera_C& c)
+                EntityHandle cam;
+                _scene->_registry.view<Camera_C, Transform_C>().each(
+                    [&](entt::entity e, Camera_C& c, Transform_C& t)
                     {
                         if (c._active)
                         {
-                            cam = &c;
+                            cam = {&_scene->_registry, e};
                         }
                     });
-                if (!cam)
+                if (!cam.valid())
                     return;
 
-                auto& camBufferView =
-                    r->_resourceManager->getFrameView(cam->_buffer_ID)[r->_frameIndex];
-                camBufferView._resource->transitionTo(cmdList,
-                D3D12_RESOURCE_STATE_GENERIC_READ); cmdList->SetComputeRootDescriptorTable(0,
-                                                       camBufferView._descriptorHandle->gpuHandle);
+                auto camSRVHandle =
+                    r->_resourceManager->getFrameView(_ctx._gpuInstanceManager->_cameraInstancesPool
+                                                          ._instancePoolViewHandle)[frameIndex];
+                auto meshesSRVHandle =
+                    r->_resourceManager->getFrameView(_ctx._gpuInstanceManager->_meshInstancesPool
+                                                          ._instancePoolViewHandle)[frameIndex];
 
-                auto meshes = _scene->_registry.view<Mesh_C>();
+                cmdList->SetGraphicsRootDescriptorTable(0,
+                                                        camSRVHandle._descriptorHandle->gpuHandle);
+                cmdList->SetGraphicsRootDescriptorTable(
+                    1, meshesSRVHandle._descriptorHandle->gpuHandle);
+
+                uint32_t bindedConstants[2] = {
+                    _ctx._gpuInstanceManager->_cameraInstancesPool.get(cam)._gpuIndex, 0};
+
+                auto meshes = _scene->_registry.view<Mesh_C, RenderInstance_C>();
                 meshes.each(
-                    [&](entt::entity e, Mesh_C& meshC)
+                    [&](entt::entity e, Mesh_C& meshC, RenderInstance_C& renderInstanceC)
                     {
-                        // cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                        // cmdList->IASetVertexBuffers(0, 1, &meshC.vbview);
-                        // cmdList->IASetIndexBuffer(&meshC.ibview);
+                        auto& mesh = assetM->_meshes.at(meshC._mesh);
 
-                        // // Bind per-object (matrices, material, SRV, etc.)
-                        // // cmdList->SetGraphicsRootConstantBufferView(1, draw.cbObjectGpu);
-                        // // cmdList->SetGraphicsRootDescriptorTable(2, draw.materialSrvGpuHandle);
+                        cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-                        // cmdList->DrawIndexedInstanced(meshIndexCount, 1, 0, 0, 0);
+                        bindedConstants[1] = renderInstanceC._instanceID;
 
-                        // pour bind
-                        // cmdList->IASetIndexBuffer(&ibv);
-                        // D3D12_VERTEX_BUFFER_VIEW vbvs[3] = {posVBV, normalVBV, uvVBV};
-                        // cmdList->IASetVertexBuffers(0, 3, vbvs);
-                        // ou si on ne veux pas tout les buffer
-                        // cmdList->IASetVertexBuffers(0, 1, &posVBV);
-                        // cmdList->IASetVertexBuffers(2, 1, &uvVBV);
+                        cmdList->SetGraphicsRoot32BitConstants(2, 2, bindedConstants, 0);
+
+                        auto& ib = rM->getStaticMeshView(mesh->_indexBuffer);
+                        auto& vb = rM->getStaticMeshView(mesh->_vertexBuffer);
+                        auto& nb = rM->getStaticMeshView(mesh->_normalBuffer);
+                        auto& uvb = rM->getStaticMeshView(mesh->_uv0Buffer);
+
+                        D3D12_VERTEX_BUFFER_VIEW vbvs[3] = {
+                            vb.vbv,
+                            nb.vbv,
+                            uvb.vbv
+                        };
+
+                        cmdList->IASetIndexBuffer(&ib.ibv);
+                        cmdList->IASetVertexBuffers(0, 3, vbvs);
+
+                        cmdList->DrawIndexedInstanced(mesh->_indexCount, 1, 0, 0, 0);
                     });
 
                 // 9) Transition de sortie pour l’étape suivante

@@ -1,22 +1,18 @@
 struct CameraData
 {
-    float3  _pos;
-    float   _znear;
-    float3  _forward;
-    float   _zfar;
-    float3  _right;
-    float   _fov;
     float4x4 _view;
     float4x4 _proj;
+    float3 _pos;   float _znear;
+    float3 _right; float _zfar;
+    float3 _up;    float _fov;
 };
 
 struct InstanceData
 {
     float4x4 _world;
-    //float3x3 _normalMatrix;
 };
 
-StructuredBuffer<CameraData> CameraInstancebuffer :register(t0);
+StructuredBuffer<CameraData>   CameraInstancebuffer     : register(t0);
 StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
 
 cbuffer DrawParams : register(b0)
@@ -25,31 +21,41 @@ cbuffer DrawParams : register(b0)
     uint _instanceIndex;
 };
 
-struct VS_INPUT {
+struct VS_INPUT
+{
     float3 _position : POSITION;
-    float3 _normal : NORMAL;
-    float2 _uv : TEXCOORD0;
+    float3 _normal   : NORMAL;
+    float2 _uv       : TEXCOORD0;
 };
 
-struct VS_OUTPUT {
-    float4 _position : SV_POSITION;
-    float3 _normal : TEXCOORD0;
-    float2 _uv : TEXCOORD1;
+struct VS_OUTPUT
+{
+    float4 _position : SV_POSITION; // clip space
+    float3 _posWS    : TEXCOORD0;   // world position
+    float3 _nrmWS    : TEXCOORD1;   // world normal
+    float2 _uv       : TEXCOORD2;
 };
 
-VS_OUTPUT main(VS_INPUT input) {
-    VS_OUTPUT output;
+VS_OUTPUT main(VS_INPUT input)
+{
+    VS_OUTPUT o;
 
+    CameraData cam   = CameraInstancebuffer[_cameraIndex];
     InstanceData inst = StaticMeshInstancebuffer[_instanceIndex];
-    CameraData cam = CameraInstancebuffer[_cameraIndex];
 
-    float4 posWS = mul(float4(input._position, 1.0f), inst._world);
-    float4 posVS = mul(posWS, cam._view);
-    output._position   = mul(posVS, cam._proj);
+    // World position
+    float4 posWS4 = mul(inst._world, float4(input._position, 1.0f));
+    o._posWS = posWS4.xyz;
 
-    //output._normal = normalize(mul(input._normal, inst._normalMatrix));
-    output._normal = input._normal;
-    output._uv = input._uv;
+    // World normal (OK si pas de non-uniform scale ; sinon inverse-transpose)
+    float3 nrmWS = mul((float3x3)inst._world, input._normal);
+    o._nrmWS = normalize(nrmWS);
 
-    return output;
+    // Clip position
+    float4 posVS = mul(cam._view, posWS4);
+    o._position = mul(cam._proj, posVS);
+
+    o._uv = input._uv;
+
+    return o;
 }

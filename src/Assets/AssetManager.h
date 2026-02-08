@@ -2,9 +2,10 @@
 
 #include "Handles.h"
 
+#include "emhash/hash_table8.hpp"
+
 #include <memory>
 #include <optional>
-#include <unordered_map>
 
 
 namespace rayvox
@@ -13,12 +14,13 @@ namespace rayvox
 struct ResourceManager;
 struct Mesh;
 
+
 struct AssetManager
 {
     AssetManager(ResourceManager* rm);
     ~AssetManager();
 
-    std::unordered_map<AssetHandle, std::unique_ptr<Mesh>> _meshes;
+    emhash8::HashMap<AssetHandle, std::unique_ptr<Mesh>> _meshes;
 
     struct MeshEmplaceResult
     {

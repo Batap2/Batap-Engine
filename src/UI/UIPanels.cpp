@@ -1,11 +1,20 @@
 #include "UIPanels.h"
 
+#include "Assets/AssetManager.h"
+#include "Components/Transform_C.h"
 #include "Context.h"
+#include "Instance/EntityFactory.h"
+#include "Scene.h"
 #include "WindowsUtils/FileDialog.h"
+
+
+#include "Systems/Systems.h"
+#include "Systems/TransformSystem.h"
 
 #include "imgui.h"
 
 #include <algorithm>
+#include <cstddef>
 
 using namespace ImGui;
 
@@ -47,10 +56,27 @@ void UIPanels::DrawLeftPanel()
     ImGui::BeginChild("##LeftPanel", ImVec2(panelWidth, vp->Size.y), false,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    if (ImGui::Button("Debug Open Mesh"))
+    if (ImGui::Button("import mesh"))
     {
         OpenFilesDialogAsync({}, _ctx._fileDialogMsgBus.get());
     }
+    SameLine();
+    if (ImGui::Button("create mesh entity"))
+    {
+        for (auto& [handle, _] : _ctx._assetManager->_meshes)
+        {
+            for (size_t i = 0; i < 100; ++i)
+            {
+                for (size_t ii = 0; ii < 1; ++ii)
+                {
+                    auto h = _ctx._entityFactory->createStaticMesh(_ctx._scene->_registry, handle);
+                    _ctx._systems->_transforms->translate(
+                        h, v3f(static_cast<float>(i) * 2, 0, static_cast<float>(ii) * 2));
+                }
+            }
+        }
+    }
+
     ImGui::Separator();
 
     ImGui::EndChild();
@@ -61,7 +87,8 @@ void UIPanels::DrawLeftPanel()
     ImVec2 gripPos(panelWidth - resizeGrip, 0);
     ImGui::SetCursorPos(gripPos);
 
-    if(vp->Size.y != 0.0f){
+    if (vp->Size.y != 0.0f)
+    {
         ImGui::InvisibleButton("##LeftPanelResize", ImVec2(resizeGrip * 2.0f, vp->Size.y));
     }
 

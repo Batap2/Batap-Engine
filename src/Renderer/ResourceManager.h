@@ -3,7 +3,6 @@
 #include <vector>
 #include "EngineConfig.h"
 #include "magic_enum/magic_enum.hpp"
-#define NOMINMAX
 
 #include <wrl/client.h>
 #include "Renderer/includeDX12.h"
@@ -111,10 +110,11 @@ struct ResourceManager
     ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& device, FenceManager& fenceManager,
                     uint32_t uploadBufferSize);
 
-    static uint64_t AlignUp(uint64_t value, uint64_t alignment)
+    static uint64_t AlignUp(uint64_t v, uint64_t a)
     {
-        // alignment must be power of 2
-        return (value + alignment - 1) & ~(alignment - 1);
+        if (a <= 1)
+            return v;
+        return (v + (a - 1)) & ~(a - 1);
     }
 
     struct UploadBuffer
@@ -293,12 +293,12 @@ struct ResourceManager
     GPUResource* getStaticResource(GPUResourceHandle& guid);
     std::vector<GPUResource*> getFrameResource(RN n);
     std::vector<GPUResource*> getFrameResource(GPUResourceHandle& guid);
-    
+
     GPUView& getStaticView(RN n);
     GPUView& getStaticView(GPUViewHandle& guid);
     std::vector<GPUView>& getFrameView(RN n);
     std::vector<GPUView>& getFrameView(GPUViewHandle& guid);
-    
+
     GPUMeshView& getStaticMeshView(RN n);
     GPUMeshView& getStaticMeshView(GPUMeshViewHandle& guid);
 

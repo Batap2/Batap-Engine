@@ -8,12 +8,15 @@
 #include "EigenTypes.h"
 #include "Handles.h"
 
-
 #include "entt/entt.hpp"
 
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <iostream>
+
+#pragma clang optimize off
 
 namespace rayvox
 {
@@ -63,7 +66,7 @@ struct StaticMeshInstance
 
     struct GPUData  // needs to be multiple of 4
     {
-        m4f _world;
+        float _world[16];
     };
 };
 
@@ -76,11 +79,14 @@ struct CameraInstance
 
     struct GPUData  // needs to be multiple of 4
     {
+        float _view[16];
+        float _proj[16];
+        float _pos[3];
         float _znear;
+        float _right[3];
         float _zfar;
+        float _up[3];
         float _fov;
-        m4f _view;
-        m4f _proj;
     };
 };
 
@@ -97,6 +103,7 @@ struct InstancePatches<StaticMeshInstance>
 
         auto* out = reinterpret_cast<m4f*>(dst);
         *out = t->worldMatrix();
+        volatile auto a = out;
     }
 
     static constexpr PatchDesc _transformPatches[] = {
@@ -130,14 +137,26 @@ struct InstancePatches<CameraInstance>
 
         if (transC)
         {
-            out->_view = camC->make_view(transC->world());
+            auto worldM = transC->world();
+            auto view = camC->make_view(worldM);
+            std::memcpy(out->_view, view.data(), sizeof(out->_view));
             auto frameSize = ctx.getFrameSize();
-            out->_proj = camC->make_proj(static_cast<float>(frameSize.x()) /
-                                         static_cast<float>(frameSize.y()));
+            auto aspect = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
+
+            auto proj = camC->make_proj(aspect);
+            std::memcpy(out->_proj, proj.data(), sizeof(out->_proj));
+            
+            v3f pos = worldM.translation();
+            v3f right = worldM.linear().col(0).normalized();
+            v3f up = worldM.linear().col(1).normalized();
+
+            std::memcpy(out->_pos, pos.data(), 3*sizeof(float));
+            std::memcpy(out->_right, right.data(), 3*sizeof(float));
+            std::memcpy(out->_up, up.data(), 3*sizeof(float));
         }
     }
 
-    static constexpr PatchDesc _transformPatches[] = {
+    static constexpr PatchDesc _cameraPatches[] = {
         PatchDesc{._offset = 0,
                   ._size = static_cast<uint32_t>(sizeof(CameraInstance::GPUData)),
                   .fill = &fillCamData}};
@@ -145,7 +164,8 @@ struct InstancePatches<CameraInstance>
     static constexpr std::array<PatchRange, 32> byBit = []()
     {
         std::array<PatchRange, 32> t{};
-        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatches};
+        t[flagToIndex(ComponentFlag::Camera)] = PatchRange{_cameraPatches};
+        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_cameraPatches};
         return t;
     }();
 };

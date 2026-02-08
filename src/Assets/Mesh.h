@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include "Renderer/ResourceFormatWrapper.h"
 #include "Handles.h"
 
