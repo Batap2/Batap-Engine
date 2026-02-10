@@ -58,37 +58,38 @@ struct InstancePatches;
 
 // ----------- Instances :
 
-struct StaticMeshInstance
+template <class GPUDataT, ComponentFlag UsedFlags>
+struct GPUInstanceBase
 {
-    static constexpr ComponentFlag UsedComposents = ComponentFlag::Transform;
+    static constexpr ComponentFlag UsedComposents = UsedFlags;
+    uint32_t _gpuIndex = 0;
+    using GPUData = GPUDataT;
 
-    uint32_t _gpuIndex;
-
-    struct GPUData  // needs to be multiple of 4
-    {
-        float _world[16];
-    };
+    static_assert(std::is_trivially_copyable_v<GPUDataT>);
+    static_assert((sizeof(GPUDataT) % 4) == 0); 
 };
 
-struct CameraInstance
+struct StaticMeshGPUData
 {
-    static constexpr ComponentFlag UsedComposents = ComponentFlag::Transform |
-                                                    ComponentFlag::Camera;
-
-    uint32_t _gpuIndex;
-
-    struct GPUData  // needs to be multiple of 4
-    {
-        float _view[16];
-        float _proj[16];
-        float _pos[3];
-        float _znear;
-        float _right[3];
-        float _zfar;
-        float _up[3];
-        float _fov;
-    };
+    float _world[16];
 };
+
+using StaticMeshInstance = GPUInstanceBase<StaticMeshGPUData, ComponentFlag::Transform>;
+
+struct CameraGPUData
+{
+    float _view[16];
+    float _proj[16];
+    float _pos[3];
+    float _znear;
+    float _right[3];
+    float _zfar;
+    float _up[3];
+    float _fov;
+};
+
+using CameraInstance =
+    GPUInstanceBase<CameraGPUData, ComponentFlag::Transform | ComponentFlag::Camera>;
 
 // ----------- InstancePatches : How to get components data
 
@@ -145,14 +146,14 @@ struct InstancePatches<CameraInstance>
 
             auto proj = camC->make_proj(aspect);
             std::memcpy(out->_proj, proj.data(), sizeof(out->_proj));
-            
+
             v3f pos = worldM.translation();
             v3f right = worldM.linear().col(0).normalized();
             v3f up = worldM.linear().col(1).normalized();
 
-            std::memcpy(out->_pos, pos.data(), 3*sizeof(float));
-            std::memcpy(out->_right, right.data(), 3*sizeof(float));
-            std::memcpy(out->_up, up.data(), 3*sizeof(float));
+            std::memcpy(out->_pos, pos.data(), 3 * sizeof(float));
+            std::memcpy(out->_right, right.data(), 3 * sizeof(float));
+            std::memcpy(out->_up, up.data(), 3 * sizeof(float));
         }
     }
 
