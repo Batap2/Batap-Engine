@@ -13,7 +13,7 @@
 #include "ResourceManager.h"
 #include "Scene.h"
 
-namespace rayvox
+namespace batap
 {
 
 void SceneRenderer::loadScene(Scene* scene)
@@ -126,11 +126,7 @@ void SceneRenderer::initRenderPasses()
                         auto& nb = rM->getStaticMeshView(mesh->_normalBuffer);
                         auto& uvb = rM->getStaticMeshView(mesh->_uv0Buffer);
 
-                        D3D12_VERTEX_BUFFER_VIEW vbvs[3] = {
-                            vb.vbv,
-                            nb.vbv,
-                            uvb.vbv
-                        };
+                        D3D12_VERTEX_BUFFER_VIEW vbvs[3] = {vb.vbv, nb.vbv, uvb.vbv};
 
                         cmdList->IASetIndexBuffer(&ib.ibv);
                         cmdList->IASetVertexBuffers(0, 3, vbvs);
@@ -187,4 +183,4 @@ void SceneRenderer::initRenderPasses()
     //                               r->_threadGroupCountZ);
     //         });
 }
-}  // namespace rayvox
+}  // namespace batap

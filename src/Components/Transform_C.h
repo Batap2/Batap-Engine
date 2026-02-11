@@ -3,7 +3,7 @@
 #include "Components/EntityHandle.h"
 #include "EigenTypes.h"
 
-namespace rayvox
+namespace batap
 {
 
 struct TransformSystem;
@@ -74,4 +74,4 @@ struct Transform_C
         return quatf(R).normalized();
     }
 };
-}  // namespace rayvox
+}  // namespace batap

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace rayvox
+namespace batap
 {
 template <class... Ts>
 struct overloaded : Ts...
@@ -10,4 +10,4 @@ struct overloaded : Ts...
 // explicit deduction guide (not needed as of C++20)
 template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
-}  // namespace rayvox
+}  // namespace batap

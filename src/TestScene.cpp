@@ -3,7 +3,6 @@
 #include "Components/Transform_C.h"
 #include "InputManager.h"
 
-
 #include "Systems/Systems.h"
 #include "Systems/TransformSystem.h"
 
@@ -12,7 +11,7 @@
 
 #include <numbers>
 
-namespace rayvox
+namespace batap
 {
 TestScene::TestScene(Context& ctx) : Scene(ctx)
 {
@@ -51,6 +50,5 @@ void TestScene::update(float deltaTime)
     {
         _ctx._systems->_transforms->translate(_camera, v3f(0, 0, -ts));
     }
-    
 }
-}  // namespace rayvox
+}  // namespace batap

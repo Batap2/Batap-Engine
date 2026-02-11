@@ -3,7 +3,7 @@
 #include "Components/ComponentFlag.h"
 #include "Components/Transform_C.h"
 
-namespace rayvox
+namespace batap
 {
 template <typename C>
 struct ComponentToFlag
@@ -16,4 +16,4 @@ struct ComponentToFlag<Transform_C>
 {
     static constexpr ComponentFlag value = ComponentFlag::Transform;
 };
-}  // namespace rayvox
+}  // namespace batap

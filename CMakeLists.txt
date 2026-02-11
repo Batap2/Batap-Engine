@@ -14,7 +14,7 @@ endif()
 # ------------------------------------------------------------------------------
 # Project
 # ------------------------------------------------------------------------------
-project(RayVox-Engine LANGUAGES C CXX)
+project(Batap-Engine LANGUAGES C CXX)
 
 # ------------------------------------------------------------------------------
 # Global settings (keep minimal; prefer target_* when possible)
@@ -77,14 +77,14 @@ list(APPEND source_files ${IMGUI_SOURCES})
 # Targets
 # ------------------------------------------------------------------------------
 
-add_executable(RayVox_Engine WIN32
+add_executable(Batap_Engine WIN32
   ${source_files}
   resources.rc
 )
 
-add_library(rayvox_warnings INTERFACE)
+add_library(batap_warnings INTERFACE)
 
-target_compile_options(rayvox_warnings INTERFACE
+target_compile_options(batap_warnings INTERFACE
   -Weverything
   -Werror
   -Wno-c++98-compat
@@ -106,11 +106,11 @@ target_compile_options(rayvox_warnings INTERFACE
 # Target includes / defs / options / links
 # ------------------------------------------------------------------------------
 
-target_include_directories(RayVox_Engine PRIVATE
+target_include_directories(Batap_Engine PRIVATE
   "${source_dir}"
 )
 
-target_include_directories(RayVox_Engine SYSTEM PRIVATE
+target_include_directories(Batap_Engine SYSTEM PRIVATE
   "${include_dir}"
   "${include_dir}/DirectX-Headers/include"
   "${include_dir}/eigen"
@@ -122,13 +122,13 @@ target_include_directories(RayVox_Engine SYSTEM PRIVATE
 )
 
 # Définir _DEBUG pour les builds Debug
-target_compile_definitions(RayVox_Engine PRIVATE
+target_compile_definitions(Batap_Engine PRIVATE
   $<$<CONFIG:Debug>:_DEBUG>
-  RAYVOX_ROOT_DIR="${CMAKE_SOURCE_DIR}"
+  BATAP_ROOT_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 # Définir les drapeaux de compilation
-target_compile_options(RayVox_Engine PRIVATE
+target_compile_options(Batap_Engine PRIVATE
   $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:MSVC>>:/O2>
   $<$<AND:$<CONFIG:RelWithDebInfo>,$<CXX_COMPILER_ID:MSVC>>:/O2>
 )
@@ -139,8 +139,8 @@ if(WIN32)
 endif()
 
 # Link
-target_link_libraries(RayVox_Engine PRIVATE
-  rayvox_warnings
+target_link_libraries(Batap_Engine PRIVATE
+  batap_warnings
   d3d12.lib
   dxgi.lib
   dxguid.lib

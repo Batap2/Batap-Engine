@@ -9,7 +9,7 @@
 #include <memory>
 #include <vector>
 
-namespace rayvox
+namespace batap
 {
 struct RenderPass
 {
@@ -69,16 +69,16 @@ struct RenderGraph
 
             if (!queue->isCommandComplete(cmd))
                 continue;
-            
+
             cmd._commandAllocator->Reset();
             cmd._commandList->Reset(cmd._commandAllocator.Get(), nullptr);
-            
+
             if (queue->_commandListType == D3D12_COMMAND_LIST_TYPE_DIRECT)
             {
                 _resourceManager->flushUploadRequests(cmd._commandList.Get(),
                                                       queue->_commandQueue.Get(), frameIndex);
             }
-            
+
             for (auto& pass : _passes)
             {
                 if (pass._commandListType != queue->_commandListType)
@@ -113,4 +113,4 @@ struct RenderGraph
     std::vector<RenderPass> _passes;
     ResourceManager* _resourceManager;
 };
-}  // namespace rayvox
+}  // namespace batap

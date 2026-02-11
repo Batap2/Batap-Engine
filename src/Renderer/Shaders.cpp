@@ -11,7 +11,7 @@
 #include <memory>
 #include <string>
 
-namespace rayvox
+namespace batap
 {
 
 Shader::Shader(std::string_view entryPoint, std::string_view target)
@@ -210,4 +210,4 @@ void PipelineStateManager::resetLastBound()
     _lastBoundRootSignature = nullptr;
 }
 
-}  // namespace rayvox
+}  // namespace batap

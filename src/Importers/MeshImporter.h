@@ -5,9 +5,8 @@
 
 #include <string_view>
 
-namespace rayvox
+namespace batap
 {
 struct AssetManager;
-std::vector<AssetHandle> importMeshFromFile(std::string_view path,
-                                                   AssetManager& assetManager);
-}  // namespace rayvox
+std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager& assetManager);
+}  // namespace batap

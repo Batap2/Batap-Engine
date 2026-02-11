@@ -6,13 +6,14 @@
 
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
-#include "Renderer/includeDX12.h"
 #include "FenceManager.h"
 #include "RenderGraph.h"
+#include "Renderer/includeDX12.h"
 #include "ResourceManager.h"
 #include "Shaders.h"
 
-namespace rayvox
+
+namespace batap
 {
 struct Renderer
 {
@@ -56,7 +57,8 @@ struct Renderer
     bool setTearingFlag();
 
     HRESULT compileShaderFromFile(const std::wstring& filename, const std::string& entryPoint,
-                                  const std::string& target, Microsoft::WRL::ComPtr<ID3DBlob>& shaderBlob);
+                                  const std::string& target,
+                                  Microsoft::WRL::ComPtr<ID3DBlob>& shaderBlob);
 
     void flush();
 
@@ -69,4 +71,4 @@ struct Renderer
     void render();
     void beginImGuiFrame();
 };
-}  // namespace rayvox
+}  // namespace batap

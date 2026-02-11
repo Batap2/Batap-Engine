@@ -3,7 +3,7 @@
 #include <magic_enum/magic_enum.hpp>
 #include <string_view>
 
-namespace rayvox
+namespace batap
 {
 enum class RN
 {
@@ -52,4 +52,4 @@ inline const std::string& toS(RN n)
     return names[static_cast<size_t>(n)];
 #pragma clang diagnostic push
 }
-}  // namespace rayvox
+}  // namespace batap

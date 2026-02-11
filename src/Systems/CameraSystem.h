@@ -1,5 +1,5 @@
-namespace rayvox
+namespace batap
 {
 struct CameraSystem
 {};
-}  // namespace rayvox
+}  // namespace batap

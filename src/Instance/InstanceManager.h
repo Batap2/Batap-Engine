@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace rayvox
+namespace batap
 {
 struct FrameDirtyFlag
 {
@@ -167,7 +167,8 @@ struct FrameInstancePool
 
     void createGPUResourcesAndViews()
     {
-        if(_instancePoolViewHandle.valid()){
+        if (_instancePoolViewHandle.valid())
+        {
             _resourceManager.requestDestroy(_instancePoolViewHandle, true);
         }
 
@@ -226,4 +227,4 @@ struct GPUInstanceManager
     FrameInstancePool<CameraInstance> _cameraInstancesPool{_resourceManager, 1,
                                                            "CameraInstancePool"};
 };
-};  // namespace rayvox
+};  // namespace batap

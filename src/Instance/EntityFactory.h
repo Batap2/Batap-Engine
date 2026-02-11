@@ -5,17 +5,17 @@
 
 #include <entt/entt.hpp>
 
-namespace rayvox
+namespace batap
 {
 
-    struct GPUInstanceManager;
+struct GPUInstanceManager;
 
-    struct EntityFactory{
+struct EntityFactory
+{
+    GPUInstanceManager& _instanceManager;
 
-        GPUInstanceManager& _instanceManager;
-
-        EntityFactory(GPUInstanceManager& instanceManager);
-        EntityHandle createStaticMesh(entt::registry& reg, AssetHandle handle);
-        EntityHandle createCamera(entt::registry& reg);
-    };
-}  // namespace rayvox
+    EntityFactory(GPUInstanceManager& instanceManager);
+    EntityHandle createStaticMesh(entt::registry& reg, AssetHandle handle);
+    EntityHandle createCamera(entt::registry& reg);
+};
+}  // namespace batap

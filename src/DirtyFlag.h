@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace rayvox
+namespace batap
 {
 namespace detail
 {
@@ -157,5 +157,4 @@ struct DirtyFlag
         }
     }
 };
-
-}  // namespace rayvox
+}  // namespace batap

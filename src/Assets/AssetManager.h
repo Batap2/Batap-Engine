@@ -7,13 +7,11 @@
 #include <memory>
 #include <optional>
 
-
-namespace rayvox
+namespace batap
 {
 
 struct ResourceManager;
 struct Mesh;
-
 
 struct AssetManager
 {
@@ -32,4 +30,4 @@ struct AssetManager
 
     ResourceManager* _resourceManager;
 };
-}  // namespace rayvox
+}  // namespace batap

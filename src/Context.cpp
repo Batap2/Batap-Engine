@@ -50,7 +50,7 @@ static void printDeltaTime(float dt)
     }
 }
 
-namespace rayvox
+namespace batap
 {
 Context::Context()
 {
@@ -118,4 +118,4 @@ uint8_t Context::getFrameindex()
 {
     return _renderer->_frameIndex;
 }
-}  // namespace rayvox
+}  // namespace batap

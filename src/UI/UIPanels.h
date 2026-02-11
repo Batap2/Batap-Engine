@@ -2,7 +2,7 @@
 
 #include "Context.h"
 
-namespace rayvox
+namespace batap
 {
 struct UIPanels
 {
@@ -12,4 +12,4 @@ struct UIPanels
 
     Context& _ctx;
 };
-}  // namespace rayvox
+}  // namespace batap

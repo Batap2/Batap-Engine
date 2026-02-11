@@ -54,7 +54,7 @@ if "%DO_CONFIGURE%"=="1" (
 REM --- build (fast path) ---
 echo [INFO] Building...
 
-set "LOGFILE=%TEMP%\rayvox_build_%RANDOM%.log"
+set "LOGFILE=%TEMP%\BatapEngine_build_%RANDOM%.log"
 
 cmake --build --preset %PRESET% > "%LOGFILE%" 2>&1
 set "BUILD_RC=%ERRORLEVEL%"

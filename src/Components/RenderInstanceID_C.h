@@ -4,11 +4,11 @@
 
 #include <cstdint>
 
-namespace rayvox
+namespace batap
 {
 struct RenderInstance_C
 {
     InstanceKind _kind;
     uint32_t _instanceID;
 };
-}  // namespace rayvox
+}  // namespace batap

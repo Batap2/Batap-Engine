@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rayvox
+namespace batap
 {
 enum class ComponentFlag : uint32_t
 {
@@ -32,6 +32,4 @@ constexpr bool any(ComponentFlag f)
     return static_cast<uint32_t>(f) != 0;
 }
 
-
-
-}  // namespace rayvox
+}  // namespace batap

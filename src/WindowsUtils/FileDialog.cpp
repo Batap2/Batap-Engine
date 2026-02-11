@@ -7,7 +7,7 @@
 #include <string>
 #include <thread>
 
-namespace rayvox
+namespace batap
 {
 
 static std::wstring ToW(std::string_view s)
@@ -112,4 +112,4 @@ void OpenFilesDialogAsync(std::span<const FileDialogFilter> filters, FileDialogM
         .detach();
 }
 
-}  // namespace rayvox
+}  // namespace batap

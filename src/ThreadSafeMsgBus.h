@@ -4,7 +4,7 @@
 #include <queue>
 #include <variant>
 
-namespace rayvox
+namespace batap
 {
 
 template <typename... Msgs>
@@ -60,5 +60,4 @@ struct TSMsgBus
     std::atomic<bool> _has{false};
 };
 
-}  // namespace rayvox
-
+}  // namespace batap

@@ -3,19 +3,21 @@
 #include <handleapi.h>
 
 #include <cstdint>
-#include <string>
 #include <iostream>
+#include <string>
+
 
 #include "DebugUtils.h"
-#include "Renderer/includeDX12.h"
 #include "FenceManager.h"
+#include "Renderer/includeDX12.h"
 
-namespace rayvox
+
+namespace batap
 {
 CommandQueue::CommandQueue(Microsoft::WRL::ComPtr<ID3D12Device2>& device,
                            FenceManager& fenceManager_, D3D12_COMMAND_LIST_TYPE type,
                            uint32_t allocatorNumber)
-    : _commandListType(type) , _device(device), _fenceManager(fenceManager_)
+    : _commandListType(type), _device(device), _fenceManager(fenceManager_)
 {
     D3D12_COMMAND_QUEUE_DESC desc = {};
     desc.Type = type;
@@ -66,7 +68,7 @@ bool CommandQueue::isCommandComplete(Command& cmd) const
 uint64_t CommandQueue::executeCommand(uint32_t index)
 {
     auto& cmd = _commands[index];
-    
+
     HRESULT hr = cmd._commandList->Close();
     if (FAILED(hr))
     {
@@ -93,4 +95,4 @@ void CommandQueue::flush()
 {
     _fenceManager.flushQueue(_commandQueue.Get());
 }
-}  // namespace rayvox
+}  // namespace batap

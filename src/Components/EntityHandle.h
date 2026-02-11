@@ -4,7 +4,7 @@
 #include <functional>
 #include "DebugUtils.h"
 
-namespace rayvox
+namespace batap
 {
 struct EntityHandle
 {
@@ -42,14 +42,14 @@ struct EntityHandle
         return _reg->get<T>(_entity);
     }
 };
-}  // namespace rayvox
+}  // namespace batap
 
 namespace std
 {
 template <>
-struct hash<rayvox::EntityHandle>
+struct hash<batap::EntityHandle>
 {
-    std::size_t operator()(const rayvox::EntityHandle& e) const noexcept
+    std::size_t operator()(const batap::EntityHandle& e) const noexcept
     {
         std::size_t h1 = std::hash<entt::entity>{}(e._entity);
         std::size_t h2 = std::hash<const entt::registry*>{}(e._reg);

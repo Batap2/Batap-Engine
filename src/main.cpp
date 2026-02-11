@@ -7,7 +7,7 @@
 #include "Context.h"
 #include "Renderer/Renderer.h"
 
-using namespace rayvox;
+using namespace batap;
 
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
@@ -17,7 +17,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
     InitApp(hInstance, Ctx);
 
     MSG msg = {};
-    
+
     while (msg.message != WM_QUIT)
     {
         while (::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))

@@ -3,14 +3,12 @@
 #include <entt/entt.hpp>
 #include <vector>
 
-
 #include "Components/EntityHandle.h"
 #include "Components/Transform_C.h"
 #include "Context.h"
 #include "EigenTypes.h"
 
-
-namespace rayvox
+namespace batap
 {
 
 enum class Space
@@ -54,4 +52,4 @@ struct TransformSystem
 
     static void ensure_chain_up_to_date(EntityHandle e, Context& ctx);
 };
-}  // namespace rayvox
+}  // namespace batap

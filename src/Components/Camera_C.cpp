@@ -1,6 +1,6 @@
 #include "Camera_C.h"
 
-namespace rayvox
+namespace batap
 {
 m4f Camera_C::make_proj(float aspect) const
 {
@@ -28,4 +28,4 @@ m4f Camera_C::make_view(const transform& worldFromCamera) const
 {
     return worldFromCamera.inverse().matrix();
 }
-}  // namespace rayvox
+}  // namespace batap

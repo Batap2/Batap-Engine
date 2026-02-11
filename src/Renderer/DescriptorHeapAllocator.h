@@ -11,7 +11,7 @@
 
 #include "Descriptorhandle.h"
 
-namespace rayvox
+namespace batap
 {
 struct DescriptorHeapAllocator
 {
@@ -24,10 +24,11 @@ struct DescriptorHeapAllocator
 
     std::unordered_map<UINT, DescriptorHandle*> createdDescriptorHandles;
 
-    void init(Microsoft::WRL::ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type_, UINT numDescriptors);
+    void init(Microsoft::WRL::ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type_,
+              UINT numDescriptors);
 
     DescriptorHandle* alloc();
     void free(const DescriptorHandle& desc);
     void free(UINT heapIdx);
 };
-}  // namespace rayvox
+}  // namespace batap

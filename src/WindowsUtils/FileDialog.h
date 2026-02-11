@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace rayvox
+namespace batap
 {
 
 struct FileDialogFilter
@@ -18,9 +18,8 @@ struct FileDialogFilter
 using FileDialogMsg = std::vector<std::string>;
 using FileDialogMsgBus = TSMsgBus<FileDialogMsg>;
 
-std::vector<std::string>
-OpenFilesDialog(std::span<const FileDialogFilter> filters = {});
+std::vector<std::string> OpenFilesDialog(std::span<const FileDialogFilter> filters = {});
 
 void OpenFilesDialogAsync(std::span<const FileDialogFilter> filters, FileDialogMsgBus* bus);
 
-}  // namespace rayvox
+}  // namespace batap

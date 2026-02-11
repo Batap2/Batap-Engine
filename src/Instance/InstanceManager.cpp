@@ -9,7 +9,7 @@
 #include "Renderer/ResourceManager.h"
 #include "instanceDeclaration.h"
 
-namespace rayvox
+namespace batap
 {
 GPUInstanceManager::GPUInstanceManager(Context& ctx)
     : _ctx(ctx), _resourceManager(*ctx._renderer->_resourceManager) {};
@@ -29,7 +29,8 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
             FrameDirtyFlag& frameDirtyFlag = it->second;
             uint32_t dirtyComponentsFlag =
                 static_cast<uint32_t>(frameDirtyFlag._dirtyComponentsByFrame[frameIndex]);
-            if (dirtyComponentsFlag == 0){
+            if (dirtyComponentsFlag == 0)
+            {
                 ++it;
                 continue;
             }
@@ -92,4 +93,4 @@ void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag com
             break;
     }
 }
-}  // namespace rayvox
+}  // namespace batap

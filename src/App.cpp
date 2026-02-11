@@ -15,7 +15,7 @@
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam,
                                                              LPARAM lParam);
 
-namespace rayvox
+namespace batap
 {
 HWND createWindow(const wchar_t* windowClassName, HINSTANCE hInst, const wchar_t* windowTitle,
                   uint32_t width, uint32_t height)
@@ -268,10 +268,10 @@ void InitApp(HINSTANCE hInstance, Context& ctx)
     // be rendered in a DPI sensitive fashion.
     SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
-    const wchar_t* windowClassName = L"rayvox-Engine";
+    const wchar_t* windowClassName = L"Batap Engine";
 
     RegisterWindowClass(hInstance, windowClassName);
-    hWnd = createWindow(windowClassName, hInstance, L"rayvox-Engine", clientWidth, clientHeight);
+    hWnd = createWindow(windowClassName, hInstance, L"Batap Engine", clientWidth, clientHeight);
 
     // Initialize the global window rect variable.
     ::GetWindowRect(hWnd, &windowRect);
@@ -288,4 +288,4 @@ void InitApp(HINSTANCE hInstance, Context& ctx)
     SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&ctx));
     AppInitialized = true;
 }
-}  // namespace rayvox
+}  // namespace batap

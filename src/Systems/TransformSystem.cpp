@@ -7,7 +7,7 @@
 
 #include <algorithm>
 
-namespace rayvox
+namespace batap
 {
 
 // --------- ensure chain (root->...->e) ---------
@@ -121,7 +121,7 @@ void TransformSystem::translate(EntityHandle h, const v3f& vec, Space space)
             const entt::entity p = to_entity(t._parent);
             if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
             {
-                //ensure_chain_up_to_date(EntityHandle{&reg, p});
+                // ensure_chain_up_to_date(EntityHandle{&reg, p});
                 const transform& pw = reg.get<Transform_C>(p)._world;
                 const transform inv = pw.inverse();
                 t._localPosition += (inv * vec);
@@ -160,7 +160,7 @@ void TransformSystem::rotate(EntityHandle h, const quatf& delta, Space space)
             const entt::entity p = to_entity(t._parent);
             if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
             {
-                //ensure_chain_up_to_date(EntityHandle{&reg, p});
+                // ensure_chain_up_to_date(EntityHandle{&reg, p});
                 const quatf Qp = Transform_C::extractWorldRotation(reg.get<Transform_C>(p)._world);
                 t._localRotation = (Qp.conjugate() * d * Qp * t._localRotation).normalized();
             }
@@ -390,4 +390,4 @@ void TransformSystem::update(entt::registry& reg, Context& ctx)
     flushDirty(reg, ctx);
 }
 
-}  // namespace rayvox
+}  // namespace batap

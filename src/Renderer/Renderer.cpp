@@ -28,7 +28,7 @@
 
 #include "tracy/public/tracy/Tracy.hpp"
 
-namespace rayvox
+namespace batap
 {
 
 struct ImguiUserData
@@ -221,8 +221,8 @@ void Renderer::initPsosAndShaders()
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0,
                                     D3D12_SHADER_VISIBILITY_ALL},  // Camera
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0,
-                                    D3D12_SHADER_VISIBILITY_VERTEX},  // Mesh InstanceData
-                RootConstantsDesc{2, 0, 0, D3D12_SHADER_VISIBILITY_ALL}                            // indices : Camera, Mesh
+                                    D3D12_SHADER_VISIBILITY_VERTEX},     // Mesh InstanceData
+                RootConstantsDesc{2, 0, 0, D3D12_SHADER_VISIBILITY_ALL}  // indices : Camera, Mesh
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
@@ -469,4 +469,4 @@ void Renderer::flush()
     // DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug));
     // dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
 }
-}  // namespace rayvox
+}  // namespace batap

@@ -6,7 +6,7 @@
 #include "EigenTypes.h"
 #include "nano_signal_slot.hpp"
 
-namespace rayvox
+namespace batap
 {
 struct Context;
 
@@ -204,4 +204,4 @@ struct InputManager
     bool IsMouseButtonDown(MouseButton button);
     v2i GetMouseDelta();
 };
-}  // namespace rayvox
+}  // namespace batap

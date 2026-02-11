@@ -22,7 +22,7 @@
 
 #pragma clang optimize off
 
-namespace rayvox
+namespace batap
 {
 
 std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager& assetManager)
@@ -248,4 +248,4 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager&
 //         newMesh->material.diffuse_texture = texture;
 //         newMesh->material.useTexture = 1;
 //     }
-}  // namespace rayvox
+}  // namespace batap

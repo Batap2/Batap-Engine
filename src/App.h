@@ -11,7 +11,7 @@
 
 #include <cstdint>
 
-namespace rayvox
+namespace batap
 {
 inline HWND hWnd;
 inline RECT windowRect;
@@ -38,4 +38,4 @@ void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName);
 void RegisterRawInputDevices(HWND hwnd);
 
 void InitApp(HINSTANCE hInstance, Context& ctx);
-}  // namespace rayvox
+}  // namespace batap

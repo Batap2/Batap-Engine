@@ -10,7 +10,7 @@
 
 #include "magic_enum/magic_enum.hpp"
 
-namespace rayvox
+namespace batap
 {
 
 static const std::array<Key, 256> VkToKey = []
@@ -292,4 +292,4 @@ v2i InputManager::GetMouseDelta()
 {
     return MouseDeltaAccumulated;
 }
-}  // namespace rayvox
+}  // namespace batap

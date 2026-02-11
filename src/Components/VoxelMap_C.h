@@ -1,7 +1,7 @@
 #pragma once
 
-namespace rayvox
+namespace batap
 {
 struct VoxelMap
 {};
-}  // namespace rayvox
+}  // namespace batap

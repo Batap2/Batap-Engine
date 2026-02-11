@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-namespace rayvox
+namespace batap
 {
 
 void ThrowIfFailed(long hr);
@@ -10,4 +10,4 @@ void ThrowIfFailed(long hr);
 void ThrowAssert(bool condition, std::string_view msg);
 
 [[noreturn]] void ThrowRuntime(const char* msg);
-}  // namespace rayvox
+}  // namespace batap

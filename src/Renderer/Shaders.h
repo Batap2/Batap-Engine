@@ -13,7 +13,7 @@
 #include <variant>
 #include <vector>
 
-namespace rayvox
+namespace batap
 {
 struct Shader
 {
@@ -118,4 +118,4 @@ struct PipelineStateManager
     std::unordered_map<std::string, std::unique_ptr<Shader>> _shaders;
     std::unordered_map<std::string, std::unique_ptr<PipelineState>> _psos;
 };
-}  // namespace rayvox
+}  // namespace batap

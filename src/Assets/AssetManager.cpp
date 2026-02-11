@@ -7,7 +7,7 @@
 #include <memory>
 #include <utility>
 
-namespace rayvox
+namespace batap
 {
 AssetManager::AssetManager(ResourceManager* rm) : _resourceManager(rm) {}
 AssetManager::~AssetManager() = default;
@@ -34,6 +34,6 @@ AssetManager::MeshEmplaceResult AssetManager::emplaceMesh(std::optional<std::str
     }
     return {_meshes.at(h).get(), h, alreadyExist};
 }
-}  // namespace rayvox
+}  // namespace batap
 
 // AssetManager -> ResourceManager

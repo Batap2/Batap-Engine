@@ -7,7 +7,6 @@
 #include "Scene.h"
 #include "WindowsUtils/FileDialog.h"
 
-
 #include "Systems/Systems.h"
 #include "Systems/TransformSystem.h"
 
@@ -18,7 +17,7 @@
 
 using namespace ImGui;
 
-namespace rayvox
+namespace batap
 {
 
 UIPanels::UIPanels(Context& ctx) : _ctx(ctx) {}
@@ -103,5 +102,4 @@ void UIPanels::DrawLeftPanel()
 
     ImGui::End();
 }
-
-}  // namespace rayvox
+}  // namespace batap

@@ -18,7 +18,7 @@
 
 #pragma clang optimize off
 
-namespace rayvox
+namespace batap
 {
 
 template <size_t SmallN>
@@ -66,7 +66,7 @@ struct GPUInstanceBase
     using GPUData = GPUDataT;
 
     static_assert(std::is_trivially_copyable_v<GPUDataT>);
-    static_assert((sizeof(GPUDataT) % 4) == 0); 
+    static_assert((sizeof(GPUDataT) % 4) == 0);
 };
 
 struct StaticMeshGPUData
@@ -170,4 +170,4 @@ struct InstancePatches<CameraInstance>
         return t;
     }();
 };
-}  // namespace rayvox
+}  // namespace batap

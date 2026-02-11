@@ -2,7 +2,7 @@
 
 #include <DirectX-Headers/include/directx/d3dx12.h>
 
-namespace rayvox
+namespace batap
 {
 struct DescriptorHandle
 {
@@ -10,4 +10,4 @@ struct DescriptorHandle
     D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle{};
     UINT heapIdx = 0;
 };
-}  // namespace rayvox
+}  // namespace batap

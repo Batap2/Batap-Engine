@@ -3,12 +3,11 @@
 #include "DebugUtils.h"
 #include "Descriptorhandle.h"
 
-
 #include <stdexcept>
 
 using namespace Microsoft::WRL;
 
-namespace rayvox
+namespace batap
 {
 void DescriptorHeapAllocator::init(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type_,
                                    UINT numDescriptors)
@@ -78,4 +77,4 @@ void DescriptorHeapAllocator::free(UINT heapIdx)
     delete createdDescriptorHandles[heapIdx];
     createdDescriptorHandles.erase(heapIdx);
 }
-}  // namespace rayvox
+}  // namespace batap

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rayvox
+namespace batap
 {
 enum class ResourceFormat : uint32_t
 {

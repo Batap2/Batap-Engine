@@ -7,7 +7,7 @@
 
 #include "magic_enum/magic_enum.hpp"
 
-namespace rayvox
+namespace batap
 {
 
 template <typename TypeEnum>
@@ -23,9 +23,7 @@ struct Handle
         : _type(type), _guid(hash64(name) ^ (uint64_t(type) * 0x9e3779b97f4a7c15ull))
     {}
 
-    bool valid() const {
-        return _guid != 0;
-    }
+    bool valid() const { return _guid != 0; }
 
     bool operator==(const Handle& other) const
     {
@@ -98,20 +96,16 @@ enum class GPUMeshViewType : uint8_t
 using GPUMeshViewHandle = Handle<GPUMeshViewType>;
 
 using GPUHandle = std::variant<GPUResourceHandle, GPUViewHandle, GPUMeshViewHandle>;
-}  // namespace rayvox
-
-
+}  // namespace batap
 
 namespace std
 {
 template <typename T>
-struct hash<rayvox::Handle<T>>
+struct hash<batap::Handle<T>>
 {
-    size_t operator()(const rayvox::Handle<T>& g) const noexcept
+    size_t operator()(const batap::Handle<T>& g) const noexcept
     {
         return std::hash<uint64_t>{}(g._guid);
     }
 };
 }  // namespace std
-
-

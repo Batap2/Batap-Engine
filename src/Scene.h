@@ -7,7 +7,7 @@
 
 #include <entt/entt.hpp>
 
-namespace rayvox
+namespace batap
 {
 
 struct Scene
@@ -106,4 +106,4 @@ struct Scene
     Context& _ctx;
     GPUInstanceManager& _instanceManager;
 };
-}  // namespace rayvox
+}  // namespace batap

@@ -1,10 +1,11 @@
 #pragma once
 
 #include <cstddef>
-#include "Renderer/ResourceFormatWrapper.h"
 #include "Handles.h"
+#include "Renderer/ResourceFormatWrapper.h"
 
-namespace rayvox
+
+namespace batap
 {
 struct Mesh
 {
@@ -19,4 +20,4 @@ struct Mesh
     uint32_t _vertexCount = 0;
     uint32_t _indexCount = 0;
 };
-}  // namespace rayvox
+}  // namespace batap

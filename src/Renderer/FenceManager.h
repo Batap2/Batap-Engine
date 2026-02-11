@@ -4,7 +4,7 @@
 
 #include "Renderer/includeDX12.h"
 
-namespace rayvox
+namespace batap
 {
 
 struct FenceManager
@@ -15,10 +15,7 @@ struct FenceManager
         _fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
     }
 
-    ~FenceManager()
-    {
-        CloseHandle(_fenceEvent);
-    }
+    ~FenceManager() { CloseHandle(_fenceEvent); }
 
     uint32_t createFence(const std::string& name = "")
     {
@@ -70,15 +67,9 @@ struct FenceManager
         waitForLastSignal(tempFenceId);
     }
 
-    ID3D12Fence* getFence(uint32_t fenceId)
-    {
-        return _fences[fenceId]._fence.Get();
-    }
+    ID3D12Fence* getFence(uint32_t fenceId) { return _fences[fenceId]._fence.Get(); }
 
-    uint64_t getCurrentValue(uint32_t fenceId)
-    {
-        return _fences[fenceId]._currentValue;
-    }
+    uint64_t getCurrentValue(uint32_t fenceId) { return _fences[fenceId]._currentValue; }
 
    private:
     struct FenceData
@@ -93,4 +84,4 @@ struct FenceManager
     HANDLE _fenceEvent;
 };
 
-}  // namespace rayvox
+}  // namespace batap

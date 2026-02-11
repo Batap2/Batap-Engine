@@ -2,7 +2,7 @@
 
 #include "EigenTypes.h"
 
-namespace rayvox
+namespace batap
 {
 struct Camera_C
 {
@@ -15,4 +15,4 @@ struct Camera_C
     m4f make_proj(float aspect) const;
     m4f make_view(const transform& worldFromCamera) const;
 };
-}  // namespace rayvox
+}  // namespace batap

@@ -6,7 +6,7 @@
 
 #include "includeDX12.h"
 
-namespace rayvox
+namespace batap
 {
 
 struct FenceManager;
@@ -38,4 +38,4 @@ struct CommandQueue
 
     std::vector<Command> _commands;
 };
-}  // namespace rayvox
+}  // namespace batap

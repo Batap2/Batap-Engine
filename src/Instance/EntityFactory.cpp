@@ -7,7 +7,7 @@
 #include "Instance/InstanceKind.h"
 #include "Instance/InstanceManager.h"
 
-namespace rayvox
+namespace batap
 {
 EntityFactory::EntityFactory(GPUInstanceManager& instanceManager)
     : _instanceManager(instanceManager)
@@ -18,7 +18,7 @@ EntityHandle EntityFactory::createStaticMesh(entt::registry& reg, AssetHandle ha
     auto entity = reg.create();
     reg.emplace<Mesh_C>(entity, handle);
     reg.emplace<Transform_C>(entity);
-    EntityHandle h{&reg,entity};
+    EntityHandle h{&reg, entity};
 
     auto iid = _instanceManager._meshInstancesPool.assign(h);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
@@ -32,7 +32,7 @@ EntityHandle EntityFactory::createCamera(entt::registry& reg)
     auto entity = reg.create();
     reg.emplace<Camera_C>(entity);
     reg.emplace<Transform_C>(entity);
-    EntityHandle h{&reg,entity};
+    EntityHandle h{&reg, entity};
 
     auto iid = _instanceManager._cameraInstancesPool.assign(h);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
@@ -41,4 +41,4 @@ EntityHandle EntityFactory::createCamera(entt::registry& reg)
 
     return h;
 }
-}  // namespace rayvox
+}  // namespace batap

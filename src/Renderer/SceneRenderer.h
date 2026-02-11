@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace rayvox
+namespace batap
 {
 struct SceneRenderer
 {
@@ -22,4 +22,4 @@ struct SceneRenderer
     Scene* _scene = nullptr;
     Context& _ctx;
 };
-}  // namespace rayvox
+}  // namespace batap

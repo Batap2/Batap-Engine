@@ -3,7 +3,7 @@
 #include "Components/EntityHandle.h"
 #include "Scene.h"
 
-namespace rayvox
+namespace batap
 {
 struct TestScene : Scene
 {
@@ -13,4 +13,4 @@ struct TestScene : Scene
 
     EntityHandle _camera;
 };
-}  // namespace rayvox
+}  // namespace batap

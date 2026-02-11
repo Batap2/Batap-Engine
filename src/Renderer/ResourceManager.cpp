@@ -21,7 +21,7 @@
 #include <vector>
 
 #pragma clang optimize off
-namespace rayvox
+namespace batap
 {
 ResourceManager::ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& device,
                                  FenceManager& fenceManager, uint32_t uploadBufferSize)
@@ -617,7 +617,8 @@ void ResourceManager::requestDestroy(GPUViewHandle guid, bool destroyAssociatedR
         {
             requestDestroy(
                 it->second[0]
-                    ._resourceHandle);  // only one request because all views of FrameViews have the same ResourceHandle (FrameResourceHandle)
+                    ._resourceHandle);  // only one request because all views of FrameViews have the
+                                        // same ResourceHandle (FrameResourceHandle)
         }
 
         for (auto& v : it->second)
@@ -650,13 +651,18 @@ void ResourceManager::requestDestroy(GPUMeshViewHandle guid, bool destroyAssocia
 
 void ResourceManager::flushDeferredReleases(ID3D12CommandQueue* commandQueue)
 {
-    if(_deferredReleases.empty()) return;
-    
+    if (_deferredReleases.empty())
+        return;
+
     // 1: signal if resource are used by gpu
     bool hasPending = false;
     for (const auto& e : _deferredReleases)
     {
-        if (e.fenceValue == 0) { hasPending = true; break; }
+        if (e.fenceValue == 0)
+        {
+            hasPending = true;
+            break;
+        }
     }
 
     uint64_t stampedValue = 0;
@@ -684,17 +690,20 @@ void ResourceManager::flushDeferredReleases(ID3D12CommandQueue* commandQueue)
             continue;
         }
 
-        std::visit([this](auto& obj)
-        {
-            using T = std::decay_t<decltype(obj)>;
-            if constexpr (std::is_same_v<T, GPUView>)
+        std::visit(
+            [this](auto& obj)
             {
-                releaseViewDescriptor(obj);
-            }
-        }, entry.object);
+                using T = std::decay_t<decltype(obj)>;
+                if constexpr (std::is_same_v<T, GPUView>)
+                {
+                    releaseViewDescriptor(obj);
+                }
+            },
+            entry.object);
     }
 
-    _deferredReleases.erase(_deferredReleases.begin() + static_cast<long long>(write), _deferredReleases.end());
+    _deferredReleases.erase(_deferredReleases.begin() + static_cast<long long>(write),
+                            _deferredReleases.end());
 }
 
 GPUResource* ResourceManager::getStaticResource(RN n)
@@ -843,4 +852,4 @@ GPUMeshViewHandle ResourceManager::generateGUID(GPUMeshViewHandle::ObjectType ty
         return guid;
     }
 }
-}  // namespace rayvox
+}  // namespace batap

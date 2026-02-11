@@ -4,7 +4,7 @@
 
 #include <unordered_set>
 
-namespace rayvox
+namespace batap
 {
 
 static std::string_view extractExtension(std::string_view path)
@@ -32,4 +32,4 @@ std::vector<AssetHandle> importFile(std::string_view path, AssetManager& assetM)
 
     return {};
 }
-}  // namespace rayvox
+}  // namespace batap

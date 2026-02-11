@@ -29,7 +29,7 @@
 
 struct DescriptorHeapAllocator;
 
-namespace rayvox
+namespace batap
 {
 
 template <class>
@@ -419,4 +419,4 @@ struct ResourceManager
 
     std::vector<UploadRequest> _uploadRequests;
 };
-}  // namespace rayvox
+}  // namespace batap

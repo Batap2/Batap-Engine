@@ -6,7 +6,7 @@
 #include <string>
 #include "EigenTypes.h"
 
-namespace rayvox
+namespace batap
 {
 struct Renderer;
 struct InputManager;
@@ -50,4 +50,4 @@ struct Context
     v2i getFrameSize();
     uint8_t getFrameindex();
 };
-}  // namespace rayvox
+}  // namespace batap

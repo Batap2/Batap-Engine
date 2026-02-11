@@ -1,4 +1,4 @@
-# RayVox-Engine
+# Batap Engine
  
 ## Build
 
@@ -16,9 +16,10 @@ build_msvc.bat <preset-name> [--configure]
 ```
 
 - `<preset-name>` : name of the CMake preset to use (as defined in `CMakePresets.json`)
-  - `msvc-debug`
   - `msvc-release`
+  - `msvc-debug`
+  - `msvc-relwithdebinfo`
   - `msvc-debug-asan`
-- `--configure` : forces a CMake reconfiguration before building (use when CMake files or source layout change)
+- `--configure` : Forces a CMake reconfiguration before building. Use this on the first build or after changes to CMake files or source layout.
 
 VSCode users: build tasks are already defined in the `.vscode` folder.

@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace rayvox
+namespace batap
 {
 
 void ThrowIfFailed(long hr)
@@ -45,4 +45,4 @@ void ThrowAssert(bool condition, std::string_view msg)
 #endif
     throw std::runtime_error(msg);
 }
-}  // namespace rayvox
+}  // namespace batap

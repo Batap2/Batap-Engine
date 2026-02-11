@@ -1,6 +1,6 @@
 #pragma once
 
-namespace rayvox
+namespace batap
 {
 enum class InstanceKind
 {

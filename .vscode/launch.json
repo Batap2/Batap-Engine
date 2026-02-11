@@ -2,26 +2,26 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "RayVox (msvc-release)",
+      "name": "Batap (msvc-release)",
       "type": "cppvsdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/release/bin/RayVox_Engine.exe",
+      "program": "${workspaceFolder}/build/release/bin/Batap_Engine.exe",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Build (msvc-release)"
     },
     {
-      "name": "RayVox (msvc-debug)",
+      "name": "Batap (msvc-debug)",
       "type": "cppvsdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/debug/bin/RayVox_Engine.exe",
+      "program": "${workspaceFolder}/build/debug/bin/Batap_Engine.exe",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Build (msvc-debug)"
     },
     {
-      "name": "RayVox (msvc-relwithdebinfo)",
+      "name": "Batap (msvc-relwithdebinfo)",
       "type": "cppvsdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/relwithdebinfo/bin/RayVox_Engine.exe",
+      "program": "${workspaceFolder}/build/relwithdebinfo/bin/Batap_Engine.exe",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Build (msvc-relwithdebinfo)"
     },

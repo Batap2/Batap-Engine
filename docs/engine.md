@@ -1,4 +1,6 @@
-# Frame Life Cycle
+# Engine
+
+## **Frame Life Cycle**
 
 ```text
 Frame start
@@ -20,34 +22,37 @@ Frame start
 │
 └─ Render
 ```
-
 ---
+## Asset Manager
 
-# Asset Manager
+**Purpose**  
 
-## Purpose
-- Manage asset lifetime on CPU
-- Bridge imported data and GPU resources
+- Manage asset lifetime on CPU  
+- Bridge imported data and GPU resources  
 
-## Properties
+**Properties**
+
 - Assets are **data-only**
 - Assets are **referenced**, never owned, by instances
 
-## Examples
+**Examples**
+
 - Mesh
 - Texture
 - Material data
 
 ---
 
-# ECS
+## ECS
 
-## Overview
+**Overview**
+
 - ECS stores **authoritative CPU-side data**
 - Components represent state
 - Systems implement logic
 
-## Components
+**Components**
+
 - Stored in `src/Components`
 - Ideally **data-only** (small helper logic allowed)
 - Source of truth
@@ -56,44 +61,51 @@ Frame start
 - GPU-relevant writes outside systems must use `Scene::write<Component>()`
 - Direct `entt::registry::get / try_get` **bypasses dirty tracking**
 
-## Systems
+**Systems**
+
 - Stored in `src/Systems`
 - Ideally **pure logic**
 - Read/write components
 - Mark components dirty when GPU sync is required
 
-### Rules
+**Rules**
+
 - Systems do **not** access GPU resources
 - Systems do **not** own data
 - Systems operate only on ECS state
 
 ---
 
-# GPU Instances / Instance Manager / Declaration
+## GPU Instances / Instance Manager / Declaration
 
-## Instance Manager
+**Instance Manager**
+
 - Owns multiple `FrameInstancePool<T>`
 - One pool per instance type (Camera, Mesh, ...)
 
-## FrameInstancePool
+**FrameInstancePool**
+
 - One structured GPU buffer + SRV per pool
 - Contiguous CPU-side pool
 - Entity → Instance mapping
 - Supports resize and recycling
 
-## GPU Instance
+### GPU Instance
 
-### Purpose
+**Purpose**
+
 - Represent ECS entities in a GPU-friendly format
 - Synchronize ECS data to GPU buffers
 - Support multi-frame-in-flight rendering
 
-### Defines
+**Defines**
+
 - **Used ECS components**: `ComponentFlag UsedComposents`
 - **GPU memory layout**: `GPUData`
 - **CPU → GPU fill rules**: `InstancePatch`
 
-### Constraints
+**Constraints**
+
 - `GPUData` must be **trivially copyable**
 - GPU-compatible alignment
 - No pointers or ownership
