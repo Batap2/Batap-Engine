@@ -6,7 +6,7 @@
 	url = https://github.com/microsoft/DirectX-Headers.git
 [submodule "include/eigen"]
 	path = include/eigen
-	url = https://github.com/PX4/eigen.git
+	url = https://gitlab.com/libeigen/eigen.git
 [submodule "include/emhash"]
 	path = include/emhash
 	url = https://github.com/ktprime/emhash.git
