@@ -1,3 +1,27 @@
+[submodule "include/assimp"]
+	path = include/assimp
+	url = https://github.com/assimp/assimp.git
+[submodule "include/DirectX-Headers"]
+	path = include/DirectX-Headers
+	url = https://github.com/microsoft/DirectX-Headers.git
+[submodule "include/eigen"]
+	path = include/eigen
+	url = https://github.com/PX4/eigen.git
 [submodule "include/emhash"]
 	path = include/emhash
 	url = https://github.com/ktprime/emhash.git
+[submodule "include/entt"]
+	path = include/entt
+	url = https://github.com/skypjack/entt.git
+[submodule "include/imgui"]
+	path = include/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "include/magic_enum"]
+	path = include/magic_enum
+	url = https://github.com/Neargye/magic_enum.git
+[submodule "include/nano-signal-slot"]
+	path = include/nano-signal-slot
+	url = https://github.com/NoAvailableAlias/nano-signal-slot.git
+[submodule "include/tracy"]
+	path = include/tracy
+	url = https://github.com/wolfpld/tracy.git
