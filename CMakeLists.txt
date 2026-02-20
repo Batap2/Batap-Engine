@@ -100,6 +100,7 @@ target_compile_options(batap_warnings INTERFACE
   -Wno-unused-variable
   #-Wno-unsafe-buffer-usage
   -Wno-unsafe-buffer-usage-in-libc-call
+  -Wno-missing-prototypes
 )
 
 # ------------------------------------------------------------------------------
@@ -125,6 +126,10 @@ target_include_directories(Batap_Engine SYSTEM PRIVATE
 target_compile_definitions(Batap_Engine PRIVATE
   $<$<CONFIG:Debug>:_DEBUG>
   BATAP_ROOT_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_compile_definitions(Batap_Engine PRIVATE
+  IMGUI_USER_CONFIG="${source_dir}/UI/imguiConfig.h"
 )
 
 # Définir les drapeaux de compilation

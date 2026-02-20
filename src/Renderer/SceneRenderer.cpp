@@ -113,6 +113,7 @@ void SceneRenderer::initRenderPasses()
                 meshes.each(
                     [&](entt::entity e, Mesh_C& meshC, RenderInstance_C& renderInstanceC)
                     {
+                        if(!meshC._mesh.valid()) return;
                         auto& mesh = assetM->_meshes.at(meshC._mesh);
 
                         cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

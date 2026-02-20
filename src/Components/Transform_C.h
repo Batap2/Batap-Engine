@@ -19,6 +19,10 @@ struct Transform_C
     m4f worldMatrix() const { return _world.matrix(); }
     m4f localMatrix() const { return _local.matrix(); }
 
+    const v3f& pos() { return _localPosition; }
+    const quatf& rot() { return _localRotation; }
+    const v3f& scale() { return _localScale; }
+
    private:
     friend struct TransformSystem;
 

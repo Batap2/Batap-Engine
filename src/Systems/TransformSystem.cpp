@@ -10,7 +10,6 @@
 namespace batap
 {
 
-// --------- ensure chain (root->...->e) ---------
 void TransformSystem::ensure_chain_up_to_date(EntityHandle h, Context& ctx)
 {
     auto& reg = *h._reg;
@@ -53,7 +52,6 @@ void TransformSystem::ensure_chain_up_to_date(EntityHandle h, Context& ctx)
     }
 }
 
-// --------- Dirty queue (STAMP O(1) DEDUP) ---------
 void TransformSystem::markDirty(EntityHandle h)
 {
     if (!has_transform(h))
@@ -61,7 +59,6 @@ void TransformSystem::markDirty(EntityHandle h)
     auto& reg = *h._reg;
     auto& t = reg.get<Transform_C>(h._entity);
 
-    // déjà enqueued pour cette frame
     if (t._dirtyStamp == frameCount)
         return;
 
@@ -69,7 +66,6 @@ void TransformSystem::markDirty(EntityHandle h)
     dirty.push_back(h._entity);
 }
 
-// --------- API Mutations ---------
 void TransformSystem::setLocalPosition(EntityHandle h, const v3f& p)
 {
     if (!has_transform(h))
@@ -121,7 +117,6 @@ void TransformSystem::translate(EntityHandle h, const v3f& vec, Space space)
             const entt::entity p = to_entity(t._parent);
             if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
             {
-                // ensure_chain_up_to_date(EntityHandle{&reg, p});
                 const transform& pw = reg.get<Transform_C>(p)._world;
                 const transform inv = pw.inverse();
                 t._localPosition += (inv * vec);
@@ -160,7 +155,6 @@ void TransformSystem::rotate(EntityHandle h, const quatf& delta, Space space)
             const entt::entity p = to_entity(t._parent);
             if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
             {
-                // ensure_chain_up_to_date(EntityHandle{&reg, p});
                 const quatf Qp = Transform_C::extractWorldRotation(reg.get<Transform_C>(p)._world);
                 t._localRotation = (Qp.conjugate() * d * Qp * t._localRotation).normalized();
             }
@@ -194,7 +188,6 @@ void TransformSystem::scale(EntityHandle h, const v3f& vec)
     markDirty(h);
 }
 
-// --------- setParent (keepWorld) ---------
 void TransformSystem::setParent(EntityHandle childH, entt::entity newParent, bool keepWorld)
 {
     if (!has_transform(childH))
@@ -212,7 +205,6 @@ void TransformSystem::setParent(EntityHandle childH, entt::entity newParent, boo
     if (newParent != entt::null && !(reg.valid(newParent) && reg.any_of<Transform_C>(newParent)))
         return;
 
-    // anti-cycle
     for (entt::entity cur = newParent; cur != entt::null;)
     {
         if (cur == child)
@@ -221,14 +213,8 @@ void TransformSystem::setParent(EntityHandle childH, entt::entity newParent, boo
         cur = to_entity(t._parent);
     }
 
-    // matrices à jour
-    // ensure_chain_up_to_date(childH);
-    // if (newParent != entt::null)
-    //     ensure_chain_up_to_date(EntityHandle{&reg, newParent});
-
     const transform oldWorld = ct._world;
 
-    // detach oldParent
     if (oldParent != entt::null)
     {
         auto& pt = reg.get<Transform_C>(oldParent);
@@ -238,10 +224,8 @@ void TransformSystem::setParent(EntityHandle childH, entt::entity newParent, boo
                 v.end());
     }
 
-    // assign parent
     ct._parent = (newParent == entt::null) ? EntityHandle{} : EntityHandle{&reg, newParent};
 
-    // attach newParent
     if (newParent != entt::null)
     {
         auto& np = reg.get<Transform_C>(newParent);
@@ -273,7 +257,6 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
     if (dirty.empty())
         return;
 
-    // valid filter
     emhash8::HashSet<entt::entity> dirtySet;
     dirtySet.reserve(static_cast<unsigned int>(dirty.size()) * 2);
     for (auto e : dirty)
@@ -291,7 +274,6 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
     auto has_transform_e = [&](entt::entity e) -> bool
     { return e != entt::null && reg.valid(e) && reg.any_of<Transform_C>(e); };
 
-    // 3) Trouver les roots = ancêtre le plus haut qui est encore dirty
     emhash8::HashSet<entt::entity> rootsSet;
     rootsSet.reserve(dirtySet.size());
 
@@ -299,7 +281,6 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
     {
         entt::entity cur = e;
 
-        // Remonte tant que le parent est dirty aussi
         while (true)
         {
             auto& tc = reg.get<Transform_C>(cur);
@@ -314,7 +295,6 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
         rootsSet.insert(cur);
     }
 
-    // 4) DFS depuis chaque root
     struct Item
     {
         entt::entity e;
@@ -323,11 +303,10 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
     };
 
     std::vector<Item> stack;
-    stack.reserve(256);  // grossira si gros subtree
+    stack.reserve(256);
 
     for (auto root : rootsSet)
     {
-        // parentWorld initial = world du parent (s'il existe)
         transform pw = transform::Identity();
         {
             auto& rt = reg.get<Transform_C>(root);
@@ -352,7 +331,6 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
 
             auto& t = reg.get<Transform_C>(it.e);
 
-            // Si le parent a bougé => world doit être recalculé même si local pas dirty
             const bool dirtyHere = it.parentDirty || t._localDirty;
 
             if (t._localDirty)
@@ -370,9 +348,6 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
             const transform childPW = t._world;
             const bool childParentDirty = dirtyHere;
 
-            // Push enfants
-            // (micro-opt: éviter reg.valid/any_of dans la boucle si tu garantis que children
-            // ne contient que des entités valides + Transform_C. Sinon on garde les checks)
             for (const EntityHandle& ch : t.children)
             {
                 const entt::entity ce = to_entity(ch);

@@ -21,6 +21,7 @@
 #include "ResourceName.h"
 #include "SceneRenderer.h"
 #include "Shaders.h"
+#include "UI/IconsMaterialDesign.h"
 
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_dx12.h"
@@ -74,6 +75,15 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
 
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
+
+    io.Fonts->AddFontFromFileTTF("assets/Roboto-Regular.ttf", 16.0f);
+    ImFontConfig cfg;
+    cfg.MergeMode = true;
+    cfg.PixelSnapH = true;
+    cfg.GlyphOffset = ImVec2(0.0f, 2.0f);
+
+    static const ImWchar icon_ranges[] = {ICON_MIN_MD, ICON_MAX_MD, 0};
+    io.Fonts->AddFontFromFileTTF("assets/MaterialIcons-Regular.ttf", 14.0f, &cfg, icon_ranges);
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();

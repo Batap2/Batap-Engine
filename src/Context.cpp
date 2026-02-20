@@ -102,7 +102,7 @@ void Context::update()
 
     _inputManager->ClearFrameState();
 
-    _uiPanels->Draw();
+    _uiPanels->draw();
 
     _renderer->render();
 }

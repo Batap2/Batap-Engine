@@ -1,14 +1,18 @@
 #include "UIPanels.h"
+#include <imgui_internal.h>
 
 #include "Assets/AssetManager.h"
+#include "Components/EntityHandle.h"
+#include "Components/Mesh_C.h"
+#include "Components/Name_C.h"
 #include "Components/Transform_C.h"
 #include "Context.h"
 #include "Instance/EntityFactory.h"
 #include "Scene.h"
-#include "WindowsUtils/FileDialog.h"
-
 #include "Systems/Systems.h"
 #include "Systems/TransformSystem.h"
+#include "UI/IconsMaterialDesign.h"
+#include "WindowsUtils/FileDialog.h"
 
 #include "imgui.h"
 
@@ -22,17 +26,17 @@ namespace batap
 
 UIPanels::UIPanels(Context& ctx) : _ctx(ctx) {}
 
-void UIPanels::Draw()
+void UIPanels::draw()
 {
-    DrawLeftPanel();
+    drawLeftPanel();
 }
 
-void UIPanels::DrawLeftPanel()
+void UIPanels::drawLeftPanel()
 {
     ImGuiViewport* vp = ImGui::GetMainViewport();
 
-    static float panelWidth = 300.0f;
-    const float minWidth = 200.0f;
+    static float panelWidth = 150.0f;
+    const float minWidth = 100.0f;
     const float maxWidth = 600.0f;
     const float resizeGrip = 6.0f;
 
@@ -55,28 +59,34 @@ void UIPanels::DrawLeftPanel()
     ImGui::BeginChild("##LeftPanel", ImVec2(panelWidth, vp->Size.y), false,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    if (ImGui::Button("import mesh"))
+    if (ImGui::Button(ICON_MD_ADD))
     {
-        OpenFilesDialogAsync({}, _ctx._fileDialogMsgBus.get());
-    }
-    SameLine();
-    if (ImGui::Button("create mesh entity"))
-    {
-        for (auto& [handle, _] : _ctx._assetManager->_meshes)
-        {
-            for (size_t i = 0; i < 100; ++i)
-            {
-                for (size_t ii = 0; ii < 100; ++ii)
-                {
-                    auto h = _ctx._entityFactory->createStaticMesh(_ctx._scene->_registry, handle);
-                    _ctx._systems->_transforms->translate(
-                        h, v3f(static_cast<float>(i) * 2, 0, -static_cast<float>(ii) * 2));
-                }
-            }
-        }
+        ImGui::OpenPopup("AddEntityPopup");
+        // OpenFilesDialogAsync({}, _ctx._fileDialogMsgBus.get());
     }
 
-    ImGui::Separator();
+    Separator();
+    drawRegistryTree(_ctx._scene->_registry);
+
+    if(_currentlyClickedSelectedEntity){
+        Separator();
+        drawEntityMenu();
+    }
+
+    if (ImGui::BeginPopup("AddEntityPopup"))
+    {
+        if (ImGui::MenuItem(ICON_MD_HVAC " Static Mesh"))
+        {
+            auto h = _ctx._entityFactory->createStaticMesh(_ctx._scene->_registry);
+        }
+
+        if (ImGui::MenuItem(ICON_MD_VIDEOCAM " Camera"))
+        {
+            // action
+        }
+
+        ImGui::EndPopup();
+    }
 
     ImGui::EndChild();
 
@@ -101,5 +111,62 @@ void UIPanels::DrawLeftPanel()
     }
 
     ImGui::End();
+}
+
+void UIPanels::drawRegistryTree(entt::registry& reg)
+{
+    Text("Scene");
+
+    int id = 0;
+    for (auto e : reg.storage<entt::entity>())
+    {
+        PushID(id);
+
+        EntityHandle h = {&reg, e};
+
+        const char* icon = ICON_MD_CATEGORY;
+
+        if (reg.all_of<Camera_C>(e))
+            icon = ICON_MD_VIDEOCAM;
+        else if (reg.all_of<Mesh_C>(e))
+            icon = ICON_MD_HVAC;
+
+        TextUnformatted(icon);
+        SameLine();
+
+        bool selected = false;
+        if(_currentlyClickedSelectedEntity){
+            selected = *_currentlyClickedSelectedEntity == h;
+        }
+
+        if(MenuItem(reg.get<Name_C>(e)._name.c_str(), nullptr, selected)){
+            if(_currentlyClickedSelectedEntity){
+                _currentlyClickedSelectedEntity.reset();
+            }
+            _currentlyClickedSelectedEntity = h;
+        }
+        PopID();
+        id++;
+    }
+}
+
+void drawTransformMenu(Context& ctx, EntityHandle ent, Transform_C* t){
+    auto pos = t->pos();
+    if(DragFloat3("Position: ", pos.data())){
+        ctx._systems->_transforms->setLocalPosition(ent, pos);
+    }
+    
+}
+
+void UIPanels::drawEntityMenu(){
+    auto& r = _ctx._scene->_registry;
+    if(!_currentlyClickedSelectedEntity) return;
+
+    auto ent = *_currentlyClickedSelectedEntity;
+
+    auto* transformC =  ent.try_get<Transform_C>();
+    if(transformC){
+        drawTransformMenu(_ctx, ent, transformC);
+    }
 }
 }  // namespace batap
