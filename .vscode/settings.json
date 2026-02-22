@@ -1,11 +1,11 @@
 {
     "C_Cpp.intelliSenseEngine": "disabled",
-    "clangd.path": "C:/clangllvm/bin/clangd.exe",
+    "clangd.path": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/Llvm/x64/bin/clangd.exe",
     "clangd.arguments": [
         "--compile-commands-dir=${workspaceFolder}",
     ],
     "editor.formatOnSave": true,
-    "clang-format.executable": "C:/clangllvm/in/clang-format",
+    "clang-format.executable": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/Llvm/x64/bin/clang-format.exe",
     "editor.stickyScroll.enabled": false,
     "editor.stickyScroll.maxLineCount": 5,
     "editor.stickyScroll.scrollWithEditor": true,

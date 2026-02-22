@@ -158,6 +158,13 @@ void drawTransformMenu(Context& ctx, EntityHandle ent, Transform_C* t){
     
 }
 
+void drawMeshMenu(Context& ctx, EntityHandle ent){
+    auto* meshC = ent.try_get<Mesh_C>();
+    if(!meshC) return;
+
+    
+}
+
 void UIPanels::drawEntityMenu(){
     auto& r = _ctx._scene->_registry;
     if(!_currentlyClickedSelectedEntity) return;

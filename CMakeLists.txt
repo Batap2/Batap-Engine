@@ -71,7 +71,7 @@ set(IMGUI_SOURCES
   "${include_dir}/imgui/backends/imgui_impl_dx12.cpp"
 )
 
-list(APPEND source_files ${IMGUI_SOURCES})
+  list(APPEND source_files ${IMGUI_SOURCES})
 
 # ------------------------------------------------------------------------------
 # Targets
@@ -138,9 +138,13 @@ target_compile_options(Batap_Engine PRIVATE
   $<$<AND:$<CONFIG:RelWithDebInfo>,$<CXX_COMPILER_ID:MSVC>>:/O2>
 )
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(/EHsc)
+endif()
+
 if(WIN32)
     add_compile_definitions(NOMINMAX)
-    add_compile_definitions(WIN32_LEAN_AND_MEAN)  # bonus: réduit la taille des headers Windows
+    add_compile_definitions(WIN32_LEAN_AND_MEAN)
 endif()
 
 # Link
