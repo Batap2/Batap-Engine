@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Components/EntityHandle.h"
-#include "Handles.h"
+#include "Assets/AssetHandle.h"
 
 #include <entt/entt.hpp>
 #include <optional>
@@ -16,7 +16,7 @@ struct EntityFactory
     GPUInstanceManager& _instanceManager;
 
     EntityFactory(GPUInstanceManager& instanceManager);
-    EntityHandle createStaticMesh(entt::registry& reg, std::optional<AssetHandle> handle = std::nullopt);
+    EntityHandle createStaticMesh(entt::registry& reg, std::optional<MeshHandle> handle = std::nullopt);
     EntityHandle createCamera(entt::registry& reg);
 };
 }  // namespace batap

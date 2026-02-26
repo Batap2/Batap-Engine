@@ -20,16 +20,21 @@ static std::string_view extractExtension(std::string_view path)
     return filename.substr(dot + 1);
 }
 
-std::vector<AssetHandle> importFile(std::string_view path, AssetManager& assetM)
+std::vector<AssetHandleAny> importFile(std::string_view path, AssetManager& assetM)
 {
+    std::vector<AssetHandleAny> out;
     static constexpr std::array<std::string_view, 4> meshExtensions{"obj", "fbx", "gltf", "glb"};
     auto extension = extractExtension(path);
 
     if (std::find(meshExtensions.begin(), meshExtensions.end(), extension) != meshExtensions.end())
-    {
-        return importMeshFromFile(path, assetM);
+    {         
+        auto meshH = importMeshFromFile(path, assetM);
+        out.reserve(meshH.size());
+        for(auto& handle : meshH){
+            out.emplace_back(handle);
+        }
     }
 
-    return {};
+    return out;
 }
 }  // namespace batap

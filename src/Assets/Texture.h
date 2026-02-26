@@ -1,12 +1,13 @@
 #pragma once
 
 #include <cstdint>
-#include "Renderer/ResourceManager.h"
 #include "Renderer/ResourceFormatWrapper.h"
+#include "Renderer/ResourceManager.h"
+
 
 namespace batap
 {
-struct Tetxure
+struct Texture
 {
     GPUView _GPUTex;
     ResourceFormat _format;

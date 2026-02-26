@@ -77,16 +77,6 @@ enum class GPUViewType : uint8_t
 };
 using GPUViewHandle = Handle<GPUViewType>;
 
-enum class AssetType : uint8_t
-{
-    Unknown,
-    Mesh,
-    Texture,
-    Material,
-    Shader
-};
-using AssetHandle = Handle<AssetType>;
-
 enum class GPUMeshViewType : uint8_t
 {
     Unknown,

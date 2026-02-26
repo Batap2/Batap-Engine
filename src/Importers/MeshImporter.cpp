@@ -25,16 +25,16 @@
 namespace batap
 {
 
-std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager& assetManager)
+std::vector<MeshHandle> importMeshFromFile(std::string_view path, AssetManager& assetManager)
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-    auto& rm = assetManager._resourceManager;
+    auto& rm = assetManager.resourceManager_;
     Assimp::Importer importer;
 
     importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 45.0f);
 
-    std::vector<AssetHandle> result;
+    std::vector<MeshHandle> result;
     unsigned int flags;
 
     // if (args.flatFaces)
@@ -107,11 +107,11 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager&
 
         std::string sceneName = aiScene_mesh->mName.C_Str();
         std::string meshName = aiScene_mesh->mName.C_Str();
-        auto ent = assetManager.emplaceMesh(sceneName + ":" + meshName);
+        auto [handle, inserted] = assetManager.emplace<Mesh>(meshName, path.data());
 
-        if (!ent._alreadyExist)
+        if (inserted)
         {
-            auto* newMesh = ent._mesh;
+            auto* newMesh = assetManager.get(handle);
             {
                 auto bufSize = sizeof(uint32_t) * indices.size();
                 auto resourceGuid =
@@ -167,7 +167,7 @@ std::vector<AssetHandle> importMeshFromFile(std::string_view path, AssetManager&
             newMesh->_indexFormat = ResourceFormat::R32_UINT;
         }
 
-        result.push_back(ent._handle);
+        result.push_back(handle);
     }
 
     return result;

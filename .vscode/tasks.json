@@ -90,6 +90,18 @@
             ]
         },
         {
+            "label": "Build (msvc-relwithdebinfo) No Format",
+            "type": "shell",
+            "command": "cmd.exe",
+            "args": [
+                "/c",
+                "call \"${workspaceFolder}\\build_msvc.bat\" msvc-relwithdebinfo --no-format"
+            ],
+            "problemMatcher": [
+                "$msCompile"
+            ]
+        },
+        {
             "label": "Build (msvc-relwithdebinfo) Reconfigure",
             "type": "shell",
             "command": "cmd.exe",

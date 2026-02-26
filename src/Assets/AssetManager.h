@@ -1,13 +1,11 @@
 #pragma once
 
-#include "Handles.h"
+#include <string>
+#include <tuple>
+#include <utility>
+#include "AssetHandle.h"
+#include "AssetSlotMap.h"
 
-#include "VariantUtils.h"
-#include "emhash/hash_table8.hpp"
-
-#include <memory>
-#include <optional>
-#include <variant>
 
 namespace batap
 {
@@ -16,61 +14,37 @@ struct ResourceManager;
 struct Mesh;
 struct Texture;
 
+template <typename T>
+struct AssetSlotMap;
+
 struct AssetManager
 {
-    AssetManager(ResourceManager* rm);
+    explicit AssetManager(ResourceManager* rm);
     ~AssetManager();
 
-    emhash8::HashMap<AssetHandle, Mesh> _meshes;
-    emhash8::HashMap<AssetHandle, Texture> _textures;
-
-    template <typename T>
-    struct EmplaceResult
+    template <typename T, typename... Args>
+    std::pair<AssetHandle<T>, bool> emplace(std::string name, std::string path, Args&&... args)
     {
-        T* _obj = nullptr;
-        AssetHandle _handle;
-        bool _alreadyExist = false;
-    };
-
-    EmplaceResult<Mesh> emplaceMesh(std::optional<std::string> name = std::nullopt);
-    EmplaceResult<Texture> emplaceTexture(std::optional<std::string> name = std::nullopt);
-
-    template <typename T>
-    EmplaceResult<T> emplace(std::optional<std::string> name = std::nullopt)
-    {
-        AssetHandle h;
-        bool alreadyExist = false;
-
-        emhash8::HashMap<AssetHandle, T>* map = nullptr;
-
-        AssetHandle::ObjectType objType;
-        if constexpr (std::is_same_v<T, Texture>){
-            objType = AssetHandle::ObjectType::Texture;
-            map = _textures;
-        } else if constexpr (std::is_same_v<T, Mesh>){
-            objType = AssetHandle::ObjectType::Mesh;
-            map = _meshes;
-        }
-
-        if (name)
-        {
-            h = AssetHandle(objType, name.value());
-        }
-        else
-        {
-            h = AssetHandle(AssetHandle::ObjectType::Mesh);
-        }
-
-        auto emp = map->try_emplace();
-
-        if(!emp->second)
-        {
-            alreadyExist = true;
-        }
-
-        return {map->at(h), h, alreadyExist};
+        return std::get<AssetSlotMap<T>*>(maps_)->emplace(std::move(name), std::move(path),
+                                                          std::forward<Args>(args)...);
     }
 
-    ResourceManager* _resourceManager;
+    template <typename T>
+    T* get(AssetHandle<T> key)
+    {
+        return std::get<AssetSlotMap<T>*>(maps_)->get(key);
+    }
+
+    template <typename T>
+    T* get(const std::string& path)
+    {
+        return std::get<AssetSlotMap<T>*>(maps_)->get(path);
+    }
+
+    ResourceManager* resourceManager_ = nullptr;
+
+   private:
+    std::tuple<AssetSlotMap<Mesh>*, AssetSlotMap<Texture>*> maps_{};
 };
+
 }  // namespace batap

@@ -1,5 +1,6 @@
 #include "EntityFactory.h"
 #include <optional>
+#include "Assets/AssetHandle.h"
 #include "Components/Camera_C.h"
 #include "Components/EntityHandle.h"
 #include "Components/Mesh_C.h"
@@ -16,7 +17,7 @@ EntityFactory::EntityFactory(GPUInstanceManager& instanceManager)
     : _instanceManager(instanceManager)
 {}
 
-EntityHandle EntityFactory::createStaticMesh(entt::registry& reg, std::optional<AssetHandle> handle)
+EntityHandle EntityFactory::createStaticMesh(entt::registry& reg, std::optional<MeshHandle> handle)
 {
     auto entity = reg.create();
 

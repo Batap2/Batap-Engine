@@ -2,7 +2,7 @@
 
 #include "DirtyFlag.h"
 #include "EigenTypes.h"
-#include "Handles.h"
+#include "Assets/AssetHandle.h"
 
 #include <cstdint>
 #include <vector>
@@ -11,6 +11,6 @@ namespace batap
 {
 struct Mesh_C
 {
-    AssetHandle _mesh;
+    MeshHandle _mesh;
 };
 }  // namespace batap

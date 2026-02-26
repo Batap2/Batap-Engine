@@ -7,5 +7,5 @@
 
 namespace batap
 {
-std::vector<AssetHandle> importFile(std::string_view path, AssetManager& assetM);
+std::vector<AssetHandleAny> importFile(std::string_view path, AssetManager& assetM);
 }
