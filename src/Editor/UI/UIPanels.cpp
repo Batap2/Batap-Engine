@@ -66,7 +66,7 @@ void UIPanels::drawLeftPanel()
     }
 
     Separator();
-    drawRegistryTree(_ctx._scene->_registry);
+    //drawRegistryTree(_ctx._scene->_registry);
 
     if(_currentlyClickedSelectedEntity){
         Separator();
@@ -77,7 +77,7 @@ void UIPanels::drawLeftPanel()
     {
         if (ImGui::MenuItem(ICON_MD_HVAC " Static Mesh"))
         {
-            auto h = _ctx._entityFactory->createStaticMesh(_ctx._scene->_registry);
+            // auto h = _ctx._entityFactory->createStaticMesh(_ctx._scene->_registry);
         }
 
         if (ImGui::MenuItem(ICON_MD_VIDEOCAM " Camera"))
@@ -153,7 +153,7 @@ void UIPanels::drawRegistryTree(entt::registry& reg)
 void drawTransformMenu(Context& ctx, EntityHandle ent, Transform_C* t){
     auto pos = t->pos();
     if(DragFloat3("Position: ", pos.data())){
-        ctx._systems->_transforms->setLocalPosition(ent, pos);
+        // ctx._systems->_transforms->setLocalPosition(ent, pos);
     }
     
 }
@@ -166,14 +166,14 @@ void drawMeshMenu(Context& ctx, EntityHandle ent){
 }
 
 void UIPanels::drawEntityMenu(){
-    auto& r = _ctx._scene->_registry;
-    if(!_currentlyClickedSelectedEntity) return;
+    // auto& r = _ctx._scene->_registry;
+    // if(!_currentlyClickedSelectedEntity) return;
 
-    auto ent = *_currentlyClickedSelectedEntity;
+    // auto ent = *_currentlyClickedSelectedEntity;
 
-    auto* transformC =  ent.try_get<Transform_C>();
-    if(transformC){
-        drawTransformMenu(_ctx, ent, transformC);
-    }
+    // auto* transformC =  ent.try_get<Transform_C>();
+    // if(transformC){
+    //     drawTransformMenu(_ctx, ent, transformC);
+    // }
 }
 }  // namespace batap

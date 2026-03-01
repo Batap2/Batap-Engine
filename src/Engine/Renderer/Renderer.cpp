@@ -217,8 +217,8 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
 void Renderer::initPsosAndShaders()
 {
     std::string shader_dir;
-    shader_dir = std::filesystem::current_path().filename() == "build" ? "../src/Shaders"
-                                                                       : "src/Shaders";
+    shader_dir = std::filesystem::current_path().filename() == "build" ? "../src/Engine/Shaders"
+                                                                       : "src/Engine/Shaders";
     {
         auto vs = _psoManager->compileShaderFromFile(
             toS(RN::shader_3D_VS), shader_dir + "/VertexShader.hlsl", "main", "vs_5_1");

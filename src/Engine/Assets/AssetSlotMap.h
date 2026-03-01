@@ -4,7 +4,6 @@
 #include "AssetHandle.h"
 #include "Utils/SlotMap.h"
 
-#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>

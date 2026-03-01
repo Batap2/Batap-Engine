@@ -1,0 +1,82 @@
+# ------------------------------------------------------------------------------
+# Sources
+# ------------------------------------------------------------------------------
+file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/*.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
+)
+
+# ImGui compiled into the engine (as you want)
+set(IMGUI_SOURCES
+  "${include_dir}/imgui/imgui.cpp"
+  "${include_dir}/imgui/imgui_draw.cpp"
+  "${include_dir}/imgui/imgui_tables.cpp"
+  "${include_dir}/imgui/imgui_widgets.cpp"
+  "${include_dir}/imgui/imgui_demo.cpp"
+  "${include_dir}/imgui/backends/imgui_impl_win32.cpp"
+  "${include_dir}/imgui/backends/imgui_impl_dx12.cpp"
+)
+
+list(APPEND ENGINE_SOURCES ${IMGUI_SOURCES})
+
+# ------------------------------------------------------------------------------
+# Target
+# ------------------------------------------------------------------------------
+add_library(Batap_Engine STATIC
+  ${ENGINE_SOURCES}
+)
+
+target_include_directories(Batap_Engine PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+target_include_directories(Batap_Engine SYSTEM PUBLIC
+  "${include_dir}"
+  "${include_dir}/DirectX-Headers/include"
+  "${include_dir}/eigen"
+  "${include_dir}/imgui"
+  "${include_dir}/nano-signal-slot"
+  "${include_dir}/magic_enum/include"
+  "${include_dir}/entt/single_include"
+  "${include_dir}/assimp/include"
+  "${include_dir}/emhash"
+)
+
+# Compile definitions (PUBLIC so Editor gets the same ImGui config)
+target_compile_definitions(Batap_Engine PUBLIC
+  IMGUI_USER_CONFIG="${source_dir}/Engine/UI/imguiConfig.h"
+  BATAP_ROOT_DIR="${CMAKE_SOURCE_DIR}"
+  $<$<CONFIG:Debug>:_DEBUG>
+)
+
+# Optimization flags (keep your current behavior)
+target_compile_options(Batap_Engine PRIVATE
+  $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:MSVC>>:/O2>
+  $<$<AND:$<CONFIG:RelWithDebInfo>,$<CXX_COMPILER_ID:MSVC>>:/O2>
+  $<$<CXX_COMPILER_ID:Clang>:/EHsc>
+)
+
+# Link
+target_link_libraries(Batap_Engine PUBLIC
+  batap_warnings
+  d3d12.lib
+  dxgi.lib
+  dxguid.lib
+  D3DCompiler.lib
+  assimp
+)
+
+# ------------------------------------------------------------------------------
+# Per-file / per-third-party warning tweaks
+# ------------------------------------------------------------------------------
+set_source_files_properties(${IMGUI_SOURCES} PROPERTIES
+  COMPILE_OPTIONS "-Wno-error;-Wno-c++98-compat;-Wno-c++98-compat-pedantic"
+)
+
+foreach(f IN LISTS IMGUI_SOURCES)
+  if (f MATCHES "^${include_dir}/")
+    set_source_files_properties(${f} PROPERTIES COMPILE_OPTIONS "-w")
+  endif()
+endforeach()

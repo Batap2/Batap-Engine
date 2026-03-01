@@ -1,4 +1,4 @@
-#include "App.h"
+#include "WindowsApp.h"
 #include <basetsd.h>
 #include <windef.h>
 
@@ -148,15 +148,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             return DefWindowProcW(hwnd, message, wParam, lParam);
 
         Ctx->_inputManager->ProcessWindowsEvent(message, wParam, lParam);
-        // int centerX = (windowRect.left + windowRect.right) / 2;
-        // int centerY = (windowRect.top + windowRect.bottom) / 2;
 
         switch (message)
         {
             case WM_INPUT:
-                // Seulement si tu en as vraiment besoin
                 Ctx->_inputManager->ProcessWindowsRawInput(lParam);
-                // Ctx._inputManager->ProcessWindowsEvent(message, wParam, lParam);
                 break;
 
             // The default window procedure will play a system notification sound
@@ -288,4 +284,29 @@ void InitApp(HINSTANCE hInstance, Context& ctx)
     SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&ctx));
     AppInitialized = true;
 }
+
+int runWindowApp(HINSTANCE hInstance, App &app){
+    Context Ctx;
+    InitApp(hInstance, Ctx);
+
+    app.start(Ctx);
+    MSG msg = {};
+
+    while (msg.message != WM_QUIT)
+    {
+        while (::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+        {
+            ::TranslateMessage(&msg);
+            ::DispatchMessage(&msg);
+        }
+
+        app.update(Ctx);
+    }
+
+    app.shutdown(Ctx);
+    Ctx.destroy();
+
+    return 0;
+}
+
 }  // namespace batap

@@ -8,6 +8,7 @@
 #include <wrl.h>
 
 #include "Context.h"
+#include "App.h"
 
 #include <cstdint>
 
@@ -38,4 +39,6 @@ void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName);
 void RegisterRawInputDevices(HWND hwnd);
 
 void InitApp(HINSTANCE hInstance, Context& ctx);
+
+int runWindowApp(HINSTANCE hInstance, App& app);
 }  // namespace batap

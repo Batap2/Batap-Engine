@@ -216,10 +216,9 @@ struct GPUInstanceManager
 {
     GPUInstanceManager(Context& ctx);
 
-    void uploadRemainingFrameDirty(uint8_t frameIndex);
+    void uploadRemainingFrameDirty(Context& ctx);
     void markDirty(const EntityHandle& handle, ComponentFlag componentFlag);
 
-    Context& _ctx;
     ResourceManager& _resourceManager;
     FrameInstancePool<StaticMeshInstance> _meshInstancesPool{_resourceManager, 256,
                                                              "StaticMeshInstancePool"};

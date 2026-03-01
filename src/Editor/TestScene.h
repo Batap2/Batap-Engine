@@ -5,11 +5,14 @@
 
 namespace batap
 {
+
+struct World;
+
 struct TestScene : Scene
 {
-    TestScene(Context& ctx);
-    
-    void update(float deltaTime) override;
+    TestScene(World& world);
+
+    void update(float deltaTime, Context& ctx, World& world) override;
 
     EntityHandle _camera;
 };

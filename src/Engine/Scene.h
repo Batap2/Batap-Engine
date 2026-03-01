@@ -2,7 +2,6 @@
 
 #include "Components/ComponentToFlag.h"
 #include "Components/EntityHandle.h"
-#include "Context.h"
 #include "Instance/InstanceManager.h"
 
 #include <entt/entt.hpp>
@@ -10,12 +9,15 @@
 namespace batap
 {
 
+struct World;
+struct Context;
+
 struct Scene
 {
-    Scene(Context& ctx);
+    Scene(GPUInstanceManager& instanceManager);
     virtual ~Scene() = default;
 
-    virtual void update(float deltaTime) {}
+    virtual void update(float deltaTime, Context& ctx, World& world) {}
 
     entt::registry _registry;
 
@@ -84,7 +86,7 @@ struct Scene
     {
         if (auto* ptr = r.try_get<T>(e))
         {
-            return WriteProxy<T>{&r, e, &_instanceManager, ptr};
+            return WriteProxy<T>{&r, e, &instanceManager_, ptr};
         }
 
         return {};
@@ -97,13 +99,12 @@ struct Scene
 
         if (auto* ptr = reg.try_get<T>(handle._entity))
         {
-            return WriteProxy<T>{&reg, handle._entity, &_instanceManager, ptr};
+            return WriteProxy<T>{&reg, handle._entity, &instanceManager_, ptr};
         }
 
         return {};
     }
 
-    Context& _ctx;
-    GPUInstanceManager& _instanceManager;
+    GPUInstanceManager& instanceManager_;
 };
 }  // namespace batap

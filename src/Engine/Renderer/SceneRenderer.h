@@ -10,16 +10,24 @@
 
 namespace batap
 {
+
+struct SceneRenderArgs
+{
+    entt::registry* reg_ = nullptr;
+    GPUInstanceManager* instanceManager_ = nullptr;
+};
+
 struct SceneRenderer
 {
     SceneRenderer(Context& ctx) : _ctx(ctx) {}
 
+    void setScene(SceneRenderArgs args) { args_ = args; }
+
     void initRenderPasses();
-    void loadScene(Scene* scene);
-    void uploadDirty(uint8_t frameIndex);
+    void uploadDirty();
 
    private:
-    Scene* _scene = nullptr;
     Context& _ctx;
+    SceneRenderArgs args_;
 };
 }  // namespace batap

@@ -10,7 +10,7 @@
 namespace batap
 {
 
-void TransformSystem::ensure_chain_up_to_date(EntityHandle h, Context& ctx)
+void TransformSystem::ensure_chain_up_to_date(EntityHandle h, GPUInstanceManager& instanceManager)
 {
     auto& reg = *h._reg;
 
@@ -48,7 +48,7 @@ void TransformSystem::ensure_chain_up_to_date(EntityHandle h, Context& ctx)
         {
             t._world = t._local;
         }
-        ctx._gpuInstanceManager->markDirty({&reg, node}, ComponentFlag::Transform);
+        instanceManager.markDirty({&reg, node}, ComponentFlag::Transform);
     }
 }
 
@@ -251,9 +251,8 @@ void TransformSystem::setParent(EntityHandle childH, entt::entity newParent, boo
     markDirty(childH);
 }
 
-void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
+void TransformSystem::flushDirty(entt::registry& reg, GPUInstanceManager& instanceManager)
 {
-    (void) ctx;
     if (dirty.empty())
         return;
 
@@ -313,7 +312,7 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
             const entt::entity p = rt._parent._entity;
             if (has_transform_e(p))
             {
-                ensure_chain_up_to_date(EntityHandle{&reg, p}, ctx);
+                ensure_chain_up_to_date(EntityHandle{&reg, p}, instanceManager);
                 pw = reg.get<Transform_C>(p)._world;
             }
         }
@@ -342,7 +341,7 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
             if (dirtyHere)
             {
                 t._world = it.parentWorld * t._local;
-                ctx._gpuInstanceManager->markDirty({&reg, it.e}, ComponentFlag::Transform);
+                instanceManager.markDirty({&reg, it.e}, ComponentFlag::Transform);
             }
 
             const transform childPW = t._world;
@@ -359,10 +358,10 @@ void TransformSystem::flushDirty(entt::registry& reg, Context& ctx)
     }
 }
 
-void TransformSystem::update(entt::registry& reg, Context& ctx)
+void TransformSystem::update(entt::registry& reg, GPUInstanceManager& instanceManager)
 {
     ++frameCount;
-    flushDirty(reg, ctx);
+    flushDirty(reg, instanceManager);
 }
 
 }  // namespace batap

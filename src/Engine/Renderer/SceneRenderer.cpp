@@ -1,5 +1,5 @@
 #include "SceneRenderer.h"
-#include <cstddef>
+
 #include <cstdint>
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
@@ -15,16 +15,9 @@
 
 namespace batap
 {
-
-void SceneRenderer::loadScene(Scene* scene)
+void SceneRenderer::uploadDirty()
 {
-    _scene = scene;
-}
-
-void SceneRenderer::uploadDirty(uint8_t frameIndex)
-{
-    auto& reg = _scene->_registry;
-    _ctx._gpuInstanceManager->uploadRemainingFrameDirty(frameIndex);
+    args_.instanceManager_->uploadRemainingFrameDirty(_ctx);
 }
 
 void SceneRenderer::initRenderPasses()
@@ -38,15 +31,14 @@ void SceneRenderer::initRenderPasses()
                 auto* psoM = r->_psoManager;
                 auto& assetM = _ctx._assetManager;
 
-                // Render target (couleur) + Depth
+                auto&& [reg, instanceM] = args_;
+
                 auto rtv_render3d = rM->getFrameView(RN::RTV_render_3d)[r->_frameIndex];
                 auto dsv_depth = rM->getFrameView(RN::DSV_render_3d)[r->_frameIndex];
 
-                // 1) Transitions vers états de rendu
                 rtv_render3d._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
                 dsv_depth._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-                // 2) Clear
                 const float clearColor[4] = {0.2f, 0.2f, 0.2f, 1.f};
                 cmdList->ClearRenderTargetView(rtv_render3d._descriptorHandle->cpuHandle,
                                                clearColor, 0, nullptr);
@@ -54,7 +46,6 @@ void SceneRenderer::initRenderPasses()
                 cmdList->ClearDepthStencilView(dsv_depth._descriptorHandle->cpuHandle,
                                                D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-                // 3) Bind RT/DS
                 cmdList->OMSetRenderTargets(1, &rtv_render3d._descriptorHandle->cpuHandle, FALSE,
                                             &dsv_depth._descriptorHandle->cpuHandle);
 
@@ -75,7 +66,6 @@ void SceneRenderer::initRenderPasses()
                 cmdList->RSSetViewports(1, &vp);
                 cmdList->RSSetScissorRects(1, &sc);
 
-                // 5) Descriptor heaps
                 ID3D12DescriptorHeap* heaps[] = {
                     rM->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
                 cmdList->SetDescriptorHeaps(1, heaps);
@@ -83,37 +73,36 @@ void SceneRenderer::initRenderPasses()
                 r->_psoManager->bindPipelineState(cmdList, toS(RN::pso_geometry_pass));
 
                 EntityHandle cam;
-                _scene->_registry.view<Camera_C, Transform_C>().each(
+                reg->view<Camera_C, Transform_C>().each(
                     [&](entt::entity e, Camera_C& c, Transform_C& t)
                     {
                         if (c._active)
                         {
-                            cam = {&_scene->_registry, e};
+                            cam = {reg, e};
                         }
                     });
                 if (!cam.valid())
                     return;
 
-                auto camSRVHandle =
-                    r->_resourceManager->getFrameView(_ctx._gpuInstanceManager->_cameraInstancesPool
-                                                          ._instancePoolViewHandle)[frameIndex];
-                auto meshesSRVHandle =
-                    r->_resourceManager->getFrameView(_ctx._gpuInstanceManager->_meshInstancesPool
-                                                          ._instancePoolViewHandle)[frameIndex];
+                auto camSRVHandle = r->_resourceManager->getFrameView(
+                    instanceM->_cameraInstancesPool._instancePoolViewHandle)[frameIndex];
+                auto meshesSRVHandle = r->_resourceManager->getFrameView(
+                    instanceM->_meshInstancesPool._instancePoolViewHandle)[frameIndex];
 
                 cmdList->SetGraphicsRootDescriptorTable(0,
                                                         camSRVHandle._descriptorHandle->gpuHandle);
                 cmdList->SetGraphicsRootDescriptorTable(
                     1, meshesSRVHandle._descriptorHandle->gpuHandle);
 
-                uint32_t bindedConstants[2] = {
-                    _ctx._gpuInstanceManager->_cameraInstancesPool.get(cam)._gpuIndex, 0};
+                uint32_t bindedConstants[2] = {instanceM->_cameraInstancesPool.get(cam)._gpuIndex,
+                                               0};
 
-                auto meshes = _scene->_registry.view<Mesh_C, RenderInstance_C>();
+                auto meshes = reg->view<Mesh_C, RenderInstance_C>();
                 meshes.each(
                     [&](entt::entity e, Mesh_C& meshC, RenderInstance_C& renderInstanceC)
                     {
-                        if(!meshC._mesh) return;
+                        if (!meshC._mesh)
+                            return;
                         auto* mesh = assetM->get(meshC._mesh);
 
                         cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -134,10 +123,6 @@ void SceneRenderer::initRenderPasses()
 
                         cmdList->DrawIndexedInstanced(mesh->_indexCount, 1, 0, 0, 0);
                     });
-
-                // 9) Transition de sortie pour l’étape suivante
-                // Si ta prochaine étape lit en compute / copie / SRV :
-                // ou D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE si tu le samples en composition
             });
 
     // _ctx._renderer->_renderGraph->addPass(toS(RN::pass_render0), D3D12_COMMAND_LIST_TYPE_DIRECT,

@@ -12,10 +12,11 @@
 namespace batap
 {
 GPUInstanceManager::GPUInstanceManager(Context& ctx)
-    : _ctx(ctx), _resourceManager(*ctx._renderer->_resourceManager) {};
+    : _resourceManager(*ctx._renderer->_resourceManager) {};
 
-void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
+void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
 {
+    auto frameIndex = ctx.getFrameindex();
     auto upload = [&](auto& frameInstancePool)
     {
         using PoolT = std::remove_reference_t<decltype(frameInstancePool)>;
@@ -52,7 +53,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(uint8_t frameIndex)
                 for (const PatchDesc& p : patchRange.patches)
                 {
                     std::byte* buf = tmp.get(p._size);
-                    p.fill(_ctx, *entityHandle._reg, entityHandle._entity, buf);
+                    p.fill(ctx, *entityHandle._reg, entityHandle._entity, buf);
 
                     const uint32_t stride = sizeof(typename InstanceT::GPUData);
                     const uint32_t byteOffset = instance->_gpuIndex * stride + p._offset;

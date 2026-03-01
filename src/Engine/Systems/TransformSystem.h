@@ -11,6 +11,8 @@
 namespace batap
 {
 
+struct World;
+
 enum class Space
 {
     Local,
@@ -23,7 +25,7 @@ struct TransformSystem
     uint32_t frameCount = 1;
     std::vector<entt::entity> dirty;
 
-    void update(entt::registry& reg, Context& ctx);
+    void update(entt::registry& reg, GPUInstanceManager& instanceManager);
 
     void setLocalPosition(EntityHandle e, const v3f& p);
     void setLocalRotation(EntityHandle e, const quatf& q);
@@ -36,7 +38,7 @@ struct TransformSystem
 
     void setParent(EntityHandle child, entt::entity newParent, bool keepWorld);
 
-    void flushDirty(entt::registry& reg, Context& ctx);
+    void flushDirty(entt::registry& reg, GPUInstanceManager& instanceManager);
     void markDirty(EntityHandle e);
 
    private:
@@ -50,6 +52,6 @@ struct TransformSystem
         return h.valid() && h._reg->any_of<Transform_C>(h._entity);
     }
 
-    static void ensure_chain_up_to_date(EntityHandle e, Context& ctx);
+    static void ensure_chain_up_to_date(EntityHandle e, GPUInstanceManager& instanceManager);
 };
 }  // namespace batap

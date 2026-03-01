@@ -16,8 +16,6 @@
 #include "Renderer/SceneRenderer.h"
 #include "Scene.h"
 #include "Systems/Systems.h"
-#include "TestScene.h"
-#include "UI/UIPanels.h"
 #include "WindowsUtils/FileDialog.h"
 
 static void printDeltaTime(float dt)
@@ -58,25 +56,19 @@ Context::Context()
     _inputManager = std::make_unique<InputManager>();
     _inputManager->Ctx = this;
     _lastTime = std::chrono::high_resolution_clock::now();
-    _uiPanels = std::make_unique<UIPanels>(*this);
     _fileDialogMsgBus = std::make_unique<FileDialogMsgBus>();
-    _systems = std::make_unique<Systems>(*this);
 }
 
 Context::~Context() = default;
 
 void Context::init()
 {
-    _gpuInstanceManager = std::make_unique<GPUInstanceManager>(*this);
-    _entityFactory = std::make_unique<EntityFactory>(*_gpuInstanceManager.get());
     _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
-    _scene = std::make_unique<TestScene>(*this);
     _sceneRenderer = std::make_unique<SceneRenderer>(*this);
-    _sceneRenderer->loadScene(_scene.get());
     _sceneRenderer->initRenderPasses();
 }
 
-void Context::update()
+void Context::beginFrame()
 {
     std::chrono::duration<float> dt = std::chrono::high_resolution_clock::now() - _lastTime;
     _lastTime = std::chrono::high_resolution_clock::now();
@@ -93,17 +85,12 @@ void Context::update()
         });
 
     _renderer->beginImGuiFrame();
-
     _inputManager->DispatchEvents();
+}
 
-    _scene->update(_deltaTime);
-    _systems->update(_deltaTime, _scene->_registry);
-    _sceneRenderer->uploadDirty(_renderer->_frameIndex);
-
+void Context::endFrame()
+{
     _inputManager->ClearFrameState();
-
-    _uiPanels->draw();
-
     _renderer->render();
 }
 
@@ -117,5 +104,10 @@ v2i Context::getFrameSize()
 uint8_t Context::getFrameindex()
 {
     return _renderer->_frameIndex;
+}
+
+void Context::destroy()
+{
+    _renderer->flush();
 }
 }  // namespace batap
