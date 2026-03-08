@@ -10,16 +10,47 @@
 #include "Renderer/ResourceManager.h"
 #include "instanceDeclaration.h"
 
-#include <array>
+#include <emhash/hash_table8.hpp>
 #include <entt/entt.hpp>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <unordered_map>
 #include <vector>
 
 namespace batap
 {
+struct GPUInstanceID
+{
+    uint32_t value = 0;
+
+    GPUInstanceID() = default;
+    GPUInstanceID(uint32_t v) : value(v) {}
+
+    bool valid() const { return value != std::numeric_limits<uint32_t>::max(); }
+
+    operator uint32_t() const { return value; }
+};
+
+}  // namespace batap
+
+namespace std
+{
+template <>
+struct hash<batap::GPUInstanceID>
+{
+    std::size_t operator()(const batap::GPUInstanceID& id) const noexcept
+    {
+        return std::hash<uint32_t>{}(id.value);
+    }
+};
+}  // namespace std
+
+namespace batap
+{
+
 struct FrameDirtyFlag
 {
     std::array<ComponentFlag, FramesInFlight> _dirtyComponentsByFrame;
@@ -66,13 +97,12 @@ struct FrameInstancePool
     static_assert(requires { typename type::GPUData; });
     static_assert(HasUsedComponents<type>);
     using InstanceType = type;
-    using Id = uint32_t;
 
-    FrameInstancePool(ResourceManager& rm, size_t initPoolSize,
-                      const std::string& name = "FrameInstancePool")
+    FrameInstancePool(ResourceManager& rm, size_t initCapacity,
+                      const std::string& name = "FrameInstancePool", bool dense = false)
         : _resourceManager(rm)
     {
-        _gpuPoolSize = initPoolSize;
+        gpuPoolCapacity_ = initCapacity;
         _name = name;
         createGPUResourcesAndViews();
     }
@@ -80,90 +110,82 @@ struct FrameInstancePool
     ResourceManager& _resourceManager;
     std::string _name;
 
-    size_t _gpuPoolSize = 0;
-    std::vector<type> _pool;
-    std::vector<Id> _freeList;
-    std::unordered_map<EntityHandle, Id> _byEntity;
-    std::unordered_map<EntityHandle, FrameDirtyFlag> _dirtyComponents;
+    emhash8::HashMap<EntityHandle, GPUInstanceID> entityToId_;
+    emhash8::HashMap<GPUInstanceID, EntityHandle> idToEntity_;
+    emhash8::HashMap<EntityHandle, FrameDirtyFlag> dirtyComponents_;
 
     static constexpr ComponentFlag _instanceUsedComponentFlag = type::UsedComposents;
 
     GPUViewHandle _instancePoolViewHandle;
 
-    Id assign(const EntityHandle& e)
+    GPUInstanceID insert(const EntityHandle& e)
     {
-        if (auto it = _byEntity.find(e); it != _byEntity.end())
+        if (auto it = entityToId_.find(e); it != entityToId_.end())
             return it->second;
 
-        Id id = acquire();
-        _byEntity[e] = id;
+        GPUInstanceID id = static_cast<uint32_t>(size());
 
-        _pool[id]._gpuIndex = id;
+        FrameDirtyFlag dirtyf;
+        dirtyf.setAll(_instanceUsedComponentFlag);
+        dirtyComponents_.emplace(e, dirtyf);
 
-        auto [it, inserted] = _dirtyComponents.emplace(e, FrameDirtyFlag{});
+        idToEntity_.emplace(id, e);
+        entityToId_.emplace(e, id);
+
+        gpuPoolSize_++;
+        ensureCapacity();
 
         return id;
     }
 
     void remove(const EntityHandle& e)
     {
-        _dirtyComponents.erase(e);
-        auto it = _byEntity.find(e);
-        if (it == _byEntity.end())
+        if (size() == 0 || !e.valid())
             return;
-        release(it->second);
-        _byEntity.erase(it);
+        auto it = entityToId_.find(e);
+        if (it == entityToId_.end())
+            return;
+        GPUInstanceID removedId = it->second;
+        GPUInstanceID lastId{static_cast<uint32_t>(size() - 1)};
+
+        if (removedId != lastId)
+        {
+            auto lastIt = idToEntity_.find(lastId);
+            if (lastIt != idToEntity_.end())
+            {
+                EntityHandle movedEntity = lastIt->second;
+
+                entityToId_[movedEntity] = removedId;
+                idToEntity_[removedId] = movedEntity;
+
+                FrameDirtyFlag dirtyf;
+                dirtyf.setAll(_instanceUsedComponentFlag);
+                dirtyComponents_[movedEntity] = dirtyf;
+            }
+        }
+
+        entityToId_.erase(e);
+        idToEntity_.erase(lastId);
+        dirtyComponents_.erase(e);
+        gpuPoolSize_--;
     }
 
-    type& get(const EntityHandle& e) { return _pool.at(_byEntity.at(e)); }
-    type* getOrNull(const EntityHandle& e)
+    GPUInstanceID getGPUIndex(const EntityHandle& e)
     {
-        if (auto it = _byEntity.find(e); it != _byEntity.end())
+        if (auto it = entityToId_.find(e); it != entityToId_.end())
         {
-            return &_pool.at(it->second);
+            return it->second;
         }
-        return nullptr;
+
+        return std::numeric_limits<uint32_t>::max();
     }
+
+    size_t size() const { return gpuPoolSize_; }
+    size_t capacity() const { return gpuPoolCapacity_; }
 
    private:
-    Id acquire()
-    {
-        Id id;
-        if (!_freeList.empty())
-        {
-            id = _freeList.back();
-            _freeList.pop_back();
-            _pool[id] = type{};
-        }
-        else
-        {
-            ensureCapacity();
-            _pool.emplace_back();
-            id = static_cast<Id>(_pool.size() - 1);
-        }
-        return id;
-    }
-
-    void release(Id id)
-    {
-        assert(id < _pool.size());
-        _pool[id] = type{};
-        _freeList.push_back(id);
-    }
-
-    type& get(Id id)
-    {
-        assert(id < _pool.size());
-        return _pool[id];
-    }
-
-    const type& get(Id id) const
-    {
-        assert(id < _pool.size());
-        return _pool[id];
-    }
-
-    size_t capacity() const { return _pool.size(); }
+    size_t gpuPoolSize_ = 0;
+    size_t gpuPoolCapacity_ = 1;
 
     void createGPUResourcesAndViews()
     {
@@ -173,7 +195,7 @@ struct FrameInstancePool
         }
 
         auto rhandle = _resourceManager.createBufferFrameResource(
-            _gpuPoolSize * sizeof(typename type::GPUData), D3D12_RESOURCE_STATE_COPY_DEST,
+            gpuPoolCapacity_ * sizeof(typename type::GPUData), D3D12_RESOURCE_STATE_COPY_DEST,
             D3D12_HEAP_TYPE_DEFAULT, _name);
 
         D3D12_SHADER_RESOURCE_VIEW_DESC desc{};
@@ -181,7 +203,7 @@ struct FrameInstancePool
         desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         desc.Format = DXGI_FORMAT_UNKNOWN;
         desc.Buffer.FirstElement = 0;
-        desc.Buffer.NumElements = static_cast<UINT>(_gpuPoolSize);
+        desc.Buffer.NumElements = static_cast<UINT>(gpuPoolCapacity_);
         desc.Buffer.StructureByteStride = static_cast<UINT>(sizeof(typename type::GPUData));
         desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
@@ -191,19 +213,19 @@ struct FrameInstancePool
 
     void markAllinstanceDirty()
     {
-        _dirtyComponents.clear();
-        for (auto&& [handle, _] : _byEntity)
+        dirtyComponents_.clear();
+        for (auto&& [handle, _] : entityToId_)
         {
-            auto& flags = _dirtyComponents[handle] = FrameDirtyFlag();
+            auto& flags = dirtyComponents_[handle] = FrameDirtyFlag();
             flags.setAll(_instanceUsedComponentFlag);
         }
     }
 
     bool ensureCapacity()
     {
-        if (_pool.size() > _gpuPoolSize)
+        if (gpuPoolSize_ > gpuPoolCapacity_)
         {
-            _gpuPoolSize *= 2;
+            gpuPoolCapacity_ *= 2;
             createGPUResourcesAndViews();
             markAllinstanceDirty();
             return true;
@@ -212,6 +234,10 @@ struct FrameInstancePool
     }
 };
 
+// Current design assumes one rendering aspect (InstanceKind) per entity.
+// If one day we need true multi-aspect rendering (e.g. Mesh + Light on the same entity),
+// we can switch to a per-component GPU pool model.
+// That approach would remove InstanceKind routing and simplify upload logic.
 struct GPUInstanceManager
 {
     GPUInstanceManager(Context& ctx);
@@ -225,5 +251,11 @@ struct GPUInstanceManager
 
     FrameInstancePool<CameraInstance> _cameraInstancesPool{_resourceManager, 1,
                                                            "CameraInstancePool"};
+
+    FrameInstancePool<PointLightInstance> pointLightInstancePool_{_resourceManager, 32,
+                                                                  "pointLightInstancePool"};
+
+    // prochaine fois que t'ajoutes un type d'instance note toutes les étapes pour voir ce qu'on
+    // peut améliorer là le processus est trop long
 };
-};  // namespace batap
+}  // namespace batap

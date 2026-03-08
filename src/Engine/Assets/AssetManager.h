@@ -6,7 +6,6 @@
 #include "AssetHandle.h"
 #include "AssetSlotMap.h"
 
-
 namespace batap
 {
 
@@ -40,6 +39,11 @@ struct AssetManager
     {
         return std::get<AssetSlotMap<T>*>(maps_)->get(path);
     }
+
+    using ForEachAssetMetaFn =
+        std::function<void(AssetHandleAny handle, std::string_view name, std::string_view path)>;
+
+    void forEachAssetOfType(AssetType type, const ForEachAssetMetaFn& fn) const;
 
     ResourceManager* resourceManager_ = nullptr;
 

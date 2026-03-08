@@ -106,7 +106,7 @@ std::vector<MeshHandle> importMeshFromFile(std::string_view path, AssetManager& 
         }
 
         std::string sceneName = aiScene_mesh->mName.C_Str();
-        std::string meshName = aiScene_mesh->mName.C_Str();
+        std::string meshName = aiMesh_mesh->mName.C_Str();
         auto [handle, inserted] = assetManager.emplace<Mesh>(meshName, path.data());
 
         if (inserted)

@@ -231,8 +231,11 @@ void Renderer::initPsosAndShaders()
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0,
                                     D3D12_SHADER_VISIBILITY_ALL},  // Camera
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0,
-                                    D3D12_SHADER_VISIBILITY_VERTEX},     // Mesh InstanceData
-                RootConstantsDesc{2, 0, 0, D3D12_SHADER_VISIBILITY_ALL}  // indices : Camera, Mesh
+                                    D3D12_SHADER_VISIBILITY_VERTEX},  // Mesh InstanceData
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0,
+                                    D3D12_SHADER_VISIBILITY_PIXEL},  // PointLights array
+                RootConstantsDesc{
+                    3, 0, 0, D3D12_SHADER_VISIBILITY_ALL}  // CameraIndex, MeshIndex, nbPointlight
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
@@ -273,7 +276,8 @@ void Renderer::initPsosAndShaders()
                                        D3D12_ROOT_SIGNATURE_FLAG_NONE};
 
         _psoManager->createComputePipelineState(toS(RN::pso_compute0), rDesc,
-                                                [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d) {
+                                                [&](D3D12_COMPUTE_PIPELINE_STATE_DESC& d)
+                                                {
                                                     d.CS = {
                                                         shader_compute0->_blob->GetBufferPointer(),
                                                         shader_compute0->_blob->GetBufferSize()};

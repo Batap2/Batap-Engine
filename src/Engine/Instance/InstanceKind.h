@@ -5,6 +5,7 @@ namespace batap
 enum class InstanceKind
 {
     StaticMesh,
-    Camera
+    Camera,
+    PointLight
 };
 }

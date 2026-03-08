@@ -3,6 +3,7 @@
 #include <assimp/code/AssetLib/Collada/ColladaHelper.h>
 #include "Components/Camera_C.h"
 #include "Components/ComponentFlag.h"
+#include "Components/PointLight_C.h"
 #include "Components/Transform_C.h"
 #include "Context.h"
 #include "EigenTypes.h"
@@ -27,12 +28,13 @@ struct TempBytes
     std::array<std::byte, SmallN> _small{};
     std::vector<std::byte> _heap{};
 
-    std::byte* get(size_t n)
+    std::span<std::byte> get(size_t n)
     {
         if (n <= SmallN)
-            return _small.data();
+            return std::span<std::byte>(_small).first(n);
+
         _heap.resize(n);
-        return _heap.data();
+        return std::span<std::byte>(_heap);
     }
 };
 
@@ -62,7 +64,6 @@ template <class GPUDataT, ComponentFlag UsedFlags>
 struct GPUInstanceBase
 {
     static constexpr ComponentFlag UsedComposents = UsedFlags;
-    uint32_t _gpuIndex = 0;
     using GPUData = GPUDataT;
 
     static_assert(std::is_trivially_copyable_v<GPUDataT>);
@@ -74,7 +75,8 @@ struct StaticMeshGPUData
     float _world[16];
 };
 
-using StaticMeshInstance = GPUInstanceBase<StaticMeshGPUData, ComponentFlag::Transform>;
+using StaticMeshInstance =
+    GPUInstanceBase<StaticMeshGPUData, ComponentFlag::Mesh | ComponentFlag::Transform>;
 
 struct CameraGPUData
 {
@@ -91,6 +93,19 @@ struct CameraGPUData
 using CameraInstance =
     GPUInstanceBase<CameraGPUData, ComponentFlag::Transform | ComponentFlag::Camera>;
 
+struct PointLightGPUData
+{
+    float pos_[3];
+    float intensity_;
+    float color_[3];
+    float radius_;
+    float falloff_;
+    bool castShadows_;
+};
+
+using PointLightInstance =
+    GPUInstanceBase<PointLightGPUData, ComponentFlag::Transform | ComponentFlag::PointLight>;
+
 // ----------- InstancePatches : How to get components data
 
 template <>
@@ -102,9 +117,8 @@ struct InstancePatches<StaticMeshInstance>
         if (!t)
             return;
 
-        auto* out = reinterpret_cast<m4f*>(dst);
-        *out = t->worldMatrix();
-        volatile auto a = out;
+        auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
+        std::memcpy(out->_world, t->worldMatrix().data(), 16 * sizeof(float));
     }
 
     static constexpr PatchDesc _transformPatches[] = {
@@ -167,6 +181,53 @@ struct InstancePatches<CameraInstance>
         std::array<PatchRange, 32> t{};
         t[flagToIndex(ComponentFlag::Camera)] = PatchRange{_cameraPatches};
         t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_cameraPatches};
+        return t;
+    }();
+};
+
+template <>
+struct InstancePatches<PointLightInstance>
+{
+    static void fillTransform(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    {
+        auto* transC = r.try_get<Transform_C>(e);
+        auto* out = reinterpret_cast<PointLightInstance::GPUData*>(dst);
+
+        if (transC)
+        {
+            v3f worldPos = transC->world().translation();
+            std::memcpy(out->pos_, worldPos.data(), 3 * sizeof(float));
+        }
+    }
+
+    static void fillLight(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    {
+        auto* pLightC = r.try_get<PointLight_C>(e);
+
+        auto* out = reinterpret_cast<PointLightInstance::GPUData*>(dst);
+        if (pLightC)
+        {
+            std::memcpy(out->color_, pLightC->color_.data(), 3 * sizeof(float));
+            out->intensity_ = pLightC->intensity_;
+            out->radius_ = pLightC->radius_;
+            out->falloff_ = pLightC->falloff_;
+            out->castShadows_ = pLightC->castShadows_;
+        }
+    }
+
+    static constexpr PatchDesc posPatch_[] = {PatchDesc{
+        ._offset = 0, ._size = static_cast<uint32_t>(3 * sizeof(float)), .fill = &fillTransform}};
+
+    static constexpr PatchDesc lightPatch_[] = {
+        PatchDesc{._offset = static_cast<uint32_t>(3 * sizeof(float)),
+                  ._size = static_cast<uint32_t>(7 * sizeof(float)),
+                  .fill = &fillLight}};
+
+    static constexpr std::array<PatchRange, 32> byBit = []()
+    {
+        std::array<PatchRange, 32> t{};
+        t[flagToIndex(ComponentFlag::PointLight)] = PatchRange{lightPatch_};
+        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{posPatch_};
         return t;
     }();
 };

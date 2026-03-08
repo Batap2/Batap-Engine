@@ -7,10 +7,10 @@ namespace batap
 {
 struct AssetHolderConfig
 {
-    v2f _pos;
-    v2f _size;
+    v2f pos_;
+    v2f size_;
     ImTextureID _thumbnail;
 };
 
-void AssetHolder();
+bool AssetHolder(AssetHolderConfig config);
 }  // namespace batap

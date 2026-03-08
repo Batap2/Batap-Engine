@@ -23,7 +23,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
         using InstanceT = typename PoolT::InstanceType;
 
         TempBytes<256> tmp;
-        auto& map = frameInstancePool._dirtyComponents;
+        auto& map = frameInstancePool.dirtyComponents_;
         for (auto it = map.begin(); it != map.end();)
         {
             const EntityHandle& entityHandle = it->first;
@@ -36,8 +36,8 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
                 continue;
             }
 
-            auto* instance = frameInstancePool.getOrNull(entityHandle);
-            if (!instance)
+            GPUInstanceID id = frameInstancePool.getGPUIndex(entityHandle);
+            if (!id.valid())
             {
                 it = map.erase(it);
                 continue;
@@ -52,15 +52,15 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
 
                 for (const PatchDesc& p : patchRange.patches)
                 {
-                    std::byte* buf = tmp.get(p._size);
-                    p.fill(ctx, *entityHandle._reg, entityHandle._entity, buf);
+                    auto buf = tmp.get(sizeof(typename InstanceT::GPUData));
+                    p.fill(ctx, *entityHandle._reg, entityHandle._entity, buf.data());
 
                     const uint32_t stride = sizeof(typename InstanceT::GPUData);
-                    const uint32_t byteOffset = instance->_gpuIndex * stride + p._offset;
+                    const uint32_t byteOffset = id * stride + p._offset;
 
                     auto span = _resourceManager.requestUploadOwned(
                         frameInstancePool._instancePoolViewHandle, p._size, 4, byteOffset);
-                    std::memcpy(span.data(), buf, p._size);
+                    std::memcpy(span.data(), buf.subspan(p._offset, p._size).data(), p._size);
                 }
             }
             frameDirtyFlag._dirtyComponentsByFrame[frameIndex] = ComponentFlag::None;
@@ -76,6 +76,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
 
     upload(_meshInstancesPool);
     upload(_cameraInstancesPool);
+    upload(pointLightInstancePool_);
 }
 
 void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag componentFlag)
@@ -87,11 +88,13 @@ void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag com
     switch (rID->_kind)
     {
         case InstanceKind::StaticMesh:
-            _meshInstancesPool._dirtyComponents[handle].setAll(componentFlag);
+            _meshInstancesPool.dirtyComponents_[handle].setAll(componentFlag);
             break;
         case InstanceKind::Camera:
-            _cameraInstancesPool._dirtyComponents[handle].setAll(componentFlag);
+            _cameraInstancesPool.dirtyComponents_[handle].setAll(componentFlag);
             break;
+        case InstanceKind::PointLight:
+            pointLightInstancePool_.dirtyComponents_[handle].setAll(componentFlag);
     }
 }
 }  // namespace batap

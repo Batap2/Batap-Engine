@@ -88,18 +88,25 @@ void SceneRenderer::initRenderPasses()
                     instanceM->_cameraInstancesPool._instancePoolViewHandle)[frameIndex];
                 auto meshesSRVHandle = r->_resourceManager->getFrameView(
                     instanceM->_meshInstancesPool._instancePoolViewHandle)[frameIndex];
+                auto pointLightSRVHandle = r->_resourceManager->getFrameView(
+                    instanceM->pointLightInstancePool_._instancePoolViewHandle)[frameIndex];
 
                 cmdList->SetGraphicsRootDescriptorTable(0,
                                                         camSRVHandle._descriptorHandle->gpuHandle);
                 cmdList->SetGraphicsRootDescriptorTable(
                     1, meshesSRVHandle._descriptorHandle->gpuHandle);
+                cmdList->SetGraphicsRootDescriptorTable(2,
+                                                        pointLightSRVHandle._descriptorHandle->gpuHandle);
 
-                uint32_t bindedConstants[2] = {instanceM->_cameraInstancesPool.get(cam)._gpuIndex,
-                                               0};
+                auto camID = instanceM->_cameraInstancesPool.getGPUIndex(cam);
+                if (!camID.valid())
+                    return;
 
-                auto meshes = reg->view<Mesh_C, RenderInstance_C>();
+                uint32_t bindedConstants[3] = {camID, 0, static_cast<uint32_t>(instanceM->pointLightInstancePool_.size())};
+
+                auto meshes = reg->view<Mesh_C>();
                 meshes.each(
-                    [&](entt::entity e, Mesh_C& meshC, RenderInstance_C& renderInstanceC)
+                    [&](entt::entity e, Mesh_C& meshC)
                     {
                         if (!meshC._mesh)
                             return;
@@ -107,9 +114,13 @@ void SceneRenderer::initRenderPasses()
 
                         cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-                        bindedConstants[1] = renderInstanceC._instanceID;
+                        auto id = instanceM->_meshInstancesPool.getGPUIndex({reg, e});
+                        if (!id.valid())
+                            return;
 
-                        cmdList->SetGraphicsRoot32BitConstants(2, 2, bindedConstants, 0);
+                        bindedConstants[1] = id;
+
+                        cmdList->SetGraphicsRoot32BitConstants(3, 3, bindedConstants, 0);
 
                         auto& ib = rM->getStaticMeshView(mesh->_indexBuffer);
                         auto& vb = rM->getStaticMeshView(mesh->_vertexBuffer);

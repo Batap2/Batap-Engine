@@ -70,6 +70,7 @@ target_compile_options(batap_warnings INTERFACE
   -Wno-unused-variable
   -Wno-unsafe-buffer-usage-in-libc-call
   -Wno-missing-prototypes
+  -Wno-missing-designated-field-initializers
 )
 
 # Global compile defs (Windows)

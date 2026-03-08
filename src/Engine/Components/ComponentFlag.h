@@ -9,6 +9,8 @@ enum class ComponentFlag : uint32_t
     None = 0,
     Transform = 1u << 0,
     Camera = 1u << 1,
+    Mesh = 1u << 2,
+    PointLight = 1u << 3,
 };
 
 constexpr ComponentFlag operator|(ComponentFlag a, ComponentFlag b)

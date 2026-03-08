@@ -2,18 +2,20 @@
 #include <cstdint>
 #include <variant>
 
-namespace batap {
+namespace batap
+{
 
 struct Mesh;
 struct Texture;
 
-template<class T>
+template <class T>
 struct AssetHandle
 {
     uint32_t index = 0;
     uint32_t generation = 0;
 
-    friend bool operator==(AssetHandle a, AssetHandle b) {
+    friend bool operator==(AssetHandle a, AssetHandle b)
+    {
         return a.index == b.index && a.generation == b.generation;
     }
     friend bool operator!=(AssetHandle a, AssetHandle b) { return !(a == b); }
@@ -26,4 +28,10 @@ using MeshHandle = AssetHandle<Mesh>;
 using TextureHandle = AssetHandle<Texture>;
 
 using AssetHandleAny = std::variant<MeshHandle, TextureHandle>;
-} // namespace batap
+
+enum class AssetType : uint8_t
+{
+    Mesh,
+    Texture
+};
+}  // namespace batap

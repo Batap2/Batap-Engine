@@ -91,6 +91,30 @@ struct SlotMap
         return &dense_[slots_[k.index].denseIndex];
     }
 
+    template <typename F>
+    void for_each(F&& f)
+    {
+        for (uint32_t denseIndex = 0; denseIndex < static_cast<uint32_t>(dense_.size());
+             ++denseIndex)
+        {
+            const uint32_t slotIndex = denseToSlot_[denseIndex];
+            Slot& s = slots_[slotIndex];
+            f(Key{slotIndex, s.generation}, dense_[denseIndex]);
+        }
+    }
+
+    template <typename F>
+    void for_each(F&& f) const
+    {
+        for (uint32_t denseIndex = 0; denseIndex < static_cast<uint32_t>(dense_.size());
+             ++denseIndex)
+        {
+            const uint32_t slotIndex = denseToSlot_[denseIndex];
+            const Slot& s = slots_[slotIndex];
+            f(Key{slotIndex, s.generation}, dense_[denseIndex]);
+        }
+    }
+
     bool contains(Key k) const { return isValid(k); }
 
     std::vector<T>& dense() { return dense_; }

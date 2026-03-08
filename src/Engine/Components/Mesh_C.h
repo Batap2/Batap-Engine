@@ -1,11 +1,6 @@
 #pragma once
 
-#include "DirtyFlag.h"
-#include "EigenTypes.h"
 #include "Assets/AssetHandle.h"
-
-#include <cstdint>
-#include <vector>
 
 namespace batap
 {

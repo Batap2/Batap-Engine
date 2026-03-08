@@ -69,7 +69,8 @@ ID3D12RootSignature* PipelineStateManager::createRootSignature(RootSignatureDesc
                                              d.registerSpace, d.flags);
                                   rp.InitAsDescriptorTable(1, &range, d.visibility);
                               },
-                              [&](const RootConstantsDesc& c) {
+                              [&](const RootConstantsDesc& c)
+                              {
                                   rp.InitAsConstants(c.num32BitValues, c.shaderRegister,
                                                      c.registerSpace, c.visibility);
                               }},
@@ -121,6 +122,7 @@ GraphicsPipelineState* PipelineStateManager::createGraphicsPipelineState(
     desc.pRootSignature = rootSignature;
     desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    desc.RasterizerState.FrontCounterClockwise = TRUE;
     desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     desc.SampleMask = UINT_MAX;
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;

@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <thread>
 
@@ -101,13 +102,14 @@ std::vector<std::string> OpenFilesDialog(std::span<const FileDialogFilter> filte
     return result;
 }
 
-void OpenFilesDialogAsync(std::span<const FileDialogFilter> filters, FileDialogMsgBus* bus)
+void OpenFilesDialogAsync(std::span<const FileDialogFilter> filters, FileDialogMsgBus* bus, uint64_t id)
 {
     std::thread(
-        [filters, bus]() mutable
+        [filters, bus, id]() mutable
         {
-            FileDialogMsg result = OpenFilesDialog(filters);
-            bus->post(result);
+            auto result = OpenFilesDialog(filters);
+            FileDialogMsg msg{id, result};
+            bus->post(msg);
         })
         .detach();
 }

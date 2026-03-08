@@ -18,5 +18,6 @@ struct EntityFactory
     EntityFactory(GPUInstanceManager& instanceManager);
     EntityHandle createStaticMesh(entt::registry& reg, std::optional<MeshHandle> handle = std::nullopt);
     EntityHandle createCamera(entt::registry& reg);
+    EntityHandle createPointLight(entt::registry& reg);
 };
 }  // namespace batap

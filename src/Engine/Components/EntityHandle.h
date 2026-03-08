@@ -24,6 +24,13 @@ struct EntityHandle
         return _entity == other._entity && _reg == other._reg;
     }
 
+    template <typename T>
+    T& emplace() 
+    {
+        ThrowAssert(valid(), "entityHandle not valid");
+        return _reg->emplace<T>(_entity);
+    }
+
     bool valid() const { return _entity != entt::null && _reg != nullptr && _reg->valid(_entity); }
 
     template <typename T>

@@ -131,5 +131,17 @@ struct AssetSlotMap
         auto it = pathToKey_.find(path);
         return (it == pathToKey_.end()) ? nullptr : get(it->second);
     }
+
+    template <typename F>
+    void for_each(F&& f)
+    {
+        slotMap_.for_each([&](InternalKey ik, Asset& a) { f(toPublic(ik), a); });
+    }
+
+    template <typename F>
+    void for_each(F&& f) const
+    {
+        slotMap_.for_each([&](InternalKey ik, const Asset& a) { f(toPublic(ik), a); });
+    }
 };
 }  // namespace batap

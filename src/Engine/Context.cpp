@@ -8,15 +8,12 @@
 
 #include "Assets/AssetManager.h"
 #include "EigenTypes.h"
-#include "Importers/FileImporter.h"
 #include "InputManager.h"
-#include "Instance/EntityFactory.h"
-#include "Instance/InstanceManager.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
 #include "Scene.h"
 #include "Systems/Systems.h"
-#include "WindowsUtils/FileDialog.h"
+#include "Utils/UIDGenerator.h"
 
 static void printDeltaTime(float dt)
 {
@@ -56,7 +53,6 @@ Context::Context()
     _inputManager = std::make_unique<InputManager>();
     _inputManager->Ctx = this;
     _lastTime = std::chrono::high_resolution_clock::now();
-    _fileDialogMsgBus = std::make_unique<FileDialogMsgBus>();
 }
 
 Context::~Context() = default;
@@ -74,15 +70,6 @@ void Context::beginFrame()
     _lastTime = std::chrono::high_resolution_clock::now();
     _deltaTime = dt.count();
     printDeltaTime(_deltaTime);
-
-    _fileDialogMsgBus->pumpType<FileDialogMsg>(
-        [&](FileDialogMsg&& msg)
-        {
-            for (auto& path : msg)
-            {
-                importFile(path, *_assetManager.get());
-            }
-        });
 
     _renderer->beginImGuiFrame();
     _inputManager->DispatchEvents();
