@@ -130,15 +130,34 @@ struct ResourceManager
 
     struct UploadRequest
     {
-        const void* dataPtr() const { return _ownedData.empty() ? _data : _ownedData.data(); }
-        uint64_t size() const { return _ownedData.empty() ? _dataSize : _ownedData.size(); }
+        const void* dataPtr() const
+        {
+            if (_ownedData.empty())
+                return _data;
+
+            auto bytes = std::span<const std::byte>(_ownedData);
+            return bytes.subspan(ownedDataOffset_).data();
+        }
+        size_t size() const
+        {
+            if (_ownedData.empty())
+                return _dataSize;
+
+            return ownedDataSize_ ? ownedDataSize_ : _ownedData.size();
+        }
 
         GPUHandle _guid;
+
         const void* _data;
+        size_t _dataSize;
+
         std::vector<std::byte> _ownedData;  // optional : for requestUploadOwned()
-        uint64_t _dataSize;
+        // if we want to upload a region of the span
+        size_t ownedDataOffset_ = 0;
+        size_t ownedDataSize_ = 0;
+
         uint32_t _alignment;
-        uint64_t _destinationOffset;
+        size_t _destinationOffset;
     };
 
     struct DeferredRelease
@@ -150,8 +169,9 @@ struct ResourceManager
     void requestUpload(GPUHandle guid, const void* data, uint64_t dataSize, uint32_t alignement,
                        uint64_t destinationOffset = 0);
 
-    std::span<std::byte> requestUploadOwned(GPUHandle guid, uint64_t dataSize, uint32_t alignment,
-                                            uint64_t destinationOffset = 0);
+    std::span<std::byte> requestUploadOwned(GPUHandle guid, size_t dataSize, uint32_t alignment,
+                                            size_t destinationOffset = 0,
+                                            size_t subRegionOffset = 0, size_t subRegionSize = 0);
 
     void flushUploadRequests(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
                              uint32_t frameIndex);

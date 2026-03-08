@@ -96,14 +96,16 @@ void ResourceManager::requestUpload(GPUHandle guid, const void* data, uint64_t d
 }
 
 [nodiscard("You must handle the returned GPU upload span")] std::span<std::byte>
-ResourceManager::requestUploadOwned(GPUHandle guid, uint64_t dataSize, uint32_t alignment,
-                                    uint64_t destinationOffset)
+ResourceManager::requestUploadOwned(GPUHandle guid, size_t dataSize, uint32_t alignment,
+                                    size_t destinationOffset, size_t subRegionOffset, size_t subRegionSize)
 {
     auto& req = _uploadRequests.emplace_back();
     req._guid = guid;
     req._alignment = alignment;
     req._destinationOffset = destinationOffset;
     req._ownedData.resize(dataSize);
+    req.ownedDataOffset_ = subRegionOffset;
+    req.ownedDataSize_ = subRegionSize;
     return std::span<std::byte>(req._ownedData);
 }
 

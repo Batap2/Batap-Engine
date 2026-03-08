@@ -100,7 +100,7 @@ struct PointLightGPUData
     float color_[3];
     float radius_;
     float falloff_;
-    bool castShadows_;
+    uint32_t castShadows_;
 };
 
 using PointLightInstance =
@@ -211,7 +211,7 @@ struct InstancePatches<PointLightInstance>
             out->intensity_ = pLightC->intensity_;
             out->radius_ = pLightC->radius_;
             out->falloff_ = pLightC->falloff_;
-            out->castShadows_ = pLightC->castShadows_;
+            out->castShadows_ = static_cast<uint32_t>(pLightC->castShadows_);
         }
     }
 

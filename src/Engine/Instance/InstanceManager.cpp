@@ -52,15 +52,13 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
 
                 for (const PatchDesc& p : patchRange.patches)
                 {
-                    auto buf = tmp.get(sizeof(typename InstanceT::GPUData));
-                    p.fill(ctx, *entityHandle._reg, entityHandle._entity, buf.data());
-
                     const uint32_t stride = sizeof(typename InstanceT::GPUData);
                     const uint32_t byteOffset = id * stride + p._offset;
 
                     auto span = _resourceManager.requestUploadOwned(
-                        frameInstancePool._instancePoolViewHandle, p._size, 4, byteOffset);
-                    std::memcpy(span.data(), buf.subspan(p._offset, p._size).data(), p._size);
+                        frameInstancePool._instancePoolViewHandle, stride, 4, byteOffset, p._offset, p._size);
+
+                    p.fill(ctx, *entityHandle._reg, entityHandle._entity, span.data());
                 }
             }
             frameDirtyFlag._dirtyComponentsByFrame[frameIndex] = ComponentFlag::None;
