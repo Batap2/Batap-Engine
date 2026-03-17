@@ -20,7 +20,7 @@ enum class Space
     World
 };
 
-struct TransformSystem
+struct Transform_S
 {
     uint32_t frameCount = 1;
     std::vector<entt::entity> dirty;

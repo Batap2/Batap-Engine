@@ -1,6 +1,9 @@
-#include "TransformSystem.h"
+#include "Transform_S.h"
 
 #include "Components/ComponentFlag.h"
+#include "Components/EntityHandle.h"
+#include "Components/Hierarchy_C.h"
+#include "Systems/Hierarchy_S.h"
 #include "Instance/InstanceManager.h"
 
 #include "emhash/hash_set8.hpp"
@@ -10,7 +13,7 @@
 namespace batap
 {
 
-void TransformSystem::ensure_chain_up_to_date(EntityHandle h, GPUInstanceManager& instanceManager)
+void Transform_S::ensure_chain_up_to_date(EntityHandle h, GPUInstanceManager& instanceManager)
 {
     auto& reg = *h._reg;
 
@@ -21,8 +24,7 @@ void TransformSystem::ensure_chain_up_to_date(EntityHandle h, GPUInstanceManager
     while (cur != entt::null && reg.valid(cur) && reg.any_of<Transform_C>(cur))
     {
         path.push_back(cur);
-        auto& t = reg.get<Transform_C>(cur);
-        const entt::entity p = to_entity(t._parent);
+        const entt::entity p = Hierarchy_S::getParent({&reg, cur});
         if (p == entt::null)
             break;
         cur = p;
@@ -39,7 +41,7 @@ void TransformSystem::ensure_chain_up_to_date(EntityHandle h, GPUInstanceManager
             t._localDirty = false;
         }
 
-        const entt::entity p = to_entity(t._parent);
+        const entt::entity p = Hierarchy_S::getParent({&reg, node});
         if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
         {
             t._world = reg.get<Transform_C>(p)._world * t._local;
@@ -52,7 +54,7 @@ void TransformSystem::ensure_chain_up_to_date(EntityHandle h, GPUInstanceManager
     }
 }
 
-void TransformSystem::markDirty(EntityHandle h)
+void Transform_S::markDirty(EntityHandle h)
 {
     if (!has_transform(h))
         return;
@@ -66,7 +68,7 @@ void TransformSystem::markDirty(EntityHandle h)
     dirty.push_back(h._entity);
 }
 
-void TransformSystem::setLocalPosition(EntityHandle h, const v3f& p)
+void Transform_S::setLocalPosition(EntityHandle h, const v3f& p)
 {
     if (!has_transform(h))
         return;
@@ -76,7 +78,7 @@ void TransformSystem::setLocalPosition(EntityHandle h, const v3f& p)
     markDirty(h);
 }
 
-void TransformSystem::setLocalRotation(EntityHandle h, const quatf& q)
+void Transform_S::setLocalRotation(EntityHandle h, const quatf& q)
 {
     if (!has_transform(h))
         return;
@@ -86,7 +88,7 @@ void TransformSystem::setLocalRotation(EntityHandle h, const quatf& q)
     markDirty(h);
 }
 
-void TransformSystem::setLocalScale(EntityHandle h, const v3f& s)
+void Transform_S::setLocalScale(EntityHandle h, const v3f& s)
 {
     if (!has_transform(h))
         return;
@@ -96,7 +98,7 @@ void TransformSystem::setLocalScale(EntityHandle h, const v3f& s)
     markDirty(h);
 }
 
-void TransformSystem::translate(EntityHandle h, const v3f& vec, Space space)
+void Transform_S::translate(EntityHandle h, const v3f& vec, Space space)
 {
     if (!has_transform(h))
         return;
@@ -114,7 +116,7 @@ void TransformSystem::translate(EntityHandle h, const v3f& vec, Space space)
             break;
 
         case Space::World: {
-            const entt::entity p = to_entity(t._parent);
+            const entt::entity p = Hierarchy_S::getParent(h);
             if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
             {
                 const transform& pw = reg.get<Transform_C>(p)._world;
@@ -133,7 +135,7 @@ void TransformSystem::translate(EntityHandle h, const v3f& vec, Space space)
     markDirty(h);
 }
 
-void TransformSystem::rotate(EntityHandle h, const quatf& delta, Space space)
+void Transform_S::rotate(EntityHandle h, const quatf& delta, Space space)
 {
     if (!has_transform(h))
         return;
@@ -152,7 +154,7 @@ void TransformSystem::rotate(EntityHandle h, const quatf& delta, Space space)
             break;
 
         case Space::World: {
-            const entt::entity p = to_entity(t._parent);
+            const entt::entity p = Hierarchy_S::getParent(h);
             if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
             {
                 const quatf Qp = Transform_C::extractWorldRotation(reg.get<Transform_C>(p)._world);
@@ -170,14 +172,14 @@ void TransformSystem::rotate(EntityHandle h, const quatf& delta, Space space)
     markDirty(h);
 }
 
-void TransformSystem::rotate(EntityHandle h, const v3f& axis, float radians, Space space)
+void Transform_S::rotate(EntityHandle h, const v3f& axis, float radians, Space space)
 {
     if (axis.squaredNorm() == 0.f)
         return;
     rotate(h, quatf(angleaxisf(radians, axis.normalized())), space);
 }
 
-void TransformSystem::scale(EntityHandle h, const v3f& vec)
+void Transform_S::scale(EntityHandle h, const v3f& vec)
 {
     if (!has_transform(h))
         return;
@@ -188,70 +190,7 @@ void TransformSystem::scale(EntityHandle h, const v3f& vec)
     markDirty(h);
 }
 
-void TransformSystem::setParent(EntityHandle childH, entt::entity newParent, bool keepWorld)
-{
-    if (!has_transform(childH))
-        return;
-    auto& reg = *childH._reg;
-    const entt::entity child = childH._entity;
-
-    auto& ct = reg.get<Transform_C>(child);
-    const entt::entity oldParent = to_entity(ct._parent);
-
-    if (newParent == child)
-        return;
-    if (newParent == oldParent)
-        return;
-    if (newParent != entt::null && !(reg.valid(newParent) && reg.any_of<Transform_C>(newParent)))
-        return;
-
-    for (entt::entity cur = newParent; cur != entt::null;)
-    {
-        if (cur == child)
-            return;
-        auto& t = reg.get<Transform_C>(cur);
-        cur = to_entity(t._parent);
-    }
-
-    const transform oldWorld = ct._world;
-
-    if (oldParent != entt::null)
-    {
-        auto& pt = reg.get<Transform_C>(oldParent);
-        auto& v = pt.children;
-        v.erase(std::remove_if(v.begin(), v.end(),
-                               [&](const EntityHandle& h) { return to_entity(h) == child; }),
-                v.end());
-    }
-
-    ct._parent = (newParent == entt::null) ? EntityHandle{} : EntityHandle{&reg, newParent};
-
-    if (newParent != entt::null)
-    {
-        auto& np = reg.get<Transform_C>(newParent);
-        auto& v = np.children;
-        const bool exists = std::any_of(v.begin(), v.end(), [&](const EntityHandle& h)
-                                        { return to_entity(h) == child; });
-        if (!exists)
-            v.push_back(EntityHandle{&reg, child});
-    }
-
-    if (keepWorld)
-    {
-        const transform parentWorld = (newParent != entt::null)
-                                          ? reg.get<Transform_C>(newParent)._world
-                                          : transform::Identity();
-
-        const transform localT = parentWorld.inverse() * oldWorld;
-        ct.setLocalFromTransform(localT);
-        ct._localDirty = true;
-    }
-
-    ct._localDirty = true;
-    markDirty(childH);
-}
-
-void TransformSystem::flushDirty(entt::registry& reg, GPUInstanceManager& instanceManager)
+void Transform_S::flushDirty(entt::registry& reg, GPUInstanceManager& instanceManager)
 {
     if (dirty.empty())
         return;
@@ -282,8 +221,7 @@ void TransformSystem::flushDirty(entt::registry& reg, GPUInstanceManager& instan
 
         while (true)
         {
-            auto& tc = reg.get<Transform_C>(cur);
-            const entt::entity p = to_entity(tc._parent);
+            const entt::entity p = Hierarchy_S::getParent({&reg, cur});
             if (!has_transform_e(p))
                 break;
             if (!dirtySet.contains(p))
@@ -308,8 +246,7 @@ void TransformSystem::flushDirty(entt::registry& reg, GPUInstanceManager& instan
     {
         transform pw = transform::Identity();
         {
-            auto& rt = reg.get<Transform_C>(root);
-            const entt::entity p = rt._parent._entity;
+            const entt::entity p = Hierarchy_S::getParent({&reg, root});
             if (has_transform_e(p))
             {
                 ensure_chain_up_to_date(EntityHandle{&reg, p}, instanceManager);
@@ -347,18 +284,18 @@ void TransformSystem::flushDirty(entt::registry& reg, GPUInstanceManager& instan
             const transform childPW = t._world;
             const bool childParentDirty = dirtyHere;
 
-            for (const EntityHandle& ch : t.children)
+
+            for (const auto ch : Hierarchy_S::children({&reg, it.e}))
             {
-                const entt::entity ce = to_entity(ch);
-                if (!has_transform_e(ce))
+                if (!has_transform_e(ch))
                     continue;
-                stack.push_back(Item{ce, childPW, childParentDirty});
+                stack.push_back(Item{ch, childPW, childParentDirty});
             }
         }
     }
 }
 
-void TransformSystem::update(entt::registry& reg, GPUInstanceManager& instanceManager)
+void Transform_S::update(entt::registry& reg, GPUInstanceManager& instanceManager)
 {
     ++frameCount;
     flushDirty(reg, instanceManager);

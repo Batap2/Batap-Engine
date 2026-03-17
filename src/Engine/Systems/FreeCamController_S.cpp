@@ -1,16 +1,15 @@
-#include "FreeCamControllerSystem.h"
+#include "FreeCamController_S.h"
 
 #include "Components/FreeCamController_C.h"
 #include "Context.h"
-#include "Systems/Systems.h"
-#include "Systems/TransformSystem.h"
 #include "InputManager.h"
+#include "Systems/Systems.h"
+#include "Systems/Transform_S.h"
 #include "World.h"
-
 
 namespace batap
 {
-void FreeCamControllerSystem::update(Context& ctx, World& world, float deltaTime)
+void FreeCamController_S::update(Context& ctx, World& world, float deltaTime)
 {
     world.scene_->_registry.view<Transform_C, FreeCamController_C>().each(
         [&](entt::entity ent, Transform_C& transform, FreeCamController_C& controller)
@@ -27,17 +26,21 @@ void FreeCamControllerSystem::update(Context& ctx, World& world, float deltaTime
             {
                 v2i mouseD = ctx._inputManager->GetMouseDelta();
 
-                if(!mouseD.isZero()){
-                    controller.yaw_ += static_cast<float>(-mouseD.x()) * controller.mouseSensitivity_;
-                    controller.pitch_ += static_cast<float>(-mouseD.y()) * controller.mouseSensitivity_;
-    
+                if (!mouseD.isZero())
+                {
+                    controller.yaw_ +=
+                        static_cast<float>(-mouseD.x()) * controller.mouseSensitivity_;
+                    controller.pitch_ +=
+                        static_cast<float>(-mouseD.y()) * controller.mouseSensitivity_;
+
                     constexpr float pitchLimit = 1.55334306f;
                     controller.pitch_ = std::clamp(controller.pitch_, -pitchLimit, pitchLimit);
-    
+
                     quatf qYaw{angleaxisf(controller.yaw_, v3f::UnitY())};
                     quatf qPitch{angleaxisf(controller.pitch_, v3f::UnitX())};
-    
-                    world.systems_->_transforms->setLocalRotation({reg, ent}, (qYaw * qPitch).normalized());
+
+                    world.systems_->_transforms->setLocalRotation({reg, ent},
+                                                                  (qYaw * qPitch).normalized());
                 }
             }
 
@@ -61,9 +64,10 @@ void FreeCamControllerSystem::update(Context& ctx, World& world, float deltaTime
                 move.normalize();
 
                 float speed = ctx._inputManager->IsKeyDown(Key::LShift) ? controller.boostSpeed_
-                                                                           : controller.moveSpeed_;
+                                                                        : controller.moveSpeed_;
 
-                world.systems_->_transforms->translate({reg, ent}, move * speed * deltaTime, Space::Local);
+                world.systems_->_transforms->translate({reg, ent}, move * speed * deltaTime,
+                                                       Space::Local);
             }
         });
 }

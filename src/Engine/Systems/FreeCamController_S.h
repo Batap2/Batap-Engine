@@ -6,7 +6,7 @@ namespace batap
 struct Context;
 struct World;
 
-struct FreeCamControllerSystem
+struct FreeCamController_S
 {
     void update(Context& ctx, World& world, float deltaTime);
 };

@@ -9,9 +9,9 @@ namespace batap
 {
 
 struct Context;
-struct TransformSystem;
+struct Transform_S;
 struct World;
-struct FreeCamControllerSystem;
+struct FreeCamController_S;
 
 struct Systems
 {
@@ -20,7 +20,7 @@ struct Systems
 
     void update(float deltaTime, Context& ctx, World& world);
 
-    std::unique_ptr<FreeCamControllerSystem> freecam_;
-    std::unique_ptr<TransformSystem> _transforms;
+    std::unique_ptr<FreeCamController_S> freecam_;
+    std::unique_ptr<Transform_S> _transforms;
 };
 }  // namespace batap
