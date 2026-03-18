@@ -132,86 +132,119 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         DXGI_ALPHA_MODE_UNSPECIFIED,
         _tearingFlag | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT};
 
-    // Create and upgrade swapchain to our version(ComPtr<IDXGISwapChain4> swapchain)
     Microsoft::WRL::ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
     ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_commandQueues[0]->_commandQueue.Get(),
                                                         hwnd, &swapchain_desc, nullptr, nullptr,
                                                         &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
-
     ThrowIfFailed(_swapchain->SetMaximumFrameLatency(1));
     _frameLatencyWaitableObject = _swapchain->GetFrameLatencyWaitableObject();
 
-    auto swapChainResourcesHandle =
+    swapChainResHandle_ =
         _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
 
-    auto swapChainResources = _resourceManager->getFrameResource(swapChainResourcesHandle);
-    for (size_t i = 0; i < FramesInFlight; i++)
+    recreateScreenSizeResources();
+}
+
+void Renderer::recreateScreenSizeResources()
+{
+    // --- Backbuffers swapchain ---
     {
-        _swapchain->GetBuffer(static_cast<UINT>(i),
-                              IID_PPV_ARGS(&swapChainResources[i]->_resource));
-        swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT,
-                                           toS(RN::texture2D_backbuffers));
+        auto swapChainResources = _resourceManager->getFrameResource(swapChainResHandle_);
+        for (size_t i = 0; i < FramesInFlight; i++)
+        {
+            ThrowIfFailed(_swapchain->GetBuffer(static_cast<UINT>(i),
+                                                IID_PPV_ARGS(&swapChainResources[i]->_resource)));
+            swapChainResources[i]->setResource(D3D12_RESOURCE_STATE_PRESENT,
+                                               toS(RN::texture2D_backbuffers));
+        }
+
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+        rtvDesc.Format                        = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtvImguiHandle_ = _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
+            swapChainResHandle_, rtvDesc, toS(RN::RTV_imgui));
     }
 
-    // compute render resources and views
+    // --- Render target compute (UAV) ---
     {
-        auto handle = _resourceManager->createTexture2DFrameResource(
-            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
-            toS(RN::texture2D_render0));
+        render0Handle_ = _resourceManager->createTexture2DFrameResource(
+            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render0));
 
-        D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc_render0 = {};
-        uavDesc_render0.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        uavDesc_render0.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-        uavDesc_render0.Texture2D.MipSlice = 0;
-        uavDesc_render0.Texture2D.PlaneSlice = 0;
-
-        _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(handle, uavDesc_render0,
-                                                                            toS(RN::UAV_render0));
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+        uavDesc.Format                           = DXGI_FORMAT_R8G8B8A8_UNORM;
+        uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE2D;
+        uavRender0Handle_ = _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(
+            render0Handle_, uavDesc, toS(RN::UAV_render0));
     }
 
-    // imgui resources and views
+    // --- Render target 3D + depth ---
     {
-        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_imgui = {};
-        rtvDesc_imgui.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        rtvDesc_imgui.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-        rtvDesc_imgui.Texture2D.MipSlice = 0;
-        rtvDesc_imgui.Texture2D.PlaneSlice = 0;
-
-        _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
-            swapChainResourcesHandle, rtvDesc_imgui, toS(RN::RTV_imgui));
-    }
-
-    // 3D render resources and views
-    {
-        auto resourceRender3DHandle = _resourceManager->createTexture2DFrameResource(
+        render3DHandle_ = _resourceManager->createTexture2DFrameResource(
             _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
             D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT,
             toS(RN::texture2D_render3D));
 
-        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_render3D = {};
-        rtvDesc_render3D.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        rtvDesc_render3D.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-        rtvDesc_render3D.Texture2D.MipSlice = 0;
-        rtvDesc_render3D.Texture2D.PlaneSlice = 0;
+        D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+        rtvDesc.Format                        = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtvRender3DHandle_ = _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
+            render3DHandle_, rtvDesc, toS(RN::RTV_render_3d));
 
-        _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
-            resourceRender3DHandle, rtvDesc_render3D, toS(RN::RTV_render_3d));
-
-        auto resourceDSVRender3DHandle = _resourceManager->createTexture2DFrameResource(
+        depthHandle_ = _resourceManager->createTexture2DFrameResource(
             _width, _height, DXGI_FORMAT_D32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
             D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_HEAP_TYPE_DEFAULT,
             toS(RN::texture2D_render3D_depthStencil));
 
-        D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc_render3D = {};
-        dsvDesc_render3D.Format = DXGI_FORMAT_D32_FLOAT;
-        dsvDesc_render3D.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-        dsvDesc_render3D.Texture2D.MipSlice = 0;
-
-        _resourceManager->createFrameView<D3D12_DEPTH_STENCIL_VIEW_DESC>(
-            resourceDSVRender3DHandle, dsvDesc_render3D, toS(RN::DSV_render_3d));
+        D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+        dsvDesc.Format                        = DXGI_FORMAT_D32_FLOAT;
+        dsvDesc.ViewDimension                 = D3D12_DSV_DIMENSION_TEXTURE2D;
+        dsvHandle_ = _resourceManager->createFrameView<D3D12_DEPTH_STENCIL_VIEW_DESC>(
+            depthHandle_, dsvDesc, toS(RN::DSV_render_3d));
     }
+}
+
+void Renderer::onResize(ResizeCallback cb)
+{
+    resizeCallbacks_.push_back(std::move(cb));
+}
+
+void Renderer::resize(uint32_t w, uint32_t h)
+{
+    if ((w == _width && h == _height) || w == 0 || h == 0)
+        return;
+
+    // wait for gpu
+    for (auto& q : _commandQueues)
+        q->flush();
+
+    _width  = w;
+    _height = h;
+    _threadGroupCountX = (_width  + _threadGroupSizeX - 1) / _threadGroupSizeX;
+    _threadGroupCountY = (_height + _threadGroupSizeY - 1) / _threadGroupSizeY;
+
+    _resourceManager->requestDestroy(rtvImguiHandle_,    false);
+    _resourceManager->requestDestroy(uavRender0Handle_,  true);
+    _resourceManager->requestDestroy(rtvRender3DHandle_, true);
+    _resourceManager->requestDestroy(dsvHandle_,         true);
+
+    for (auto* res : _resourceManager->getFrameResource(swapChainResHandle_))
+        res->_resource.Reset();
+
+    _resourceManager->flushDeferredReleases(_commandQueues[0]->_commandQueue.Get());
+
+    DXGI_SWAP_CHAIN_DESC desc = {};
+    ThrowIfFailed(_swapchain->GetDesc(&desc));
+    ThrowIfFailed(_swapchain->ResizeBuffers(FramesInFlight, w, h,
+                                            desc.BufferDesc.Format, desc.Flags));
+    _frameIndex = static_cast<uint8_t>(_swapchain->GetCurrentBackBufferIndex());
+
+    recreateScreenSizeResources();
+
+    for (auto& cb : resizeCallbacks_)
+        cb(w, h);
 }
 
 void Renderer::initPsosAndShaders()

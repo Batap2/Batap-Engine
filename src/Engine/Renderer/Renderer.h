@@ -1,12 +1,14 @@
 #pragma once
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 
 #include "CommandQueue.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
+#include "Handles.h"
 #include "RenderGraph.h"
 #include "Renderer/includeDX12.h"
 #include "ResourceManager.h"
@@ -70,5 +72,28 @@ struct Renderer
 
     void render();
     void beginImGuiFrame();
+
+    // called when window size changes
+    void resize(uint32_t w, uint32_t h);
+
+    // Record a callback called after each resize (for systems which have screen size dependant resources)
+    using ResizeCallback = std::function<void(uint32_t w, uint32_t h)>;
+    void onResize(ResizeCallback cb);
+
+  private:
+    void recreateScreenSizeResources();
+
+    // Handles des ressources liées à la taille écran
+    GPUResourceHandle swapChainResHandle_;
+    GPUResourceHandle render0Handle_;
+    GPUResourceHandle render3DHandle_;
+    GPUResourceHandle depthHandle_;
+
+    GPUViewHandle uavRender0Handle_;
+    GPUViewHandle rtvImguiHandle_;
+    GPUViewHandle rtvRender3DHandle_;
+    GPUViewHandle dsvHandle_;
+
+    std::vector<ResizeCallback> resizeCallbacks_;
 };
 }  // namespace batap

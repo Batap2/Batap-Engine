@@ -6,10 +6,10 @@
 #include "Importers/FileImporter.h"
 #include "Renderer/SceneRenderer.h"
 #include "TestScene.h"
+#include "UI/UITheme.h"
 #include "UI/UIPanels.h"
 #include "Utils/UIDGenerator.h"
 #include "WindowsUtils/FileDialog.h"
-
 
 #include <imgui.h>
 
@@ -18,9 +18,12 @@ namespace batap
 
 void App::start(Context& ctx)
 {
+    ui::ApplyTheme();
+
     world_ = std::make_unique<World>(ctx);
     world_->scene_ = std::make_unique<TestScene>(*world_);
     assetManager_ = ctx._assetManager.get();
+
 }
 
 void App::update(Context& ctx)

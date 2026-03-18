@@ -1,11 +1,9 @@
 #pragma once
 
-#include "Assets/AssetHandle.h"
 #include "Components/EntityHandle.h"
-#include "Context.h"
+#include "UI/InspectorPanel.h"
+#include "UI/ScenePanel.h"
 
-
-#include <memory>
 #include <optional>
 
 namespace batap
@@ -16,24 +14,12 @@ struct App;
 struct UIPanels
 {
     void draw(World& world, App& app);
-    void drawLeftPanel();
-    void drawRegistryTree();
 
-    std::optional<EntityHandle> _currentlyClickedSelectedEntity;
+  private:
+    float panelWidth_ = 200.0f;
 
-    void drawEntityMenu();
-
-    World* world_ = nullptr;
-    App* app_ = nullptr;
-
-   private:
-    void drawTransformMenu(EntityHandle ent);
-    void drawMeshMenu(EntityHandle ent);
-    void drawPointLightMenu(EntityHandle ent);
-    void drawAssetSelectionPopup(EntityHandle selectedEntity, AssetType type);
-
-    std::optional<EntityHandle> rotationEditEntity_;
-    v3f rotationEditEulerDeg_ = v3f::Zero();
-    quatf rotationEditSourceQuat_ = quatf::Identity();
+    std::optional<EntityHandle> selectedEntity_;
+    ScenePanel     scenePanel_;
+    InspectorPanel inspectorPanel_;
 };
 }  // namespace batap

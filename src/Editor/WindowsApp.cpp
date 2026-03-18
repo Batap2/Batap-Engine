@@ -163,11 +163,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             case WM_SIZE: {
                 RECT clientRect = {};
                 ::GetClientRect(hWnd, &clientRect);
-
-                auto width = clientRect.right - clientRect.left;
-                auto height = clientRect.bottom - clientRect.top;
-
-                Resize(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+                auto w = static_cast<uint32_t>(clientRect.right  - clientRect.left);
+                auto h = static_cast<uint32_t>(clientRect.bottom - clientRect.top);
+                Ctx->_renderer->resize(w, h);
             }
             break;
             case WM_SETFOCUS:
