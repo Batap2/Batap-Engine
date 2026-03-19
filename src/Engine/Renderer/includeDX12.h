@@ -14,6 +14,7 @@
 #include <d3d12sdklayers.h>
 #include <d3dcompiler.h>
 #include <dxgi1_6.h>
+#include <dcomp.h>
 
 #if defined(__clang__)
 #pragma clang diagnostic pop

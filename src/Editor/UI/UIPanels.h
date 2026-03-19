@@ -15,11 +15,11 @@ struct UIPanels
 {
     void draw(World& world, App& app);
 
-  private:
-    float panelWidth_ = 200.0f;
+   private:
+    float panelWidth_ = 260.0f;
 
     std::optional<EntityHandle> selectedEntity_;
-    ScenePanel     scenePanel_;
+    ScenePanel scenePanel_;
     InspectorPanel inspectorPanel_;
 };
 }  // namespace batap

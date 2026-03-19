@@ -119,6 +119,8 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
 
 void Renderer::initRessourcesAndViews(HWND hwnd)
 {
+    _hwnd = hwnd;
+
     const DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {
         _width,
         _height,
@@ -129,16 +131,23 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         FramesInFlight,
         DXGI_SCALING_STRETCH,
         DXGI_SWAP_EFFECT_FLIP_DISCARD,
-        DXGI_ALPHA_MODE_UNSPECIFIED,
-        _tearingFlag | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT};
+        DXGI_ALPHA_MODE_PREMULTIPLIED,
+        DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT};
 
     Microsoft::WRL::ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
-    ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_commandQueues[0]->_commandQueue.Get(),
-                                                        hwnd, &swapchain_desc, nullptr, nullptr,
-                                                        &swapchain_tier_dx12));
+    ThrowIfFailed(_dxgi_factory->CreateSwapChainForComposition(
+        _commandQueues[0]->_commandQueue.Get(), &swapchain_desc, nullptr, &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
     ThrowIfFailed(_swapchain->SetMaximumFrameLatency(1));
     _frameLatencyWaitableObject = _swapchain->GetFrameLatencyWaitableObject();
+
+    // DirectComposition: bind the swap chain to the window for per-pixel transparency
+    ThrowIfFailed(DCompositionCreateDevice(nullptr, IID_PPV_ARGS(&_dcompDevice)));
+    ThrowIfFailed(_dcompDevice->CreateTargetForHwnd(_hwnd, TRUE, &_dcompTarget));
+    ThrowIfFailed(_dcompDevice->CreateVisual(&_dcompVisual));
+    ThrowIfFailed(_dcompVisual->SetContent(_swapchain.Get()));
+    ThrowIfFailed(_dcompTarget->SetRoot(_dcompVisual.Get()));
+    ThrowIfFailed(_dcompDevice->Commit());
 
     swapChainResHandle_ =
         _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
@@ -469,7 +478,9 @@ void Renderer::render()
     WaitForSingleObject(_frameLatencyWaitableObject, INFINITE);
 
     _renderGraph->execute(_commandQueues, _frameIndex);
-    HRESULT hr = _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
+    HRESULT hr = _swapchain->Present(_useVSync, 0);  // no tearing flag with DirectComposition
+    // HRESULT hr = _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
+
 
     if (hr == DXGI_STATUS_OCCLUDED)
     {

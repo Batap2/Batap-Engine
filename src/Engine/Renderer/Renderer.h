@@ -31,6 +31,12 @@ struct Renderer
     Microsoft::WRL::ComPtr<IDXGISwapChain4> _swapchain;
     HANDLE _frameLatencyWaitableObject;
     uint8_t _frameIndex = 0;
+    HWND _hwnd = nullptr;
+
+    // DirectComposition (transparent window)
+    Microsoft::WRL::ComPtr<IDCompositionDevice> _dcompDevice;
+    Microsoft::WRL::ComPtr<IDCompositionTarget> _dcompTarget;
+    Microsoft::WRL::ComPtr<IDCompositionVisual> _dcompVisual;
 
     // D3D12 core interfaces
     Microsoft::WRL::ComPtr<ID3D12Debug6> _debug_controller;

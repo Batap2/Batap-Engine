@@ -32,8 +32,9 @@ HWND createWindow(const wchar_t* windowClassName, HINSTANCE hInst, const wchar_t
     // Center the window within the screen. Clamp to 0, 0 for the top-left corner.
     int windowX = std::max<int>(0, (screenWidth - windowWidth) / 2);
     int windowY = std::max<int>(0, (screenHeight - windowHeight) / 2);
-    hWnd = ::CreateWindowExW(0, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW, windowX, windowY,
-                             windowWidth, windowHeight, nullptr, nullptr, hInst, nullptr);
+    hWnd = ::CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP, windowClassName, windowTitle,
+                             WS_OVERLAPPEDWINDOW, windowX, windowY, windowWidth, windowHeight,
+                             nullptr, nullptr, hInst, nullptr);
 
     assert(hWnd && "Failed to create window");
 

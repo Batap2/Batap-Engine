@@ -6,6 +6,29 @@
 namespace batap::ui
 {
 
+// -------------------------------------------------------------------------
+// Theme constants — use these instead of hardcoding values elsewhere
+// -------------------------------------------------------------------------
+inline constexpr float  WindowRounding    = 6.0f;
+inline constexpr float  ChildRounding     = 4.0f;
+inline constexpr float  FrameRounding     = 4.0f;
+inline constexpr float  PopupRounding     = 4.0f;
+inline constexpr float  ScrollbarRounding = 4.0f;
+inline constexpr float  GrabRounding      = 4.0f;
+inline constexpr float  TabRounding       = 4.0f;
+
+inline constexpr ImVec2 FramePadding      = {8.0f,  4.0f};
+inline constexpr ImVec2 ItemSpacing       = {8.0f,  6.0f};
+inline constexpr ImVec2 ItemInnerSpacing  = {6.0f,  4.0f};
+inline constexpr ImVec2 WindowPadding     = {10.0f, 10.0f};
+inline constexpr float  IndentSpacing     = 16.0f;
+inline constexpr float  ScrollbarSize     = 10.0f;
+inline constexpr float  GrabMinSize       = 8.0f;
+
+inline constexpr float  WindowBorderSize  = 0.0f;
+inline constexpr float  FrameBorderSize   = 0.0f;
+inline constexpr float  PopupBorderSize   = 1.0f;
+
 inline void ApplyTheme()
 {
     ImGuiStyle& s = ImGui::GetStyle();
@@ -13,25 +36,25 @@ inline void ApplyTheme()
     // -------------------------------------------------------------------------
     // Shape
     // -------------------------------------------------------------------------
-    s.WindowRounding        = 6.0f;
-    s.ChildRounding         = 4.0f;
-    s.FrameRounding         = 4.0f;
-    s.PopupRounding         = 4.0f;
-    s.ScrollbarRounding     = 4.0f;
-    s.GrabRounding          = 4.0f;
-    s.TabRounding           = 4.0f;
+    s.WindowRounding        = WindowRounding;
+    s.ChildRounding         = ChildRounding;
+    s.FrameRounding         = FrameRounding;
+    s.PopupRounding         = PopupRounding;
+    s.ScrollbarRounding     = ScrollbarRounding;
+    s.GrabRounding          = GrabRounding;
+    s.TabRounding           = TabRounding;
 
-    s.FramePadding          = ImVec2(8.0f, 4.0f);
-    s.ItemSpacing           = ImVec2(8.0f, 6.0f);
-    s.ItemInnerSpacing      = ImVec2(6.0f, 4.0f);
-    s.WindowPadding         = ImVec2(10.0f, 10.0f);
-    s.IndentSpacing         = 16.0f;
-    s.ScrollbarSize         = 10.0f;
-    s.GrabMinSize           = 8.0f;
+    s.FramePadding          = FramePadding;
+    s.ItemSpacing           = ItemSpacing;
+    s.ItemInnerSpacing      = ItemInnerSpacing;
+    s.WindowPadding         = WindowPadding;
+    s.IndentSpacing         = IndentSpacing;
+    s.ScrollbarSize         = ScrollbarSize;
+    s.GrabMinSize           = GrabMinSize;
 
-    s.WindowBorderSize      = 0.0f;
-    s.FrameBorderSize       = 0.0f;
-    s.PopupBorderSize       = 1.0f;
+    s.WindowBorderSize      = WindowBorderSize;
+    s.FrameBorderSize       = FrameBorderSize;
+    s.PopupBorderSize       = PopupBorderSize;
 
     // -------------------------------------------------------------------------
     // Palette  —  Solarized Dark
@@ -62,7 +85,6 @@ inline void ApplyTheme()
     constexpr ImVec4 text    = {0.58f, 0.63f, 0.63f, 1.00f};
     constexpr ImVec4 textDim = {0.35f, 0.43f, 0.46f, 1.00f};
 
-    
     // Apply colors
     std::span<ImVec4> c{s.Colors, ImGuiCol_COUNT};
 

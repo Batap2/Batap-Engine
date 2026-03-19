@@ -39,7 +39,7 @@ void SceneRenderer::initRenderPasses()
                 rtv_render3d._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
                 dsv_depth._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-                const float clearColor[4] = {0.2f, 0.2f, 0.2f, 1.f};
+                const float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
                 cmdList->ClearRenderTargetView(rtv_render3d._descriptorHandle->cpuHandle,
                                                clearColor, 0, nullptr);
 
