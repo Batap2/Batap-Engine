@@ -1,0 +1,57 @@
+{
+  "entities": [
+    {
+      "camera": {
+        "active": true,
+        "fov": 1.0471975803375244,
+        "zfar": 1000.0,
+        "znear": 0.10000000149011612
+      },
+      "kind": "camera",
+      "name": "Camera",
+      "parent": null,
+      "transform": {
+        "pos": [
+          -1.9500000476837158,
+          2.0,
+          6.0
+        ],
+        "rot": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "kind": "mesh",
+      "mesh": "D:\\Dossier_Bat\\ProjetProg\\Batap-Engine\\GameExemple\\isosphere.obj",
+      "name": "Static Mesh",
+      "parent": null,
+      "transform": {
+        "pos": [
+          1.2000000476837158,
+          0.0,
+          0.0
+        ],
+        "rot": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ]
+}

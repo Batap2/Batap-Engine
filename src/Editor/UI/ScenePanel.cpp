@@ -115,8 +115,25 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
 
     ImGui::Separator();
 
-    // "Scene" est aussi une drop target pour détacher (remettre à la racine)
     ImGui::Text("Scene");
+
+    // Arbre scrollable — laisse 32px en bas pour la drop zone fixe
+    constexpr float kDropZoneH = 32.0f;
+    ImGui::BeginChild("##scene_tree", ImVec2(0, -kDropZoneH), false,
+                      ImGuiWindowFlags_HorizontalScrollbar);
+
+    for (auto e : reg.storage<entt::entity>())
+    {
+        auto* hc = reg.try_get<Hierarchy_C>(e);
+        if (hc && hc->parent != entt::null)
+            continue;
+        drawEntityNode(reg, e, selectedEntity);
+    }
+
+    ImGui::EndChild();
+
+    // Zone de drop fixe toujours visible en bas → détache l'entité draguée
+    ImGui::InvisibleButton("##scenepanel_bg", ImVec2(-1, kDropZoneH));
     if (ImGui::BeginDragDropTarget())
     {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY"))
@@ -125,15 +142,6 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
             Hierarchy_S::detach({&reg, dragged});
         }
         ImGui::EndDragDropTarget();
-    }
-
-    // Affiche seulement les entités racines (sans parent)
-    for (auto e : reg.storage<entt::entity>())
-    {
-        auto* hc = reg.try_get<Hierarchy_C>(e);
-        if (hc && hc->parent != entt::null)
-            continue;
-        drawEntityNode(reg, e, selectedEntity);
     }
 }
 

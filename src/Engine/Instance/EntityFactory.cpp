@@ -11,6 +11,7 @@
 #include "Handles.h"
 #include "Instance/InstanceKind.h"
 #include "Instance/InstanceManager.h"
+#include "Systems/Hierarchy_S.h"
 
 namespace batap
 {
@@ -74,5 +75,40 @@ EntityHandle EntityFactory::createPointLight(entt::registry& reg)
     rInstance._kind = InstanceKind::PointLight;
 
     return h;
+}
+
+void EntityFactory::destroy(EntityHandle h)
+{
+    auto& reg = *h._reg;
+    if (!reg.valid(h._entity))
+        return;
+
+    // Collect children before modifying hierarchy
+    std::vector<entt::entity> childList;
+    for (entt::entity child : Hierarchy_S::children(h))
+        childList.push_back(child);
+
+    for (auto child : childList)
+        destroy({&reg, child});
+
+    Hierarchy_S::detach(h);
+
+    if (auto* ri = reg.try_get<RenderInstance_C>(h._entity))
+    {
+        switch (ri->_kind)
+        {
+        case InstanceKind::StaticMesh:
+            _instanceManager._meshInstancesPool.remove(h);
+            break;
+        case InstanceKind::Camera:
+            _instanceManager._cameraInstancesPool.remove(h);
+            break;
+        case InstanceKind::PointLight:
+            _instanceManager.pointLightInstancePool_.remove(h);
+            break;
+        }
+    }
+
+    reg.destroy(h._entity);
 }
 }  // namespace batap

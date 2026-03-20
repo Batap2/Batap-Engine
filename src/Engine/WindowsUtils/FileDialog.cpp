@@ -114,4 +114,66 @@ void OpenFilesDialogAsync(std::span<const FileDialogFilter> filters, FileDialogM
         .detach();
 }
 
+std::string SaveFileDialog(std::span<const FileDialogFilter> filters,
+                           std::string_view defaultExtension)
+{
+    std::string result;
+
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(hr))
+        return result;
+
+    IFileSaveDialog* dialog = nullptr;
+    hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&dialog));
+    if (FAILED(hr))
+    {
+        CoUninitialize();
+        return result;
+    }
+
+    FileDialogFilter defaultFilter{"All files", "*.*"};
+    if (filters.empty())
+        filters = std::span<const FileDialogFilter>(&defaultFilter, 1);
+
+    std::vector<std::wstring> labelsW, patternsW;
+    std::vector<COMDLG_FILTERSPEC> specs;
+    labelsW.reserve(filters.size());
+    patternsW.reserve(filters.size());
+    specs.reserve(filters.size());
+
+    for (const auto& f : filters)
+    {
+        labelsW.push_back(ToW(f.label));
+        patternsW.push_back(ToW(f.patterns));
+        specs.push_back(COMDLG_FILTERSPEC{labelsW.back().c_str(), patternsW.back().c_str()});
+    }
+
+    dialog->SetFileTypes(static_cast<UINT>(specs.size()), specs.data());
+    dialog->SetFileTypeIndex(1);
+
+    if (!defaultExtension.empty())
+        dialog->SetDefaultExtension(ToW(defaultExtension).c_str());
+
+    if (SUCCEEDED(dialog->Show(nullptr)))
+    {
+        IShellItem* item = nullptr;
+        if (SUCCEEDED(dialog->GetResult(&item)))
+        {
+            PWSTR path = nullptr;
+            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)))
+            {
+                int sz = WideCharToMultiByte(CP_UTF8, 0, path, -1, nullptr, 0, nullptr, nullptr);
+                result.resize(static_cast<size_t>(sz - 1));
+                WideCharToMultiByte(CP_UTF8, 0, path, -1, result.data(), sz, nullptr, nullptr);
+                CoTaskMemFree(path);
+            }
+            item->Release();
+        }
+    }
+
+    dialog->Release();
+    CoUninitialize();
+    return result;
+}
+
 }  // namespace batap

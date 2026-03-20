@@ -34,6 +34,7 @@ target_include_directories(Batap_Engine PUBLIC
 
 target_include_directories(Batap_Engine SYSTEM PUBLIC
   "${include_dir}"
+  "${include_dir}/json/single_include"
   "${include_dir}/DirectX-Headers/include"
   "${include_dir}/eigen"
   "${include_dir}/imgui"

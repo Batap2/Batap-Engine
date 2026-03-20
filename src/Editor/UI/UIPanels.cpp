@@ -2,6 +2,8 @@
 
 #include "App.h"
 #include "CollapsingGroup.h"
+#include "Context.h"
+#include "Serialization/SceneSerializer.h"
 #include "WindowsUtils/FileDialog.h"
 #include "World.h"
 
@@ -11,7 +13,7 @@
 namespace batap
 {
 
-void UIPanels::draw(World& world, App& app)
+void UIPanels::draw(World& world, App& app, Context& ctx)
 {
     ImGuiViewport* vp = ImGui::GetMainViewport();
 
@@ -31,8 +33,36 @@ void UIPanels::draw(World& world, App& app)
     if (ImGui::Button("Import assets", ImVec2(-1, 0)))
         OpenFilesDialogAsync({}, &app.fileDialogMsgBus_);
 
+    float halfW = (panelWidth_ - ImGui::GetStyle().ItemSpacing.x - kResizeGrip * 2.0f) * 0.5f;
+    if (ImGui::Button("Save Scene", ImVec2(halfW, 0)))
+    {
+        constexpr FileDialogFilter kFilter{"Scene (*.json)", "*.json"};
+        std::string path = SaveFileDialog(std::span<const FileDialogFilter>(&kFilter, 1), "json");
+        if (!path.empty())
+        {
+            currentScenePath_ = path;
+            SceneSerializer::save(world, ctx, path);
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load Scene", ImVec2(halfW, 0)))
+    {
+        constexpr FileDialogFilter kFilter{"Scene (*.json)", "*.json"};
+        auto paths = OpenFilesDialog(std::span<const FileDialogFilter>(&kFilter, 1));
+        if (!paths.empty())
+        {
+            currentScenePath_ = paths[0];
+            selectedEntity_ = std::nullopt;
+            SceneSerializer::load(world, ctx, paths[0]);
+        }
+    }
+
     ImGui::Spacing();
+    float sceneH = selectedEntity_ ? vp->Size.y * 0.45f : 0.0f;
+    ImGui::BeginChild("##scene_child", ImVec2(0, sceneH), false,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     scenePanel_.draw(world, selectedEntity_);
+    ImGui::EndChild();
 
     if (selectedEntity_)
     {

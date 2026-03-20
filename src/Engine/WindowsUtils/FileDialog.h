@@ -29,4 +29,7 @@ std::vector<std::string> OpenFilesDialog(std::span<const FileDialogFilter> filte
 void OpenFilesDialogAsync(std::span<const FileDialogFilter> filters, FileDialogMsgBus* bus,
                           uint64_t id = 0);
 
+std::string SaveFileDialog(std::span<const FileDialogFilter> filters = {},
+                           std::string_view defaultExtension = {});
+
 }  // namespace batap

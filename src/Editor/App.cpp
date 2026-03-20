@@ -32,7 +32,7 @@ void App::update(Context& ctx)
 
     pumpMsgFileDialog(ctx);
 
-    uiPanels_.draw(*world_, *this);
+    uiPanels_.draw(*world_, *this, ctx);
 
     world_->update(ctx);
     ctx._sceneRenderer->setScene(

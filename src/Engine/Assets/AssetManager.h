@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -38,6 +39,23 @@ struct AssetManager
     T* get(const std::string& path)
     {
         return std::get<AssetSlotMap<T>*>(maps_)->get(path);
+    }
+
+    template <typename T>
+    const std::string* getPath(AssetHandle<T> key)
+    {
+        auto* asset = std::get<AssetSlotMap<T>*>(maps_)->getAsset(key);
+        return asset ? &asset->path_ : nullptr;
+    }
+
+    template <typename T>
+    std::optional<AssetHandle<T>> getHandle(const std::string& path)
+    {
+        auto& map = *std::get<AssetSlotMap<T>*>(maps_);
+        auto it = map.pathToKey_.find(path);
+        if (it == map.pathToKey_.end())
+            return std::nullopt;
+        return it->second;
     }
 
     using ForEachAssetMetaFn =
