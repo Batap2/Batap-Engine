@@ -1,9 +1,8 @@
 #include "UIPanels.h"
 
 #include "App.h"
-#include "CollapsingGroup.h"
 #include "Context.h"
-#include "Serialization/SceneSerializer.h"
+#include "Serialization/EntitySerializer.h"
 #include "WindowsUtils/FileDialog.h"
 #include "World.h"
 
@@ -17,13 +16,39 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
 {
     ImGuiViewport* vp = ImGui::GetMainViewport();
 
+    // --- Menu bar ---
+    const float menuBarHeight = ImGui::GetFrameHeight();
+    if (ImGui::BeginMainMenuBar())
+    {
+
+        if (ImGui::BeginMenu("File"))
+        {
+            if (ImGui::MenuItem("Open Project..."))
+                app.openFolderDialogAsyncWithAfterJob(
+                    [&app](std::vector<std::string>&& paths)
+                    {
+                        if (!paths.empty())
+                            app.projectDir_ = std::move(paths[0]);
+                    });
+            ImGui::EndMenu();
+        }
+
+        if (!app.projectDir_.empty())
+        {
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 8.0f);
+            ImGui::TextDisabled("%s", app.projectDir_.c_str());
+        }
+
+        ImGui::EndMainMenuBar();
+    }
+
     constexpr float kMinWidth   = 20.0f;
     constexpr float kMaxWidth   = 600.0f;
     constexpr float kResizeGrip = 6.0f;
 
     // --- Panneau gauche ---
-    ImGui::SetNextWindowPos(vp->Pos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize({panelWidth_, vp->Size.y}, ImGuiCond_Always);
+    ImGui::SetNextWindowPos({vp->Pos.x, vp->Pos.y + menuBarHeight}, ImGuiCond_Always);
+    ImGui::SetNextWindowSize({panelWidth_, vp->Size.y - menuBarHeight}, ImGuiCond_Always);
     ImGui::Begin("##LeftPanel", nullptr,
                  ImGuiWindowFlags_NoTitleBar          | ImGuiWindowFlags_NoResize        |
                  ImGuiWindowFlags_NoMove              | ImGuiWindowFlags_NoCollapse      |
@@ -41,7 +66,7 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
         if (!path.empty())
         {
             currentScenePath_ = path;
-            SceneSerializer::save(world, ctx, path);
+            EntitySerializer::save(world, ctx, path);
         }
     }
     ImGui::SameLine();
@@ -53,7 +78,7 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
         {
             currentScenePath_ = paths[0];
             selectedEntity_ = std::nullopt;
-            SceneSerializer::load(world, ctx, paths[0]);
+            EntitySerializer::load(world, ctx, paths[0]);
         }
     }
 
@@ -69,7 +94,10 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
+        
+        ImGui::BeginChild("##inspectoPanel", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
         inspectorPanel_.draw(world, app, *selectedEntity_);
+        ImGui::EndChild();
     }
 
     // --- Poignée de redimensionnement (bord droit, entièrement dans la fenêtre) ---

@@ -79,10 +79,28 @@ if(WIN32)
 endif()
 
 # ------------------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------------------
+# Silence all warnings on source files that live under include/ (third-party).
+function(silence_external_sources target)
+    get_target_property(_srcs ${target} SOURCES)
+    foreach(f IN LISTS _srcs)
+        if(f MATCHES "^${include_dir}/")
+            set_source_files_properties("${f}"
+                TARGET_DIRECTORY ${target}
+                PROPERTIES COMPILE_OPTIONS "-w")
+        endif()
+    endforeach()
+endfunction()
+
+# ------------------------------------------------------------------------------
 # Subprojects
 # ------------------------------------------------------------------------------
 add_subdirectory("${source_dir}/Engine")
 add_subdirectory("${source_dir}/Editor")
+
+silence_external_sources(Batap_Engine)
+silence_external_sources(Batap_Editor)
 
 # ------------------------------------------------------------------------------
 # Third-party warning tweaks

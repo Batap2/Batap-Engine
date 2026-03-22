@@ -3,20 +3,28 @@
 #include "Assets/AssetHandle.h"
 #include "Components/EntityHandle.h"
 
+#include <filesystem>
+#include <string>
+#include <vector>
+
 namespace batap
 {
+
 struct App;
+struct Context;
 
 struct AssetPickerPopup
 {
-    static constexpr const char* kId = "##AssetPicker";
-
-    void open(EntityHandle ent, AssetType type);
+    void open(EntityHandle ent, AssetType type, const std::string& projectDir);
     void draw(App& app);
 
   private:
+    struct Entry { std::string name; std::filesystem::path path; };
+
     EntityHandle ent_{};
     AssetType    type_{AssetType::Mesh};
-    char         search_[128] = {};
+    std::string     search_;
+    std::vector<Entry> entries_;
 };
+
 }  // namespace batap

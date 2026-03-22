@@ -102,7 +102,7 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
                 {
                     if (AssetHolder({.size_ = v2f(40, 40), ._thumbnail = meshC->_mesh ? 1ull : 0}))
                     {
-                        assetPicker_.open(ent, AssetType::Mesh);
+                        assetPicker_.open(ent, AssetType::Mesh, app.projectDir_);
                     }
                     assetPicker_.draw(app);
 

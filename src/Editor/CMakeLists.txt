@@ -4,10 +4,14 @@ file(GLOB_RECURSE EDITOR_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
 )
 
+set(IMGUI_STDLIB "${PROJECT_SOURCE_DIR}/include/imgui/misc/cpp/imgui_stdlib.cpp")
+
 add_executable(Batap_Editor WIN32
   ${EDITOR_SOURCES}
   "${PROJECT_SOURCE_DIR}/resources.rc"
+  "${IMGUI_STDLIB}"
 )
+
 
 target_include_directories(Batap_Editor PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"          # src/Editor

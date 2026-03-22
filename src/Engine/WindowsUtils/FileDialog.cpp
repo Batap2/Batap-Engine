@@ -176,4 +176,59 @@ std::string SaveFileDialog(std::span<const FileDialogFilter> filters,
     return result;
 }
 
+std::string OpenFolderDialog()
+{
+    std::string result;
+
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(hr))
+        return result;
+
+    IFileOpenDialog* dialog = nullptr;
+    hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&dialog));
+    if (FAILED(hr))
+    {
+        CoUninitialize();
+        return result;
+    }
+
+    DWORD options = 0;
+    dialog->GetOptions(&options);
+    dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
+
+    if (SUCCEEDED(dialog->Show(nullptr)))
+    {
+        IShellItem* item = nullptr;
+        if (SUCCEEDED(dialog->GetResult(&item)))
+        {
+            PWSTR path = nullptr;
+            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)))
+            {
+                int sz = WideCharToMultiByte(CP_UTF8, 0, path, -1, nullptr, 0, nullptr, nullptr);
+                result.resize(static_cast<size_t>(sz - 1));
+                WideCharToMultiByte(CP_UTF8, 0, path, -1, result.data(), sz, nullptr, nullptr);
+                CoTaskMemFree(path);
+            }
+            item->Release();
+        }
+    }
+
+    dialog->Release();
+    CoUninitialize();
+    return result;
+}
+
+void OpenFolderDialogAsync(FileDialogMsgBus* bus, uint64_t id)
+{
+    std::thread(
+        [bus, id]()
+        {
+            auto result = OpenFolderDialog();
+            FileDialogMsg msg{id, result.empty() ? std::vector<std::string>{}
+                                                 : std::vector<std::string>{std::move(result)}};
+            bus->post(msg);
+        })
+        .detach();
+}
+
 }  // namespace batap

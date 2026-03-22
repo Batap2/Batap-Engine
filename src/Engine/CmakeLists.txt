@@ -70,15 +70,3 @@ target_link_libraries(Batap_Engine PUBLIC
   assimp
 )
 
-# ------------------------------------------------------------------------------
-# Per-file / per-third-party warning tweaks
-# ------------------------------------------------------------------------------
-set_source_files_properties(${IMGUI_SOURCES} PROPERTIES
-  COMPILE_OPTIONS "-Wno-error;-Wno-c++98-compat;-Wno-c++98-compat-pedantic"
-)
-
-foreach(f IN LISTS IMGUI_SOURCES)
-  if (f MATCHES "^${include_dir}/")
-    set_source_files_properties(${f} PROPERTIES COMPILE_OPTIONS "-w")
-  endif()
-endforeach()

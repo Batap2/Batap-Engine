@@ -15,10 +15,13 @@ struct AssetManager;
 
 struct App : IApp
 {
+    Context*               ctx_ = nullptr;
     std::unique_ptr<World> world_;
-    AssetManager* assetManager_;
+    AssetManager*          assetManager_;
 
     UIPanels uiPanels_;
+
+    std::string projectDir_;
 
     FileDialogMsgBus fileDialogMsgBus_;
     using FileDialogAfterJob = std::function<void(std::vector<std::string>&&)>;
@@ -30,6 +33,7 @@ struct App : IApp
 
     uint64_t openFileDialogAsyncWithAfterJob(std::span<const FileDialogFilter> filters,
                                              FileDialogAfterJob job);
-    void pumpMsgFileDialog(Context& ctx);
+    uint64_t openFolderDialogAsyncWithAfterJob(FileDialogAfterJob job);
+    void pumpMsgFileDialog();
 };
 }  // namespace batap

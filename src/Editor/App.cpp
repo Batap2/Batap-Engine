@@ -1,7 +1,5 @@
 #include "App.h"
-#include <memory>
 
-#include "Assets/AssetHandle.h"
 #include "Context.h"
 #include "Importers/FileImporter.h"
 #include "Renderer/SceneRenderer.h"
@@ -12,25 +10,27 @@
 #include "WindowsUtils/FileDialog.h"
 
 #include <imgui.h>
+#include <memory>
 
 namespace batap
 {
 
 void App::start(Context& ctx)
 {
-    ui::ApplyTheme();
-
-    world_ = std::make_unique<World>(ctx);
-    world_->scene_ = std::make_unique<TestScene>(*world_);
+    ctx_          = &ctx;
     assetManager_ = ctx._assetManager.get();
 
+    ui::ApplyTheme();
+
+    world_        = std::make_unique<World>(ctx);
+    world_->scene_ = std::make_unique<TestScene>(*world_);
 }
 
 void App::update(Context& ctx)
 {
     ctx.beginFrame();
 
-    pumpMsgFileDialog(ctx);
+    pumpMsgFileDialog();
 
     uiPanels_.draw(*world_, *this, ctx);
 
@@ -41,7 +41,7 @@ void App::update(Context& ctx)
     ctx.endFrame();
 }
 
-void App::shutdown(Context& ctx) {}
+void App::shutdown(Context& /*ctx*/) {}
 
 uint64_t App::openFileDialogAsyncWithAfterJob(std::span<const FileDialogFilter> filters,
                                               FileDialogAfterJob job)
@@ -52,16 +52,29 @@ uint64_t App::openFileDialogAsyncWithAfterJob(std::span<const FileDialogFilter> 
     return id;
 }
 
-void App::pumpMsgFileDialog(Context& ctx)
+uint64_t App::openFolderDialogAsyncWithAfterJob(FileDialogAfterJob job)
+{
+    auto id = next_uid64();
+    fileDialogAfterJobs_.emplace(id, std::move(job));
+    OpenFolderDialogAsync(&fileDialogMsgBus_, id);
+    return id;
+}
+
+void App::pumpMsgFileDialog()
 {
     fileDialogMsgBus_.pumpType<FileDialogMsg>(
         [&](FileDialogMsg&& msg)
         {
-            MeshHandle lastImported; // temporary solution
-            for (auto& path : msg.paths_)
+            auto it = fileDialogAfterJobs_.find(msg.id_);
+            if (it != fileDialogAfterJobs_.end())
             {
-                auto handles = importFile(path, *ctx._assetManager.get());
+                it->second(std::move(msg.paths_));
+                fileDialogAfterJobs_.erase(it);
+                return;
             }
+
+            for (auto& path : msg.paths_)
+                importFile(path, ImportOptions{projectDir_});
         });
 }
 

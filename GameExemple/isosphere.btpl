@@ -1,0 +1,37 @@
+{
+  "componentVersions": {
+    "mesh": 1,
+    "transform": 1
+  },
+  "entities": [
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        },
+        {
+          "path": "D:\\Dossier_Bat\\ProjetProg\\Batap-Engine\\GameExemple\\Icosphere.bmesh",
+          "type": "mesh"
+        }
+      ],
+      "name": "Icosphere",
+      "parent": null
+    }
+  ]
+}
