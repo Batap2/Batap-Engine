@@ -3,6 +3,7 @@
 
 #include "Components/Hierarchy_C.h"
 #include "Components/Name_C.h"
+#include "Components/Kind_C.h"
 #include "Context.h"
 #include "Instance/EntityFactory.h"
 #include "Scene.h"
@@ -15,15 +16,13 @@
 #include <fstream>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace batap
 {
 
-// --- helpers -----------------------------------------------------------------
-
-static void collectDFS(entt::registry& reg, entt::entity e,
-                       std::vector<entt::entity>& order,
+static void collectDFS(entt::registry& reg, entt::entity e, std::vector<entt::entity>& order,
                        std::unordered_map<uint32_t, int>& indexMap)
 {
     indexMap[entt::to_integral(e)] = static_cast<int>(order.size());
@@ -33,21 +32,7 @@ static void collectDFS(entt::registry& reg, entt::entity e,
         collectDFS(reg, child, order, indexMap);
 }
 
-static std::string_view kindFromComponents(const nlohmann::json& compsJ)
-{
-    for (const auto& c : compsJ)
-    {
-        std::string type = c.value("type", "");
-        if (type == "mesh")       return "mesh";
-        if (type == "pointLight") return "pointLight";
-        if (type == "camera")     return "camera";
-    }
-    return "empty";
-}
-
-// --- save --------------------------------------------------------------------
-
-void EntitySerializer::save(World& world, const Context& ctx, const std::string& path)
+static std::vector<EntityDesc> toEntityDescs(World& world, const Context& ctx)
 {
     auto& reg = world.scene_->_registry;
 
@@ -61,33 +46,24 @@ void EntitySerializer::save(World& world, const Context& ctx, const std::string&
             collectDFS(reg, e, order, indexMap);
     }
 
-    nlohmann::json root;
-
-    const auto handlers = getComponentHandlers();
-
-    auto& versionsJ = root["componentVersions"] = nlohmann::json::object();
-    for (const auto& handler : handlers)
-        versionsJ[std::string(handler.type)] = handler.currentVersion;
-
-    auto& entitiesJ = root["entities"] = nlohmann::json::array();
+    std::vector<EntityDesc> descs;
+    descs.reserve(order.size());
 
     for (auto e : order)
     {
-        nlohmann::json ej;
+        EntityDesc desc;
         EntityHandle h{&reg, e};
 
         if (auto* nc = reg.try_get<Name_C>(e))
-            ej["name"] = nc->_name;
-        else
-            ej["name"] = "";
+            desc.name = nc->_name;
 
-        auto& compsJ = ej["components"] = nlohmann::json::array();
-        for (const auto& handler : handlers)
+        if (auto* k = reg.try_get<Kind_C>(e))
         {
-            if (auto props = handler.serialize(h, ctx))
+            switch (k->value)
             {
-                (*props)["type"] = handler.type;
-                compsJ.push_back(std::move(*props));
+            case EntityKind::StaticMesh: desc.kind = "mesh";       break;
+            case EntityKind::Camera:     desc.kind = "camera";     break;
+            case EntityKind::PointLight: desc.kind = "pointLight"; break;
             }
         }
 
@@ -95,21 +71,80 @@ void EntitySerializer::save(World& world, const Context& ctx, const std::string&
         if (hc && hc->parent != entt::null)
         {
             auto it = indexMap.find(entt::to_integral(hc->parent));
-            ej["parent"] = (it != indexMap.end()) ? nlohmann::json(it->second) : nlohmann::json(nullptr);
+            if (it != indexMap.end())
+                desc.parentIndex = it->second;
         }
-        else
+
+        for (const auto& handler : getComponentHandlers())
+            if (auto c = handler.extract(h, ctx))
+                desc.components.push_back(std::move(*c));
+
+        descs.push_back(std::move(desc));
+    }
+
+    return descs;
+}
+
+static void serializeEntityDescs(const std::vector<EntityDesc>& entities, const std::string& path)
+{
+    nlohmann::json root;
+    std::unordered_set<std::string> usedTypes;
+
+    auto& entitiesJ = root["entities"] = nlohmann::json::array();
+
+    for (const auto& desc : entities)
+    {
+        nlohmann::json ej;
+        ej["name"] = desc.name;
+        ej["kind"] = desc.kind;
+        ej["parent"] = desc.parentIndex >= 0 ? nlohmann::json(desc.parentIndex)
+                                             : nlohmann::json(nullptr);
+
+        auto& compsJ = ej["components"] = nlohmann::json::array();
+        for (const auto& comp : desc.components)
         {
-            ej["parent"] = nullptr;
+            std::visit(
+                [&](const auto& c)
+                {
+                    using T = std::decay_t<decltype(c)>;
+                    nlohmann::json cj = toJson(c);
+                    std::string_view type;
+                    if constexpr (std::is_same_v<T, Transform_C>)
+                        type = "transform";
+                    else if constexpr (std::is_same_v<T, MeshDesc>)
+                        type = "mesh";
+                    else if constexpr (std::is_same_v<T, PointLight_C>)
+                        type = "pointLight";
+                    else if constexpr (std::is_same_v<T, Camera_C>)
+                        type = "camera";
+                    cj["type"] = type;
+                    usedTypes.emplace(type);
+                    compsJ.push_back(std::move(cj));
+                },
+                comp);
         }
 
         entitiesJ.push_back(std::move(ej));
     }
 
+    auto& versionsJ = root["componentVersions"] = nlohmann::json::object();
+    for (const auto& handler : getComponentHandlers())
+        if (usedTypes.contains(std::string(handler.type)))
+            versionsJ[std::string(handler.type)] = handler.currentVersion;
+
     std::ofstream f(path);
     f << root.dump(2);
 }
 
-// --- populateWorld -----------------------------------------------------------
+void EntitySerializer::save(World& world, const Context& ctx, const std::string& path)
+{
+    save(toEntityDescs(world, ctx), path);
+}
+
+void EntitySerializer::save(const std::vector<EntityDesc>& entities, const std::string& path)
+{
+    serializeEntityDescs(entities, path);
+}
 
 static void populateWorld(World& world, const Context& ctx, const nlohmann::json& root)
 {
@@ -121,7 +156,7 @@ static void populateWorld(World& world, const Context& ctx, const nlohmann::json
         for (auto& [k, v] : root["componentVersions"].items())
             versions[k] = v.get<uint32_t>();
 
-    auto& reg     = world.scene_->_registry;
+    auto& reg = world.scene_->_registry;
     auto& factory = *world.entityFactory_;
 
     const auto& entitiesJ = root["entities"];
@@ -131,11 +166,9 @@ static void populateWorld(World& world, const Context& ctx, const nlohmann::json
     // Pass 1 — create entities and apply components
     for (const auto& ej : entitiesJ)
     {
-        const auto& compsJ = ej.contains("components")
-                           ? ej["components"]
-                           : nlohmann::json::array();
+        const auto& compsJ = ej.contains("components") ? ej["components"] : nlohmann::json::array();
 
-        std::string_view kind = kindFromComponents(compsJ);
+        const std::string kind = ej.value("kind", "empty");
 
         EntityHandle h;
         if (kind == "mesh")
@@ -159,7 +192,8 @@ static void populateWorld(World& world, const Context& ctx, const nlohmann::json
             std::string type = cj.value("type", "");
             uint32_t version = 1;
             auto it = versions.find(type);
-            if (it != versions.end()) version = it->second;
+            if (it != versions.end())
+                version = it->second;
 
             for (const auto& handler : getComponentHandlers())
             {
@@ -188,18 +222,23 @@ static void populateWorld(World& world, const Context& ctx, const nlohmann::json
     }
 }
 
-// --- load --------------------------------------------------------------------
-
-void EntitySerializer::load(World& world, const Context& ctx, const std::string& path)
+void EntitySerializer::clearSceneAndLoad (World& world, const Context& ctx, const std::string& path)
 {
     std::ifstream f(path);
-    if (!f.is_open()) return;
+    if (!f.is_open())
+        return;
 
     nlohmann::json root;
-    try { root = nlohmann::json::parse(f); }
-    catch (...) { return; }
+    try
+    {
+        root = nlohmann::json::parse(f);
+    }
+    catch (...)
+    {
+        return;
+    }
 
-    auto& reg     = world.scene_->_registry;
+    auto& reg = world.scene_->_registry;
     auto& factory = *world.entityFactory_;
 
     std::vector<entt::entity> roots;
@@ -215,63 +254,22 @@ void EntitySerializer::load(World& world, const Context& ctx, const std::string&
     populateWorld(world, ctx, root);
 }
 
-// --- instantiate -------------------------------------------------------------
-
 void EntitySerializer::instantiate(World& world, const Context& ctx, const std::string& path)
 {
     std::ifstream f(path);
-    if (!f.is_open()) return;
+    if (!f.is_open())
+        return;
 
     nlohmann::json root;
-    try { root = nlohmann::json::parse(f); }
-    catch (...) { return; }
+    try
+    {
+        root = nlohmann::json::parse(f);
+    }
+    catch (...)
+    {
+        return;
+    }
 
     populateWorld(world, ctx, root);
 }
-
-// --- saveTemplate ------------------------------------------------------------
-
-void EntitySerializer::saveTemplate(const std::vector<EntityDesc>& entities, const std::string& path)
-{
-    nlohmann::json root;
-
-    auto& entitiesJ = root["entities"] = nlohmann::json::array();
-    std::unordered_set<std::string> usedTypes;
-
-    for (const auto& desc : entities)
-    {
-        nlohmann::json ej;
-        ej["name"]   = desc.name;
-        ej["parent"] = desc.parentIndex >= 0 ? nlohmann::json(desc.parentIndex) : nlohmann::json(nullptr);
-
-        auto& compsJ = ej["components"] = nlohmann::json::array();
-        for (const auto& comp : desc.components)
-        {
-            std::visit([&](const auto& c)
-            {
-                using T = std::decay_t<decltype(c)>;
-                nlohmann::json cj = toJson(c);
-                std::string_view type;
-                if constexpr (std::is_same_v<T, TransformDesc>)
-                    type = "transform";
-                else if constexpr (std::is_same_v<T, MeshDesc>)
-                    type = "mesh";
-                cj["type"] = type;
-                usedTypes.emplace(type);
-                compsJ.push_back(std::move(cj));
-            }, comp);
-        }
-
-        entitiesJ.push_back(std::move(ej));
-    }
-
-    auto& versionsJ = root["componentVersions"] = nlohmann::json::object();
-    for (const auto& handler : getComponentHandlers())
-        if (usedTypes.contains(std::string(handler.type)))
-            versionsJ[std::string(handler.type)] = handler.currentVersion;
-
-    std::ofstream f(path);
-    f << root.dump(2);
-}
-
 }  // namespace batap

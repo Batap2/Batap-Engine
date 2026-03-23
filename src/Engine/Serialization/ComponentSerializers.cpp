@@ -1,6 +1,7 @@
 #include "ComponentSerializers.h"
 #include "EntityDesc.h"
 
+#include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
@@ -36,20 +37,26 @@ static quatf fromJsonQuat(const nlohmann::json& j)
 
 // --- Transform ---------------------------------------------------------------
 
-nlohmann::json toJson(const TransformDesc& d)
+nlohmann::json toJson(const Transform_C& c)
 {
     return {
-        {"pos",   toJson(d.pos)},
-        {"rot",   toJson(d.rot)},
-        {"scale", toJson(d.scale)}
+        {"pos",   toJson(c.pos())},
+        {"rot",   toJson(c.rot())},
+        {"scale", toJson(c.scale())}
     };
 }
 
-static std::optional<nlohmann::json> serializeTransform(EntityHandle h, const Context&)
+static std::optional<ComponentDesc> extractTransform(EntityHandle h, const Context&)
 {
     auto* tc = h._reg->try_get<Transform_C>(h._entity);
     if (!tc) return std::nullopt;
-    return toJson(TransformDesc{tc->pos(), tc->rot(), tc->scale()});
+    return *tc;
+}
+
+static std::optional<nlohmann::json> serializeTransform(EntityHandle h, const Context& ctx)
+{
+    if (auto d = extractTransform(h, ctx)) return toJson(std::get<Transform_C>(*d));
+    return std::nullopt;
 }
 
 static void deserializeTransform(EntityHandle h, const nlohmann::json& j,
@@ -69,7 +76,7 @@ nlohmann::json toJson(const MeshDesc& d)
     return {{"path", d.path.empty() ? nlohmann::json(nullptr) : nlohmann::json(d.path)}};
 }
 
-static std::optional<nlohmann::json> serializeMesh(EntityHandle h, const Context& ctx)
+static std::optional<ComponentDesc> extractMesh(EntityHandle h, const Context& ctx)
 {
     auto* mc = h._reg->try_get<Mesh_C>(h._entity);
     if (!mc) return std::nullopt;
@@ -77,7 +84,13 @@ static std::optional<nlohmann::json> serializeMesh(EntityHandle h, const Context
     if (mc->_mesh)
         if (auto* p = ctx._assetManager->getPath<Mesh>(mc->_mesh))
             desc.path = *p;
-    return toJson(desc);
+    return desc;
+}
+
+static std::optional<nlohmann::json> serializeMesh(EntityHandle h, const Context& ctx)
+{
+    if (auto d = extractMesh(h, ctx)) return toJson(std::get<MeshDesc>(*d));
+    return std::nullopt;
 }
 
 static void deserializeMesh(EntityHandle h, const nlohmann::json& j,
@@ -86,23 +99,41 @@ static void deserializeMesh(EntityHandle h, const nlohmann::json& j,
     auto* mc = h._reg->try_get<Mesh_C>(h._entity);
     if (!mc) return;
     if (j.contains("path") && !j["path"].is_null())
-        if (auto handle = ctx._assetManager->getHandle<Mesh>(j["path"].get<std::string>()))
+    {
+        const std::string path = j["path"].get<std::string>();
+        auto handle = ctx._assetManager->getHandle<Mesh>(path);
+        if (!handle)
+            if (auto any = loadAsset(path, ctx))
+                handle = std::get<AssetHandle<Mesh>>(*any);
+        if (handle)
             mc->_mesh = *handle;
+    }
 }
 
 // --- PointLight --------------------------------------------------------------
 
-static std::optional<nlohmann::json> serializePointLight(EntityHandle h, const Context&)
+nlohmann::json toJson(const PointLight_C& c)
+{
+    return {
+        {"color",       toJson(c.color_)},
+        {"intensity",   c.intensity_},
+        {"radius",      c.radius_},
+        {"falloff",     c.falloff_},
+        {"castShadows", c.castShadows_}
+    };
+}
+
+static std::optional<ComponentDesc> extractPointLight(EntityHandle h, const Context&)
 {
     auto* pl = h._reg->try_get<PointLight_C>(h._entity);
     if (!pl) return std::nullopt;
-    return nlohmann::json{
-        {"color",       toJson(pl->color_)},
-        {"intensity",   pl->intensity_},
-        {"radius",      pl->radius_},
-        {"falloff",     pl->falloff_},
-        {"castShadows", pl->castShadows_}
-    };
+    return *pl;
+}
+
+static std::optional<nlohmann::json> serializePointLight(EntityHandle h, const Context& ctx)
+{
+    if (auto d = extractPointLight(h, ctx)) return toJson(std::get<PointLight_C>(*d));
+    return std::nullopt;
 }
 
 static void deserializePointLight(EntityHandle h, const nlohmann::json& j,
@@ -119,16 +150,27 @@ static void deserializePointLight(EntityHandle h, const nlohmann::json& j,
 
 // --- Camera ------------------------------------------------------------------
 
-static std::optional<nlohmann::json> serializeCamera(EntityHandle h, const Context&)
+nlohmann::json toJson(const Camera_C& c)
+{
+    return {
+        {"znear",  c._znear},
+        {"zfar",   c._zfar},
+        {"fov",    c._fov},
+        {"active", c._active}
+    };
+}
+
+static std::optional<ComponentDesc> extractCamera(EntityHandle h, const Context&)
 {
     auto* cam = h._reg->try_get<Camera_C>(h._entity);
     if (!cam) return std::nullopt;
-    return nlohmann::json{
-        {"znear",  cam->_znear},
-        {"zfar",   cam->_zfar},
-        {"fov",    cam->_fov},
-        {"active", cam->_active}
-    };
+    return *cam;
+}
+
+static std::optional<nlohmann::json> serializeCamera(EntityHandle h, const Context& ctx)
+{
+    if (auto d = extractCamera(h, ctx)) return toJson(std::get<Camera_C>(*d));
+    return std::nullopt;
 }
 
 static void deserializeCamera(EntityHandle h, const nlohmann::json& j,
@@ -147,10 +189,10 @@ static void deserializeCamera(EntityHandle h, const nlohmann::json& j,
 std::span<const ComponentHandler> getComponentHandlers()
 {
     static const std::array<ComponentHandler, 4> handlers = {{
-        {"transform", 1, serializeTransform,  deserializeTransform },
-        {"mesh",      1, serializeMesh,       deserializeMesh      },
-        {"pointLight",1, serializePointLight, deserializePointLight},
-        {"camera",    1, serializeCamera,     deserializeCamera    },
+        {"transform", 1, serializeTransform,  deserializeTransform,  extractTransform },
+        {"mesh",      1, serializeMesh,       deserializeMesh,       extractMesh      },
+        {"pointLight",1, serializePointLight, deserializePointLight, extractPointLight},
+        {"camera",    1, serializeCamera,     deserializeCamera,     extractCamera    },
     }};
     return handlers;
 }

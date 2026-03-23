@@ -2,7 +2,7 @@
 
 namespace batap
 {
-enum class InstanceKind
+enum class EntityKind
 {
     StaticMesh,
     Camera,

@@ -6,10 +6,10 @@
 #include "Components/Mesh_C.h"
 #include "Components/Name_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/Kind_C.h"
 #include "Components/RenderInstanceID_C.h"
 #include "Components/Transform_C.h"
 #include "Handles.h"
-#include "Instance/InstanceKind.h"
 #include "Instance/InstanceManager.h"
 #include "Systems/Hierarchy_S.h"
 
@@ -35,9 +35,9 @@ EntityHandle EntityFactory::createStaticMesh(entt::registry& reg, std::optional<
 
     auto iid = _instanceManager._meshInstancesPool.insert(h);
 
+    reg.emplace<Kind_C>(entity, EntityKind::StaticMesh);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
     rInstance._instanceID = iid;
-    rInstance._kind = InstanceKind::StaticMesh;
 
     return h;
 }
@@ -52,9 +52,9 @@ EntityHandle EntityFactory::createCamera(entt::registry& reg)
     EntityHandle h{&reg, entity};
 
     auto iid = _instanceManager._cameraInstancesPool.insert(h);
+    reg.emplace<Kind_C>(entity, EntityKind::Camera);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
     rInstance._instanceID = iid;
-    rInstance._kind = InstanceKind::Camera;
 
     return h;
 }
@@ -70,9 +70,9 @@ EntityHandle EntityFactory::createPointLight(entt::registry& reg)
     EntityHandle h{&reg, entity};
 
     auto iid = _instanceManager.pointLightInstancePool_.insert(h);
+    reg.emplace<Kind_C>(entity, EntityKind::PointLight);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
     rInstance._instanceID = iid;
-    rInstance._kind = InstanceKind::PointLight;
 
     return h;
 }
@@ -93,17 +93,17 @@ void EntityFactory::destroy(EntityHandle h)
 
     Hierarchy_S::detach(h);
 
-    if (auto* ri = reg.try_get<RenderInstance_C>(h._entity))
+    if (auto* k = reg.try_get<Kind_C>(h._entity))
     {
-        switch (ri->_kind)
+        switch (k->value)
         {
-        case InstanceKind::StaticMesh:
+        case EntityKind::StaticMesh:
             _instanceManager._meshInstancesPool.remove(h);
             break;
-        case InstanceKind::Camera:
+        case EntityKind::Camera:
             _instanceManager._cameraInstancesPool.remove(h);
             break;
-        case InstanceKind::PointLight:
+        case EntityKind::PointLight:
             _instanceManager.pointLightInstancePool_.remove(h);
             break;
         }

@@ -17,20 +17,23 @@ struct World;
 
 struct ComponentHandler
 {
-    using SerFn   = std::optional<nlohmann::json>(*)(EntityHandle, const Context&);
-    using DeserFn = void(*)(EntityHandle, const nlohmann::json&, uint32_t version, const Context&, World&);
+    using SerFn     = std::optional<nlohmann::json>(*)(EntityHandle, const Context&);
+    using DeserFn   = void(*)(EntityHandle, const nlohmann::json&, uint32_t version, const Context&, World&);
+    using ExtractFn = std::optional<ComponentDesc>(*)(EntityHandle, const Context&);
 
     std::string_view type;
     uint32_t         currentVersion;
     SerFn            serialize;
     DeserFn          deserialize;
+    ExtractFn        extract;
 };
 
 std::span<const ComponentHandler> getComponentHandlers();
 
-// Desc → JSON helpers — single definition of the JSON format per component type,
-// used by both the EntityHandle serializers and EntitySerializer::saveTemplate.
-nlohmann::json toJson(const TransformDesc& d);
-nlohmann::json toJson(const MeshDesc& d);
+// Desc/Component → JSON helpers
+nlohmann::json toJson(const Transform_C&  c);
+nlohmann::json toJson(const MeshDesc&     d);
+nlohmann::json toJson(const PointLight_C& c);
+nlohmann::json toJson(const Camera_C&     c);
 
 }  // namespace batap

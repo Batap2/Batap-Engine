@@ -7,6 +7,7 @@
 #include "Serialization/BmeshSerializer.h"
 #include "Utils/UIDGenerator.h"
 
+#include <cassert>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
@@ -22,24 +23,27 @@ static std::string_view extractExtension(std::string_view path)
     return path.substr(dot + 1);
 }
 
-static std::optional<AssetHandleAny> loadMesh(std::string_view path, const Context& ctx)
+static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Context& ctx)
 {
-    auto data = readBmesh(std::string(path));
+    auto& assetManager        = *ctx._assetManager;
+    assert(!assetManager.baseDir().empty() && "AssetManager baseDir not set — call setBaseDir before loading assets");
+    const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / relPath).string();
+
+    auto data = readBmesh(absPath);
     if (!data || data->vertices.empty())
     {
-        std::cerr << "[AssetLoader] Failed to read bmesh: " << path << "\n";
+        std::cerr << "[AssetLoader] Failed to read bmesh: " << absPath << "\n";
         return std::nullopt;
     }
 
-    auto& assetManager = *ctx._assetManager;
-    const std::string name = std::filesystem::path(path).stem().string();
-    auto [handle, inserted] = assetManager.emplace<Mesh>(name, std::string(path));
+    const std::string key    = std::string(relPath);
+    auto [handle, inserted]  = assetManager.emplace<Mesh>(key, key);
     if (!inserted)
         return AssetHandleAny{handle};
 
     auto* mesh = assetManager.get(handle);
-    auto* rm = assetManager.resourceManager_;
-    const std::string prefix = name + "_" + std::to_string(next_uid64());
+    auto* rm   = assetManager.resourceManager_;
+    const std::string prefix = key + "_" + std::to_string(next_uid64());
 
     auto rname = [&](const char* suffix) { return prefix + suffix; };
 

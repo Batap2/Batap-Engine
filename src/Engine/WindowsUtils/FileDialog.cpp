@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <thread>
+#include <utility>
 
 namespace batap
 {
@@ -102,12 +103,15 @@ std::vector<std::string> OpenFilesDialog(std::span<const FileDialogFilter> filte
     return result;
 }
 
-void OpenFilesDialogAsync(std::span<const FileDialogFilter> filters, FileDialogMsgBus* bus, uint64_t id)
+void OpenFilesDialogAsync(std::span<const FileDialogFilter> filters, FileDialogMsgBus* bus,
+                          uint64_t id)
 {
+    std::vector<FileDialogFilter> cp(filters.begin(), filters.end());
+
     std::thread(
-        [filters, bus, id]() mutable
+        [filtersCp = std::move(cp), bus, id]() mutable
         {
-            auto result = OpenFilesDialog(filters);
+            auto result = OpenFilesDialog(filtersCp);
             FileDialogMsg msg{id, result};
             bus->post(msg);
         })

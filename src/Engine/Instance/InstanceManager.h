@@ -5,7 +5,7 @@
 #include "DirtyFlag.h"
 #include "EigenTypes.h"
 #include "Handles.h"
-#include "Instance/InstanceKind.h"
+#include "Instance/EntityKind.h"
 #include "Renderer/EngineConfig.h"
 #include "Renderer/ResourceManager.h"
 #include "instanceDeclaration.h"

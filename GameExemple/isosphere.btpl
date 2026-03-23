@@ -26,10 +26,11 @@
           "type": "transform"
         },
         {
-          "path": "D:\\Dossier_Bat\\ProjetProg\\Batap-Engine\\GameExemple\\Icosphere.bmesh",
+          "path": "Icosphere.bmesh",
           "type": "mesh"
         }
       ],
+      "kind": "mesh",
       "name": "Icosphere",
       "parent": null
     }

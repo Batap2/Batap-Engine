@@ -3,8 +3,7 @@
 #include <cstdint>
 #include "Components/ComponentFlag.h"
 #include "Components/EntityHandle.h"
-#include "Components/RenderInstanceID_C.h"
-#include "InstanceKind.h"
+#include "Components/Kind_C.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/ResourceManager.h"
 #include "instanceDeclaration.h"
@@ -56,7 +55,8 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
                     const uint32_t byteOffset = id * stride + p._offset;
 
                     auto span = _resourceManager.requestUploadOwned(
-                        frameInstancePool._instancePoolViewHandle, stride, 4, byteOffset, p._offset, p._size);
+                        frameInstancePool._instancePoolViewHandle, stride, 4, byteOffset, p._offset,
+                        p._size);
 
                     p.fill(ctx, *entityHandle._reg, entityHandle._entity, span.data());
                 }
@@ -79,19 +79,19 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
 
 void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag componentFlag)
 {
-    auto* rID = handle._reg->try_get<RenderInstance_C>(handle._entity);
-    if (!rID)
+    auto* k = handle._reg->try_get<Kind_C>(handle._entity);
+    if (!k)
         return;
 
-    switch (rID->_kind)
+    switch (k->value)
     {
-        case InstanceKind::StaticMesh:
+        case EntityKind::StaticMesh:
             _meshInstancesPool.dirtyComponents_[handle].setAll(componentFlag);
             break;
-        case InstanceKind::Camera:
+        case EntityKind::Camera:
             _cameraInstancesPool.dirtyComponents_[handle].setAll(componentFlag);
             break;
-        case InstanceKind::PointLight:
+        case EntityKind::PointLight:
             pointLightInstancePool_.dirtyComponents_[handle].setAll(componentFlag);
     }
 }

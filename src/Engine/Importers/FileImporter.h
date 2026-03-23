@@ -21,9 +21,9 @@ struct ImportResult
         Failed
     };
 
-    Kind                     kind = Kind::Unsupported;
+    Kind kind = Kind::Unsupported;
     std::vector<std::string> writtenFiles;
-    std::string              message;
+    std::string message;
 
     explicit operator bool() const { return kind == Kind::Decomposed; }
 };

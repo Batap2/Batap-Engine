@@ -48,13 +48,13 @@ static void processNode(const aiNode* node, const aiScene* scene,
                         const std::vector<std::string>& meshPaths,
                         std::vector<EntityDesc>& entities, int parentIndex)
 {
-    aiVector3D   pos, scale;
+    aiVector3D pos, scale;
     aiQuaternion rot;
     node->mTransformation.Decompose(scale, rot, pos);
 
-    const bool identityTransform = pos.x == 0.f && pos.y == 0.f && pos.z == 0.f &&
-                                   rot.x == 0.f && rot.y == 0.f && rot.z == 0.f && rot.w == 1.f &&
-                                   scale.x == 1.f && scale.y == 1.f && scale.z == 1.f;
+    const bool identityTransform = pos.x == 0.f && pos.y == 0.f && pos.z == 0.f && rot.x == 0.f &&
+                                   rot.y == 0.f && rot.z == 0.f && rot.w == 1.f && scale.x == 1.f &&
+                                   scale.y == 1.f && scale.z == 1.f;
 
     // Skip empty wrapper nodes (no mesh, identity transform)
     if (node->mNumMeshes == 0 && identityTransform)
@@ -65,17 +65,17 @@ static void processNode(const aiNode* node, const aiScene* scene,
     }
 
     EntityDesc desc;
-    desc.name        = node->mName.C_Str();
+    desc.name = node->mName.C_Str();
     desc.parentIndex = parentIndex;
 
-    desc.components.push_back(TransformDesc{
-        v3f{pos.x, pos.y, pos.z},
-        quatf{rot.w, rot.x, rot.y, rot.z},
-        v3f{scale.x, scale.y, scale.z}
-    });
+    desc.components.push_back(Transform_C::fromPosRotScale(
+        {pos.x, pos.y, pos.z}, {rot.w, rot.x, rot.y, rot.z}, {scale.x, scale.y, scale.z}));
 
     if (node->mNumMeshes == 1)
+    {
+        desc.kind = "mesh";
         desc.components.push_back(MeshDesc{meshPaths[node->mMeshes[0]]});
+    }
 
     int myIndex = static_cast<int>(entities.size());
     entities.push_back(std::move(desc));
@@ -86,7 +86,8 @@ static void processNode(const aiNode* node, const aiScene* scene,
         for (unsigned i = 0; i < node->mNumMeshes; ++i)
         {
             EntityDesc child;
-            child.name        = scene->mMeshes[node->mMeshes[i]]->mName.C_Str();
+            child.name = scene->mMeshes[node->mMeshes[i]]->mName.C_Str();
+            child.kind = "mesh";
             child.parentIndex = myIndex;
             child.components.push_back(MeshDesc{meshPaths[node->mMeshes[i]]});
             entities.push_back(std::move(child));
@@ -97,7 +98,8 @@ static void processNode(const aiNode* node, const aiScene* scene,
         processNode(node->mChildren[i], scene, meshPaths, entities, myIndex);
 }
 
-DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_view outputDir)
+DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_view outputDir,
+                                    std::string_view baseDir)
 {
     DecomposeResult result;
     namespace fs = std::filesystem;
@@ -115,7 +117,7 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
         return result;
     }
 
-    fs::path    outDir(outputDir);
+    fs::path outDir(outputDir);
     std::string baseName = fs::path(sourcePath).stem().string();
 
     // Write .bmesh files
@@ -124,7 +126,7 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
 
     for (unsigned i = 0; i < scene->mNumMeshes; ++i)
     {
-        BmeshData   data     = extractBmeshData(scene->mMeshes[i]);
+        BmeshData data = extractBmeshData(scene->mMeshes[i]);
         std::string meshName = scene->mMeshes[i]->mName.C_Str();
         if (meshName.empty())
             meshName = baseName + "_" + std::to_string(i);
@@ -133,7 +135,7 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
         if (writeBmesh(data, bmeshPath.string()))
             result.bmeshPaths.push_back(bmeshPath.string());
 
-        meshPaths.push_back(bmeshPath.string());
+        meshPaths.push_back(fs::relative(bmeshPath, baseDir).generic_string());
     }
 
     // Build entity hierarchy and write .btpl
@@ -141,9 +143,9 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
     processNode(scene->mRootNode, scene, meshPaths, entities, -1);
 
     fs::path btplPath = outDir / (baseName + ".btpl");
-    EntitySerializer::saveTemplate(entities, btplPath.string());
+    EntitySerializer::save(entities, btplPath.string());
     result.btplPath = btplPath.string();
-    result.ok       = true;
+    result.ok = true;
 
     return result;
 }

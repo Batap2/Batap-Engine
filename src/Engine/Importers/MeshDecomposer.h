@@ -15,6 +15,7 @@ struct DecomposeResult
     bool ok = false;
 };
 
-DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_view outputDir);
+DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_view outputDir,
+                                    std::string_view baseDir);
 
 }  // namespace batap

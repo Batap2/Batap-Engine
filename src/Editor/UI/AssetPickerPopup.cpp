@@ -4,7 +4,6 @@
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetLoader.h"
 #include "Components/Mesh_C.h"
-#include "Context.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -74,7 +73,8 @@ void AssetPickerPopup::draw(App& app)
 
         if (ImGui::Selectable(e.name.c_str()))
         {
-            auto handle = loadAsset(e.path.string(), *app.ctx_);
+            const auto relPath = std::filesystem::relative(e.path, app.projectDir_).string();
+            auto handle = loadAsset(relPath, *app.ctx_);
             if (handle && type_ == AssetType::Mesh)
                 if (auto* meshC = ent_.try_get<Mesh_C>())
                     meshC->_mesh = std::get<MeshHandle>(*handle);

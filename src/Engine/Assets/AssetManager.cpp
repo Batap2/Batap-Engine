@@ -5,8 +5,16 @@
 
 #include "AssetSlotMap.h"
 
+#include <cassert>
+
 namespace batap
 {
+
+void AssetManager::setBaseDir(std::string dir)
+{
+    assert(!dir.empty() && "AssetManager::setBaseDir called with empty dir");
+    baseDir_ = std::move(dir);
+}
 
 AssetManager::AssetManager(ResourceManager* rm) : resourceManager_(rm)
 {

@@ -15,9 +15,19 @@ struct Transform_C
     m4f worldMatrix() const { return _world.matrix(); }
     m4f localMatrix() const { return _local.matrix(); }
 
-    const v3f& pos() { return _localPosition; }
-    const quatf& rot() { return _localRotation; }
-    const v3f& scale() { return _localScale; }
+    const v3f&   pos()   const { return _localPosition; }
+    const quatf& rot()   const { return _localRotation; }
+    const v3f&   scale() const { return _localScale; }
+
+    // No constructor for entt
+    static Transform_C fromPosRotScale(v3f pos, quatf rot, v3f scale)
+    {
+        Transform_C t;
+        t._localPosition = pos;
+        t._localRotation = rot;
+        t._localScale    = scale;
+        return t;
+    }
 
    private:
     friend struct Transform_S;

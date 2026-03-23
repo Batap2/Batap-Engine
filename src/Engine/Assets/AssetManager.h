@@ -63,9 +63,14 @@ struct AssetManager
 
     void forEachAssetOfType(AssetType type, const ForEachAssetMetaFn& fn) const;
 
+    // Must be called before any loadAsset call. Asserts if dir is empty.
+    void               setBaseDir(std::string dir);
+    const std::string& baseDir() const { return baseDir_; }
+
     ResourceManager* resourceManager_ = nullptr;
 
    private:
+    std::string baseDir_;
     std::tuple<AssetSlotMap<Mesh>*, AssetSlotMap<Texture>*> maps_{};
 };
 
