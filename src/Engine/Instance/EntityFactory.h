@@ -16,6 +16,7 @@ struct EntityFactory
     GPUInstanceManager& _instanceManager;
 
     EntityFactory(GPUInstanceManager& instanceManager);
+    EntityHandle createEmpty(entt::registry& reg);
     EntityHandle createStaticMesh(entt::registry& reg, std::optional<MeshHandle> handle = std::nullopt);
     EntityHandle createCamera(entt::registry& reg);
     EntityHandle createPointLight(entt::registry& reg);

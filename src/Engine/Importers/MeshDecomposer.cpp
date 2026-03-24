@@ -98,6 +98,51 @@ static void processNode(const aiNode* node, const aiScene* scene,
         processNode(node->mChildren[i], scene, meshPaths, entities, myIndex);
 }
 
+static void resetRootTransform(std::vector<EntityDesc>& entities)
+{
+    for (auto& desc : entities)
+    {
+        if (desc.parentIndex != -1) continue;
+        for (auto& comp : desc.components)
+            if (auto* tc = std::get_if<Transform_C>(&comp))
+            {
+                *tc = Transform_C::fromPosRotScale({0.f, 0.f, 0.f}, {1.f, 0.f, 0.f, 0.f}, {1.f, 1.f, 1.f});
+                break;
+            }
+    }
+}
+
+static std::vector<EntityDesc> extractSubtree(const std::vector<EntityDesc>& all, int rootIdx)
+{
+    // Collect indices via BFS
+    std::vector<int> indices;
+    std::vector<int> queue = {rootIdx};
+    while (!queue.empty())
+    {
+        int cur = queue.back();
+        queue.pop_back();
+        indices.push_back(cur);
+        for (size_t i = 0; i < all.size(); ++i)
+            if (all[i].parentIndex == cur)
+                queue.push_back(static_cast<int>(i));
+    }
+
+    // Map old index → new index
+    std::unordered_map<int, int> remap;
+    for (size_t i = 0; i < indices.size(); ++i)
+        remap[indices[i]] = static_cast<int>(i);
+
+    std::vector<EntityDesc> sub;
+    sub.reserve(indices.size());
+    for (int oldIdx : indices)
+    {
+        EntityDesc d = all[static_cast<size_t>(oldIdx)];
+        d.parentIndex = (oldIdx == rootIdx) ? -1 : remap.at(d.parentIndex);
+        sub.push_back(std::move(d));
+    }
+    return sub;
+}
+
 DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_view outputDir,
                                     std::string_view baseDir)
 {
@@ -119,10 +164,14 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
 
     fs::path outDir(outputDir);
     std::string baseName = fs::path(sourcePath).stem().string();
+    fs::path subDir = outDir / baseName;
 
-    // Write .bmesh files
+    // Write .bmesh files — always in baseName/ subfolder
     std::vector<std::string> meshPaths;
     meshPaths.reserve(scene->mNumMeshes);
+
+    if (scene->mNumMeshes > 0)
+        fs::create_directories(subDir);
 
     for (unsigned i = 0; i < scene->mNumMeshes; ++i)
     {
@@ -131,20 +180,49 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
         if (meshName.empty())
             meshName = baseName + "_" + std::to_string(i);
 
-        fs::path bmeshPath = outDir / (meshName + ".bmesh");
+        fs::path bmeshPath = subDir / (meshName + ".bmesh");
         if (writeBmesh(data, bmeshPath.string()))
             result.bmeshPaths.push_back(bmeshPath.string());
 
         meshPaths.push_back(fs::relative(bmeshPath, baseDir).generic_string());
     }
 
-    // Build entity hierarchy and write .btpl
+    // Build entity hierarchy and write .btpl(s)
     std::vector<EntityDesc> entities;
     processNode(scene->mRootNode, scene, meshPaths, entities, -1);
 
-    fs::path btplPath = outDir / (baseName + ".btpl");
-    EntitySerializer::save(entities, btplPath.string());
-    result.btplPath = btplPath.string();
+    // Collect root indices
+    std::vector<int> roots;
+    for (size_t i = 0; i < entities.size(); ++i)
+        if (entities[i].parentIndex == -1)
+            roots.push_back(static_cast<int>(i));
+
+    if (roots.size() == 1)
+    {
+        // Single object — one btpl only, root at identity
+        resetRootTransform(entities);
+        fs::path btplPath = outDir / (baseName + ".btpl");
+        EntitySerializer::save(entities, btplPath.string());
+        result.btplPaths.push_back(btplPath.string());
+    }
+    else
+    {
+        // Per-object btpls in a subfolder (subDir already created with bmesh files)
+        fs::create_directories(subDir);
+        for (int rootIdx : roots)
+        {
+            auto sub = extractSubtree(entities, rootIdx);
+            resetRootTransform(sub);
+            fs::path btplPath = subDir / (entities[static_cast<size_t>(rootIdx)].name + ".btpl");
+            EntitySerializer::save(sub, btplPath.string());
+            result.btplPaths.push_back(btplPath.string());
+        }
+        // Global btpl
+        fs::path globalPath = outDir / (baseName + ".btpl");
+        EntitySerializer::save(entities, globalPath.string());
+        result.btplPaths.push_back(globalPath.string());
+    }
+
     result.ok = true;
 
     return result;

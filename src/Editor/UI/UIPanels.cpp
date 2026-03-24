@@ -35,6 +35,14 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
                             app.ctx_->_assetManager->setBaseDir(app.projectDir_);
                         }
                     });
+
+            if (ImGui::MenuItem("Save Scene..."))
+            {
+                constexpr FileDialogFilter filter{"Scene (.btpl)", "*.btpl"};
+                std::string path = SaveFileDialog(std::span<const FileDialogFilter>(&filter, 1), ".btpl");
+                if (!path.empty())
+                    EntitySerializer::save(world, *app.ctx_, path);
+            }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Import"))
@@ -92,34 +100,6 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus |
                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    if (ImGui::Button("Import assets", ImVec2(-1, 0)))
-        OpenFilesDialogAsync({}, &app.fileDialogMsgBus_);
-
-    float halfW = (panelWidth_ - ImGui::GetStyle().ItemSpacing.x - kResizeGrip * 2.0f) * 0.5f;
-    if (ImGui::Button("Save Scene", ImVec2(halfW, 0)))
-    {
-        constexpr FileDialogFilter kFilter{"Scene (*.json)", "*.json"};
-        std::string path = SaveFileDialog(std::span<const FileDialogFilter>(&kFilter, 1), "json");
-        if (!path.empty())
-        {
-            currentScenePath_ = path;
-            EntitySerializer::save(world, ctx, path);
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Load Scene", ImVec2(halfW, 0)))
-    {
-        constexpr FileDialogFilter kFilter{"Scene (*.json)", "*.json"};
-        auto paths = OpenFilesDialog(std::span<const FileDialogFilter>(&kFilter, 1));
-        if (!paths.empty())
-        {
-            currentScenePath_ = paths[0];
-            selectedEntity_ = std::nullopt;
-            EntitySerializer::clearSceneAndLoad(world, ctx, paths[0]);
-        }
-    }
-
-    ImGui::Spacing();
     float sceneH = selectedEntity_ ? vp->Size.y * 0.45f : 0.0f;
     ImGui::BeginChild("##scene_child", ImVec2(0, sceneH), false,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);

@@ -26,12 +26,12 @@
           "type": "transform"
         },
         {
-          "path": "Icosphere.bmesh",
+          "path": "matBall/Mesh002.bmesh",
           "type": "mesh"
         }
       ],
       "kind": "mesh",
-      "name": "Icosphere",
+      "name": "Mesh002",
       "parent": null
     }
   ]

@@ -4,6 +4,7 @@ namespace batap
 {
 enum class EntityKind
 {
+    Empty,
     StaticMesh,
     Camera,
     PointLight

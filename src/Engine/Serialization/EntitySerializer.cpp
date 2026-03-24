@@ -2,8 +2,8 @@
 #include "ComponentSerializers.h"
 
 #include "Components/Hierarchy_C.h"
-#include "Components/Name_C.h"
 #include "Components/Kind_C.h"
+#include "Components/Name_C.h"
 #include "Context.h"
 #include "Instance/EntityFactory.h"
 #include "Scene.h"
@@ -61,9 +61,18 @@ static std::vector<EntityDesc> toEntityDescs(World& world, const Context& ctx)
         {
             switch (k->value)
             {
-            case EntityKind::StaticMesh: desc.kind = "mesh";       break;
-            case EntityKind::Camera:     desc.kind = "camera";     break;
-            case EntityKind::PointLight: desc.kind = "pointLight"; break;
+                case EntityKind::Empty:
+                    desc.kind = "empty";
+                    break;
+                case EntityKind::StaticMesh:
+                    desc.kind = "mesh";
+                    break;
+                case EntityKind::Camera:
+                    desc.kind = "camera";
+                    break;
+                case EntityKind::PointLight:
+                    desc.kind = "pointLight";
+                    break;
             }
         }
 
@@ -178,11 +187,7 @@ static void populateWorld(World& world, const Context& ctx, const nlohmann::json
         else if (kind == "camera")
             h = factory.createCamera(reg);
         else
-        {
-            auto e = reg.create();
-            reg.emplace<Name_C>(e);
-            h = {&reg, e};
-        }
+            h = factory.createEmpty(reg);
 
         if (auto* nc = reg.try_get<Name_C>(h._entity))
             nc->_name = ej.value("name", "");
@@ -222,7 +227,7 @@ static void populateWorld(World& world, const Context& ctx, const nlohmann::json
     }
 }
 
-void EntitySerializer::clearSceneAndLoad (World& world, const Context& ctx, const std::string& path)
+void EntitySerializer::clearSceneAndLoad(World& world, const Context& ctx, const std::string& path)
 {
     std::ifstream f(path);
     if (!f.is_open())

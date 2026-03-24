@@ -3,21 +3,31 @@
 #include "Assets/AssetHandle.h"
 #include "Components/Camera_C.h"
 #include "Components/EntityHandle.h"
+#include "Components/Kind_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Name_C.h"
 #include "Components/PointLight_C.h"
-#include "Components/Kind_C.h"
 #include "Components/RenderInstanceID_C.h"
 #include "Components/Transform_C.h"
+#include "EntityKind.h"
 #include "Handles.h"
 #include "Instance/InstanceManager.h"
 #include "Systems/Hierarchy_S.h"
+
 
 namespace batap
 {
 EntityFactory::EntityFactory(GPUInstanceManager& instanceManager)
     : _instanceManager(instanceManager)
 {}
+
+EntityHandle EntityFactory::createEmpty(entt::registry& reg)
+{
+    auto entity = reg.create();
+    reg.emplace<Name_C>(entity, "Entity");
+    reg.emplace<Kind_C>(entity, EntityKind::Empty);
+    return {&reg, entity};
+}
 
 EntityHandle EntityFactory::createStaticMesh(entt::registry& reg, std::optional<MeshHandle> handle)
 {
@@ -97,15 +107,17 @@ void EntityFactory::destroy(EntityHandle h)
     {
         switch (k->value)
         {
-        case EntityKind::StaticMesh:
-            _instanceManager._meshInstancesPool.remove(h);
-            break;
-        case EntityKind::Camera:
-            _instanceManager._cameraInstancesPool.remove(h);
-            break;
-        case EntityKind::PointLight:
-            _instanceManager.pointLightInstancePool_.remove(h);
-            break;
+            case EntityKind::StaticMesh:
+                _instanceManager._meshInstancesPool.remove(h);
+                break;
+            case EntityKind::Camera:
+                _instanceManager._cameraInstancesPool.remove(h);
+                break;
+            case EntityKind::PointLight:
+                _instanceManager.pointLightInstancePool_.remove(h);
+                break;
+            case EntityKind::Empty:
+                break;
         }
     }
 

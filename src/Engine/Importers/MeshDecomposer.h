@@ -11,7 +11,7 @@ struct DecomposeResult
 {
     std::vector<std::string> bmeshPaths;
     std::vector<std::string> texturePaths;
-    std::string btplPath;
+    std::vector<std::string> btplPaths;
     bool ok = false;
 };
 

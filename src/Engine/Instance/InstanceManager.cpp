@@ -4,6 +4,7 @@
 #include "Components/ComponentFlag.h"
 #include "Components/EntityHandle.h"
 #include "Components/Kind_C.h"
+#include "EntityKind.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/ResourceManager.h"
 #include "instanceDeclaration.h"
@@ -93,6 +94,9 @@ void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag com
             break;
         case EntityKind::PointLight:
             pointLightInstancePool_.dirtyComponents_[handle].setAll(componentFlag);
+            break;
+        case EntityKind::Empty:
+            break;
     }
 }
 }  // namespace batap

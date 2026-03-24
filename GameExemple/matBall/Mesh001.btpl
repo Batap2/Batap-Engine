@@ -1,0 +1,38 @@
+{
+  "componentVersions": {
+    "mesh": 1,
+    "transform": 1
+  },
+  "entities": [
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        },
+        {
+          "path": "matBall/Mesh001.bmesh",
+          "type": "mesh"
+        }
+      ],
+      "kind": "mesh",
+      "name": "Mesh001",
+      "parent": null
+    }
+  ]
+}

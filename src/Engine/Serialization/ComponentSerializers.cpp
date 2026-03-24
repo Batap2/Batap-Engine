@@ -62,7 +62,7 @@ static std::optional<nlohmann::json> serializeTransform(EntityHandle h, const Co
 static void deserializeTransform(EntityHandle h, const nlohmann::json& j,
                                   uint32_t /*version*/, const Context&, World& world)
 {
-    if (!h._reg->try_get<Transform_C>(h._entity)) return;
+    auto _ = h._reg->get_or_emplace<Transform_C>(h._entity);
     auto& ts = *world.systems_->_transforms;
     ts.setLocalPosition(h, fromJsonV3f(j["pos"]));
     ts.setLocalRotation(h, fromJsonQuat(j["rot"]));

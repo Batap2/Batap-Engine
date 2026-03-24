@@ -1,0 +1,201 @@
+{
+  "componentVersions": {
+    "camera": 1,
+    "mesh": 1,
+    "pointLight": 1,
+    "transform": 1
+  },
+  "entities": [
+    {
+      "components": [
+        {
+          "pos": [
+            5.5,
+            12.600000381469727,
+            6.650000095367432
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        },
+        {
+          "castShadows": false,
+          "color": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "falloff": 1.0,
+          "intensity": 1.0,
+          "radius": 29.799999237060547,
+          "type": "pointLight"
+        }
+      ],
+      "kind": "pointLight",
+      "name": "PointLight",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        },
+        {
+          "path": "matBall/Plane.bmesh",
+          "type": "mesh"
+        }
+      ],
+      "kind": "mesh",
+      "name": "Plane",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        },
+        {
+          "path": "matBall/Mesh000.bmesh",
+          "type": "mesh"
+        }
+      ],
+      "kind": "mesh",
+      "name": "Mesh000",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        },
+        {
+          "path": "matBall/Mesh002.bmesh",
+          "type": "mesh"
+        }
+      ],
+      "kind": "mesh",
+      "name": "Mesh002",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        },
+        {
+          "path": "matBall/Mesh001.bmesh",
+          "type": "mesh"
+        }
+      ],
+      "kind": "mesh",
+      "name": "Mesh001",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "pos": [
+            3.208509922027588,
+            4.690667152404785,
+            6.9974260330200195
+          ],
+          "rot": [
+            -0.11393903195858002,
+            0.2336513102054596,
+            0.02758106403052807,
+            0.9652276039123535
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        },
+        {
+          "active": true,
+          "fov": 1.0471975803375244,
+          "type": "camera",
+          "zfar": 1000.0,
+          "znear": 0.10000000149011612
+        }
+      ],
+      "kind": "camera",
+      "name": "Camera",
+      "parent": null
+    }
+  ]
+}

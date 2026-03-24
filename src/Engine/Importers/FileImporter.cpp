@@ -53,7 +53,8 @@ ImportResult importFile(std::string_view path, ImportOptions opts)
             out.writtenFiles = decomp.bmeshPaths;
             out.writtenFiles.insert(out.writtenFiles.end(), decomp.texturePaths.begin(),
                                     decomp.texturePaths.end());
-            out.writtenFiles.push_back(decomp.btplPath);
+            out.writtenFiles.insert(out.writtenFiles.end(),
+                                    decomp.btplPaths.begin(), decomp.btplPaths.end());
         }
         else
         {
