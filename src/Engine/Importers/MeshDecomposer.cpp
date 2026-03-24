@@ -1,3 +1,8 @@
+// un jour remplacer par :
+// https://github.com/spnda/fastgltf?tab=readme-ov-file
+// https://github.com/ufbx/ufbx
+// mesh optimizer
+
 #include "MeshDecomposer.h"
 
 #include "Serialization/BmeshSerializer.h"
@@ -10,6 +15,8 @@
 
 #include <filesystem>
 #include <iostream>
+
+namespace fs = std::filesystem;
 
 namespace batap
 {
@@ -44,9 +51,32 @@ static BmeshData extractBmeshData(const aiMesh* mesh)
     return data;
 }
 
-static void processNode(const aiNode* node, const aiScene* scene,
-                        const std::vector<std::string>& meshPaths,
-                        std::vector<EntityDesc>& entities, int parentIndex)
+static BmeshData mergeNodeMeshes(const aiNode* node, const aiScene* scene)
+{
+    BmeshData merged;
+    for (unsigned i = 0; i < node->mNumMeshes; ++i)
+    {
+        const aiMesh* m = scene->mMeshes[node->mMeshes[i]];
+        BmeshData sub = extractBmeshData(m);
+
+        const uint32_t indexOffset = static_cast<uint32_t>(merged.indices.size());
+        const uint32_t vertexOffset = static_cast<uint32_t>(merged.vertices.size());
+
+        for (uint32_t idx : sub.indices)
+            merged.indices.push_back(idx + vertexOffset);
+
+        merged.subMeshes.push_back({indexOffset, static_cast<uint32_t>(sub.indices.size())});
+
+        merged.vertices.insert(merged.vertices.end(), sub.vertices.begin(), sub.vertices.end());
+        merged.normals.insert(merged.normals.end(), sub.normals.begin(), sub.normals.end());
+        merged.uvs.insert(merged.uvs.end(), sub.uvs.begin(), sub.uvs.end());
+    }
+    return merged;
+}
+
+static void processNode(const aiNode* node, const aiScene* scene, const fs::path& subDir,
+                        std::string_view baseDir, std::vector<EntityDesc>& entities,
+                        int parentIndex, DecomposeResult& result)
 {
     aiVector3D pos, scale;
     aiQuaternion rot;
@@ -60,53 +90,46 @@ static void processNode(const aiNode* node, const aiScene* scene,
     if (node->mNumMeshes == 0 && identityTransform)
     {
         for (unsigned i = 0; i < node->mNumChildren; ++i)
-            processNode(node->mChildren[i], scene, meshPaths, entities, parentIndex);
+            processNode(node->mChildren[i], scene, subDir, baseDir, entities, parentIndex, result);
         return;
     }
 
     EntityDesc desc;
     desc.name = node->mName.C_Str();
     desc.parentIndex = parentIndex;
-
     desc.components.push_back(Transform_C::fromPosRotScale(
         {pos.x, pos.y, pos.z}, {rot.w, rot.x, rot.y, rot.z}, {scale.x, scale.y, scale.z}));
 
-    if (node->mNumMeshes == 1)
+    if (node->mNumMeshes > 0)
     {
+        BmeshData merged = mergeNodeMeshes(node, scene);
+        std::string name = desc.name.empty() ? "mesh" : desc.name;
+        fs::path bmeshPath = subDir / (name + ".bmesh");
+        if (writeBmesh(merged, bmeshPath.string()))
+            result.bmeshPaths.push_back(bmeshPath.string());
+
         desc.kind = "mesh";
-        desc.components.push_back(MeshDesc{meshPaths[node->mMeshes[0]]});
+        desc.components.push_back(MeshDesc{fs::relative(bmeshPath, baseDir).generic_string()});
     }
 
     int myIndex = static_cast<int>(entities.size());
     entities.push_back(std::move(desc));
 
-    // Multiple meshes — one child entity per mesh
-    if (node->mNumMeshes > 1)
-    {
-        for (unsigned i = 0; i < node->mNumMeshes; ++i)
-        {
-            EntityDesc child;
-            child.name = scene->mMeshes[node->mMeshes[i]]->mName.C_Str();
-            child.kind = "mesh";
-            child.parentIndex = myIndex;
-            child.components.push_back(MeshDesc{meshPaths[node->mMeshes[i]]});
-            entities.push_back(std::move(child));
-        }
-    }
-
     for (unsigned i = 0; i < node->mNumChildren; ++i)
-        processNode(node->mChildren[i], scene, meshPaths, entities, myIndex);
+        processNode(node->mChildren[i], scene, subDir, baseDir, entities, myIndex, result);
 }
 
 static void resetRootTransform(std::vector<EntityDesc>& entities)
 {
     for (auto& desc : entities)
     {
-        if (desc.parentIndex != -1) continue;
+        if (desc.parentIndex != -1)
+            continue;
         for (auto& comp : desc.components)
             if (auto* tc = std::get_if<Transform_C>(&comp))
             {
-                *tc = Transform_C::fromPosRotScale({0.f, 0.f, 0.f}, {1.f, 0.f, 0.f, 0.f}, {1.f, 1.f, 1.f});
+                *tc = Transform_C::fromPosRotScale({0.f, 0.f, 0.f}, {1.f, 0.f, 0.f, 0.f},
+                                                   {1.f, 1.f, 1.f});
                 break;
             }
     }
@@ -147,7 +170,6 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
                                     std::string_view baseDir)
 {
     DecomposeResult result;
-    namespace fs = std::filesystem;
 
     Assimp::Importer importer;
     importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 45.0f);
@@ -166,30 +188,12 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
     std::string baseName = fs::path(sourcePath).stem().string();
     fs::path subDir = outDir / baseName;
 
-    // Write .bmesh files — always in baseName/ subfolder
-    std::vector<std::string> meshPaths;
-    meshPaths.reserve(scene->mNumMeshes);
-
     if (scene->mNumMeshes > 0)
         fs::create_directories(subDir);
 
-    for (unsigned i = 0; i < scene->mNumMeshes; ++i)
-    {
-        BmeshData data = extractBmeshData(scene->mMeshes[i]);
-        std::string meshName = scene->mMeshes[i]->mName.C_Str();
-        if (meshName.empty())
-            meshName = baseName + "_" + std::to_string(i);
-
-        fs::path bmeshPath = subDir / (meshName + ".bmesh");
-        if (writeBmesh(data, bmeshPath.string()))
-            result.bmeshPaths.push_back(bmeshPath.string());
-
-        meshPaths.push_back(fs::relative(bmeshPath, baseDir).generic_string());
-    }
-
-    // Build entity hierarchy and write .btpl(s)
+    // Build entity hierarchy — bmesh files are written per-node inside processNode
     std::vector<EntityDesc> entities;
-    processNode(scene->mRootNode, scene, meshPaths, entities, -1);
+    processNode(scene->mRootNode, scene, subDir, baseDir, entities, -1, result);
 
     // Collect root indices
     std::vector<int> roots;

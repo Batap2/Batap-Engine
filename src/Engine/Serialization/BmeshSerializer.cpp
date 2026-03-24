@@ -24,11 +24,16 @@ bool writeBmesh(const BmeshData& data, const std::string& outPath)
     const uint32_t vertexCount = static_cast<uint32_t>(data.vertices.size());
     const uint32_t indexCount = static_cast<uint32_t>(data.indices.size());
 
+    const uint32_t subMeshCount = static_cast<uint32_t>(data.subMeshes.size());
+
     f.write(reinterpret_cast<const char*>(&BMESH_MAGIC), sizeof(uint32_t));
     f.write(reinterpret_cast<const char*>(&BMESH_VERSION), sizeof(uint32_t));
     f.write(reinterpret_cast<const char*>(&vertexCount), sizeof(uint32_t));
     f.write(reinterpret_cast<const char*>(&indexCount), sizeof(uint32_t));
     f.write(reinterpret_cast<const char*>(&flags), sizeof(uint32_t));
+    f.write(reinterpret_cast<const char*>(&subMeshCount), sizeof(uint32_t));
+    f.write(reinterpret_cast<const char*>(data.subMeshes.data()),
+            sizeof(SubMeshData) * subMeshCount);
 
     f.write(reinterpret_cast<const char*>(data.indices.data()), sizeof(uint32_t) * indexCount);
     f.write(reinterpret_cast<const char*>(data.vertices.data()), sizeof(v3f) * vertexCount);
@@ -51,12 +56,13 @@ std::optional<BmeshData> readBmesh(const std::string& path)
         return std::nullopt;
     }
 
-    uint32_t magic, version, vertexCount, indexCount, flags;
+    uint32_t magic, version, vertexCount, indexCount, flags, subMeshCount;
     f.read(reinterpret_cast<char*>(&magic), sizeof(uint32_t));
     f.read(reinterpret_cast<char*>(&version), sizeof(uint32_t));
     f.read(reinterpret_cast<char*>(&vertexCount), sizeof(uint32_t));
     f.read(reinterpret_cast<char*>(&indexCount), sizeof(uint32_t));
     f.read(reinterpret_cast<char*>(&flags), sizeof(uint32_t));
+    f.read(reinterpret_cast<char*>(&subMeshCount), sizeof(uint32_t));
 
     if (magic != BMESH_MAGIC)
     {
@@ -70,6 +76,9 @@ std::optional<BmeshData> readBmesh(const std::string& path)
     }
 
     BmeshData data;
+
+    data.subMeshes.resize(subMeshCount);
+    f.read(reinterpret_cast<char*>(data.subMeshes.data()), sizeof(SubMeshData) * subMeshCount);
 
     data.indices.resize(indexCount);
     f.read(reinterpret_cast<char*>(data.indices.data()), sizeof(uint32_t) * indexCount);

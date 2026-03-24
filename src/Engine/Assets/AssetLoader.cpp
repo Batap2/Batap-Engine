@@ -25,8 +25,9 @@ static std::string_view extractExtension(std::string_view path)
 
 static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Context& ctx)
 {
-    auto& assetManager        = *ctx._assetManager;
-    assert(!assetManager.baseDir().empty() && "AssetManager baseDir not set — call setBaseDir before loading assets");
+    auto& assetManager = *ctx._assetManager;
+    assert(!assetManager.baseDir().empty() &&
+           "AssetManager baseDir not set — call setBaseDir before loading assets");
     const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / relPath).string();
 
     auto data = readBmesh(absPath);
@@ -36,13 +37,13 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Co
         return std::nullopt;
     }
 
-    const std::string key    = std::string(relPath);
-    auto [handle, inserted]  = assetManager.emplace<Mesh>(key, key);
+    const std::string key = std::string(relPath);
+    auto [handle, inserted] = assetManager.emplace<Mesh>(key, key);
     if (!inserted)
         return AssetHandleAny{handle};
 
     auto* mesh = assetManager.get(handle);
-    auto* rm   = assetManager.resourceManager_;
+    auto* rm = assetManager.resourceManager_;
     const std::string prefix = key + "_" + std::to_string(next_uid64());
 
     auto rname = [&](const char* suffix) { return prefix + suffix; };
@@ -86,6 +87,10 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Co
     }
 
     mesh->_indexFormat = ResourceFormat::R32_UINT;
+    mesh->subMeshCount = static_cast<uint8_t>(std::min(data->subMeshes.size(), size_t(8)));
+    for (uint8_t i = 0; i < mesh->subMeshCount; ++i)
+        mesh->subMeshes[i] = {data->subMeshes[i].indexOffset, data->subMeshes[i].indexCount};
+
     return AssetHandleAny{handle};
 }
 
