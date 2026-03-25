@@ -324,6 +324,9 @@ struct ResourceManager
     void requestDestroy(GPUMeshViewHandle guid, bool destroyAssociatedResources);
     void flushDeferredReleases(ID3D12CommandQueue* commandQueue);
 
+    void copyBuffer(ID3D12GraphicsCommandList* cmdList, GPUResourceHandle dst,
+                    GPUResourceHandle src, uint64_t size);
+
     GPUResource* getStaticResource(RN n);
     GPUResource* getStaticResource(GPUResourceHandle& guid);
     std::vector<GPUResource*> getFrameResource(RN n);

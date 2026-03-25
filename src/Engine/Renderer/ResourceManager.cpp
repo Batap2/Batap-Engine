@@ -194,22 +194,30 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
                           {
                               if (h._type == GPUResourceHandle::ObjectType::FrameResource)
                               {
-                                  resource = _frameResource.at(h)[frameIndex].get();
+                                  auto it = _frameResource.find(h);
+                                  if (it != _frameResource.end())
+                                      resource = it->second[frameIndex].get();
                               }
                               else
                               {
-                                  resource = _staticResources.at(h).get();
+                                  auto it = _staticResources.find(h);
+                                  if (it != _staticResources.end())
+                                      resource = it->second.get();
                               }
                           },
                           [&](GPUViewHandle& h)
                           {
                               if (h._type == GPUViewHandle::ObjectType::FrameView)
                               {
-                                  resource = _frameViews.at(h)[frameIndex]._resource;
+                                  auto it = _frameViews.find(h);
+                                  if (it != _frameViews.end())
+                                      resource = it->second[frameIndex]._resource;
                               }
                               else
                               {
-                                  resource = _staticViews.at(h)._resource;
+                                  auto it = _staticViews.find(h);
+                                  if (it != _staticViews.end())
+                                      resource = it->second._resource;
                               }
                           },
                           [&](GPUMeshViewHandle& h)
@@ -220,7 +228,9 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
                               }
                               else
                               {
-                                  resource = _staticMeshViews.at(h)._resource;
+                                  auto it = _staticMeshViews.find(h);
+                                  if (it != _staticMeshViews.end())
+                                      resource = it->second._resource;
                               }
                           }},
                handle);
@@ -231,6 +241,17 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
     resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
     uploadToResource(cmdList, commandQueue, resource, data, dataSize, alignment, frameIndex,
                      destinationOffset);
+}
+
+void ResourceManager::copyBuffer(ID3D12GraphicsCommandList* cmdList, GPUResourceHandle dst,
+                                 GPUResourceHandle src, uint64_t size)
+{
+    GPUResource* dstResource = getStaticResource(dst);
+    GPUResource* srcResource = getStaticResource(src);
+
+    srcResource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    dstResource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
+    cmdList->CopyBufferRegion(dstResource->get(), 0, srcResource->get(), 0, size);
 }
 
 GPUResourceHandle ResourceManager::createEmptyStaticResource(std::optional<std::string_view> name)
