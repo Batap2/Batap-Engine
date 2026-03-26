@@ -2,8 +2,10 @@
 
 #include "AssetManager.h"
 #include "Context.h"
+#include "Material.h"
 #include "Mesh.h"
 #include "Renderer/ResourceManager.h"
+#include "Serialization/BmatSerializer.h"
 #include "Serialization/BmeshSerializer.h"
 #include "Utils/UIDGenerator.h"
 
@@ -94,12 +96,32 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Co
     return AssetHandleAny{handle};
 }
 
+static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, const Context& ctx)
+{
+    auto& assetManager = *ctx._assetManager;
+    const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / relPath).string();
+
+    auto mat = readBmat(absPath);
+    if (!mat)
+    {
+        std::cerr << "[AssetLoader] Failed to read bmat: " << absPath << "\n";
+        return std::nullopt;
+    }
+
+    const std::string key = std::string(relPath);
+    const std::string name = std::filesystem::path(relPath).stem().string();
+    auto [handle, inserted] = assetManager.emplace<Material>(name, key, *mat);
+    return AssetHandleAny{handle};
+}
+
 std::optional<AssetHandleAny> loadAsset(std::string_view path, const Context& ctx)
 {
     const auto ext = extractExtension(path);
 
     if (ext == "bmesh")
         return loadMesh(path, ctx);
+    if (ext == "bmat")
+        return loadMaterial(path, ctx);
 
     // .png / .jpg / .jpeg → Texture (not yet implemented)
 

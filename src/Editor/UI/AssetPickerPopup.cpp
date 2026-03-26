@@ -3,6 +3,7 @@
 #include "App.h"
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetLoader.h"
+#include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 
 #include <imgui.h>
@@ -22,14 +23,18 @@ static std::string_view extensionFor(AssetType type)
             return ".bmesh";
         case AssetType::Texture:
             return ".png";  // TODO: also .jpg/.jpeg
+        case AssetType::Material:
+            return ".bmat";
     }
     return {};
 }
 
-void AssetPickerPopup::open(EntityHandle ent, AssetType type, const std::string& projectDir)
+void AssetPickerPopup::open(EntityHandle ent, AssetType type, const std::string& projectDir,
+                            uint8_t slotIndex)
 {
-    ent_ = ent;
-    type_ = type;
+    ent_        = ent;
+    type_       = type;
+    slotIndex_  = slotIndex;
     search_.clear();
     entries_.clear();
 
@@ -55,9 +60,10 @@ void AssetPickerPopup::draw(App& app)
     if (!ImGui::BeginPopup(kId))
         return;
 
-    const char* title = (type_ == AssetType::Mesh)      ? "Select Mesh"
-                        : (type_ == AssetType::Texture) ? "Select Texture"
-                                                        : "Select Asset";
+    const char* title = (type_ == AssetType::Mesh)       ? "Select Mesh"
+                        : (type_ == AssetType::Texture)  ? "Select Texture"
+                        : (type_ == AssetType::Material) ? "Select Material"
+                                                         : "Select Asset";
     ImGui::SeparatorText(title);
 
     ImGui::SetNextItemWidth(-1.0f);
@@ -75,9 +81,17 @@ void AssetPickerPopup::draw(App& app)
         {
             const auto relPath = std::filesystem::relative(e.path, app.projectDir_).string();
             auto handle = loadAsset(relPath, *app.ctx_);
-            if (handle && type_ == AssetType::Mesh)
-                if (auto* meshC = ent_.try_get<Mesh_C>())
-                    meshC->_mesh = std::get<MeshHandle>(*handle);
+            if (handle)
+            {
+                if (type_ == AssetType::Mesh)
+                    if (auto* meshC = ent_.try_get<Mesh_C>())
+                        meshC->_mesh = std::get<MeshHandle>(*handle);
+
+                if (type_ == AssetType::Material)
+                    if (auto* mc = ent_.try_get<Materials_C>())
+                        if (slotIndex_ < mc->count)
+                            mc->slots[slotIndex_] = std::get<MaterialHandle>(*handle);
+            }
 
             ImGui::CloseCurrentPopup();
         }
@@ -91,6 +105,11 @@ void AssetPickerPopup::draw(App& app)
         if (type_ == AssetType::Mesh)
             if (auto* meshC = ent_.try_get<Mesh_C>())
                 meshC->_mesh = MeshHandle::null();
+
+        if (type_ == AssetType::Material)
+            if (auto* mc = ent_.try_get<Materials_C>())
+                if (slotIndex_ < mc->count)
+                    mc->slots[slotIndex_] = MaterialHandle::null();
     }
     ImGui::SameLine();
     if (ImGui::Button("Close"))

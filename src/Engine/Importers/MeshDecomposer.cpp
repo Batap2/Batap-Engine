@@ -5,6 +5,8 @@
 
 #include "MeshDecomposer.h"
 
+#include "Assets/Material.h"
+#include "Serialization/BmatSerializer.h"
 #include "Serialization/BmeshSerializer.h"
 #include "Serialization/EntityDesc.h"
 #include "Serialization/EntitySerializer.h"
@@ -15,6 +17,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <unordered_map>
 
 namespace fs = std::filesystem;
 
@@ -74,9 +77,51 @@ static BmeshData mergeNodeMeshes(const aiNode* node, const aiScene* scene)
     return merged;
 }
 
+static Material extractMaterial(const aiMaterial* aiMat)
+{
+    Material mat;
+    aiColor4D color;
+    if (aiMat->Get(AI_MATKEY_BASE_COLOR, color) == AI_SUCCESS ||
+        aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS)
+    {
+        mat.albedo[0] = color.r;
+        mat.albedo[1] = color.g;
+        mat.albedo[2] = color.b;
+        mat.albedo[3] = color.a;
+    }
+    float val;
+    if (aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, val) == AI_SUCCESS) mat.roughness = val;
+    if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR,  val) == AI_SUCCESS) mat.metallic  = val;
+    return mat;
+}
+
+static std::string getOrWriteMaterial(uint32_t matIdx, const aiScene* scene,
+                                       const fs::path& subDir, std::string_view baseDir,
+                                       std::unordered_map<uint32_t, std::string>& cache)
+{
+    auto it = cache.find(matIdx);
+    if (it != cache.end()) return it->second;
+
+    const aiMaterial* aiMat = scene->mMaterials[matIdx];
+    aiString aiName;
+    std::string name = (aiMat->Get(AI_MATKEY_NAME, aiName) == AI_SUCCESS && aiName.length > 0)
+                           ? aiName.C_Str()
+                           : ("mat_" + std::to_string(matIdx));
+    for (char& c : name)
+        if (c == '/' || c == '\\' || c == ':') c = '_';
+
+    fs::path matPath = subDir / (name + ".bmat");
+    writeBmat(extractMaterial(aiMat), matPath.string());
+
+    std::string rel     = fs::relative(matPath, baseDir).generic_string();
+    cache[matIdx]       = rel;
+    return rel;
+}
+
 static void processNode(const aiNode* node, const aiScene* scene, const fs::path& subDir,
                         std::string_view baseDir, std::vector<EntityDesc>& entities,
-                        int parentIndex, DecomposeResult& result)
+                        int parentIndex, DecomposeResult& result,
+                        std::unordered_map<uint32_t, std::string>& matCache)
 {
     aiVector3D pos, scale;
     aiQuaternion rot;
@@ -90,7 +135,8 @@ static void processNode(const aiNode* node, const aiScene* scene, const fs::path
     if (node->mNumMeshes == 0 && identityTransform)
     {
         for (unsigned i = 0; i < node->mNumChildren; ++i)
-            processNode(node->mChildren[i], scene, subDir, baseDir, entities, parentIndex, result);
+            processNode(node->mChildren[i], scene, subDir, baseDir, entities, parentIndex, result,
+                        matCache);
         return;
     }
 
@@ -110,13 +156,24 @@ static void processNode(const aiNode* node, const aiScene* scene, const fs::path
 
         desc.kind = "mesh";
         desc.components.push_back(MeshDesc{fs::relative(bmeshPath, baseDir).generic_string()});
+
+        MaterialsDesc matDesc;
+        matDesc.count = static_cast<uint8_t>(std::min(node->mNumMeshes, 8u));
+        for (uint8_t i = 0; i < matDesc.count; ++i)
+        {
+            const aiMesh* m = scene->mMeshes[node->mMeshes[i]];
+            matDesc.paths[i] =
+                getOrWriteMaterial(m->mMaterialIndex, scene, subDir, baseDir, matCache);
+        }
+        desc.components.push_back(matDesc);
     }
 
     int myIndex = static_cast<int>(entities.size());
     entities.push_back(std::move(desc));
 
     for (unsigned i = 0; i < node->mNumChildren; ++i)
-        processNode(node->mChildren[i], scene, subDir, baseDir, entities, myIndex, result);
+        processNode(node->mChildren[i], scene, subDir, baseDir, entities, myIndex, result,
+                    matCache);
 }
 
 static void resetRootTransform(std::vector<EntityDesc>& entities)
@@ -191,9 +248,12 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
     if (scene->mNumMeshes > 0)
         fs::create_directories(subDir);
 
-    // Build entity hierarchy — bmesh files are written per-node inside processNode
+    // Build entity hierarchy — bmesh and bmat files are written per-node inside processNode
     std::vector<EntityDesc> entities;
-    processNode(scene->mRootNode, scene, subDir, baseDir, entities, -1, result);
+    std::unordered_map<uint32_t, std::string> matCache;
+    processNode(scene->mRootNode, scene, subDir, baseDir, entities, -1, result, matCache);
+    for (auto& [idx, rel] : matCache)
+        result.bmatPaths.push_back(rel);
 
     // Collect root indices
     std::vector<int> roots;

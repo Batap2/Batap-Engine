@@ -1,5 +1,6 @@
 {
   "componentVersions": {
+    "materials": 1,
     "mesh": 1,
     "transform": 1
   },
@@ -28,6 +29,13 @@
         {
           "path": "twoCubes/Cube.bmesh",
           "type": "mesh"
+        },
+        {
+          "materials": [
+            "twoCubes/Material.001.bmat",
+            "twoCubes/Material.002.bmat"
+          ],
+          "type": "materials"
         }
       ],
       "kind": "mesh",

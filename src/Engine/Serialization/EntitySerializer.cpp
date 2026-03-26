@@ -112,21 +112,12 @@ static void serializeEntityDescs(const std::vector<EntityDesc>& entities, const 
         auto& compsJ = ej["components"] = nlohmann::json::array();
         for (const auto& comp : desc.components)
         {
+            std::string_view type = componentTypeName(comp);
             std::visit(
                 [&](const auto& c)
                 {
-                    using T = std::decay_t<decltype(c)>;
                     nlohmann::json cj = toJson(c);
-                    std::string_view type;
-                    if constexpr (std::is_same_v<T, Transform_C>)
-                        type = "transform";
-                    else if constexpr (std::is_same_v<T, MeshDesc>)
-                        type = "mesh";
-                    else if constexpr (std::is_same_v<T, PointLight_C>)
-                        type = "pointLight";
-                    else if constexpr (std::is_same_v<T, Camera_C>)
-                        type = "camera";
-                    cj["type"] = type;
+                    cj["type"]        = type;
                     usedTypes.emplace(type);
                     compsJ.push_back(std::move(cj));
                 },

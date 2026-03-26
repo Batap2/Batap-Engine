@@ -10,6 +10,7 @@ namespace batap
 struct DecomposeResult
 {
     std::vector<std::string> bmeshPaths;
+    std::vector<std::string> bmatPaths;
     std::vector<std::string> texturePaths;
     std::vector<std::string> btplPaths;
     bool ok = false;

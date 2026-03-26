@@ -18,6 +18,7 @@ struct InspectorPanel
   private:
     void drawTransform(EntityHandle ent, World& world);
     void drawMesh(EntityHandle ent, App& app);
+    void drawMaterials(EntityHandle ent, App& app);
     void drawPointLight(EntityHandle ent, World& world);
 
     // Cache for euler rotation

@@ -30,10 +30,14 @@ struct ComponentHandler
 
 std::span<const ComponentHandler> getComponentHandlers();
 
+// Returns the handler type string for a given ComponentDesc alternative.
+std::string_view componentTypeName(const ComponentDesc& d);
+
 // Desc/Component → JSON helpers
-nlohmann::json toJson(const Transform_C&  c);
-nlohmann::json toJson(const MeshDesc&     d);
-nlohmann::json toJson(const PointLight_C& c);
-nlohmann::json toJson(const Camera_C&     c);
+nlohmann::json toJson(const Transform_C&   c);
+nlohmann::json toJson(const MeshDesc&      d);
+nlohmann::json toJson(const MaterialsDesc& d);
+nlohmann::json toJson(const PointLight_C&  c);
+nlohmann::json toJson(const Camera_C&      c);
 
 }  // namespace batap

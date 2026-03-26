@@ -10,38 +10,72 @@
 namespace batap
 {
 
-// Stable Keys, Not dense on GPU, T cached on CPU for reupload
-template <typename T>
+struct GPUArenaKey
+{
+    uint32_t index = 0;
+    uint32_t generation = 0;  // 0 == null
+
+    bool operator==(const GPUArenaKey&) const = default;
+    explicit operator bool() const { return generation != 0; }
+};
+
+// Stable Keys, Not dense on GPU, T source of truth on CPU
+template <typename T, typename TKey = GPUArenaKey>
 struct GPUArena
 {
     static_assert(std::is_trivially_copyable_v<T>);
 
-    struct Key
-    {
-        uint32_t index = 0;
-        uint32_t generation = 0;  // 0 == null
+    GPUArena() = default;
 
-        bool operator==(const Key&) const = default;
-    };
-
-    GPUArena(ResourceManager& rm, size_t initCapacity, std::string name = "GPUArena")
-        : rm_(rm), name_(std::move(name))
+    static GPUArena create(ResourceManager& rm, size_t initCapacity, std::string name = "GPUArena")
     {
-        gpuCapacity_ = initCapacity > 0 ? initCapacity : 1;
-        data_.reserve(gpuCapacity_);
-        createGpuResources(gpuCapacity_);
+        return GPUArena(rm, initCapacity, std::move(name));
     }
 
     ~GPUArena()
     {
-        if (srvHandle_.valid())
-            rm_.requestDestroy(srvHandle_, true);
+        if (rm_ && srvHandle_.valid())
+            rm_->requestDestroy(srvHandle_, true);
     }
 
     GPUArena(const GPUArena&) = delete;
     GPUArena& operator=(const GPUArena&) = delete;
 
-    Key insert(T value)
+    GPUArena(GPUArena&& o) noexcept
+        : data_(std::move(o.data_)),
+          generations_(std::move(o.generations_)),
+          alive_(std::move(o.alive_)),
+          free_(std::move(o.free_)),
+          rm_(o.rm_),
+          name_(std::move(o.name_)),
+          resourceHandle_(o.resourceHandle_),
+          srvHandle_(o.srvHandle_),
+          gpuCapacity_(o.gpuCapacity_)
+    {
+        o.rm_ = nullptr;
+    }
+
+    GPUArena& operator=(GPUArena&& o) noexcept
+    {
+        if (this != &o)
+        {
+            if (rm_ && srvHandle_.valid())
+                rm_->requestDestroy(srvHandle_, true);
+            data_ = std::move(o.data_);
+            generations_ = std::move(o.generations_);
+            alive_ = std::move(o.alive_);
+            free_ = std::move(o.free_);
+            rm_ = o.rm_;
+            name_ = std::move(o.name_);
+            resourceHandle_ = o.resourceHandle_;
+            srvHandle_ = o.srvHandle_;
+            gpuCapacity_ = o.gpuCapacity_;
+            o.rm_ = nullptr;
+        }
+        return *this;
+    }
+
+    TKey insert(T value)
     {
         uint32_t idx;
         if (!free_.empty())
@@ -63,20 +97,20 @@ struct GPUArena
         {
             grow(std::max(gpuCapacity_ * 2, data_.size()));
             auto span =
-                rm_.requestUploadOwned(resourceHandle_, data_.size() * sizeof(T), sizeof(T));
+                rm_->requestUploadOwned(resourceHandle_, data_.size() * sizeof(T), sizeof(T));
             memcpy(span.data(), data_.data(), data_.size() * sizeof(T));
         }
         else
         {
-            auto span = rm_.requestUploadOwned(resourceHandle_, sizeof(T), sizeof(T),
-                                               static_cast<size_t>(idx) * sizeof(T));
+            auto span = rm_->requestUploadOwned(resourceHandle_, sizeof(T), sizeof(T),
+                                                static_cast<size_t>(idx) * sizeof(T));
             memcpy(span.data(), &data_[idx], sizeof(T));
         }
 
-        return Key{idx, generations_[idx]};
+        return TKey{idx, generations_[idx]};
     }
 
-    bool erase(Key k)
+    bool erase(TKey k)
     {
         if (!isValid(k))
             return false;
@@ -87,33 +121,41 @@ struct GPUArena
         return true;
     }
 
-    const T* get(Key k) const
+    const T* get(TKey k) const
     {
         if (!isValid(k))
             return nullptr;
         return &data_[k.index];
     }
 
-    bool update(Key k, T value)
+    bool update(TKey k, T value)
     {
         if (!isValid(k))
             return false;
 
         data_[k.index] = value;
-        auto span = rm_.requestUploadOwned(resourceHandle_, sizeof(T), sizeof(T),
-                                           static_cast<size_t>(k.index) * sizeof(T));
+        auto span = rm_->requestUploadOwned(resourceHandle_, sizeof(T), sizeof(T),
+                                            static_cast<size_t>(k.index) * sizeof(T));
         memcpy(span.data(), &data_[k.index], sizeof(T));
         return true;
     }
 
-    bool contains(Key k) const { return isValid(k); }
+    bool contains(TKey k) const { return isValid(k); }
 
     GPUViewHandle srvHandle() const { return srvHandle_; }
 
     size_t capacity() const { return data_.size(); }
 
    private:
-    bool isValid(Key k) const
+    GPUArena(ResourceManager& rm, size_t initCapacity, std::string name)
+        : rm_(&rm), name_(std::move(name))
+    {
+        gpuCapacity_ = initCapacity > 0 ? initCapacity : 1;
+        data_.reserve(gpuCapacity_);
+        createGpuResources(gpuCapacity_);
+    }
+
+    bool isValid(TKey k) const
     {
         return k.generation != 0 && k.index < data_.size() && alive_[k.index] &&
                generations_[k.index] == k.generation;
@@ -123,12 +165,12 @@ struct GPUArena
     {
         const GPUViewHandle oldSrv = srvHandle_;
         createGpuResources(newCapacity);
-        rm_.requestDestroy(oldSrv, true);
+        rm_->requestDestroy(oldSrv, true);
     }
 
     void createGpuResources(size_t capacity)
     {
-        resourceHandle_ = rm_.createBufferStaticResource(
+        resourceHandle_ = rm_->createBufferStaticResource(
             capacity * sizeof(T), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, name_);
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -141,7 +183,7 @@ struct GPUArena
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
         srvHandle_ =
-            rm_.createStaticView<D3D12_SHADER_RESOURCE_VIEW_DESC>(resourceHandle_, srvDesc);
+            rm_->createStaticView<D3D12_SHADER_RESOURCE_VIEW_DESC>(resourceHandle_, srvDesc);
 
         gpuCapacity_ = capacity;
     }
@@ -151,7 +193,7 @@ struct GPUArena
     std::vector<bool> alive_;
     std::vector<uint32_t> free_;
 
-    ResourceManager& rm_;
+    ResourceManager* rm_ = nullptr;
     std::string name_;
 
     GPUResourceHandle resourceHandle_;

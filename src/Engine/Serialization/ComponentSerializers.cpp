@@ -3,8 +3,10 @@
 
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
+#include "Assets/Material.h"
 #include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
+#include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/Transform_C.h"
@@ -110,6 +112,55 @@ static void deserializeMesh(EntityHandle h, const nlohmann::json& j,
     }
 }
 
+// --- Materials ---------------------------------------------------------------
+
+nlohmann::json toJson(const MaterialsDesc& d)
+{
+    nlohmann::json arr = nlohmann::json::array();
+    for (uint8_t i = 0; i < d.count; ++i)
+        arr.push_back(d.paths[i].empty() ? nlohmann::json(nullptr) : nlohmann::json(d.paths[i]));
+    return {{"materials", arr}};
+}
+
+static std::optional<ComponentDesc> extractMaterials(EntityHandle h, const Context& ctx)
+{
+    auto* mc = h._reg->try_get<Materials_C>(h._entity);
+    if (!mc || mc->count == 0) return std::nullopt;
+    MaterialsDesc desc;
+    desc.count = mc->count;
+    for (uint8_t i = 0; i < mc->count; ++i)
+        if (auto* p = ctx._assetManager->getPath<Material>(mc->slots[i]))
+            desc.paths[i] = *p;
+    return desc;
+}
+
+static std::optional<nlohmann::json> serializeMaterials(EntityHandle h, const Context& ctx)
+{
+    if (auto d = extractMaterials(h, ctx)) return toJson(std::get<MaterialsDesc>(*d));
+    return std::nullopt;
+}
+
+static void deserializeMaterials(EntityHandle h, const nlohmann::json& j,
+                                  uint32_t /*version*/, const Context& ctx, World&)
+{
+    if (!j.contains("materials") || !j["materials"].is_array()) return;
+    auto& mc = h._reg->get_or_emplace<Materials_C>(h._entity);
+    mc.count  = 0;
+    for (const auto& entry : j["materials"])
+    {
+        if (mc.count >= 8) break;
+        if (entry.is_null()) { ++mc.count; continue; }
+        const std::string path = entry.get<std::string>();
+        auto handle = ctx._assetManager->getHandle<Material>(path);
+        if (!handle)
+            if (auto any = loadAsset(path, ctx))
+                handle = std::get<MaterialHandle>(*any);
+        if (handle)
+            mc.slots[mc.count] = *handle;
+        ++mc.count;
+    }
+}
+
 // --- PointLight --------------------------------------------------------------
 
 nlohmann::json toJson(const PointLight_C& c)
@@ -188,13 +239,30 @@ static void deserializeCamera(EntityHandle h, const nlohmann::json& j,
 
 std::span<const ComponentHandler> getComponentHandlers()
 {
-    static const std::array<ComponentHandler, 4> handlers = {{
-        {"transform", 1, serializeTransform,  deserializeTransform,  extractTransform },
-        {"mesh",      1, serializeMesh,       deserializeMesh,       extractMesh      },
-        {"pointLight",1, serializePointLight, deserializePointLight, extractPointLight},
-        {"camera",    1, serializeCamera,     deserializeCamera,     extractCamera    },
+    static const std::array<ComponentHandler, 5> handlers = {{
+        {"transform",  1, serializeTransform,  deserializeTransform,  extractTransform },
+        {"mesh",       1, serializeMesh,       deserializeMesh,       extractMesh      },
+        {"materials",  1, serializeMaterials,  deserializeMaterials,  extractMaterials },
+        {"pointLight", 1, serializePointLight, deserializePointLight, extractPointLight},
+        {"camera",     1, serializeCamera,     deserializeCamera,     extractCamera    },
     }};
     return handlers;
+}
+
+std::string_view componentTypeName(const ComponentDesc& d)
+{
+    return std::visit(
+        [](const auto& c) -> std::string_view
+        {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, Transform_C>)  return "transform";
+            if constexpr (std::is_same_v<T, MeshDesc>)     return "mesh";
+            if constexpr (std::is_same_v<T, MaterialsDesc>)return "materials";
+            if constexpr (std::is_same_v<T, PointLight_C>) return "pointLight";
+            if constexpr (std::is_same_v<T, Camera_C>)     return "camera";
+            return "";
+        },
+        d);
 }
 
 }  // namespace batap

@@ -7,6 +7,7 @@ namespace batap
 
 struct Mesh;
 struct Texture;
+struct Material;
 
 template <class T>
 struct AssetHandle
@@ -24,14 +25,16 @@ struct AssetHandle
     explicit operator bool() const { return generation != 0; }
 };
 
-using MeshHandle = AssetHandle<Mesh>;
-using TextureHandle = AssetHandle<Texture>;
+using MeshHandle     = AssetHandle<Mesh>;
+using TextureHandle  = AssetHandle<Texture>;
+using MaterialHandle = AssetHandle<Material>;
 
-using AssetHandleAny = std::variant<MeshHandle, TextureHandle>;
+using AssetHandleAny = std::variant<MeshHandle, TextureHandle, MaterialHandle>;
 
 enum class AssetType : uint8_t
 {
     Mesh,
-    Texture
+    Texture,
+    Material,
 };
 }  // namespace batap

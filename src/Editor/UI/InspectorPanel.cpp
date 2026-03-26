@@ -1,6 +1,9 @@
 #include "InspectorPanel.h"
 
 #include "App.h"
+#include "Assets/AssetManager.h"
+#include "Assets/Material.h"
+#include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/Transform_C.h"
@@ -22,6 +25,7 @@ void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
 {
     drawTransform(ent, world);
     drawMesh(ent, app);
+    drawMaterials(ent, app);
     drawPointLight(ent, world);
 }
 
@@ -109,6 +113,65 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
                     return true;
                 });
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+
+void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
+{
+    auto* mc = ent.try_get<Materials_C>();
+    if (!mc || mc->count == 0)
+        return;
+
+    if (auto g = ui::CollapsingGroup("Materials"))
+    {
+        for (uint8_t i = 0; i < mc->count; ++i)
+        {
+            const std::string slotLabel = "Slot " + std::to_string(i);
+            if (auto sg = ui::CollapsingGroup(slotLabel.c_str()))
+            {
+                if (auto f = ui::BeginFields(slotLabel.c_str()))
+                {
+                    ui::Field("Asset",
+                              [&]
+                              {
+                                  if (AssetHolder({.size_       = v2f(40, 40),
+                                                   ._thumbnail = mc->slots[i] ? 1ull : 0}))
+                                      assetPicker_.open(ent, AssetType::Material,
+                                                        app.projectDir_, i);
+                                  return true;
+                              });
+
+                    const MaterialHandle handle = mc->slots[i];
+                    if (handle)
+                    {
+                        auto* mat = app.ctx_->_assetManager->get<Material>(handle);
+                        if (mat)
+                        {
+                            Material copy = *mat;
+                            bool changed  = false;
+
+                            changed |= ui::Field("Albedo",
+                                                 [&]
+                                                 {
+                                                     ImGui::SetNextItemWidth(-1.0f);
+                                                     return ImGui::ColorEdit4("##alb",
+                                                                              copy.albedo);
+                                                 });
+                            changed |= ui::FieldDragFloat("Roughness", &copy.roughness, 0.01f,
+                                                          0.f, 1.f);
+                            changed |= ui::FieldDragFloat("Metallic", &copy.metallic, 0.01f,
+                                                          0.f, 1.f);
+
+                            if (changed)
+                                app.ctx_->_assetManager->update(handle, copy);
+                        }
+                    }
+                }
+            }
+        }
+        assetPicker_.draw(app);
     }
 }
 

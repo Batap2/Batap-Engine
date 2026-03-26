@@ -15,7 +15,8 @@ struct Context;
 
 struct AssetPickerPopup
 {
-    void open(EntityHandle ent, AssetType type, const std::string& projectDir);
+    void open(EntityHandle ent, AssetType type, const std::string& projectDir,
+              uint8_t slotIndex = 0);
     void draw(App& app);
 
   private:
@@ -23,6 +24,7 @@ struct AssetPickerPopup
 
     EntityHandle ent_{};
     AssetType    type_{AssetType::Mesh};
+    uint8_t      slotIndex_ = 0;
     std::string     search_;
     std::vector<Entry> entries_;
 };

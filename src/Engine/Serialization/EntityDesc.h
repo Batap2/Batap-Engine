@@ -5,6 +5,7 @@
 #include "Components/Transform_C.h"
 #include "EigenTypes.h"
 
+#include <array>
 #include <string>
 #include <variant>
 #include <vector>
@@ -25,7 +26,13 @@ namespace batap
 
 struct MeshDesc { std::string path; };
 
-using ComponentDesc = std::variant<Transform_C, MeshDesc, PointLight_C, Camera_C>;
+struct MaterialsDesc
+{
+    std::array<std::string, 8> paths{};
+    uint8_t count = 0;
+};
+
+using ComponentDesc = std::variant<Transform_C, MeshDesc, MaterialsDesc, PointLight_C, Camera_C>;
 
 struct EntityDesc
 {
