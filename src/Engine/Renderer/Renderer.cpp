@@ -1,6 +1,7 @@
 #include "Renderer.h"
 
 #include <directx/d3d12.h>
+#include <dxgi1_2.h>
 #include <dxgidebug.h>
 #include <wrl/client.h>
 #include "Renderer/includeDX12.h"
@@ -131,10 +132,14 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         FramesInFlight,
         DXGI_SCALING_STRETCH,
         DXGI_SWAP_EFFECT_FLIP_DISCARD,
+        // DXGI_ALPHA_MODE_UNSPECIFIED,
         DXGI_ALPHA_MODE_PREMULTIPLIED,
         DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT};
 
     Microsoft::WRL::ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
+    // ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(
+    //     _commandQueues[0]->_commandQueue.Get(), _hwnd, &swapchain_desc, nullptr, nullptr,
+    //     &swapchain_tier_dx12));
     ThrowIfFailed(_dxgi_factory->CreateSwapChainForComposition(
         _commandQueues[0]->_commandQueue.Get(), &swapchain_desc, nullptr, &swapchain_tier_dx12));
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
@@ -169,8 +174,8 @@ void Renderer::recreateScreenSizeResources()
         }
 
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-        rtvDesc.Format                        = DXGI_FORMAT_R8G8B8A8_UNORM;
-        rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         rtvImguiHandle_ = _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
             swapChainResHandle_, rtvDesc, toS(RN::RTV_imgui));
     }
@@ -178,13 +183,13 @@ void Renderer::recreateScreenSizeResources()
     // --- Render target compute (UAV) ---
     {
         render0Handle_ = _resourceManager->createTexture2DFrameResource(
-            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM,
-            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            D3D12_HEAP_TYPE_DEFAULT, toS(RN::texture2D_render0));
+            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT,
+            toS(RN::texture2D_render0));
 
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-        uavDesc.Format                           = DXGI_FORMAT_R8G8B8A8_UNORM;
-        uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE2D;
+        uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
         uavRender0Handle_ = _resourceManager->createFrameView<D3D12_UNORDERED_ACCESS_VIEW_DESC>(
             render0Handle_, uavDesc, toS(RN::UAV_render0));
     }
@@ -197,8 +202,8 @@ void Renderer::recreateScreenSizeResources()
             toS(RN::texture2D_render3D));
 
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-        rtvDesc.Format                        = DXGI_FORMAT_R8G8B8A8_UNORM;
-        rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         rtvRender3DHandle_ = _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
             render3DHandle_, rtvDesc, toS(RN::RTV_render_3d));
 
@@ -208,8 +213,8 @@ void Renderer::recreateScreenSizeResources()
             toS(RN::texture2D_render3D_depthStencil));
 
         D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-        dsvDesc.Format                        = DXGI_FORMAT_D32_FLOAT;
-        dsvDesc.ViewDimension                 = D3D12_DSV_DIMENSION_TEXTURE2D;
+        dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
         dsvHandle_ = _resourceManager->createFrameView<D3D12_DEPTH_STENCIL_VIEW_DESC>(
             depthHandle_, dsvDesc, toS(RN::DSV_render_3d));
     }
@@ -229,15 +234,15 @@ void Renderer::resize(uint32_t w, uint32_t h)
     for (auto& q : _commandQueues)
         q->flush();
 
-    _width  = w;
+    _width = w;
     _height = h;
-    _threadGroupCountX = (_width  + _threadGroupSizeX - 1) / _threadGroupSizeX;
+    _threadGroupCountX = (_width + _threadGroupSizeX - 1) / _threadGroupSizeX;
     _threadGroupCountY = (_height + _threadGroupSizeY - 1) / _threadGroupSizeY;
 
-    _resourceManager->requestDestroy(rtvImguiHandle_,    false);
-    _resourceManager->requestDestroy(uavRender0Handle_,  true);
+    _resourceManager->requestDestroy(rtvImguiHandle_, false);
+    _resourceManager->requestDestroy(uavRender0Handle_, true);
     _resourceManager->requestDestroy(rtvRender3DHandle_, true);
-    _resourceManager->requestDestroy(dsvHandle_,         true);
+    _resourceManager->requestDestroy(dsvHandle_, true);
 
     for (auto* res : _resourceManager->getFrameResource(swapChainResHandle_))
         res->_resource.Reset();
@@ -246,8 +251,8 @@ void Renderer::resize(uint32_t w, uint32_t h)
 
     DXGI_SWAP_CHAIN_DESC desc = {};
     ThrowIfFailed(_swapchain->GetDesc(&desc));
-    ThrowIfFailed(_swapchain->ResizeBuffers(FramesInFlight, w, h,
-                                            desc.BufferDesc.Format, desc.Flags));
+    ThrowIfFailed(
+        _swapchain->ResizeBuffers(FramesInFlight, w, h, desc.BufferDesc.Format, desc.Flags));
     _frameIndex = static_cast<uint8_t>(_swapchain->GetCurrentBackBufferIndex());
 
     recreateScreenSizeResources();
@@ -271,13 +276,15 @@ void Renderer::initPsosAndShaders()
         RootSignatureDescription rsDesc_VS{
             {
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0,
-                                    D3D12_SHADER_VISIBILITY_ALL},  // Camera
+                                    D3D12_SHADER_VISIBILITY_ALL},  // 0 — Camera
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0,
-                                    D3D12_SHADER_VISIBILITY_VERTEX},  // Mesh InstanceData
-                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0,
-                                    D3D12_SHADER_VISIBILITY_PIXEL},  // PointLights array
-                RootConstantsDesc{
-                    3, 0, 0, D3D12_SHADER_VISIBILITY_ALL}  // CameraIndex, MeshIndex, nbPointlight
+                                    D3D12_SHADER_VISIBILITY_ALL},  // 1 — Mesh instances (t1, VS+PS)
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0,
+                                    D3D12_SHADER_VISIBILITY_PIXEL},  // 2 — PointLights (t2, PS)
+                RootConstantsDesc{3, 0, 0,
+                                  D3D12_SHADER_VISIBILITY_ALL},  // 3 — CamIdx, MeshIdx, nLights
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0,
+                                    D3D12_SHADER_VISIBILITY_PIXEL},  // 4 — Material arena (t3, PS)
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
@@ -480,7 +487,6 @@ void Renderer::render()
     _renderGraph->execute(_commandQueues, _frameIndex);
     HRESULT hr = _swapchain->Present(_useVSync, 0);  // no tearing flag with DirectComposition
     // HRESULT hr = _swapchain->Present(_useVSync, _useVSync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
-
 
     if (hr == DXGI_STATUS_OCCLUDED)
     {

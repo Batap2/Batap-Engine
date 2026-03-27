@@ -9,7 +9,11 @@ struct CameraData
 
 struct InstanceData
 {
-    float4x4 _world;
+    float4x4 _world;              // 64 bytes
+    uint     _materialIndices[8]; // 32 bytes
+    uint     _triangleOffsets[8]; // 32 bytes
+    uint     _subMeshCount;       //  4 bytes
+    uint     _pad[3];             // 12 bytes
 };
 
 StructuredBuffer<CameraData>   CameraInstancebuffer     : register(t0);

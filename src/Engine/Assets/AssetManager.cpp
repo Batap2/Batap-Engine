@@ -6,8 +6,10 @@
 
 #include "AssetGPUArena.h"
 #include "AssetSlotMap.h"
+#include "Serialization/BmatSerializer.h"
 
 #include <cassert>
+#include <filesystem>
 
 namespace batap
 {
@@ -25,6 +27,19 @@ AssetManager::AssetManager(ResourceManager* rm) : resourceManager_(rm)
 
     std::get<AssetGPUArena<Material>*>(gpuArenas_) = new AssetGPUArena<Material>(
         AssetGPUArena<Material>::create(*rm, 64, "MaterialArena"));
+}
+
+void AssetManager::saveAllAssets() const
+{
+    getGPUArena<Material>()->forEach(
+        [&](AssetHandle<Material> key, const std::string& /*name*/, const std::string& relPath)
+        {
+            if (relPath.empty()) return;
+            const auto* mat = getGPUArena<Material>()->get(key);
+            if (!mat) return;
+            const std::string absPath = (std::filesystem::path(baseDir_) / relPath).string();
+            writeBmat(*mat, absPath);
+        });
 }
 
 AssetManager::~AssetManager()

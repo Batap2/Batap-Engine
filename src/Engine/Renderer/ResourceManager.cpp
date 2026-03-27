@@ -20,7 +20,6 @@
 #include <unordered_map>
 #include <vector>
 
-#pragma clang optimize off
 namespace batap
 {
 ResourceManager::ResourceManager(const Microsoft::WRL::ComPtr<ID3D12Device2>& device,

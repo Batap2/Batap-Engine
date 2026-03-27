@@ -12,6 +12,16 @@ struct CameraData
 
 StructuredBuffer<CameraData> CameraInstancebuffer : register(t0);
 
+struct InstanceData
+{
+    float4x4 _world;              // 64 bytes
+    uint     _materialIndices[8]; // 32 bytes
+    uint     _triangleOffsets[8]; // 32 bytes
+    uint     _subMeshCount;       //  4 bytes
+    uint     _pad[3];             // 12 bytes
+};
+StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
+
 struct PointLight
 {
     float3 pos_;
@@ -21,8 +31,16 @@ struct PointLight
     float falloff_;
     bool castShadows_;
 };
+StructuredBuffer<PointLight> PointLightBuffer : register(t2);
 
-StructuredBuffer<PointLight> PointLightBuffer : register(t1);
+struct MaterialData
+{
+    float4 albedo;
+    float  roughness;
+    float  metallic;
+    float2 _pad;
+};
+StructuredBuffer<MaterialData> MaterialBuffer : register(t3);
 
 cbuffer DrawParams : register(b0)
 {
@@ -39,12 +57,21 @@ struct VS_OUTPUT
     float2 _uv       : TEXCOORD2;
 };
 
-float4 main(VS_OUTPUT i) : SV_Target
+float4 main(VS_OUTPUT i, uint primId : SV_PrimitiveID) : SV_Target
 {
     CameraData cam = CameraInstancebuffer[_cameraIndex];
 
-    // --------- paramètres matériau ----------
-    float3 albedo    = float3(0.9, 0.9, 0.9);
+    // --------- matériau ----------
+    InstanceData inst = StaticMeshInstancebuffer[_instanceIndex];
+    uint submesh = 0;
+    [unroll]
+    for (uint s = 1; s < inst._subMeshCount; ++s)
+        if (primId >= inst._triangleOffsets[s]) submesh = s;
+
+    uint   matIdx = inst._materialIndices[submesh];
+    float3 albedo = (matIdx != 0xFFFFFFFFu)
+                  ? MaterialBuffer[matIdx].albedo.rgb
+                  : float3(0.9, 0.9, 0.9);
     float  ka        = 0.08;   // ambient
     float  kd        = 1.00;   // diffuse
     float  ks        = 0.35;   // specular

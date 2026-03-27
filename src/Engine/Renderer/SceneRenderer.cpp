@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "Assets/AssetManager.h"
+#include "Assets/Material.h"
 #include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
 #include "Components/EntityHandle.h"
@@ -91,12 +92,17 @@ void SceneRenderer::initRenderPasses()
                 auto pointLightSRVHandle = r->_resourceManager->getFrameView(
                     instanceM->pointLightInstancePool_._instancePoolViewHandle)[frameIndex];
 
+                auto matSrvHandle = _ctx._assetManager->getGPUArena<Material>()->srvHandle();
+                auto& matSrv      = rM->getStaticView(matSrvHandle);
+
                 cmdList->SetGraphicsRootDescriptorTable(0,
                                                         camSRVHandle._descriptorHandle->gpuHandle);
                 cmdList->SetGraphicsRootDescriptorTable(
                     1, meshesSRVHandle._descriptorHandle->gpuHandle);
                 cmdList->SetGraphicsRootDescriptorTable(2,
                                                         pointLightSRVHandle._descriptorHandle->gpuHandle);
+                cmdList->SetGraphicsRootDescriptorTable(4,
+                                                        matSrv._descriptorHandle->gpuHandle);
 
                 auto camID = instanceM->_cameraInstancesPool.getGPUIndex(cam);
                 if (!camID.valid())

@@ -41,7 +41,10 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
                 constexpr FileDialogFilter filter{"Scene (.btpl)", "*.btpl"};
                 std::string path = SaveFileDialog(std::span<const FileDialogFilter>(&filter, 1), ".btpl");
                 if (!path.empty())
+                {
                     EntitySerializer::save(world, *app.ctx_, path);
+                    app.ctx_->_assetManager->saveAllAssets();
+                }
             }
             ImGui::EndMenu();
         }

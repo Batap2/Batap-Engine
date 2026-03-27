@@ -1,8 +1,12 @@
 #pragma once
 
 #include <assimp/code/AssetLib/Collada/ColladaHelper.h>
+#include "Assets/AssetManager.h"
+#include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
 #include "Components/ComponentFlag.h"
+#include "Components/Materials_C.h"
+#include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/Transform_C.h"
 #include "Context.h"
@@ -72,11 +76,17 @@ struct GPUInstanceBase
 
 struct StaticMeshGPUData
 {
-    float _world[16];
+    float    _world[16];            // 64 bytes — world matrix
+    uint32_t _materialIndices[8];   // 32 bytes — GPU arena slot per submesh (0xFFFFFFFF = none)
+    uint32_t _triangleOffsets[8];   // 32 bytes — subMesh[i].indexOffset / 3
+    uint32_t _subMeshCount;         //  4 bytes
+    uint32_t _pad[3];               // 12 bytes
 };
+static_assert(sizeof(StaticMeshGPUData) == 144);
 
-using StaticMeshInstance =
-    GPUInstanceBase<StaticMeshGPUData, ComponentFlag::Mesh | ComponentFlag::Transform>;
+using StaticMeshInstance = GPUInstanceBase<
+    StaticMeshGPUData,
+    ComponentFlag::Mesh | ComponentFlag::Transform | ComponentFlag::Materials>;
 
 struct CameraGPUData
 {
@@ -116,20 +126,62 @@ struct InstancePatches<StaticMeshInstance>
         auto* t = r.try_get<Transform_C>(e);
         if (!t)
             return;
-
-        auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
-        std::memcpy(out->_world, t->worldMatrix().data(), 16 * sizeof(float));
+        std::memcpy(dst, t->worldMatrix().data(), 16 * sizeof(float));
     }
 
-    static constexpr PatchDesc _transformPatches[] = {
-        PatchDesc{._offset = static_cast<uint32_t>(offsetof(StaticMeshInstance::GPUData, _world)),
-                  ._size = static_cast<uint32_t>(sizeof(m4f)),
-                  .fill = &fillWorld}};
+    static void fillMesh(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    {
+        auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
+        std::fill(std::begin(out->_triangleOffsets), std::end(out->_triangleOffsets), 0u);
+        out->_subMeshCount = 1;
+
+        auto* meshC = r.try_get<Mesh_C>(e);
+        if (!meshC || !ctx._assetManager)
+            return;
+        auto* mesh = ctx._assetManager->get(meshC->_mesh);
+        if (!mesh || mesh->subMeshCount == 0)
+            return;
+        out->_subMeshCount = mesh->subMeshCount;
+        auto triSpan = std::span{out->_triangleOffsets};
+        for (uint8_t i = 0; i < mesh->subMeshCount; ++i)
+            triSpan[i] = mesh->subMeshes[i].indexOffset / 3;
+    }
+
+    static void fillMaterials(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    {
+        auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
+        std::fill(std::begin(out->_materialIndices), std::end(out->_materialIndices), 0xFFFFFFFFu);
+
+        auto* matsC = r.try_get<Materials_C>(e);
+        if (!matsC)
+            return;
+        auto idxSpan = std::span{out->_materialIndices};
+        for (uint8_t i = 0; i < matsC->count && i < 8; ++i)
+            if (matsC->slots[i])
+                idxSpan[i] = matsC->slots[i].index;
+    }
+
+    static constexpr PatchDesc _transformPatch[] = {
+        PatchDesc{._offset = offsetof(StaticMeshGPUData, _world),
+                  ._size   = 16 * sizeof(float),
+                  .fill    = &fillWorld}};
+
+    static constexpr PatchDesc _meshPatch[] = {
+        PatchDesc{._offset = offsetof(StaticMeshGPUData, _triangleOffsets),
+                  ._size   = 9 * sizeof(uint32_t),  // _triangleOffsets[8] + _subMeshCount
+                  .fill    = &fillMesh}};
+
+    static constexpr PatchDesc _materialsPatch[] = {
+        PatchDesc{._offset = offsetof(StaticMeshGPUData, _materialIndices),
+                  ._size   = 8 * sizeof(uint32_t),
+                  .fill    = &fillMaterials}};
 
     static constexpr std::array<PatchRange, 32> byBit = []()
     {
         std::array<PatchRange, 32> t{};
-        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatches};
+        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatch};
+        t[flagToIndex(ComponentFlag::Mesh)]      = PatchRange{_meshPatch};
+        t[flagToIndex(ComponentFlag::Materials)] = PatchRange{_materialsPatch};
         return t;
     }();
 };

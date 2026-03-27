@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -111,6 +110,15 @@ struct AssetManager
     {
         return std::get<AssetGPUArena<T>*>(gpuArenas_);
     }
+
+    template <typename T>
+    const AssetGPUArena<T>* getGPUArena() const
+    {
+        return std::get<AssetGPUArena<T>*>(gpuArenas_);
+    }
+
+    // Saves all loaded GPU-arena assets (materials, ...) back to disk.
+    void saveAllAssets() const;
 
     // Must be called before any loadAsset call. Asserts if dir is empty.
     void setBaseDir(std::string dir);
