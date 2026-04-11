@@ -17,15 +17,21 @@ struct AssetPickerPopup
 {
     void open(EntityHandle ent, AssetType type, const std::string& projectDir,
               uint8_t slotIndex = 0);
+    // Open specifically for picking a texture channel on a material.
+    // channel: 0=albedo 1=normal 2=roughness 3=metallic
+    void open(MaterialHandle mat, uint8_t channel, const std::string& projectDir);
     void draw(App& app);
 
   private:
     struct Entry { std::string name; std::filesystem::path path; };
 
-    EntityHandle ent_{};
-    AssetType    type_{AssetType::Mesh};
-    uint8_t      slotIndex_ = 0;
-    std::string     search_;
+    bool           pendingOpen_ = false;
+    EntityHandle   ent_{};
+    AssetType      type_{AssetType::Mesh};
+    uint8_t        slotIndex_  = 0;
+    MaterialHandle matHandle_  = {};
+    uint8_t        texChannel_ = 0;  // 0=albedo 1=normal 2=roughness 3=metallic
+    std::string        search_;
     std::vector<Entry> entries_;
 };
 

@@ -22,7 +22,7 @@ void AssetManager::setBaseDir(std::string dir)
 
 AssetManager::AssetManager(ResourceManager* rm) : resourceManager_(rm)
 {
-    std::get<AssetSlotMap<Mesh>*>(maps_) = new AssetSlotMap<Mesh>();
+    std::get<AssetSlotMap<Mesh>*>(maps_)    = new AssetSlotMap<Mesh>();
     std::get<AssetSlotMap<Texture>*>(maps_) = new AssetSlotMap<Texture>();
 
     std::get<AssetGPUArena<Material>*>(gpuArenas_) = new AssetGPUArena<Material>(

@@ -285,8 +285,28 @@ void Renderer::initPsosAndShaders()
                                   D3D12_SHADER_VISIBILITY_ALL},  // 3 — CamIdx, MeshIdx, nLights
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0,
                                     D3D12_SHADER_VISIBILITY_PIXEL},  // 4 — Material arena (t3, PS)
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 4, 0,
+                                    D3D12_SHADER_VISIBILITY_PIXEL,
+                                    D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE},  // 5 — bindless textures (t4[], PS)
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
+
+        {
+            D3D12_STATIC_SAMPLER_DESC sampler{};
+            sampler.Filter           = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+            sampler.AddressU         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            sampler.AddressV         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            sampler.AddressW         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            sampler.MipLODBias       = 0;
+            sampler.MaxAnisotropy    = 1;
+            sampler.ComparisonFunc   = D3D12_COMPARISON_FUNC_NEVER;
+            sampler.MinLOD           = 0.f;
+            sampler.MaxLOD           = D3D12_FLOAT32_MAX;
+            sampler.ShaderRegister   = 0;  // s0
+            sampler.RegisterSpace    = 0;
+            sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+            rsDesc_VS._staticSamplers = {sampler};
+        }
 
         D3D12_INPUT_ELEMENT_DESC layout[] = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,

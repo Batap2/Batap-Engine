@@ -20,7 +20,7 @@ Shader::Shader(std::string_view entryPoint, std::string_view target)
 
 HRESULT Shader::compileShaderFromFile(const std::wstring& filename)
 {
-    UINT compileFlags = 0;
+    UINT compileFlags = D3DCOMPILE_ENABLE_UNBOUNDED_DESCRIPTOR_TABLES;
 #ifdef _DEBUG
     compileFlags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
@@ -80,7 +80,9 @@ ID3D12RootSignature* PipelineStateManager::createRootSignature(RootSignatureDesc
     }
 
     CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC vdesc;
-    vdesc.Init_1_1(static_cast<UINT>(rootParams.size()), rootParams.data(), 0, nullptr,
+    vdesc.Init_1_1(static_cast<UINT>(rootParams.size()), rootParams.data(),
+                   static_cast<UINT>(desc._staticSamplers.size()),
+                   desc._staticSamplers.empty() ? nullptr : desc._staticSamplers.data(),
                    desc._flags);
 
     Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;

@@ -108,13 +108,39 @@ ResourceManager::requestUploadOwned(GPUHandle guid, size_t dataSize, uint32_t al
     return std::span<std::byte>(req._ownedData);
 }
 
+std::span<std::byte> ResourceManager::requestTextureUploadOwned(GPUResourceHandle dest,
+                                                                uint32_t width, uint32_t height,
+                                                                DXGI_FORMAT format,
+                                                                uint32_t& outAlignedRowPitch)
+{
+    const uint32_t bpp = bytesPerPixelForFormat(format);
+    const uint32_t alignedRowPitch = static_cast<uint32_t>(
+        AlignUp(static_cast<uint64_t>(width) * bpp, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+
+    auto& req              = _uploadRequests.emplace_back();
+    req._guid              = GPUHandle{dest};
+    req._alignment         = D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT;
+    req._destinationOffset = 0;
+    req.texWidth_          = width;
+    req.texHeight_         = height;
+    req.texFormat_         = format;
+    req.alignedRowPitch_   = alignedRowPitch;
+    req._ownedData.resize(static_cast<size_t>(alignedRowPitch) * height);
+
+    outAlignedRowPitch = alignedRowPitch;
+    return std::span<std::byte>(req._ownedData);
+}
+
 void ResourceManager::flushUploadRequests(ID3D12GraphicsCommandList* cmdList,
                                           ID3D12CommandQueue* commandQueue, uint32_t frameIndex)
 {
     for (auto& req : _uploadRequests)
     {
-        updateResource(cmdList, commandQueue, req._guid, req.dataPtr(), req.size(), req._alignment,
-                       frameIndex, req._destinationOffset);
+        if (req.isTexture())
+            uploadTextureToResource(cmdList, commandQueue, req, frameIndex);
+        else
+            updateResource(cmdList, commandQueue, req._guid, req.dataPtr(), req.size(),
+                           req._alignment, frameIndex, req._destinationOffset);
     }
     _uploadRequests.clear();
     _uploadBuffers[frameIndex]._currentOffset = 0;  // reset upload buffer
@@ -240,6 +266,7 @@ void ResourceManager::updateResource(ID3D12GraphicsCommandList* cmdList,
     resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
     uploadToResource(cmdList, commandQueue, resource, data, dataSize, alignment, frameIndex,
                      destinationOffset);
+    resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_COMMON);
 }
 
 void ResourceManager::copyBuffer(ID3D12GraphicsCommandList* cmdList, GPUResourceHandle dst,
@@ -358,7 +385,7 @@ GPUResourceHandle ResourceManager::createTexture2DStaticResource(
         clearValueData.Color[0] = 0.0f;
         clearValueData.Color[1] = 0.0f;
         clearValueData.Color[2] = 0.0f;
-        clearValueData.Color[3] = 1.0f;
+        clearValueData.Color[3] = 0.0f;
         clearValue = &clearValueData;
     }
     else if (flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
@@ -404,10 +431,10 @@ GPUResourceHandle ResourceManager::createTexture2DFrameResource(
     if (flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)
     {
         clearValueData.Format = format;
-        clearValueData.Color[0] = 0.2f;
-        clearValueData.Color[1] = 0.2f;
-        clearValueData.Color[2] = 0.2f;
-        clearValueData.Color[3] = 1.0f;
+        clearValueData.Color[0] = 0.0f;
+        clearValueData.Color[1] = 0.0f;
+        clearValueData.Color[2] = 0.0f;
+        clearValueData.Color[3] = 0.0f;
         clearValue = &clearValueData;
     }
     else if (flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
@@ -873,5 +900,48 @@ GPUMeshViewHandle ResourceManager::generateGUID(GPUMeshViewHandle::ObjectType ty
         _aliveGPUMeshViewHandle.insert(guid);
         return guid;
     }
+}
+
+void ResourceManager::uploadTextureToResource(ID3D12GraphicsCommandList* cmdList,
+                                              ID3D12CommandQueue* /*commandQueue*/,
+                                              const UploadRequest& req,
+                                              uint32_t frameIndex)
+{
+    auto         resHandle = std::get<GPUResourceHandle>(req._guid);
+    GPUResource* dest      = getStaticResource(resHandle);
+    auto& upload      = _uploadBuffers[frameIndex];
+
+    upload._currentOffset =
+        AlignUp(upload._currentOffset, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+    const uint64_t stagingOffset = upload._currentOffset;
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+    memcpy(static_cast<uint8_t*>(upload._mappedData) + stagingOffset,
+           req._ownedData.data(), req._ownedData.size());
+#pragma clang diagnostic pop
+
+    dest->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
+
+    D3D12_TEXTURE_COPY_LOCATION src{};
+    src.pResource                          = upload._buffer.Get();
+    src.Type                               = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    src.PlacedFootprint.Offset             = stagingOffset;
+    src.PlacedFootprint.Footprint.Format   = req.texFormat_;
+    src.PlacedFootprint.Footprint.Width    = req.texWidth_;
+    src.PlacedFootprint.Footprint.Height   = req.texHeight_;
+    src.PlacedFootprint.Footprint.Depth    = 1;
+    src.PlacedFootprint.Footprint.RowPitch = req.alignedRowPitch_;
+
+    D3D12_TEXTURE_COPY_LOCATION dst{};
+    dst.pResource        = dest->get();
+    dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dst.SubresourceIndex = 0;
+
+    cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+    dest->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+    upload._currentOffset += req._ownedData.size();
 }
 }  // namespace batap

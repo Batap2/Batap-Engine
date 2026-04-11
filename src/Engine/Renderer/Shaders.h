@@ -80,8 +80,9 @@ using RootParamDesc = std::variant<DescriptorTableDesc, RootConstantsDesc>;
 
 struct RootSignatureDescription
 {
-    std::vector<RootParamDesc> _params;
-    D3D12_ROOT_SIGNATURE_FLAGS _flags;
+    std::vector<RootParamDesc>             _params;
+    D3D12_ROOT_SIGNATURE_FLAGS             _flags;
+    std::vector<D3D12_STATIC_SAMPLER_DESC> _staticSamplers = {};
 };
 
 struct PipelineStateManager

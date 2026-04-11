@@ -1,5 +1,6 @@
 {
   "componentVersions": {
+    "materials": 1,
     "mesh": 1,
     "transform": 1
   },
@@ -28,6 +29,12 @@
         {
           "path": "matBall/Mesh001.bmesh",
           "type": "mesh"
+        },
+        {
+          "materials": [
+            "matBall/DefaultMaterial.bmat"
+          ],
+          "type": "materials"
         }
       ],
       "kind": "mesh",

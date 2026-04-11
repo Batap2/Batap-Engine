@@ -9,12 +9,18 @@
 namespace batap
 {
 
-bool writeBmat(const Material& mat, const std::string& outPath)
+bool writeBmat(const MaterialDesc& desc, const std::string& outPath)
 {
     nlohmann::json j;
-    j["albedo"] = {mat.albedo[0], mat.albedo[1], mat.albedo[2], mat.albedo[3]};
-    j["roughness"] = mat.roughness;
-    j["metallic"] = mat.metallic;
+    j["albedo"]     = {desc.mat->albedo[0], desc.mat->albedo[1],
+                       desc.mat->albedo[2], desc.mat->albedo[3]};
+    j["roughness"]  = desc.mat->roughness;
+    j["metallic"]   = desc.mat->metallic;
+
+    if (!desc.albedoTexPath.empty())    j["albedoTex"]    = desc.albedoTexPath;
+    if (!desc.normalTexPath.empty())    j["normalTex"]    = desc.normalTexPath;
+    if (!desc.roughnessTexPath.empty()) j["roughnessTex"] = desc.roughnessTexPath;
+    if (!desc.metallicTexPath.empty())  j["metallicTex"]  = desc.metallicTexPath;
 
     std::ofstream f(outPath);
     if (!f)
@@ -26,7 +32,14 @@ bool writeBmat(const Material& mat, const std::string& outPath)
     return true;
 }
 
-std::optional<Material> readBmat(const std::string& path)
+bool writeBmat(const Material& mat, const std::string& outPath)
+{
+    MaterialDesc desc;
+    desc.mat = const_cast<Material*>(&mat);
+    return writeBmat(desc, outPath);
+}
+
+std::optional<MaterialFileData> readBmat(const std::string& path)
 {
     std::ifstream f(path);
     if (!f)
@@ -46,21 +59,25 @@ std::optional<Material> readBmat(const std::string& path)
         return std::nullopt;
     }
 
-    Material mat;
+    MaterialFileData data;
+
     if (j.contains("albedo") && j["albedo"].is_array() && j["albedo"].size() == 4)
     {
-        const auto& a = j["albedo"];
-        mat.albedo[0] = a[0].get<float>();
-        mat.albedo[1] = a[1].get<float>();
-        mat.albedo[2] = a[2].get<float>();
-        mat.albedo[3] = a[3].get<float>();
+        const auto& a     = j["albedo"];
+        data.mat.albedo[0] = a[0].get<float>();
+        data.mat.albedo[1] = a[1].get<float>();
+        data.mat.albedo[2] = a[2].get<float>();
+        data.mat.albedo[3] = a[3].get<float>();
     }
-    if (j.contains("roughness"))
-        mat.roughness = j["roughness"].get<float>();
-    if (j.contains("metallic"))
-        mat.metallic = j["metallic"].get<float>();
+    if (j.contains("roughness")) data.mat.roughness = j["roughness"].get<float>();
+    if (j.contains("metallic"))  data.mat.metallic  = j["metallic"].get<float>();
 
-    return mat;
+    if (j.contains("albedoTex"))    data.albedoTexPath    = j["albedoTex"].get<std::string>();
+    if (j.contains("normalTex"))    data.normalTexPath    = j["normalTex"].get<std::string>();
+    if (j.contains("roughnessTex")) data.roughnessTexPath = j["roughnessTex"].get<std::string>();
+    if (j.contains("metallicTex"))  data.metallicTexPath  = j["metallicTex"].get<std::string>();
+
+    return data;
 }
 
 }  // namespace batap

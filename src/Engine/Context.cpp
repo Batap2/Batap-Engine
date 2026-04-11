@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 
+#include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
 #include "EigenTypes.h"
 #include "InputManager.h"
@@ -60,6 +61,7 @@ Context::~Context() = default;
 void Context::init()
 {
     _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
+    createDefaultAssets(*this);
     _sceneRenderer = std::make_unique<SceneRenderer>(*this);
     _sceneRenderer->initRenderPasses();
 }

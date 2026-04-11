@@ -95,6 +95,11 @@ void SceneRenderer::initRenderPasses()
                 auto matSrvHandle = _ctx._assetManager->getGPUArena<Material>()->srvHandle();
                 auto& matSrv      = rM->getStaticView(matSrvHandle);
 
+                camSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+                meshesSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+                pointLightSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+                matSrv._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
                 cmdList->SetGraphicsRootDescriptorTable(0,
                                                         camSRVHandle._descriptorHandle->gpuHandle);
                 cmdList->SetGraphicsRootDescriptorTable(
@@ -103,6 +108,8 @@ void SceneRenderer::initRenderPasses()
                                                         pointLightSRVHandle._descriptorHandle->gpuHandle);
                 cmdList->SetGraphicsRootDescriptorTable(4,
                                                         matSrv._descriptorHandle->gpuHandle);
+                cmdList->SetGraphicsRootDescriptorTable(
+                    5, rM->_descriptorHeapAllocator_CBV_SRV_UAV.heap->GetGPUDescriptorHandleForHeapStart());
 
                 auto camID = instanceM->_cameraInstancesPool.getGPUIndex(cam);
                 if (!camID.valid())

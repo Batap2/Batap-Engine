@@ -43,6 +43,7 @@ target_include_directories(Batap_Engine SYSTEM PUBLIC
   "${include_dir}/entt/single_include"
   "${include_dir}/assimp/include"
   "${include_dir}/emhash"
+  "${include_dir}/stb"
 )
 
 # Compile definitions (PUBLIC so Editor gets the same ImGui config)

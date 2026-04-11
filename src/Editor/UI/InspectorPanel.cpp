@@ -1,8 +1,13 @@
 #include "InspectorPanel.h"
 
+#include <array>
+#include <filesystem>
+
 #include "App.h"
 #include "Assets/AssetManager.h"
+#include "Assets/AssetSlotMap.h"
 #include "Assets/Material.h"
+#include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
@@ -104,7 +109,11 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
                 "Mesh",
                 [&]
                 {
-                    if (AssetHolder({.size_ = v2f(40, 40), ._thumbnail = meshC->_mesh ? 1ull : 0}))
+                    std::string meshLabel;
+                    if (meshC->_mesh)
+                        if (auto* p = app.ctx_->_assetManager->getPath(meshC->_mesh))
+                            meshLabel = std::filesystem::path(*p).stem().string();
+                    if (AssetHolder({.size_ = v2f(40, 40), ._thumbnail = meshC->_mesh ? 1ull : 0, .label_ = meshLabel}))
                     {
                         assetPicker_.open(ent, AssetType::Mesh, app.projectDir_);
                     }
@@ -117,6 +126,21 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
 }
 
 // -----------------------------------------------------------------------------
+
+static std::string texLabelFromHeapIdx(AssetManager* am, uint32_t heapIdx)
+{
+    auto* white = am->get<Texture>(std::string("__default_white"));
+    if (white && heapIdx == white->heapIdx_)
+        return {};
+    std::string result;
+    am->getSlotMap<Texture>()->for_each(
+        [&](TextureHandle, const AssetSlotMap<Texture>::Asset& a)
+        {
+            if (result.empty() && a.value_.heapIdx_ == heapIdx)
+                result = std::filesystem::path(a.path_).stem().string();
+        });
+    return result;
+}
 
 void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
 {
@@ -136,8 +160,13 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                     ui::Field("Asset",
                               [&]
                               {
-                                  if (AssetHolder({.size_       = v2f(40, 40),
-                                                   ._thumbnail = mc->slots[i] ? 1ull : 0}))
+                                  std::string matLabel;
+                                  if (mc->slots[i])
+                                      if (auto* p = app.ctx_->_assetManager->getPath(mc->slots[i]))
+                                          matLabel = std::filesystem::path(*p).stem().string();
+                                  if (AssetHolder({.size_      = v2f(40, 40),
+                                                   ._thumbnail = mc->slots[i] ? 1ull : 0,
+                                                   .label_     = matLabel}))
                                       assetPicker_.open(ent, AssetType::Material,
                                                         app.projectDir_, i);
                                   return true;
@@ -166,6 +195,26 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
 
                             if (changed)
                                 app.ctx_->_assetManager->update(handle, copy);
+
+                            static constexpr std::array<const char*, 4> kTexLabels = {
+                                "Albedo Tex", "Normal Tex", "Roughness Tex", "Metallic Tex"};
+                            const std::array<uint32_t, 4> matTexIdx = {
+                                mat->albedoTexIdx_, mat->normalTexIdx_,
+                                mat->roughnessTexIdx_, mat->metallicTexIdx_};
+                            for (uint8_t ch = 0; ch < 4; ++ch)
+                            {
+                                ui::Field(kTexLabels[ch],
+                                          [&, ch]
+                                          {
+                                              std::string lbl = texLabelFromHeapIdx(
+                                                  app.ctx_->_assetManager.get(), matTexIdx[ch]);
+                                              if (AssetHolder({.size_      = v2f(40, 40),
+                                                               ._thumbnail = 0,
+                                                               .label_     = lbl.empty() ? "None" : lbl}))
+                                                  assetPicker_.open(handle, ch, app.projectDir_);
+                                              return true;
+                                          });
+                            }
                         }
                     }
                 }

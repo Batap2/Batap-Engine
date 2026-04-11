@@ -158,6 +158,14 @@ struct ResourceManager
 
         uint32_t _alignment;
         size_t _destinationOffset;
+
+        // texture-only fields (ignored when isTexture() == false)
+        uint32_t    texWidth_        = 0;
+        uint32_t    texHeight_       = 0;
+        DXGI_FORMAT texFormat_       = DXGI_FORMAT_UNKNOWN;
+        uint32_t    alignedRowPitch_ = 0;
+
+        bool isTexture() const { return texWidth_ != 0; }
     };
 
     struct DeferredRelease
@@ -172,6 +180,12 @@ struct ResourceManager
     std::span<std::byte> requestUploadOwned(GPUHandle guid, size_t dataSize, uint32_t alignment,
                                             size_t destinationOffset = 0,
                                             size_t subRegionOffset = 0, size_t subRegionSize = 0);
+
+    std::span<std::byte> requestTextureUploadOwned(GPUResourceHandle dest,
+                                                   uint32_t width,
+                                                   uint32_t height,
+                                                   DXGI_FORMAT format,
+                                                   uint32_t& outAlignedRowPitch);
 
     void flushUploadRequests(ID3D12GraphicsCommandList* cmdList, ID3D12CommandQueue* commandQueue,
                              uint32_t frameIndex);
@@ -373,6 +387,24 @@ struct ResourceManager
     DescriptorHeapAllocator _descriptorHeapAllocator_DSV;
 
    private:
+    static uint32_t bytesPerPixelForFormat(DXGI_FORMAT format)
+    {
+        switch (format)
+        {
+            case DXGI_FORMAT_R8G8B8A8_UNORM:
+            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return 4;
+            case DXGI_FORMAT_R16G16B16A16_FLOAT:   return 8;
+            case DXGI_FORMAT_R32G32B32A32_FLOAT:   return 16;
+            case DXGI_FORMAT_R8_UNORM:             return 1;
+            default: assert(false && "unsupported format for texture upload"); return 4;
+        }
+    }
+
+    void uploadTextureToResource(ID3D12GraphicsCommandList* cmdList,
+                                 ID3D12CommandQueue* commandQueue,
+                                 const UploadRequest& req,
+                                 uint32_t frameIndex);
+
     template <typename T>
     void createSingleView(GPUResource* resource, GPUView* view, T& viewDesc,
                           DescriptorHeapAllocator& descriptorHeapAllocator)
