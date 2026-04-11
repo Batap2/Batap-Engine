@@ -34,6 +34,8 @@ void SceneRenderer::initRenderPasses()
 
                 auto&& [reg, instanceM] = args_;
 
+                if(!reg) return;
+
                 auto rtv_render3d = rM->getFrameView(RN::RTV_render_3d)[r->_frameIndex];
                 auto dsv_depth = rM->getFrameView(RN::DSV_render_3d)[r->_frameIndex];
 
@@ -135,15 +137,16 @@ void SceneRenderer::initRenderPasses()
 
                         cmdList->SetGraphicsRoot32BitConstants(3, 3, bindedConstants, 0);
 
-                        auto& ib = rM->getStaticMeshView(mesh->_indexBuffer);
-                        auto& vb = rM->getStaticMeshView(mesh->_vertexBuffer);
-                        auto& nb = rM->getStaticMeshView(mesh->_normalBuffer);
+                        auto& ib  = rM->getStaticMeshView(mesh->_indexBuffer);
+                        auto& vb  = rM->getStaticMeshView(mesh->_vertexBuffer);
+                        auto& nb  = rM->getStaticMeshView(mesh->_normalBuffer);
                         auto& uvb = rM->getStaticMeshView(mesh->_uv0Buffer);
+                        auto& tb  = rM->getStaticMeshView(mesh->_tangeantBuffer);
 
-                        D3D12_VERTEX_BUFFER_VIEW vbvs[3] = {vb.vbv, nb.vbv, uvb.vbv};
+                        D3D12_VERTEX_BUFFER_VIEW vbvs[4] = {vb.vbv, nb.vbv, uvb.vbv, tb.vbv};
 
                         cmdList->IASetIndexBuffer(&ib.ibv);
-                        cmdList->IASetVertexBuffers(0, 3, vbvs);
+                        cmdList->IASetVertexBuffers(0, 4, vbvs);
 
                         cmdList->DrawIndexedInstanced(mesh->_indexCount, 1, 0, 0, 0);
                     });

@@ -8,6 +8,8 @@
 #include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
+#include "Instance/InstanceManager.h"
+#include "World.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -139,7 +141,10 @@ void AssetPickerPopup::draw(App& app)
                 if (type_ == AssetType::Material)
                     if (auto* mc = ent_.try_get<Materials_C>())
                         if (slotIndex_ < mc->count)
+                        {
                             mc->slots[slotIndex_] = std::get<MaterialHandle>(*handle);
+                            app.world_->instanceManager_->markDirty(ent_, ComponentFlag::Materials);
+                        }
 
                 if (type_ == AssetType::Texture && matHandle_)
                     if (auto* th = std::get_if<TextureHandle>(&*handle))
@@ -166,8 +171,12 @@ void AssetPickerPopup::draw(App& app)
                     mc->slots[slotIndex_] = MaterialHandle::null();
 
         if (type_ == AssetType::Texture && matHandle_)
-            if (auto* white = app.ctx_->_assetManager->get<Texture>(std::string("__default_white")))
-                applyTexture(app, matHandle_, texChannel_, white->heapIdx_);
+        {
+            const std::string defaultKey =
+                (texChannel_ == 1) ? "__default_flat_normal" : "__default_white";
+            if (auto* def = app.ctx_->_assetManager->get<Texture>(defaultKey))
+                applyTexture(app, matHandle_, texChannel_, def->heapIdx_);
+        }
     }
     ImGui::SameLine();
     if (ImGui::Button("Close"))

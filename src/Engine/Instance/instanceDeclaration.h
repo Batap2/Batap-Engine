@@ -76,17 +76,17 @@ struct GPUInstanceBase
 
 struct StaticMeshGPUData
 {
-    float    _world[16];            // 64 bytes — world matrix
-    uint32_t _materialIndices[8];   // 32 bytes — GPU arena slot per submesh (0xFFFFFFFF = none)
-    uint32_t _triangleOffsets[8];   // 32 bytes — subMesh[i].indexOffset / 3
-    uint32_t _subMeshCount;         //  4 bytes
-    uint32_t _pad[3];               // 12 bytes
+    float _world[16];              // 64 bytes — world matrix
+    uint32_t _materialIndices[8];  // 32 bytes — GPU arena slot per submesh (0xFFFFFFFF = none)
+    uint32_t _triangleOffsets[8];  // 32 bytes — subMesh[i].indexOffset / 3
+    uint32_t _subMeshCount;        //  4 bytes
+    uint32_t _pad[3];              // 12 bytes
 };
 static_assert(sizeof(StaticMeshGPUData) == 144);
 
-using StaticMeshInstance = GPUInstanceBase<
-    StaticMeshGPUData,
-    ComponentFlag::Mesh | ComponentFlag::Transform | ComponentFlag::Materials>;
+using StaticMeshInstance =
+    GPUInstanceBase<StaticMeshGPUData,
+                    ComponentFlag::Mesh | ComponentFlag::Transform | ComponentFlag::Materials>;
 
 struct CameraGPUData
 {
@@ -163,24 +163,24 @@ struct InstancePatches<StaticMeshInstance>
 
     static constexpr PatchDesc _transformPatch[] = {
         PatchDesc{._offset = offsetof(StaticMeshGPUData, _world),
-                  ._size   = 16 * sizeof(float),
-                  .fill    = &fillWorld}};
+                  ._size = 16 * sizeof(float),
+                  .fill = &fillWorld}};
 
     static constexpr PatchDesc _meshPatch[] = {
         PatchDesc{._offset = offsetof(StaticMeshGPUData, _triangleOffsets),
-                  ._size   = 9 * sizeof(uint32_t),  // _triangleOffsets[8] + _subMeshCount
-                  .fill    = &fillMesh}};
+                  ._size = 9 * sizeof(uint32_t),  // _triangleOffsets[8] + _subMeshCount
+                  .fill = &fillMesh}};
 
     static constexpr PatchDesc _materialsPatch[] = {
         PatchDesc{._offset = offsetof(StaticMeshGPUData, _materialIndices),
-                  ._size   = 8 * sizeof(uint32_t),
-                  .fill    = &fillMaterials}};
+                  ._size = 8 * sizeof(uint32_t),
+                  .fill = &fillMaterials}};
 
     static constexpr std::array<PatchRange, 32> byBit = []()
     {
         std::array<PatchRange, 32> t{};
         t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatch};
-        t[flagToIndex(ComponentFlag::Mesh)]      = PatchRange{_meshPatch};
+        t[flagToIndex(ComponentFlag::Mesh)] = PatchRange{_meshPatch};
         t[flagToIndex(ComponentFlag::Materials)] = PatchRange{_materialsPatch};
         return t;
     }();

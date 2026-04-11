@@ -30,6 +30,7 @@ struct VS_INPUT
     float3 _position : POSITION;
     float3 _normal   : NORMAL;
     float2 _uv       : TEXCOORD0;
+    float4 _tangent  : TANGENT;   // xyz = tangent, w = handedness (±1)
 };
 
 struct VS_OUTPUT
@@ -38,6 +39,7 @@ struct VS_OUTPUT
     float3 _posWS    : TEXCOORD0;   // world position
     float3 _nrmWS    : TEXCOORD1;   // world normal
     float2 _uv       : TEXCOORD2;
+    float4 _tanWS    : TEXCOORD3;   // xyz = world tangent, w = handedness
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -52,8 +54,12 @@ VS_OUTPUT main(VS_INPUT input)
     o._posWS = posWS4.xyz;
 
     // World normal (OK si pas de non-uniform scale ; sinon inverse-transpose)
-    float3 nrmWS = mul((float3x3)inst._world, input._normal);
-    o._nrmWS = normalize(nrmWS);
+    float3x3 worldRot = (float3x3)inst._world;
+    o._nrmWS = normalize(mul(worldRot, input._normal));
+
+    // World tangent — preserve handedness in w
+    float3 tanWS = normalize(mul(worldRot, input._tangent.xyz));
+    o._tanWS = float4(tanWS, input._tangent.w);
 
     // Clip position
     float4 posVS = mul(cam._view, posWS4);

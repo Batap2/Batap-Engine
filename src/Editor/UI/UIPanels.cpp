@@ -137,4 +137,55 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
     ImGui::End();
 }
 
+void UIPanels::drawStartupScreen(App& app, Context& /*ctx*/)
+{
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->Pos);
+    ImGui::SetNextWindowSize(vp->Size);
+    ImGui::Begin("##startup", nullptr,
+                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+                     ImGuiWindowFlags_NoBringToFrontOnFocus);
+
+    float contentH = 40.0f + static_cast<float>(app.recentProjects_.size()) * 36.0f + 80.0f;
+    ImGui::SetCursorPosY((vp->Size.y - contentH) * 0.5f);
+
+    const char* title = "Batap Engine";
+    ImGui::SetCursorPosX((vp->Size.x - ImGui::CalcTextSize(title).x) * 0.5f);
+    ImGui::Text("%s", title);
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    if (!app.recentProjects_.empty())
+    {
+        ImGui::Text("Recent projects:");
+        std::string selected;
+        for (const auto& dir : app.recentProjects_)
+        {
+            if (dir.empty()) continue;
+            if (ImGui::Selectable(dir.c_str()))
+            {
+                selected = dir;
+                break;
+            }
+        }
+        if (!selected.empty())
+            app.selectProject(selected);
+        ImGui::Spacing();
+    }
+
+    constexpr float kBtnW = 200.0f;
+    ImGui::SetCursorPosX((vp->Size.x - kBtnW) * 0.5f);
+    if (ImGui::Button("Browse...", {kBtnW, 0}))
+        app.openFolderDialogAsyncWithAfterJob(
+            [&app](std::vector<std::string>&& paths)
+            {
+                if (!paths.empty())
+                    app.selectProject(paths[0]);
+            });
+
+    ImGui::End();
+}
+
 }  // namespace batap

@@ -59,6 +59,7 @@ struct VS_OUTPUT
     float3 _posWS    : TEXCOORD0;   // world position
     float3 _nrmWS    : TEXCOORD1;   // world normal
     float2 _uv       : TEXCOORD2;
+    float4 _tanWS    : TEXCOORD3;   // xyz = world tangent, w = handedness
 };
 
 SamplerState      g_sampler    : register(s0);
@@ -111,7 +112,7 @@ float4 main(VS_OUTPUT i, uint primId : SV_PrimitiveID) : SV_Target
     uint safeIdx   = (matIdx != 0xFFFFFFFFu) ? matIdx : 0u;
     MaterialData mat = MaterialBuffer[safeIdx];
 
-    // Texture channels always valid: unassigned → white texture (neutral ×1.0 multiplier)
+    // Texture channels always valid: unassigned → white/flat-normal texture (neutral multiplier)
     float3 albedo    = mat.albedo.rgb    * g_textures[mat.albedoTexIdx].Sample(g_sampler, i._uv).rgb;
     float  roughness = clamp(mat.roughness * g_textures[mat.roughnessTexIdx].Sample(g_sampler, i._uv).r, 0.05f, 1.0f);
     float  metallic  = saturate(mat.metallic * g_textures[mat.metallicTexIdx].Sample(g_sampler, i._uv).r);
@@ -119,7 +120,23 @@ float4 main(VS_OUTPUT i, uint primId : SV_PrimitiveID) : SV_Target
     // F0 : diélectrique = 0.04, métal = albedo
     float3 F0 = lerp(float3(0.04f, 0.04f, 0.04f), albedo, metallic);
 
-    float3 N = normalize(i._nrmWS);
+    float3 Ngeom = normalize(i._nrmWS);
+    float3 N;
+    if (mat.normalTexIdx != 0xFFFFFFFFu)
+    {
+        float3 normalSample = g_textures[mat.normalTexIdx].Sample(g_sampler, i._uv).rgb;
+        normalSample = normalSample * 2.0f - 1.0f;
+        normalSample.z = sqrt(saturate(1.0f - dot(normalSample.xy, normalSample.xy)));
+
+        float3 T = normalize(i._tanWS.xyz);
+        T = normalize(T - dot(T, Ngeom) * Ngeom);
+        float3 B = cross(Ngeom, T) * i._tanWS.w;
+        N = normalize(normalSample.x * T + normalSample.y * B + normalSample.z * Ngeom);
+    }
+    else
+    {
+        N = Ngeom;
+    }
     float3 V = normalize(cam._pos - i._posWS);
     float  NdotV = saturate(dot(N, V));
 

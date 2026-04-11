@@ -93,6 +93,57 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Co
         std::memcpy(span.data(), data->uvs.data(), bufSize);
     }
 
+    // Compute tangents if normals and UVs are present.
+    // Stored as float4: xyz = tangent direction (world-space ready), w = handedness (±1).
+    if (!data->normals.empty() && !data->uvs.empty())
+    {
+        const size_t vcount = data->vertices.size();
+        std::vector<v3f> tanSum(vcount, v3f::Zero());
+        std::vector<v3f> biSum(vcount, v3f::Zero());
+
+        for (size_t i = 0; i + 2 < data->indices.size(); i += 3)
+        {
+            const uint32_t i0 = data->indices[i];
+            const uint32_t i1 = data->indices[i + 1];
+            const uint32_t i2 = data->indices[i + 2];
+
+            const v3f e1  = data->vertices[i1] - data->vertices[i0];
+            const v3f e2  = data->vertices[i2] - data->vertices[i0];
+            const v2f d1  = data->uvs[i1] - data->uvs[i0];
+            const v2f d2  = data->uvs[i2] - data->uvs[i0];
+
+            const float det = d1.x() * d2.y() - d1.y() * d2.x();
+            if (std::abs(det) < 1e-8f) continue;
+            const float f = 1.0f / det;
+
+            const v3f T = (e1 * d2.y() - e2 * d1.y()) * f;
+            const v3f B = (e2 * d1.x() - e1 * d2.x()) * f;
+
+            tanSum[i0] += T; tanSum[i1] += T; tanSum[i2] += T;
+            biSum[i0]  += B; biSum[i1]  += B; biSum[i2]  += B;
+        }
+
+        std::vector<v4f> tangents(vcount);
+        for (size_t i = 0; i < vcount; ++i)
+        {
+            const v3f N = data->normals[i].normalized();
+            // Gram-Schmidt orthogonalize
+            v3f T = (tanSum[i] - N * N.dot(tanSum[i]));
+            const float tlen = T.norm();
+            T = (tlen > 1e-6f) ? v3f(T / tlen) : v3f::UnitX();
+            // Handedness: +1 if B is consistent with cross(N, T)
+            const float w = (N.cross(T).dot(biSum[i]) < 0.0f) ? -1.0f : 1.0f;
+            tangents[i] = v4f(T.x(), T.y(), T.z(), w);
+        }
+
+        const auto bufSize = sizeof(v4f) * vcount;
+        const auto guid = rm->createBufferStaticResource(bufSize, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                         D3D12_HEAP_TYPE_DEFAULT, rname("_tan"));
+        mesh->_tangeantBuffer = rm->createStaticVBV(guid, sizeof(v4f), rname("_tanv"), 0, bufSize);
+        auto span = rm->requestUploadOwned(guid, bufSize, 0);
+        std::memcpy(span.data(), tangents.data(), bufSize);
+    }
+
     mesh->_indexFormat = ResourceFormat::R32_UINT;
     mesh->subMeshCount = static_cast<uint8_t>(std::min(data->subMeshes.size(), size_t(8)));
     for (uint8_t i = 0; i < mesh->subMeshCount; ++i)
@@ -107,6 +158,10 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     namespace fs = std::filesystem;
     auto& assetManager = *ctx._assetManager;
     const std::string key = std::string(relPath);
+
+    // Early-out: already loaded, no GPU work needed.
+    if (auto existing = assetManager.getHandle<Texture>(key))
+        return AssetHandleAny{*existing};
 
     // resolve source image path — .btex redirects to its sourcePath
     TextureDesc desc;
@@ -181,12 +236,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     tex.sizeY_      = static_cast<uint32_t>(h);
 
     const std::string name  = std::filesystem::path(relPath).stem().string();
-    auto [handle, inserted] = assetManager.emplace<Texture>(name, key, tex);
-    if (!inserted)
-    {
-        // already loaded — release the GPU resources we just created
-        rm->requestDestroy(viewHandle, /*destroyAssociatedResources=*/true);
-    }
+    auto [handle, _] = assetManager.emplace<Texture>(name, key, tex);
     return AssetHandleAny{handle};
 }
 
@@ -207,9 +257,10 @@ static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, cons
 
     // Resolve texture paths → bindless heapIdx.
     // Falls back to white texture (neutral multiplier) when path is empty or load fails.
-    auto resolveTexIdx = [&](const std::string& texPath) -> uint32_t {
-        auto* white         = assetManager.get<Texture>(std::string("__default_white"));
-        const uint32_t fallback = white ? white->heapIdx_ : 0xFFFFFFFFu;
+    auto resolveTexIdx = [&](const std::string& texPath,
+                             const std::string& fallbackKey = "__default_white") -> uint32_t {
+        auto* fallbackTex       = assetManager.get<Texture>(fallbackKey);
+        const uint32_t fallback = fallbackTex ? fallbackTex->heapIdx_ : 0xFFFFFFFFu;
         if (texPath.empty()) return fallback;
         const bool isBtex = (extractExtension(texPath) == "btex");
         if (!loadTexture(texPath, ctx, isBtex)) return fallback;
@@ -218,7 +269,7 @@ static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, cons
     };
 
     mat.albedoTexIdx_    = resolveTexIdx(data->albedoTexPath);
-    mat.normalTexIdx_    = resolveTexIdx(data->normalTexPath);
+    mat.normalTexIdx_    = resolveTexIdx(data->normalTexPath, "__default_flat_normal");
     mat.roughnessTexIdx_ = resolveTexIdx(data->roughnessTexPath);
     mat.metallicTexIdx_  = resolveTexIdx(data->metallicTexPath);
 
@@ -262,11 +313,41 @@ void createDefaultAssets(const Context& ctx)
     whiteTex.sizeY_      = 1;
     assetManager.emplace<Texture>("__default_white", texKey, whiteTex);
 
+    // ---- 1×1 flat normal texture (128, 128, 255) → tangent-space (0,0,1) ----
+    static constexpr uint8_t kFlatNormal[4] = {128, 128, 255, 255};
+    const std::string flatNrmKey    = "__default_flat_normal";
+    const std::string flatNrmPrefix = flatNrmKey + "_" + std::to_string(next_uid64());
+
+    const auto flatResHandle = rm->createTexture2DStaticResource(
+        1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_NONE,
+        D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, flatNrmPrefix + "_tex");
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC flatSrvDesc{};
+    flatSrvDesc.Format                  = DXGI_FORMAT_R8G8B8A8_UNORM;
+    flatSrvDesc.ViewDimension           = D3D12_SRV_DIMENSION_TEXTURE2D;
+    flatSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    flatSrvDesc.Texture2D.MipLevels     = 1;
+    auto flatViewHandle = rm->createStaticView<D3D12_SHADER_RESOURCE_VIEW_DESC>(
+        flatResHandle, flatSrvDesc, flatNrmPrefix + "_srv");
+
+    uint32_t flatRowPitch = 0;
+    auto flatSpan = rm->requestTextureUploadOwned(flatResHandle, 1, 1,
+                                                  DXGI_FORMAT_R8G8B8A8_UNORM, flatRowPitch);
+    std::memcpy(flatSpan.data(), kFlatNormal, 4);
+
+    Texture flatNrmTex{};
+    flatNrmTex.viewHandle_ = flatViewHandle;
+    flatNrmTex.heapIdx_    = rm->getStaticView(flatViewHandle)._descriptorHandle->heapIdx;
+    flatNrmTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
+    flatNrmTex.sizeX_      = 1;
+    flatNrmTex.sizeY_      = 1;
+    assetManager.emplace<Texture>("__default_flat_normal", flatNrmKey, flatNrmTex);
+
     // ---- Default material — slot 0 in the GPU arena ----
-    // All tex channels point to white (neutral multiplier: value * 1.0 = value).
-    // When using actual textures, set the material's base roughness/metallic to 1.0
-    // so the texture drives the final value directly.
-    const uint32_t whiteIdx = whiteTex.heapIdx_;
+    // Albedo/roughness/metallic → white (neutral ×1.0 multiplier).
+    // Normal → flat normal (0,0,1 in tangent space = vertex normal passthrough).
+    const uint32_t whiteIdx   = whiteTex.heapIdx_;
+    const uint32_t flatNrmIdx = flatNrmTex.heapIdx_;
     Material defMat{};
     defMat.albedo[0]        = 0.9f;
     defMat.albedo[1]        = 0.9f;
@@ -275,7 +356,7 @@ void createDefaultAssets(const Context& ctx)
     defMat.roughness        = 0.5f;
     defMat.metallic         = 0.0f;
     defMat.albedoTexIdx_    = whiteIdx;
-    defMat.normalTexIdx_    = whiteIdx;
+    defMat.normalTexIdx_    = flatNrmIdx;
     defMat.roughnessTexIdx_ = whiteIdx;
     defMat.metallicTexIdx_  = whiteIdx;
     assetManager.emplace<Material>("__default_material", "__default_material", defMat);
