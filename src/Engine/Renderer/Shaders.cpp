@@ -73,6 +73,28 @@ ID3D12RootSignature* PipelineStateManager::createRootSignature(RootSignatureDesc
                               {
                                   rp.InitAsConstants(c.num32BitValues, c.shaderRegister,
                                                      c.registerSpace, c.visibility);
+                              },
+                              [&](const RootDescriptorDesc& d)
+                              {
+                                  switch (d.type)
+                                  {
+                                      case D3D12_ROOT_PARAMETER_TYPE_CBV:
+                                          rp.InitAsConstantBufferView(d.shaderRegister,
+                                                                      d.registerSpace, d.flags,
+                                                                      d.visibility);
+                                          break;
+                                      case D3D12_ROOT_PARAMETER_TYPE_SRV:
+                                          rp.InitAsShaderResourceView(d.shaderRegister,
+                                                                      d.registerSpace, d.flags,
+                                                                      d.visibility);
+                                          break;
+                                      case D3D12_ROOT_PARAMETER_TYPE_UAV:
+                                          rp.InitAsUnorderedAccessView(d.shaderRegister,
+                                                                       d.registerSpace, d.flags,
+                                                                       d.visibility);
+                                          break;
+                                      default: assert(false && "Invalid root descriptor type");
+                                  }
                               }},
                    p);
 

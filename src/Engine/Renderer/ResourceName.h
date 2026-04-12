@@ -24,6 +24,7 @@ enum class RN
     // Render Passes
     pass_render0,
     pass_geometry,
+    pass_sky,
     pass_composition,
     pass_imgui,
 
@@ -34,7 +35,8 @@ enum class RN
 
     // PSOs
     pso_compute0,
-    pso_geometry_pass
+    pso_geometry_pass,
+    pso_sky_pass
 };
 
 inline const std::string& toS(RN n)

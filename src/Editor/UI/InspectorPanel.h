@@ -20,6 +20,7 @@ struct InspectorPanel
     void drawMesh(EntityHandle ent, App& app);
     void drawMaterials(EntityHandle ent, App& app);
     void drawPointLight(EntityHandle ent, World& world);
+    void drawSkybox(EntityHandle ent, App& app);
 
     // Cache for euler rotation
     std::optional<EntityHandle> rotationEditEntity_;

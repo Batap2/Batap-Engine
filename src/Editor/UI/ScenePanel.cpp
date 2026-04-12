@@ -5,6 +5,7 @@
 #include "Components/Mesh_C.h"
 #include "Components/Name_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/Skybox_C.h"
 #include "Instance/EntityFactory.h"
 #include "Scene.h"
 #include "Systems/Hierarchy_S.h"
@@ -28,6 +29,8 @@ void ScenePanel::drawEntityNode(entt::registry& reg, entt::entity e,
         icon = ICON_MD_HVAC;
     else if (reg.all_of<PointLight_C>(e))
         icon = ICON_MD_LIGHTBULB;
+    else if (reg.all_of<Skybox_C>(e))
+        icon = ICON_MD_PANORAMA;
 
     auto* hc = reg.try_get<Hierarchy_C>(e);
     bool hasChildren = hc && hc->firstChild != entt::null;
@@ -109,6 +112,9 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
         {
             // action
         }
+
+        if (ImGui::MenuItem(ICON_MD_PANORAMA " Skybox"))
+            world.entityFactory_->createSkybox(world.scene_->_registry);
 
         ImGui::EndPopup();
     }

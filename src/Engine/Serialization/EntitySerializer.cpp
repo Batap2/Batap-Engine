@@ -73,6 +73,9 @@ static std::vector<EntityDesc> toEntityDescs(World& world, const Context& ctx)
                 case EntityKind::PointLight:
                     desc.kind = "pointLight";
                     break;
+                case EntityKind::Skybox:
+                    desc.kind = "skybox";
+                    break;
             }
         }
 
@@ -177,6 +180,8 @@ static void populateWorld(World& world, const Context& ctx, const nlohmann::json
             h = factory.createPointLight(reg);
         else if (kind == "camera")
             h = factory.createCamera(reg);
+        else if (kind == "skybox")
+            h = factory.createSkybox(reg);
         else
             h = factory.createEmpty(reg);
 

@@ -3,18 +3,22 @@
 #include <assimp/code/AssetLib/Collada/ColladaHelper.h>
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
+#include "Assets/Texture.h"
 #include "Components/Camera_C.h"
 #include "Components/ComponentFlag.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "Context.h"
 #include "EigenTypes.h"
 #include "Handles.h"
+#include "Renderer/SkyIrradiance.h"
 
 #include "entt/entt.hpp"
 
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -98,6 +102,8 @@ struct CameraGPUData
     float _zfar;
     float _up[3];
     float _fov;
+    float _fwd[3];
+    float _pad;
 };
 
 using CameraInstance =
@@ -213,13 +219,15 @@ struct InstancePatches<CameraInstance>
             auto proj = camC->make_proj(aspect);
             std::memcpy(out->_proj, proj.data(), sizeof(out->_proj));
 
-            v3f pos = worldM.translation();
+            v3f pos   = worldM.translation();
             v3f right = worldM.linear().col(0).normalized();
-            v3f up = worldM.linear().col(1).normalized();
+            v3f up    = worldM.linear().col(1).normalized();
+            v3f fwd   = -worldM.linear().col(2).normalized();
 
-            std::memcpy(out->_pos, pos.data(), 3 * sizeof(float));
+            std::memcpy(out->_pos,   pos.data(),   3 * sizeof(float));
             std::memcpy(out->_right, right.data(), 3 * sizeof(float));
-            std::memcpy(out->_up, up.data(), 3 * sizeof(float));
+            std::memcpy(out->_up,    up.data(),    3 * sizeof(float));
+            std::memcpy(out->_fwd,   fwd.data(),   3 * sizeof(float));
         }
     }
 
@@ -283,4 +291,81 @@ struct InstancePatches<PointLightInstance>
         return t;
     }();
 };
+
+// ---- Skybox -----------------------------------------------------------------
+
+struct SkyboxGPUData
+{
+    std::array<std::array<float, 4>, 9> sh;  // SH L2 irradiance — 9 × float4 = 144 bytes
+    uint32_t                 mode;           // 0=HDRI, 1=FlatColor, 2=Gradient
+    uint32_t                 heapIdx;        // bindless HDRI index (0xFFFFFFFF si absent)
+    uint32_t                 mipCount;       // nb mips de la texture HDRI
+    float                    intensity;      // multiplicateur spéculaire
+    std::array<float, 4>     color1;         // zenith  (xyz=RGB, w=0)
+    std::array<float, 4>     color2;         // horizon
+    std::array<float, 4>     color3;         // nadir
+    float                    horizonWidth;
+    std::array<float, 3>     pad;
+    // Total : 144 + 16 + 48 + 16 = 224 bytes
+};
+
+using SkyboxInstance = GPUInstanceBase<SkyboxGPUData, ComponentFlag::Skybox>;
+
+template <>
+struct InstancePatches<SkyboxInstance>
+{
+    static void fillSkyboxData(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    {
+        auto* sky = r.try_get<Skybox_C>(e);
+        if (!sky)
+            return;
+        auto* out = reinterpret_cast<SkyboxGPUData*>(dst);
+
+        SH9 sh;
+        if (sky->mode_ == Skybox_C::Mode::HDRI && sky->hdri_)
+        {
+            if (auto* tex = ctx._assetManager->get<Texture>(sky->hdri_))
+                sh = tex->irradianceSH_;
+        }
+        else
+        {
+            sh = projectSkyToSH(*sky);
+        }
+
+        for (size_t i = 0; i < 9; ++i)
+        {
+            out->sh[i][0] = sh.c[i].x() * sky->intensity_;
+            out->sh[i][1] = sh.c[i].y() * sky->intensity_;
+            out->sh[i][2] = sh.c[i].z() * sky->intensity_;
+            out->sh[i][3] = 0.0f;
+        }
+
+        out->mode         = static_cast<uint32_t>(sky->mode_);
+        out->intensity    = sky->intensity_;
+        out->color1       = {sky->color1_.x(), sky->color1_.y(), sky->color1_.z(), 0.0f};
+        out->color2       = {sky->color2_.x(), sky->color2_.y(), sky->color2_.z(), 0.0f};
+        out->color3       = {sky->color3_.x(), sky->color3_.y(), sky->color3_.z(), 0.0f};
+        out->horizonWidth = sky->horizonWidth_;
+        out->heapIdx      = 0xFFFFFFFFu;
+        out->mipCount     = 1u;
+        out->pad          = {};
+        if (sky->mode_ == Skybox_C::Mode::HDRI && sky->hdri_)
+            if (auto* tex = ctx._assetManager->get<Texture>(sky->hdri_))
+            {
+                out->heapIdx  = tex->heapIdx_;
+                out->mipCount = tex->mipLevels_;
+            }
+    }
+
+    static constexpr PatchDesc _patch[] = {
+        {0, static_cast<uint32_t>(sizeof(SkyboxGPUData)), &fillSkyboxData}};
+
+    static constexpr std::array<PatchRange, 32> byBit = []()
+    {
+        std::array<PatchRange, 32> t{};
+        t[flagToIndex(ComponentFlag::Skybox)] = PatchRange{_patch};
+        return t;
+    }();
+};
+
 }  // namespace batap

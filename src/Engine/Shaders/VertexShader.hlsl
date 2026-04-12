@@ -5,6 +5,7 @@ struct CameraData
     float3 _pos;   float _znear;
     float3 _right; float _zfar;
     float3 _up;    float _fov;
+    float3 _fwd;   float _pad;
 };
 
 struct InstanceData

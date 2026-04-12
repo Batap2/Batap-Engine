@@ -20,6 +20,7 @@ struct EntityFactory
     EntityHandle createStaticMesh(entt::registry& reg, std::optional<MeshHandle> handle = std::nullopt);
     EntityHandle createCamera(entt::registry& reg);
     EntityHandle createPointLight(entt::registry& reg);
+    EntityHandle createSkybox(entt::registry& reg);
     void destroy(EntityHandle h);
 };
 }  // namespace batap

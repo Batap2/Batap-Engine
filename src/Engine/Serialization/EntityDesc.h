@@ -24,7 +24,10 @@ namespace batap
 // Mesh_C is an opaque handle to a GPU-loaded resource; its serializable
 // representation is a path that lives in the AssetManager — not the handle.
 
-struct MeshDesc { std::string path; };
+struct MeshDesc
+{
+    std::string path;
+};
 
 struct MaterialsDesc
 {
@@ -32,13 +35,25 @@ struct MaterialsDesc
     uint8_t count = 0;
 };
 
-using ComponentDesc = std::variant<Transform_C, MeshDesc, MaterialsDesc, PointLight_C, Camera_C>;
+struct SkyboxDesc
+{
+    std::string hdriPath;
+    uint32_t mode = 0;
+    Eigen::Vector3f color1 = {0.5f, 0.72f, 0.90f};   // ciel
+    Eigen::Vector3f color2 = {0.80f, 0.88f, 1.00f};  // horizon
+    Eigen::Vector3f color3 = {0.25f, 0.20f, 0.15f};  // bas
+    float horizonWidth = 0.15f;
+    float intensity    = 1.0f;
+};
+
+using ComponentDesc =
+    std::variant<Transform_C, MeshDesc, MaterialsDesc, PointLight_C, Camera_C, SkyboxDesc>;
 
 struct EntityDesc
 {
-    std::string                name;
-    std::string                kind        = "empty"; // "mesh" | "pointLight" | "camera" | "empty"
-    int                        parentIndex = -1;      // index into the same vector, -1 = root
+    std::string name;
+    std::string kind = "empty";  // "mesh" | "pointLight" | "camera" | "skybox" | "empty"
+    int parentIndex = -1;        // index into the same vector, -1 = root
     std::vector<ComponentDesc> components;
 };
 

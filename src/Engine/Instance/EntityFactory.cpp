@@ -7,6 +7,7 @@
 #include "Components/Mesh_C.h"
 #include "Components/Name_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/Skybox_C.h"
 #include "Components/RenderInstanceID_C.h"
 #include "Components/Transform_C.h"
 #include "EntityKind.h"
@@ -87,6 +88,21 @@ EntityHandle EntityFactory::createPointLight(entt::registry& reg)
     return h;
 }
 
+EntityHandle EntityFactory::createSkybox(entt::registry& reg)
+{
+    auto entity = reg.create();
+    reg.emplace<Name_C>(entity, "Skybox");
+    reg.emplace<Skybox_C>(entity);
+    reg.emplace<Kind_C>(entity, EntityKind::Skybox);
+    EntityHandle h{&reg, entity};
+
+    auto iid = _instanceManager.skyboxInstancePool_.insert(h);
+    auto& rInstance = reg.emplace<RenderInstance_C>(entity);
+    rInstance._instanceID = iid;
+
+    return h;
+}
+
 void EntityFactory::destroy(EntityHandle h)
 {
     auto& reg = *h._reg;
@@ -115,6 +131,9 @@ void EntityFactory::destroy(EntityHandle h)
                 break;
             case EntityKind::PointLight:
                 _instanceManager.pointLightInstancePool_.remove(h);
+                break;
+            case EntityKind::Skybox:
+                _instanceManager.skyboxInstancePool_.remove(h);
                 break;
             case EntityKind::Empty:
                 break;

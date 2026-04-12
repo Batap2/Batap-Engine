@@ -6,6 +6,7 @@
 #include "Mesh.h"
 #include "Texture.h"
 #include "Renderer/ResourceManager.h"
+#include "Renderer/SkyIrradiance.h"
 #include "Serialization/BmatSerializer.h"
 #include "Serialization/BmeshSerializer.h"
 #include "Serialization/BtexSerializer.h"
@@ -183,14 +184,28 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
 
     const std::string absSource = (fs::path(assetManager.baseDir()) / desc.sourcePath).string();
 
-    // decode image — force RGBA
+    // decode image — force RGBA; HDR files use float per channel
+    const bool isHdr = (extractExtension(desc.sourcePath) == "hdr");
     int w, h, channels;
-    uint8_t* pixels = stbi_load(absSource.c_str(), &w, &h, &channels, 4);
-    if (!pixels)
+    float*    hdrPixels = nullptr;
+    uint8_t*  ldrPixels = nullptr;
+
+    if (isHdr)
+        hdrPixels = stbi_loadf(absSource.c_str(), &w, &h, &channels, 4);
+    else
+        ldrPixels = stbi_load(absSource.c_str(), &w, &h, &channels, 4);
+
+    if (!hdrPixels && !ldrPixels)
     {
         std::cerr << "[AssetLoader] stbi_load failed: " << absSource << " — " << stbi_failure_reason() << "\n";
         return std::nullopt;
     }
+
+    const DXGI_FORMAT    gpuFmt        = isHdr ? DXGI_FORMAT_R32G32B32A32_FLOAT
+                                                : DXGI_FORMAT_R8G8B8A8_UNORM;
+    const uint32_t       bytesPerPixel = isHdr ? 16u : 4u;
+    const ResourceFormat resFmt        = isHdr ? ResourceFormat::R32G32B32A32_FLOAT
+                                                : ResourceFormat::R8G8B8A8_UNORM;
 
     auto* rm = assetManager.resourceManager_;
     const std::string prefix = key + "_" + std::to_string(next_uid64());
@@ -198,7 +213,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     // GPU resource
     const auto resHandle = rm->createTexture2DStaticResource(
         static_cast<uint32_t>(w), static_cast<uint32_t>(h),
-        DXGI_FORMAT_R8G8B8A8_UNORM,
+        gpuFmt,
         D3D12_RESOURCE_FLAG_NONE,
         D3D12_RESOURCE_STATE_COPY_DEST,
         D3D12_HEAP_TYPE_DEFAULT,
@@ -206,7 +221,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
 
     // SRV — allocates a bindless slot in the descriptor heap
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-    srvDesc.Format                        = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc.Format                        = gpuFmt;
     srvDesc.ViewDimension                 = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Shader4ComponentMapping       = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Texture2D.MipLevels           = 1;
@@ -216,24 +231,31 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     // upload rows with D3D12 pitch alignment
     uint32_t rowPitch = 0;
     auto span = rm->requestTextureUploadOwned(resHandle, static_cast<uint32_t>(w),
-                                              static_cast<uint32_t>(h),
-                                              DXGI_FORMAT_R8G8B8A8_UNORM, rowPitch);
-    const uint32_t srcRowPitch = static_cast<uint32_t>(w) * 4;
+                                              static_cast<uint32_t>(h), gpuFmt, rowPitch);
+    const uint32_t srcRowPitch = static_cast<uint32_t>(w) * bytesPerPixel;
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+    const uint8_t* srcBytes = isHdr ? reinterpret_cast<const uint8_t*>(hdrPixels) : ldrPixels;
     for (uint32_t y = 0; y < static_cast<uint32_t>(h); ++y)
-        std::memcpy(span.data() + y * rowPitch, pixels + y * srcRowPitch, srcRowPitch);
+        std::memcpy(span.data() + y * rowPitch, srcBytes + y * srcRowPitch, srcRowPitch);
 #pragma clang diagnostic pop
 
-    stbi_image_free(pixels);
+    // Projection SH pour les textures HDR (avant libération des pixels CPU)
+    SH9 hdriSH;
+    if (isHdr && hdrPixels)
+        hdriSH = projectHDRIToSH(hdrPixels, w, h);
+
+    stbi_image_free(isHdr ? static_cast<void*>(hdrPixels) : static_cast<void*>(ldrPixels));
 
     // build runtime Texture
     Texture tex{};
     tex.viewHandle_ = viewHandle;
     tex.heapIdx_    = rm->getStaticView(viewHandle)._descriptorHandle->heapIdx;
-    tex.format_     = ResourceFormat::R8G8B8A8_UNORM;
-    tex.sizeX_      = static_cast<uint32_t>(w);
-    tex.sizeY_      = static_cast<uint32_t>(h);
+    tex.format_     = resFmt;
+    tex.colorSpace_    = isHdr ? TextureColorSpace::Linear : TextureColorSpace::SRGB;
+    tex.sizeX_         = static_cast<uint32_t>(w);
+    tex.sizeY_         = static_cast<uint32_t>(h);
+    tex.irradianceSH_  = hdriSH;
 
     const std::string name  = std::filesystem::path(relPath).stem().string();
     auto [handle, _] = assetManager.emplace<Texture>(name, key, tex);

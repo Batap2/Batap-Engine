@@ -905,28 +905,47 @@ GPUMeshViewHandle ResourceManager::generateGUID(GPUMeshViewHandle::ObjectType ty
 void ResourceManager::uploadTextureToResource(ID3D12GraphicsCommandList* cmdList,
                                               ID3D12CommandQueue* /*commandQueue*/,
                                               const UploadRequest& req,
-                                              uint32_t frameIndex)
+                                              uint32_t /*frameIndex*/)
 {
     auto         resHandle = std::get<GPUResourceHandle>(req._guid);
     GPUResource* dest      = getStaticResource(resHandle);
-    auto& upload      = _uploadBuffers[frameIndex];
 
-    upload._currentOffset =
-        AlignUp(upload._currentOffset, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
-    const uint64_t stagingOffset = upload._currentOffset;
+    // Dedicated upload heap per texture: avoids ring-buffer size constraints
+    // (e.g. a 4K HDR R32G32B32A32_FLOAT texture needs 128 MB, ring buffer is 64 MB).
+    GPUResource uploadRes{D3D12_RESOURCE_STATE_GENERIC_READ};
+    {
+        const D3D12_HEAP_PROPERTIES heapProps{D3D12_HEAP_TYPE_UPLOAD,
+                                              D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+                                              D3D12_MEMORY_POOL_UNKNOWN, 0, 0};
+        const D3D12_RESOURCE_DESC bufDesc{
+            .Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER,
+            .Alignment        = 0,
+            .Width            = req._ownedData.size(),
+            .Height           = 1,
+            .DepthOrArraySize = 1,
+            .MipLevels        = 1,
+            .Format           = DXGI_FORMAT_UNKNOWN,
+            .SampleDesc       = {1, 0},
+            .Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+            .Flags            = D3D12_RESOURCE_FLAG_NONE,
+        };
+        ThrowIfFailed(_device->CreateCommittedResource(
+            &heapProps, D3D12_HEAP_FLAG_NONE, &bufDesc,
+            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+            IID_PPV_ARGS(&uploadRes._resource)));
+    }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-    memcpy(static_cast<uint8_t*>(upload._mappedData) + stagingOffset,
-           req._ownedData.data(), req._ownedData.size());
-#pragma clang diagnostic pop
+    void* mapped = nullptr;
+    ThrowIfFailed(uploadRes._resource->Map(0, nullptr, &mapped));
+    memcpy(mapped, req._ownedData.data(), req._ownedData.size());
+    uploadRes._resource->Unmap(0, nullptr);
 
     dest->transitionTo(cmdList, D3D12_RESOURCE_STATE_COPY_DEST);
 
     D3D12_TEXTURE_COPY_LOCATION src{};
-    src.pResource                          = upload._buffer.Get();
+    src.pResource                          = uploadRes._resource.Get();
     src.Type                               = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    src.PlacedFootprint.Offset             = stagingOffset;
+    src.PlacedFootprint.Offset             = 0;
     src.PlacedFootprint.Footprint.Format   = req.texFormat_;
     src.PlacedFootprint.Footprint.Width    = req.texWidth_;
     src.PlacedFootprint.Footprint.Height   = req.texHeight_;
@@ -939,9 +958,10 @@ void ResourceManager::uploadTextureToResource(ID3D12GraphicsCommandList* cmdList
     dst.SubresourceIndex = 0;
 
     cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
-
     dest->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-    upload._currentOffset += req._ownedData.size();
+    // Keep the upload heap alive until the GPU copy completes
+    _deferredReleases.push_back(
+        DeferredRelease{.fenceValue = 0, .object = GPUObject{std::move(uploadRes)}});
 }
 }  // namespace batap

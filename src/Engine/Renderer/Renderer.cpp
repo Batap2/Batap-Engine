@@ -288,6 +288,8 @@ void Renderer::initPsosAndShaders()
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 4, 0,
                                     D3D12_SHADER_VISIBILITY_PIXEL,
                                     D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE},  // 5 — bindless textures (t4[], PS)
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 1,
+                                    D3D12_SHADER_VISIBILITY_PIXEL},                     // 6 — SkyboxBuffer (t0, space1, PS)
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
@@ -330,6 +332,51 @@ void Renderer::initPsosAndShaders()
                 desc.DepthStencilState.DepthEnable = 1;
                 desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
                 desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+            });
+    }
+    // --- Sky PSO ---
+    {
+        auto* skyVS = _psoManager->compileShaderFromFile(
+            "sky_VS", shader_dir + "/SkyVS.hlsl", "main", "vs_5_1");
+        auto* skyPS = _psoManager->compileShaderFromFile(
+            "sky_PS", shader_dir + "/SkyPS.hlsl", "main", "ps_5_1");
+
+        D3D12_STATIC_SAMPLER_DESC skySampler{};
+        skySampler.Filter           = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        skySampler.AddressU         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        skySampler.AddressV         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        skySampler.AddressW         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        skySampler.MaxAnisotropy    = 1;
+        skySampler.ComparisonFunc   = D3D12_COMPARISON_FUNC_NEVER;
+        skySampler.MaxLOD           = D3D12_FLOAT32_MAX;
+        skySampler.ShaderRegister   = 0;
+        skySampler.RegisterSpace    = 0;
+        skySampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+        RootSignatureDescription rsDesc_sky{
+            {
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0,
+                                    D3D12_SHADER_VISIBILITY_ALL},  // t0 — CameraBuffer (VS + PS)
+                RootConstantsDesc{16, 0, 0, D3D12_SHADER_VISIBILITY_ALL},  // b0 — camIdx, skyHeapIdx, mode, horizonWidth, colorSky(4), colorHorizon(4), colorGround(4)
+                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 1, 0,
+                                    D3D12_SHADER_VISIBILITY_PIXEL,
+                                    D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE},  // t1[] — bindless (PS)
+            },
+            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
+        rsDesc_sky._staticSamplers = {skySampler};
+
+        _psoManager->createGraphicsPipelineState(
+            toS(RN::pso_sky_pass), rsDesc_sky,
+            [&](D3D12_GRAPHICS_PIPELINE_STATE_DESC& d)
+            {
+                d.VS             = {skyVS->_blob->GetBufferPointer(), skyVS->_blob->GetBufferSize()};
+                d.PS             = {skyPS->_blob->GetBufferPointer(), skyPS->_blob->GetBufferSize()};
+                d.InputLayout    = {};
+                d.DSVFormat      = DXGI_FORMAT_D32_FLOAT;
+                d.DepthStencilState.DepthEnable    = TRUE;
+                d.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+                d.DepthStencilState.DepthFunc      = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+                d.RasterizerState.CullMode         = D3D12_CULL_MODE_NONE;
             });
     }
     {

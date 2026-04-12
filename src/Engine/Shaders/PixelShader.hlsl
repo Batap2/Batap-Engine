@@ -2,12 +2,10 @@ struct CameraData
 {
     float4x4 _view;
     float4x4 _proj;
-    float3 _pos;
-    float _znear;
-    float3 _right;
-    float _zfar;
-    float3 _up;
-    float _fov;
+    float3 _pos;   float _znear;
+    float3 _right; float _zfar;
+    float3 _up;    float _fov;
+    float3 _fwd;   float _pad;
 };
 
 StructuredBuffer<CameraData> CameraInstancebuffer : register(t0);
@@ -38,11 +36,12 @@ struct MaterialData
     float4 albedo;
     float  roughness;
     float  metallic;
+    float  reflectivity;      // 0 = pas de reflet env, 1 = reflet complet
     uint   albedoTexIdx;      // 0xFFFFFFFF = no texture
     uint   normalTexIdx;
     uint   roughnessTexIdx;
     uint   metallicTexIdx;
-    uint2  _pad;
+    uint   _pad;
 };
 StructuredBuffer<MaterialData> MaterialBuffer : register(t3);
 
@@ -62,10 +61,67 @@ struct VS_OUTPUT
     float4 _tanWS    : TEXCOORD3;   // xyz = world tangent, w = handedness
 };
 
+struct SkyboxGPUData
+{
+    float4 sh[9];
+    uint   mode;
+    uint   heapIdx;
+    uint   mipCount;
+    float  intensity;
+    float4 color1;
+    float4 color2;
+    float4 color3;
+    float  horizonWidth;
+    float3 _pad;
+};
+StructuredBuffer<SkyboxGPUData> SkyboxBuffer : register(t0, space1);
+
 SamplerState      g_sampler    : register(s0);
 Texture2D<float4> g_textures[] : register(t4);
 
 static const float PI = 3.14159265358979f;
+
+float3 EvalSH9(float3 N)
+{
+    float4 sh[9] = SkyboxBuffer[0].sh;
+    return max(0.0f,
+          sh[0].rgb * 0.886227f
+        + sh[1].rgb * (1.023327f * N.y)
+        + sh[2].rgb * (1.023327f * N.z)
+        + sh[3].rgb * (1.023327f * N.x)
+        + sh[4].rgb * (0.858086f * N.x * N.y)
+        + sh[5].rgb * (0.858086f * N.y * N.z)
+        + sh[6].rgb * (0.743125f * N.y * N.y - 0.247708f)
+        + sh[7].rgb * (0.858086f * N.x * N.z)
+        + sh[8].rgb * (0.429043f * (N.x * N.x - N.z * N.z)));
+}
+
+float3 SampleSky(float3 dir, float mipLevel)
+{
+    SkyboxGPUData sky = SkyboxBuffer[0];
+    float3 result;
+    if (sky.mode == 0u && sky.heapIdx != 0xFFFFFFFFu)
+    {
+        float  phi   = atan2(dir.z, dir.x);
+        float  theta = asin(clamp(dir.y, -1.0f, 1.0f));
+        float2 uv    = float2((phi + PI) / (2.0f * PI), 0.5f - theta / PI);
+        result = g_textures[sky.heapIdx].SampleLevel(g_sampler, uv, mipLevel).rgb;
+    }
+    else if (sky.mode == 1u)
+    {
+        result = sky.color1.rgb;
+    }
+    else
+    {
+        float  hw  = max(sky.horizonWidth, 0.001f);
+        float  t_u = smoothstep(0.0f, hw, dir.y);
+        float  t_d = smoothstep(0.0f, hw, -dir.y);
+        float3 col = lerp(sky.color2.rgb, sky.color1.rgb, t_u);
+        col        = lerp(col, sky.color3.rgb, t_d);
+        result = col;
+    }
+    return result * sky.intensity;
+}
 
 // GGX Normal Distribution Function
 float D_GGX(float NdotH, float roughness)
@@ -140,8 +196,15 @@ float4 main(VS_OUTPUT i, uint primId : SV_PrimitiveID) : SV_Target
     float3 V = normalize(cam._pos - i._posWS);
     float  NdotV = saturate(dot(N, V));
 
-    // Ambient approximatif (sera remplacé par IBL plus tard)
-    float3 color = 0.03f * albedo * (1.0f - metallic);
+    // IBL diffuse (SH L2) + spéculaire (env sampling)
+    float3 F_ibl = F_Schlick(NdotV, F0);
+    float3 kD    = (1.0f - F_ibl) * (1.0f - metallic);
+
+    float3 R        = reflect(-V, N);
+    float  mipLevel = roughness * float(max(SkyboxBuffer[0].mipCount, 1u) - 1u);
+    float3 specIBL  = F_ibl * SampleSky(R, mipLevel) * mat.reflectivity;
+
+    float3 color = kD * EvalSH9(N) * albedo + specIBL;
 
     [loop]
     for (uint lightIndex = 0; lightIndex < PointLightBufferSize; ++lightIndex)

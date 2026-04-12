@@ -4,10 +4,12 @@
 #include "Assets/AssetManager.h"
 #include "Assets/Material.h"
 #include "Assets/Mesh.h"
+#include "Assets/Texture.h"
 #include "Components/Camera_C.h"
 #include "Components/EntityHandle.h"
 #include "Components/Mesh_C.h"
 #include "Components/RenderInstanceID_C.h"
+#include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "Instance/InstanceManager.h"
 #include "Renderer/Renderer.h"
@@ -97,10 +99,14 @@ void SceneRenderer::initRenderPasses()
                 auto matSrvHandle = _ctx._assetManager->getGPUArena<Material>()->srvHandle();
                 auto& matSrv      = rM->getStaticView(matSrvHandle);
 
+                auto skyboxSRVHandle = rM->getFrameView(
+                    instanceM->skyboxInstancePool_._instancePoolViewHandle)[frameIndex];
+
                 camSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
                 meshesSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
                 pointLightSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
                 matSrv._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+                skyboxSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
                 cmdList->SetGraphicsRootDescriptorTable(0,
                                                         camSRVHandle._descriptorHandle->gpuHandle);
@@ -112,6 +118,7 @@ void SceneRenderer::initRenderPasses()
                                                         matSrv._descriptorHandle->gpuHandle);
                 cmdList->SetGraphicsRootDescriptorTable(
                     5, rM->_descriptorHeapAllocator_CBV_SRV_UAV.heap->GetGPUDescriptorHandleForHeapStart());
+                cmdList->SetGraphicsRootDescriptorTable(6, skyboxSRVHandle._descriptorHandle->gpuHandle);
 
                 auto camID = instanceM->_cameraInstancesPool.getGPUIndex(cam);
                 if (!camID.valid())
@@ -150,6 +157,97 @@ void SceneRenderer::initRenderPasses()
 
                         cmdList->DrawIndexedInstanced(mesh->_indexCount, 1, 0, 0, 0);
                     });
+            });
+
+    // --- Sky pass (index 1 : after geometry, before composition) ---
+    _ctx._renderer->_renderGraph->addPass(toS(RN::pass_sky), D3D12_COMMAND_LIST_TYPE_DIRECT, 1)
+        .addRecordStep(
+            [this](ID3D12GraphicsCommandList* cmdList, uint32_t frameIndex)
+            {
+                auto* r  = _ctx._renderer.get();
+                auto* rM = r->_resourceManager;
+                auto&& [reg, instanceM] = args_;
+
+                if(!reg) return;
+
+                // Find Skybox_C component
+                Skybox_C* sky = nullptr;
+                reg->view<Skybox_C>().each([&](entt::entity, Skybox_C& s) { sky = &s; });
+                if (!sky)
+                    return;
+
+                // En mode HDRI la texture doit être disponible
+                Texture* tex = nullptr;
+                if (sky->mode_ == Skybox_C::Mode::HDRI)
+                {
+                    if (!sky->hdri_)
+                        return;
+                    tex = _ctx._assetManager->get<Texture>(sky->hdri_);
+                    if (!tex)
+                        return;
+                    rM->getStaticView(tex->viewHandle_)._resource->transitionTo(
+                        cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+                }
+
+                auto rtv = rM->getFrameView(RN::RTV_render_3d)[r->_frameIndex];
+                auto dsv = rM->getFrameView(RN::DSV_render_3d)[r->_frameIndex];
+
+                rtv._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
+                dsv._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+                cmdList->OMSetRenderTargets(1, &rtv._descriptorHandle->cpuHandle, FALSE,
+                                            &dsv._descriptorHandle->cpuHandle);
+
+                D3D12_VIEWPORT vp{0, 0, static_cast<float>(r->_width), static_cast<float>(r->_height), 0.f, 1.f};
+                D3D12_RECT     sc{0, 0, static_cast<LONG>(r->_width), static_cast<LONG>(r->_height)};
+                cmdList->RSSetViewports(1, &vp);
+                cmdList->RSSetScissorRects(1, &sc);
+
+                ID3D12DescriptorHeap* heaps[] = {
+                    rM->_descriptorHeapAllocator_CBV_SRV_UAV.heap.Get()};
+                cmdList->SetDescriptorHeaps(1, heaps);
+
+                r->_psoManager->bindPipelineState(cmdList, toS(RN::pso_sky_pass));
+
+                // Slot 0 : camera SRV
+                auto camSRV = rM->getFrameView(
+                    instanceM->_cameraInstancesPool._instancePoolViewHandle)[frameIndex];
+                camSRV._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+                cmdList->SetGraphicsRootDescriptorTable(0, camSRV._descriptorHandle->gpuHandle);
+
+                // Slot 1 : 16 root constants — camIdx, skyHeapIdx, mode, horizonWidth, colorSky(4), colorHorizon(4), colorGround(4)
+                EntityHandle cam;
+                reg->view<Camera_C, Transform_C>().each(
+                    [&](entt::entity e, Camera_C& c, Transform_C&)
+                    { if (c._active) cam = {reg, e}; });
+                if (!cam.valid())
+                    return;
+                auto camID = instanceM->_cameraInstancesPool.getGPUIndex(cam);
+                if (!camID.valid())
+                    return;
+
+                uint32_t mode    = static_cast<uint32_t>(sky->mode_);
+                uint32_t heapIdx = (tex) ? tex->heapIdx_ : 0xFFFFFFFFu;
+
+                float constants[16];
+                std::memcpy(&constants[0], &camID,   4);
+                std::memcpy(&constants[1], &heapIdx, 4);
+                std::memcpy(&constants[2], &mode,    4);
+                constants[3]  = sky->horizonWidth_;
+                constants[4]  = sky->color1_.x(); constants[5]  = sky->color1_.y();
+                constants[6]  = sky->color1_.z(); constants[7]  = 0.0f;
+                constants[8]  = sky->color2_.x(); constants[9]  = sky->color2_.y();
+                constants[10] = sky->color2_.z(); constants[11] = 0.0f;
+                constants[12] = sky->color3_.x(); constants[13] = sky->color3_.y();
+                constants[14] = sky->color3_.z(); constants[15] = 0.0f;
+                cmdList->SetGraphicsRoot32BitConstants(1, 16, constants, 0);
+
+                // Slot 2 : full bindless heap (PS samples g_textures[skyHeapIdx])
+                cmdList->SetGraphicsRootDescriptorTable(
+                    2, rM->_descriptorHeapAllocator_CBV_SRV_UAV.heap
+                           ->GetGPUDescriptorHandleForHeapStart());
+
+                cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                cmdList->DrawInstanced(3, 1, 0, 0);
             });
 
     // _ctx._renderer->_renderGraph->addPass(toS(RN::pass_render0), D3D12_COMMAND_LIST_TYPE_DIRECT,

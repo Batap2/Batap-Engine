@@ -20,12 +20,15 @@ struct AssetPickerPopup
     // Open specifically for picking a texture channel on a material.
     // channel: 0=albedo 1=normal 2=roughness 3=metallic
     void open(MaterialHandle mat, uint8_t channel, const std::string& projectDir);
+    // Open specifically for picking an HDRI for a Skybox_C component.
+    void openHdri(EntityHandle ent, const std::string& projectDir);
     void draw(App& app);
 
   private:
     struct Entry { std::string name; std::filesystem::path path; };
 
-    bool           pendingOpen_ = false;
+    bool           pendingOpen_  = false;
+    bool           isHdriPick_   = false;
     EntityHandle   ent_{};
     AssetType      type_{AssetType::Mesh};
     uint8_t        slotIndex_  = 0;

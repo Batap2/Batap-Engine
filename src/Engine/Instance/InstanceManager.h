@@ -255,6 +255,9 @@ struct GPUInstanceManager
     FrameInstancePool<PointLightInstance> pointLightInstancePool_{_resourceManager, 32,
                                                                   "pointLightInstancePool"};
 
+    FrameInstancePool<SkyboxInstance> skyboxInstancePool_{_resourceManager, 1,
+                                                          "SkyboxInstancePool"};
+
     // prochaine fois que t'ajoutes un type d'instance note toutes les étapes pour voir ce qu'on
     // peut améliorer là le processus est trop long
 };

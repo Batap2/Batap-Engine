@@ -76,6 +76,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
     upload(_meshInstancesPool);
     upload(_cameraInstancesPool);
     upload(pointLightInstancePool_);
+    upload(skyboxInstancePool_);
 }
 
 void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag componentFlag)
@@ -94,6 +95,9 @@ void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag com
             break;
         case EntityKind::PointLight:
             pointLightInstancePool_.dirtyComponents_[handle].setAll(componentFlag);
+            break;
+        case EntityKind::Skybox:
+            skyboxInstancePool_.dirtyComponents_[handle].setAll(componentFlag);
             break;
         case EntityKind::Empty:
             break;

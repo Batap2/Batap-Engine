@@ -3,6 +3,7 @@
 #include <cstdint>
 #include "Renderer/ResourceFormatWrapper.h"
 #include "Renderer/ResourceManager.h"
+#include "Renderer/SkyIrradiance.h"
 
 namespace batap
 {
@@ -30,6 +31,7 @@ struct Texture
 {
     GPUViewHandle viewHandle_;
     uint32_t heapIdx_;
+    SH9 irradianceSH_;  // SH L2 irradiance, calculé au chargement pour les textures HDR
     ResourceFormat format_;
     uint32_t sizeX_;
     uint32_t sizeY_;

@@ -11,6 +11,7 @@
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
@@ -32,6 +33,7 @@ void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
     drawMesh(ent, app);
     drawMaterials(ent, app);
     drawPointLight(ent, world);
+    drawSkybox(ent, app);
 }
 
 // -----------------------------------------------------------------------------
@@ -192,6 +194,8 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                                                           0.f, 1.f);
                             changed |= ui::FieldDragFloat("Metallic", &copy.metallic, 0.01f,
                                                           0.f, 1.f);
+                            changed |= ui::FieldDragFloat("Reflectivity", &copy.reflectivity,
+                                                          0.01f, 0.f, 1.f);
 
                             if (changed)
                                 app.ctx_->_assetManager->update(handle, copy);
@@ -247,6 +251,95 @@ void InspectorPanel::drawPointLight(EntityHandle ent, World& world)
 
     if (changed)
         world.instanceManager_->markDirty(ent, ComponentFlag::PointLight);
+}
+
+// -----------------------------------------------------------------------------
+
+void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
+{
+    auto* sky = ent.try_get<Skybox_C>();
+    if (!sky)
+        return;
+
+    bool changed = false;
+
+    if (auto g = ui::CollapsingGroup("Skybox"))
+        if (auto f = ui::BeginFields("skybox"))
+        {
+            // Mode selector
+            changed |= ui::Field("Mode",
+                      [&]
+                      {
+                          static const char* kModes[] = {"HDRI", "Flat Color", "Gradient"};
+                          int current = static_cast<int>(sky->mode_);
+                          ImGui::SetNextItemWidth(-1.0f);
+                          if (ImGui::Combo("##skymode", &current, kModes, 3))
+                          {
+                              sky->mode_ = static_cast<Skybox_C::Mode>(current);
+                              return true;
+                          }
+                          return false;
+                      });
+
+            if (sky->mode_ == Skybox_C::Mode::HDRI)
+            {
+                ui::Field("HDRI",
+                          [&]
+                          {
+                              std::string label;
+                              if (sky->hdri_)
+                                  if (auto* p = app.ctx_->_assetManager->getPath(sky->hdri_))
+                                      label = std::filesystem::path(*p).stem().string();
+                              if (AssetHolder({.size_      = v2f(40, 40),
+                                               ._thumbnail = sky->hdri_ ? 1ull : 0,
+                                               .label_     = label.empty() ? "None" : label}))
+                                  assetPicker_.openHdri(ent, app.projectDir_);
+                              assetPicker_.draw(app);
+                              return true;
+                          });
+            }
+            else if (sky->mode_ == Skybox_C::Mode::FlatColor)
+            {
+                changed |= ui::Field("Color",
+                          [&]
+                          {
+                              ImGui::SetNextItemWidth(-1.0f);
+                              return ImGui::ColorEdit3("##skycolor", sky->color1_.data());
+                          });
+            }
+            else  // Gradient
+            {
+                changed |= ui::Field("Ciel",
+                          [&]
+                          {
+                              ImGui::SetNextItemWidth(-1.0f);
+                              return ImGui::ColorEdit3("##skyciel", sky->color1_.data());
+                          });
+                changed |= ui::Field("Horizon",
+                          [&]
+                          {
+                              ImGui::SetNextItemWidth(-1.0f);
+                              return ImGui::ColorEdit3("##skyhorizon", sky->color2_.data());
+                          });
+                changed |= ui::Field("Bas",
+                          [&]
+                          {
+                              ImGui::SetNextItemWidth(-1.0f);
+                              return ImGui::ColorEdit3("##skybas", sky->color3_.data());
+                          });
+                changed |= ui::Field("Taille horizon",
+                          [&]
+                          {
+                              ImGui::SetNextItemWidth(-1.0f);
+                              return ImGui::SliderFloat("##skyhw", &sky->horizonWidth_, 0.01f, 1.0f);
+                          });
+            }
+
+            changed |= ui::FieldDragFloat("Intensity", &sky->intensity_, 0.01f);
+        }
+
+    if (changed)
+        app.world_->instanceManager_->markDirty(ent, ComponentFlag::Skybox);
 }
 
 }  // namespace batap

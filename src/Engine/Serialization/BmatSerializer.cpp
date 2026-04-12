@@ -14,8 +14,9 @@ bool writeBmat(const MaterialDesc& desc, const std::string& outPath)
     nlohmann::json j;
     j["albedo"]     = {desc.mat->albedo[0], desc.mat->albedo[1],
                        desc.mat->albedo[2], desc.mat->albedo[3]};
-    j["roughness"]  = desc.mat->roughness;
-    j["metallic"]   = desc.mat->metallic;
+    j["roughness"]    = desc.mat->roughness;
+    j["metallic"]     = desc.mat->metallic;
+    j["reflectivity"] = desc.mat->reflectivity;
 
     if (!desc.albedoTexPath.empty())    j["albedoTex"]    = desc.albedoTexPath;
     if (!desc.normalTexPath.empty())    j["normalTex"]    = desc.normalTexPath;
@@ -69,8 +70,9 @@ std::optional<MaterialFileData> readBmat(const std::string& path)
         data.mat.albedo[2] = a[2].get<float>();
         data.mat.albedo[3] = a[3].get<float>();
     }
-    if (j.contains("roughness")) data.mat.roughness = j["roughness"].get<float>();
-    if (j.contains("metallic"))  data.mat.metallic  = j["metallic"].get<float>();
+    if (j.contains("roughness"))    data.mat.roughness    = j["roughness"].get<float>();
+    if (j.contains("metallic"))     data.mat.metallic     = j["metallic"].get<float>();
+    if (j.contains("reflectivity")) data.mat.reflectivity = j["reflectivity"].get<float>();
 
     if (j.contains("albedoTex"))    data.albedoTexPath    = j["albedoTex"].get<std::string>();
     if (j.contains("normalTex"))    data.normalTexPath    = j["normalTex"].get<std::string>();

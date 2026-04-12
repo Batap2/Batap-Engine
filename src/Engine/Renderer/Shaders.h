@@ -76,7 +76,16 @@ struct RootConstantsDesc
     D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL;
 };
 
-using RootParamDesc = std::variant<DescriptorTableDesc, RootConstantsDesc>;
+struct RootDescriptorDesc
+{
+    D3D12_ROOT_PARAMETER_TYPE   type;        // CBV, SRV, or UAV
+    UINT                        shaderRegister;  // b# / t# / u#
+    UINT                        registerSpace = 0;
+    D3D12_SHADER_VISIBILITY     visibility    = D3D12_SHADER_VISIBILITY_ALL;
+    D3D12_ROOT_DESCRIPTOR_FLAGS flags         = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
+};
+
+using RootParamDesc = std::variant<DescriptorTableDesc, RootConstantsDesc, RootDescriptorDesc>;
 
 struct RootSignatureDescription
 {

@@ -8,6 +8,7 @@
 #include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
+#include "Components/Skybox_C.h"
 #include "Instance/InstanceManager.h"
 #include "World.h"
 
@@ -27,7 +28,7 @@ static std::string_view extensionFor(AssetType type)
         case AssetType::Mesh:
             return ".bmesh";
         case AssetType::Texture:
-            return ".png";  // TODO: also .jpg/.jpeg
+            return ".png";
         case AssetType::Material:
             return ".bmat";
     }
@@ -37,9 +38,10 @@ static std::string_view extensionFor(AssetType type)
 void AssetPickerPopup::open(EntityHandle ent, AssetType type, const std::string& projectDir,
                             uint8_t slotIndex)
 {
-    ent_        = ent;
-    type_       = type;
-    slotIndex_  = slotIndex;
+    ent_ = ent;
+    type_ = type;
+    slotIndex_ = slotIndex;
+    isHdriPick_ = false;
     search_.clear();
     entries_.clear();
 
@@ -59,12 +61,34 @@ void AssetPickerPopup::open(EntityHandle ent, AssetType type, const std::string&
     pendingOpen_ = true;
 }
 
+void AssetPickerPopup::openHdri(EntityHandle ent, const std::string& projectDir)
+{
+    ent_ = ent;
+    isHdriPick_ = true;
+    search_.clear();
+    entries_.clear();
+
+    if (projectDir.empty())
+        return;
+
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(projectDir))
+    {
+        if (!entry.is_regular_file())
+            continue;
+        if (entry.path().extension() != ".hdr")
+            continue;
+        entries_.push_back({entry.path().stem().string(), entry.path()});
+    }
+    pendingOpen_ = true;
+}
+
 void AssetPickerPopup::open(MaterialHandle mat, uint8_t channel, const std::string& projectDir)
 {
-    ent_        = {};
-    type_       = AssetType::Texture;
-    matHandle_  = mat;
+    ent_ = {};
+    type_ = AssetType::Texture;
+    matHandle_ = mat;
     texChannel_ = channel;
+    isHdriPick_ = false;
     search_.clear();
     entries_.clear();
 
@@ -91,10 +115,18 @@ static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, ui
     Material copy = *mat;
     switch (channel)
     {
-        case 0: copy.albedoTexIdx_    = heapIdx; break;
-        case 1: copy.normalTexIdx_    = heapIdx; break;
-        case 2: copy.roughnessTexIdx_ = heapIdx; break;
-        case 3: copy.metallicTexIdx_  = heapIdx; break;
+        case 0:
+            copy.albedoTexIdx_ = heapIdx;
+            break;
+        case 1:
+            copy.normalTexIdx_ = heapIdx;
+            break;
+        case 2:
+            copy.roughnessTexIdx_ = heapIdx;
+            break;
+        case 3:
+            copy.metallicTexIdx_ = heapIdx;
+            break;
     }
     app.ctx_->_assetManager->update(matHandle, copy);
 }
@@ -111,7 +143,8 @@ void AssetPickerPopup::draw(App& app)
     if (!ImGui::BeginPopup(kId))
         return;
 
-    const char* title = (type_ == AssetType::Mesh)       ? "Select Mesh"
+    const char* title = isHdriPick_                      ? "Select HDRI"
+                        : (type_ == AssetType::Mesh)     ? "Select Mesh"
                         : (type_ == AssetType::Texture)  ? "Select Texture"
                         : (type_ == AssetType::Material) ? "Select Material"
                                                          : "Select Asset";
@@ -150,6 +183,14 @@ void AssetPickerPopup::draw(App& app)
                     if (auto* th = std::get_if<TextureHandle>(&*handle))
                         if (auto* tex = app.ctx_->_assetManager->get<Texture>(*th))
                             applyTexture(app, matHandle_, texChannel_, tex->heapIdx_);
+
+                if (isHdriPick_)
+                    if (auto* sky = ent_.try_get<Skybox_C>())
+                        if (auto* th = std::get_if<TextureHandle>(&*handle))
+                        {
+                            sky->hdri_ = *th;
+                            app.world_->instanceManager_->markDirty(ent_, ComponentFlag::Skybox);
+                        }
             }
 
             ImGui::CloseCurrentPopup();
@@ -172,11 +213,15 @@ void AssetPickerPopup::draw(App& app)
 
         if (type_ == AssetType::Texture && matHandle_)
         {
-            const std::string defaultKey =
-                (texChannel_ == 1) ? "__default_flat_normal" : "__default_white";
+            const std::string defaultKey = (texChannel_ == 1) ? "__default_flat_normal"
+                                                              : "__default_white";
             if (auto* def = app.ctx_->_assetManager->get<Texture>(defaultKey))
                 applyTexture(app, matHandle_, texChannel_, def->heapIdx_);
         }
+
+        if (isHdriPick_)
+            if (auto* sky = ent_.try_get<Skybox_C>())
+                sky->hdri_ = TextureHandle::null();
     }
     ImGui::SameLine();
     if (ImGui::Button("Close"))

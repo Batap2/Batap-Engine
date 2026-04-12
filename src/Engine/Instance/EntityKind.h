@@ -7,6 +7,7 @@ enum class EntityKind
     Empty,
     StaticMesh,
     Camera,
-    PointLight
+    PointLight,
+    Skybox
 };
 }
