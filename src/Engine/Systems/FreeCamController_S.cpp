@@ -44,6 +44,14 @@ void FreeCamController_S::update(Context& ctx, World& world, float deltaTime)
                 }
             }
 
+            float scroll = ctx._inputManager->MouseWheelAccumulated;
+            if (looking && scroll != 0.f)
+            {
+                controller.moveSpeed_ *= std::pow(1.15f, scroll);
+                controller.moveSpeed_  = std::clamp(controller.moveSpeed_, 0.1f, 1000.f);
+                controller.boostSpeed_ = controller.moveSpeed_ * 3.f;
+            }
+
             v3f move = v3f::Zero();
 
             if (ctx._inputManager->IsKeyDown(Key::D))
