@@ -40,6 +40,8 @@ void ThrowAssert(bool condition, std::string_view msg)
 {
     OutputDebugStringA(msg);
     OutputDebugStringA("\n");
+    fprintf(stderr, "[FATAL] %s\n", msg);
+    fflush(stderr);
 #ifdef _DEBUG
     __debugbreak();  // break AVANT l'unwind
 #endif

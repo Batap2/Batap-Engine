@@ -100,6 +100,11 @@ struct Renderer
     GPUViewHandle rtvRender3DHandle_;
     GPUViewHandle dsvHandle_;
 
+    GPUResourceHandle normalRTHandle_;
+    GPUViewHandle     rtvNormalRTHandle_;
+    GPUViewHandle     srvNormalRTHandle_;
+    GPUViewHandle     srvDepthHandle_;
+
     std::vector<ResizeCallback> resizeCallbacks_;
 };
 }  // namespace batap

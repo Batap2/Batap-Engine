@@ -39,19 +39,27 @@ void SceneRenderer::initRenderPasses()
                 if(!reg) return;
 
                 auto rtv_render3d = rM->getFrameView(RN::RTV_render_3d)[r->_frameIndex];
-                auto dsv_depth = rM->getFrameView(RN::DSV_render_3d)[r->_frameIndex];
+                auto dsv_depth    = rM->getFrameView(RN::DSV_render_3d)[r->_frameIndex];
+                auto rtv_normalRT = rM->getFrameView(RN::RTV_normalRT)[r->_frameIndex];
 
                 rtv_render3d._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
                 dsv_depth._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+                rtv_normalRT._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-                const float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                const float clearColor[4]  = {0.0f, 0.0f, 0.0f, 0.0f};
+                const float clearNormal[4] = {0.5f, 0.5f, 1.0f, 0.0f};
                 cmdList->ClearRenderTargetView(rtv_render3d._descriptorHandle->cpuHandle,
                                                clearColor, 0, nullptr);
+                cmdList->ClearRenderTargetView(rtv_normalRT._descriptorHandle->cpuHandle,
+                                               clearNormal, 0, nullptr);
 
                 cmdList->ClearDepthStencilView(dsv_depth._descriptorHandle->cpuHandle,
                                                D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-                cmdList->OMSetRenderTargets(1, &rtv_render3d._descriptorHandle->cpuHandle, FALSE,
+                D3D12_CPU_DESCRIPTOR_HANDLE rtvs[] = {
+                    rtv_render3d._descriptorHandle->cpuHandle,
+                    rtv_normalRT._descriptorHandle->cpuHandle};
+                cmdList->OMSetRenderTargets(2, rtvs, FALSE,
                                             &dsv_depth._descriptorHandle->cpuHandle);
 
                 D3D12_VIEWPORT vp{};

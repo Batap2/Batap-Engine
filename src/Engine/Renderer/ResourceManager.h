@@ -231,7 +231,8 @@ struct ResourceManager
                                  D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initialState,
                                  D3D12_HEAP_TYPE heapType,
                                  std::optional<std::string_view> name = std::nullopt,
-                                 D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
+                                 D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE,
+                                 DXGI_FORMAT clearValueFormat = DXGI_FORMAT_UNKNOWN);
 
     template <typename T>
     GPUViewHandle createStaticView(GPUResourceHandle resourceHandle, T& viewDesc,

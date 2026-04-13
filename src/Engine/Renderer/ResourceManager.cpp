@@ -414,7 +414,8 @@ GPUResourceHandle ResourceManager::createTexture2DStaticResource(
 GPUResourceHandle ResourceManager::createTexture2DFrameResource(
     uint32_t width, uint32_t height, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags,
     D3D12_RESOURCE_STATES initialState, D3D12_HEAP_TYPE heapType,
-    std::optional<std::string_view> name, D3D12_HEAP_FLAGS heapFlags)
+    std::optional<std::string_view> name, D3D12_HEAP_FLAGS heapFlags,
+    DXGI_FORMAT clearValueFormat)
 {
     GPUResourceHandle guid = generateGUID(GPUResourceHandle::ObjectType::FrameResource, name);
 
@@ -427,10 +428,11 @@ GPUResourceHandle ResourceManager::createTexture2DFrameResource(
 
     D3D12_CLEAR_VALUE* clearValue = nullptr;
     D3D12_CLEAR_VALUE clearValueData = {};
+    const DXGI_FORMAT cvFmt = clearValueFormat != DXGI_FORMAT_UNKNOWN ? clearValueFormat : format;
 
     if (flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)
     {
-        clearValueData.Format = format;
+        clearValueData.Format = cvFmt;
         clearValueData.Color[0] = 0.0f;
         clearValueData.Color[1] = 0.0f;
         clearValueData.Color[2] = 0.0f;
@@ -439,7 +441,7 @@ GPUResourceHandle ResourceManager::createTexture2DFrameResource(
     }
     else if (flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
     {
-        clearValueData.Format = format;
+        clearValueData.Format = cvFmt;
         clearValueData.DepthStencil.Depth = 1.0f;
         clearValueData.DepthStencil.Stencil = 0;
         clearValue = &clearValueData;

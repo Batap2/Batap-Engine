@@ -14,12 +14,17 @@ enum class RN
     texture2D_render3D_depthStencil,
     buffer_camera,
 
+    texture2D_normalRT,
+
     // Resource Views
     UAV_render0,
     CBV_camera,
     RTV_imgui,
     RTV_render_3d,
     DSV_render_3d,
+    RTV_normalRT,
+    SRV_normalRT,
+    SRV_depth,
 
     // Render Passes
     pass_render0,

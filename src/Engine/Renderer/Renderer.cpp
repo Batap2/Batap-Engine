@@ -132,27 +132,37 @@ void Renderer::initRessourcesAndViews(HWND hwnd)
         FramesInFlight,
         DXGI_SCALING_STRETCH,
         DXGI_SWAP_EFFECT_FLIP_DISCARD,
-        // DXGI_ALPHA_MODE_UNSPECIFIED,
-        DXGI_ALPHA_MODE_PREMULTIPLIED,
+        CompositionSwapChain ? DXGI_ALPHA_MODE_PREMULTIPLIED : DXGI_ALPHA_MODE_UNSPECIFIED,
         DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT};
 
     Microsoft::WRL::ComPtr<IDXGISwapChain1> swapchain_tier_dx12;
-    // ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(
-    //     _commandQueues[0]->_commandQueue.Get(), _hwnd, &swapchain_desc, nullptr, nullptr,
-    //     &swapchain_tier_dx12));
-    ThrowIfFailed(_dxgi_factory->CreateSwapChainForComposition(
-        _commandQueues[0]->_commandQueue.Get(), &swapchain_desc, nullptr, &swapchain_tier_dx12));
+    if constexpr (CompositionSwapChain)
+    {
+        ThrowIfFailed(_dxgi_factory->CreateSwapChainForComposition(
+            _commandQueues[0]->_commandQueue.Get(), &swapchain_desc, nullptr,
+            &swapchain_tier_dx12));
+    }
+    else
+    {
+        ThrowIfFailed(_dxgi_factory->CreateSwapChainForHwnd(_commandQueues[0]->_commandQueue.Get(),
+                                                            _hwnd, &swapchain_desc, nullptr,
+                                                            nullptr, &swapchain_tier_dx12));
+    }
+
     ThrowIfFailed(swapchain_tier_dx12.As(&_swapchain));
     ThrowIfFailed(_swapchain->SetMaximumFrameLatency(1));
     _frameLatencyWaitableObject = _swapchain->GetFrameLatencyWaitableObject();
 
-    // DirectComposition: bind the swap chain to the window for per-pixel transparency
-    ThrowIfFailed(DCompositionCreateDevice(nullptr, IID_PPV_ARGS(&_dcompDevice)));
-    ThrowIfFailed(_dcompDevice->CreateTargetForHwnd(_hwnd, TRUE, &_dcompTarget));
-    ThrowIfFailed(_dcompDevice->CreateVisual(&_dcompVisual));
-    ThrowIfFailed(_dcompVisual->SetContent(_swapchain.Get()));
-    ThrowIfFailed(_dcompTarget->SetRoot(_dcompVisual.Get()));
-    ThrowIfFailed(_dcompDevice->Commit());
+    if constexpr (CompositionSwapChain)
+    {
+        // DirectComposition: bind the swap chain to the window for per-pixel transparency
+        ThrowIfFailed(DCompositionCreateDevice(nullptr, IID_PPV_ARGS(&_dcompDevice)));
+        ThrowIfFailed(_dcompDevice->CreateTargetForHwnd(_hwnd, TRUE, &_dcompTarget));
+        ThrowIfFailed(_dcompDevice->CreateVisual(&_dcompVisual));
+        ThrowIfFailed(_dcompVisual->SetContent(_swapchain.Get()));
+        ThrowIfFailed(_dcompTarget->SetRoot(_dcompVisual.Get()));
+        ThrowIfFailed(_dcompDevice->Commit());
+    }
 
     swapChainResHandle_ =
         _resourceManager->createEmptyFrameResource(toS(RN::texture2D_backbuffers));
@@ -208,15 +218,46 @@ void Renderer::recreateScreenSizeResources()
             render3DHandle_, rtvDesc, toS(RN::RTV_render_3d));
 
         depthHandle_ = _resourceManager->createTexture2DFrameResource(
-            _width, _height, DXGI_FORMAT_D32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
+            _width, _height, DXGI_FORMAT_R24G8_TYPELESS, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
             D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_HEAP_TYPE_DEFAULT,
-            toS(RN::texture2D_render3D_depthStencil));
+            toS(RN::texture2D_render3D_depthStencil), D3D12_HEAP_FLAG_NONE,
+            DXGI_FORMAT_D24_UNORM_S8_UINT);
 
         D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-        dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+        dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
         dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
         dsvHandle_ = _resourceManager->createFrameView<D3D12_DEPTH_STENCIL_VIEW_DESC>(
             depthHandle_, dsvDesc, toS(RN::DSV_render_3d));
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDepthDesc = {};
+        srvDepthDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        srvDepthDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDepthDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDepthDesc.Texture2D.MipLevels = 1;
+        srvDepthHandle_ = _resourceManager->createFrameView<D3D12_SHADER_RESOURCE_VIEW_DESC>(
+            depthHandle_, srvDepthDesc, toS(RN::SRV_depth));
+    }
+
+    // --- Normal RT ---
+    {
+        normalRTHandle_ = _resourceManager->createTexture2DFrameResource(
+            _width, _height, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT,
+            toS(RN::texture2D_normalRT));
+
+        D3D12_RENDER_TARGET_VIEW_DESC rtvNrmDesc = {};
+        rtvNrmDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rtvNrmDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtvNormalRTHandle_ = _resourceManager->createFrameView<D3D12_RENDER_TARGET_VIEW_DESC>(
+            normalRTHandle_, rtvNrmDesc, toS(RN::RTV_normalRT));
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvNrmDesc = {};
+        srvNrmDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        srvNrmDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvNrmDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvNrmDesc.Texture2D.MipLevels = 1;
+        srvNormalRTHandle_ = _resourceManager->createFrameView<D3D12_SHADER_RESOURCE_VIEW_DESC>(
+            normalRTHandle_, srvNrmDesc, toS(RN::SRV_normalRT));
     }
 }
 
@@ -243,6 +284,9 @@ void Renderer::resize(uint32_t w, uint32_t h)
     _resourceManager->requestDestroy(uavRender0Handle_, true);
     _resourceManager->requestDestroy(rtvRender3DHandle_, true);
     _resourceManager->requestDestroy(dsvHandle_, true);
+    _resourceManager->requestDestroy(srvDepthHandle_, false);
+    _resourceManager->requestDestroy(rtvNormalRTHandle_, true);
+    _resourceManager->requestDestroy(srvNormalRTHandle_, false);
 
     for (auto* res : _resourceManager->getFrameResource(swapChainResHandle_))
         res->_resource.Reset();
@@ -285,39 +329,41 @@ void Renderer::initPsosAndShaders()
                                   D3D12_SHADER_VISIBILITY_ALL},  // 3 — CamIdx, MeshIdx, nLights
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0,
                                     D3D12_SHADER_VISIBILITY_PIXEL},  // 4 — Material arena (t3, PS)
-                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 4, 0,
-                                    D3D12_SHADER_VISIBILITY_PIXEL,
-                                    D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE},  // 5 — bindless textures (t4[], PS)
-                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 1,
-                                    D3D12_SHADER_VISIBILITY_PIXEL},                     // 6 — SkyboxBuffer (t0, space1, PS)
+                DescriptorTableDesc{
+                    D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 4, 0, D3D12_SHADER_VISIBILITY_PIXEL,
+                    D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE},  // 5 — bindless textures
+                                                                        // (t4[], PS)
+                DescriptorTableDesc{
+                    D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 1,
+                    D3D12_SHADER_VISIBILITY_PIXEL},  // 6 — SkyboxBuffer (t0, space1, PS)
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
 
         {
             D3D12_STATIC_SAMPLER_DESC sampler{};
-            sampler.Filter           = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-            sampler.AddressU         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-            sampler.AddressV         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-            sampler.AddressW         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-            sampler.MipLODBias       = 0;
-            sampler.MaxAnisotropy    = 1;
-            sampler.ComparisonFunc   = D3D12_COMPARISON_FUNC_NEVER;
-            sampler.MinLOD           = 0.f;
-            sampler.MaxLOD           = D3D12_FLOAT32_MAX;
-            sampler.ShaderRegister   = 0;  // s0
-            sampler.RegisterSpace    = 0;
+            sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+            sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            sampler.MipLODBias = 0;
+            sampler.MaxAnisotropy = 1;
+            sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+            sampler.MinLOD = 0.f;
+            sampler.MaxLOD = D3D12_FLOAT32_MAX;
+            sampler.ShaderRegister = 0;  // s0
+            sampler.RegisterSpace = 0;
             sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
             rsDesc_VS._staticSamplers = {sampler};
         }
 
         D3D12_INPUT_ELEMENT_DESC layout[] = {
-            {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,
+            {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
              D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-            {"NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    1, 0,
+            {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 1, 0,
              D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       2, 0,
+            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 2, 0,
              D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-            {"TANGENT",  0, DXGI_FORMAT_R32G32B32A32_FLOAT, 3, 0,
+            {"TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 3, 0,
              D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
         };
 
@@ -328,7 +374,10 @@ void Renderer::initPsosAndShaders()
                 desc.InputLayout = {layout, _countof(layout)};
                 desc.VS = {vs->_blob->GetBufferPointer(), vs->_blob->GetBufferSize()};
                 desc.PS = {ps->_blob->GetBufferPointer(), ps->_blob->GetBufferSize()};
-                desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+                desc.NumRenderTargets = 2;
+                desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+                desc.RTVFormats[1] = DXGI_FORMAT_R8G8B8A8_UNORM;
+                desc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
                 desc.DepthStencilState.DepthEnable = 1;
                 desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
                 desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -336,31 +385,34 @@ void Renderer::initPsosAndShaders()
     }
     // --- Sky PSO ---
     {
-        auto* skyVS = _psoManager->compileShaderFromFile(
-            "sky_VS", shader_dir + "/SkyVS.hlsl", "main", "vs_5_1");
-        auto* skyPS = _psoManager->compileShaderFromFile(
-            "sky_PS", shader_dir + "/SkyPS.hlsl", "main", "ps_5_1");
+        auto* skyVS = _psoManager->compileShaderFromFile("sky_VS", shader_dir + "/SkyVS.hlsl",
+                                                         "main", "vs_5_1");
+        auto* skyPS = _psoManager->compileShaderFromFile("sky_PS", shader_dir + "/SkyPS.hlsl",
+                                                         "main", "ps_5_1");
 
         D3D12_STATIC_SAMPLER_DESC skySampler{};
-        skySampler.Filter           = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-        skySampler.AddressU         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-        skySampler.AddressV         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-        skySampler.AddressW         = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-        skySampler.MaxAnisotropy    = 1;
-        skySampler.ComparisonFunc   = D3D12_COMPARISON_FUNC_NEVER;
-        skySampler.MaxLOD           = D3D12_FLOAT32_MAX;
-        skySampler.ShaderRegister   = 0;
-        skySampler.RegisterSpace    = 0;
+        skySampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        skySampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        skySampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        skySampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        skySampler.MaxAnisotropy = 1;
+        skySampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+        skySampler.MaxLOD = D3D12_FLOAT32_MAX;
+        skySampler.ShaderRegister = 0;
+        skySampler.RegisterSpace = 0;
         skySampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
         RootSignatureDescription rsDesc_sky{
             {
                 DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0,
                                     D3D12_SHADER_VISIBILITY_ALL},  // t0 — CameraBuffer (VS + PS)
-                RootConstantsDesc{16, 0, 0, D3D12_SHADER_VISIBILITY_ALL},  // b0 — camIdx, skyHeapIdx, mode, horizonWidth, colorSky(4), colorHorizon(4), colorGround(4)
-                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 1, 0,
-                                    D3D12_SHADER_VISIBILITY_PIXEL,
-                                    D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE},  // t1[] — bindless (PS)
+                RootConstantsDesc{
+                    16, 0, 0,
+                    D3D12_SHADER_VISIBILITY_ALL},  // b0 — camIdx, skyHeapIdx, mode, horizonWidth,
+                                                   // colorSky(4), colorHorizon(4), colorGround(4)
+                DescriptorTableDesc{
+                    D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 1, 0, D3D12_SHADER_VISIBILITY_PIXEL,
+                    D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE},  // t1[] — bindless (PS)
             },
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
         rsDesc_sky._staticSamplers = {skySampler};
@@ -369,14 +421,14 @@ void Renderer::initPsosAndShaders()
             toS(RN::pso_sky_pass), rsDesc_sky,
             [&](D3D12_GRAPHICS_PIPELINE_STATE_DESC& d)
             {
-                d.VS             = {skyVS->_blob->GetBufferPointer(), skyVS->_blob->GetBufferSize()};
-                d.PS             = {skyPS->_blob->GetBufferPointer(), skyPS->_blob->GetBufferSize()};
-                d.InputLayout    = {};
-                d.DSVFormat      = DXGI_FORMAT_D32_FLOAT;
-                d.DepthStencilState.DepthEnable    = TRUE;
+                d.VS = {skyVS->_blob->GetBufferPointer(), skyVS->_blob->GetBufferSize()};
+                d.PS = {skyPS->_blob->GetBufferPointer(), skyPS->_blob->GetBufferSize()};
+                d.InputLayout = {};
+                d.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+                d.DepthStencilState.DepthEnable = TRUE;
                 d.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-                d.DepthStencilState.DepthFunc      = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-                d.RasterizerState.CullMode         = D3D12_CULL_MODE_NONE;
+                d.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+                d.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
             });
     }
     {

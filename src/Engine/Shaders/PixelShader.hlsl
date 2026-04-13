@@ -152,7 +152,13 @@ float3 F_Schlick(float HdotV, float3 F0)
     return F0 + (1.0f - F0) * pow(saturate(1.0f - HdotV), 5.0f);
 }
 
-float4 main(VS_OUTPUT i, uint primId : SV_PrimitiveID) : SV_Target
+struct PS_OUT
+{
+    float4 color  : SV_Target0;
+    float4 normal : SV_Target1;
+};
+
+PS_OUT main(VS_OUTPUT i, uint primId : SV_PrimitiveID)
 {
     CameraData cam = CameraInstancebuffer[_cameraIndex];
 
@@ -242,5 +248,8 @@ float4 main(VS_OUTPUT i, uint primId : SV_PrimitiveID) : SV_Target
         color += (diffuse + specular) * radiance * NdotL;
     }
 
-    return float4(saturate(color), 1.0);
+    PS_OUT o;
+    o.color  = float4(saturate(color), 1.0f);
+    o.normal = float4(N * 0.5f + 0.5f, 0.0f);
+    return o;
 }
