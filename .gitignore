@@ -2,9 +2,5 @@ build
 .cache
 .claude
 GameExemple/*
-GameExemple/SanMig
-GameExemple/skyblock
 compile_commands.json
 CMakeCache.txt
-GameExemple/testHdri.hdr
-GameExemple/pillars_4k.hdr

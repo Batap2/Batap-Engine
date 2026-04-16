@@ -6,8 +6,10 @@
 #include "MeshDecomposer.h"
 
 #include "Assets/Material.h"
+#include "Assets/Texture.h"
 #include "Serialization/BmatSerializer.h"
 #include "Serialization/BmeshSerializer.h"
+#include "Serialization/BtexSerializer.h"
 #include "Serialization/EntityDesc.h"
 #include "Serialization/EntitySerializer.h"
 
@@ -40,7 +42,7 @@ static BmeshData extractBmeshData(const aiMesh* mesh)
             data.normals.push_back({mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z});
 
         if (mesh->HasTextureCoords(0))
-            data.uvs.push_back({mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y});
+            data.uvs.push_back({mesh->mTextureCoords[0][i].x, 1.0f - mesh->mTextureCoords[0][i].y});
     }
 
     data.indices.reserve(mesh->mNumFaces * 3);
@@ -95,12 +97,51 @@ static Material extractMaterial(const aiMaterial* aiMat)
     return mat;
 }
 
+// Returns relative path to .btex (from baseDir), or "" if texture not found/missing.
+static std::string getOrWriteTexture(const aiMaterial* aiMat, aiTextureType texType,
+                                     const fs::path& sourceDir, const fs::path& subDir,
+                                     std::string_view baseDir, TextureColorSpace colorSpace,
+                                     std::unordered_map<std::string, std::string>& texCache)
+{
+    aiString aiTexPath;
+    if (aiMat->GetTexture(texType, 0, &aiTexPath) != AI_SUCCESS || aiTexPath.length == 0)
+        return "";
+
+    std::string rawPath = aiTexPath.C_Str();
+    auto it = texCache.find(rawPath);
+    if (it != texCache.end()) return it->second;
+
+    fs::path srcImgPath = sourceDir / rawPath;
+    if (!fs::exists(srcImgPath))
+    {
+        std::cerr << "[MeshDecomposer] Texture not found: " << srcImgPath << "\n";
+        return "";
+    }
+
+    TextureDesc desc;
+    desc.sourcePath = fs::relative(srcImgPath, baseDir).generic_string();
+    desc.colorSpace = colorSpace;
+    desc.filter     = TextureFilter::Linear;
+    desc.wrapU      = TextureWrap::Repeat;
+    desc.wrapV      = TextureWrap::Repeat;
+    desc.mipLevels  = 0;  // auto full mip chain
+
+    fs::path btexPath = subDir / (fs::path(rawPath).stem().string() + ".btex");
+    writeBtex(desc, btexPath.string());
+
+    std::string rel    = fs::relative(btexPath, baseDir).generic_string();
+    texCache[rawPath]  = rel;
+    return rel;
+}
+
 static std::string getOrWriteMaterial(uint32_t matIdx, const aiScene* scene,
                                        const fs::path& subDir, std::string_view baseDir,
-                                       std::unordered_map<uint32_t, std::string>& cache)
+                                       const fs::path& sourceDir,
+                                       std::unordered_map<uint32_t, std::string>& matCache,
+                                       std::unordered_map<std::string, std::string>& texCache)
 {
-    auto it = cache.find(matIdx);
-    if (it != cache.end()) return it->second;
+    auto it = matCache.find(matIdx);
+    if (it != matCache.end()) return it->second;
 
     const aiMaterial* aiMat = scene->mMaterials[matIdx];
     aiString aiName;
@@ -110,18 +151,41 @@ static std::string getOrWriteMaterial(uint32_t matIdx, const aiScene* scene,
     for (char& c : name)
         if (c == '/' || c == '\\' || c == ':') c = '_';
 
-    fs::path matPath = subDir / (name + ".bmat");
-    writeBmat(extractMaterial(aiMat), matPath.string());
+    Material mat = extractMaterial(aiMat);
+    MaterialDesc desc;
+    desc.mat              = &mat;
+    desc.albedoTexPath    = getOrWriteTexture(aiMat, aiTextureType_DIFFUSE,
+                                              sourceDir, subDir, baseDir,
+                                              TextureColorSpace::SRGB, texCache);
+    // OBJ/MTL uses HEIGHT for bump maps; try NORMALS first then HEIGHT
+    desc.normalTexPath    = getOrWriteTexture(aiMat, aiTextureType_NORMALS,
+                                              sourceDir, subDir, baseDir,
+                                              TextureColorSpace::Linear, texCache);
+    if (desc.normalTexPath.empty())
+        desc.normalTexPath = getOrWriteTexture(aiMat, aiTextureType_HEIGHT,
+                                               sourceDir, subDir, baseDir,
+                                               TextureColorSpace::Linear, texCache);
+    desc.roughnessTexPath = getOrWriteTexture(aiMat, aiTextureType_DIFFUSE_ROUGHNESS,
+                                              sourceDir, subDir, baseDir,
+                                              TextureColorSpace::Linear, texCache);
+    desc.metallicTexPath  = getOrWriteTexture(aiMat, aiTextureType_METALNESS,
+                                              sourceDir, subDir, baseDir,
+                                              TextureColorSpace::Linear, texCache);
 
-    std::string rel     = fs::relative(matPath, baseDir).generic_string();
-    cache[matIdx]       = rel;
+    fs::path matPath = subDir / (name + ".bmat");
+    writeBmat(desc, matPath.string());
+
+    std::string rel    = fs::relative(matPath, baseDir).generic_string();
+    matCache[matIdx]   = rel;
     return rel;
 }
 
 static void processNode(const aiNode* node, const aiScene* scene, const fs::path& subDir,
-                        std::string_view baseDir, std::vector<EntityDesc>& entities,
+                        std::string_view baseDir, const fs::path& sourceDir,
+                        std::vector<EntityDesc>& entities,
                         int parentIndex, DecomposeResult& result,
-                        std::unordered_map<uint32_t, std::string>& matCache)
+                        std::unordered_map<uint32_t, std::string>& matCache,
+                        std::unordered_map<std::string, std::string>& texCache)
 {
     aiVector3D pos, scale;
     aiQuaternion rot;
@@ -135,8 +199,8 @@ static void processNode(const aiNode* node, const aiScene* scene, const fs::path
     if (node->mNumMeshes == 0 && identityTransform)
     {
         for (unsigned i = 0; i < node->mNumChildren; ++i)
-            processNode(node->mChildren[i], scene, subDir, baseDir, entities, parentIndex, result,
-                        matCache);
+            processNode(node->mChildren[i], scene, subDir, baseDir, sourceDir, entities,
+                        parentIndex, result, matCache, texCache);
         return;
     }
 
@@ -163,7 +227,8 @@ static void processNode(const aiNode* node, const aiScene* scene, const fs::path
         {
             const aiMesh* m = scene->mMeshes[node->mMeshes[i]];
             matDesc.paths[i] =
-                getOrWriteMaterial(m->mMaterialIndex, scene, subDir, baseDir, matCache);
+                getOrWriteMaterial(m->mMaterialIndex, scene, subDir, baseDir, sourceDir,
+                                   matCache, texCache);
         }
         desc.components.push_back(matDesc);
     }
@@ -172,8 +237,8 @@ static void processNode(const aiNode* node, const aiScene* scene, const fs::path
     entities.push_back(std::move(desc));
 
     for (unsigned i = 0; i < node->mNumChildren; ++i)
-        processNode(node->mChildren[i], scene, subDir, baseDir, entities, myIndex, result,
-                    matCache);
+        processNode(node->mChildren[i], scene, subDir, baseDir, sourceDir, entities, myIndex,
+                    result, matCache, texCache);
 }
 
 static void resetRootTransform(std::vector<EntityDesc>& entities)
@@ -248,10 +313,13 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
     if (scene->mNumMeshes > 0)
         fs::create_directories(subDir);
 
-    // Build entity hierarchy — bmesh and bmat files are written per-node inside processNode
+    // Build entity hierarchy — bmesh, bmat and btex files are written per-node inside processNode
+    fs::path sourceDir = fs::path(sourcePath).parent_path();
     std::vector<EntityDesc> entities;
     std::unordered_map<uint32_t, std::string> matCache;
-    processNode(scene->mRootNode, scene, subDir, baseDir, entities, -1, result, matCache);
+    std::unordered_map<std::string, std::string> texCache;
+    processNode(scene->mRootNode, scene, subDir, baseDir, sourceDir, entities, -1, result,
+                matCache, texCache);
     for (auto& [idx, rel] : matCache)
         result.bmatPaths.push_back(rel);
 
