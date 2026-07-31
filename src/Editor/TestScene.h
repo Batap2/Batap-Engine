@@ -12,7 +12,7 @@ struct TestScene : Scene
 {
     TestScene(World& world);
 
-    void update(float deltaTime, Context& ctx, World& world) override;
+    void update(float deltaTime, Engine& ctx, World& world) override;
 
     EntityHandle _camera;
 };

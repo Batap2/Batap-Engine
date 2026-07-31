@@ -2,7 +2,7 @@
 
 #include "entt/entt.hpp"
 
-#include "Context.h"
+#include "Engine.h"
 #include "Scene.h"
 
 #include <cstdint>
@@ -19,7 +19,7 @@ struct SceneRenderArgs
 
 struct SceneRenderer
 {
-    SceneRenderer(Context& ctx) : _ctx(ctx) {}
+    SceneRenderer(Engine& ctx) : _ctx(ctx) {}
 
     void setScene(SceneRenderArgs args) { args_ = args; }
 
@@ -27,7 +27,7 @@ struct SceneRenderer
     void uploadDirty();
 
    private:
-    Context& _ctx;
+    Engine& _ctx;
     SceneRenderArgs args_;
 };
 }  // namespace batap

@@ -11,10 +11,10 @@
 
 namespace batap
 {
-GPUInstanceManager::GPUInstanceManager(Context& ctx)
+GPUInstanceManager::GPUInstanceManager(Engine& ctx)
     : _resourceManager(*ctx._renderer->_resourceManager) {};
 
-void GPUInstanceManager::uploadRemainingFrameDirty(Context& ctx)
+void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
 {
     auto frameIndex = ctx.getFrameindex();
     auto upload = [&](auto& frameInstancePool)

@@ -12,7 +12,7 @@
 #include "Components/PointLight_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
-#include "Context.h"
+#include "Engine.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
 #include "World.h"
@@ -52,7 +52,7 @@ nlohmann::json toJson(const Transform_C& c)
     return {{"pos", toJson(c.pos())}, {"rot", toJson(c.rot())}, {"scale", toJson(c.scale())}};
 }
 
-static std::optional<ComponentDesc> extractTransform(EntityHandle h, const Context&)
+static std::optional<ComponentDesc> extractTransform(EntityHandle h, const Engine&)
 {
     auto* tc = h._reg->try_get<Transform_C>(h._entity);
     if (!tc)
@@ -60,7 +60,7 @@ static std::optional<ComponentDesc> extractTransform(EntityHandle h, const Conte
     return *tc;
 }
 
-static std::optional<nlohmann::json> serializeTransform(EntityHandle h, const Context& ctx)
+static std::optional<nlohmann::json> serializeTransform(EntityHandle h, const Engine& ctx)
 {
     if (auto d = extractTransform(h, ctx))
         return toJson(std::get<Transform_C>(*d));
@@ -68,7 +68,7 @@ static std::optional<nlohmann::json> serializeTransform(EntityHandle h, const Co
 }
 
 static void deserializeTransform(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                                 const Context&, World& world)
+                                 const Engine&, World& world)
 {
     auto _ = h._reg->get_or_emplace<Transform_C>(h._entity);
     auto& ts = *world.systems_->_transforms;
@@ -84,7 +84,7 @@ nlohmann::json toJson(const MeshDesc& d)
     return {{"path", d.path.empty() ? nlohmann::json(nullptr) : nlohmann::json(d.path)}};
 }
 
-static std::optional<ComponentDesc> extractMesh(EntityHandle h, const Context& ctx)
+static std::optional<ComponentDesc> extractMesh(EntityHandle h, const Engine& ctx)
 {
     auto* mc = h._reg->try_get<Mesh_C>(h._entity);
     if (!mc)
@@ -96,7 +96,7 @@ static std::optional<ComponentDesc> extractMesh(EntityHandle h, const Context& c
     return desc;
 }
 
-static std::optional<nlohmann::json> serializeMesh(EntityHandle h, const Context& ctx)
+static std::optional<nlohmann::json> serializeMesh(EntityHandle h, const Engine& ctx)
 {
     if (auto d = extractMesh(h, ctx))
         return toJson(std::get<MeshDesc>(*d));
@@ -104,7 +104,7 @@ static std::optional<nlohmann::json> serializeMesh(EntityHandle h, const Context
 }
 
 static void deserializeMesh(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                            const Context& ctx, World&)
+                            const Engine& ctx, World&)
 {
     auto* mc = h._reg->try_get<Mesh_C>(h._entity);
     if (!mc)
@@ -131,7 +131,7 @@ nlohmann::json toJson(const MaterialsDesc& d)
     return {{"materials", arr}};
 }
 
-static std::optional<ComponentDesc> extractMaterials(EntityHandle h, const Context& ctx)
+static std::optional<ComponentDesc> extractMaterials(EntityHandle h, const Engine& ctx)
 {
     auto* mc = h._reg->try_get<Materials_C>(h._entity);
     if (!mc || mc->count == 0)
@@ -144,7 +144,7 @@ static std::optional<ComponentDesc> extractMaterials(EntityHandle h, const Conte
     return desc;
 }
 
-static std::optional<nlohmann::json> serializeMaterials(EntityHandle h, const Context& ctx)
+static std::optional<nlohmann::json> serializeMaterials(EntityHandle h, const Engine& ctx)
 {
     if (auto d = extractMaterials(h, ctx))
         return toJson(std::get<MaterialsDesc>(*d));
@@ -152,7 +152,7 @@ static std::optional<nlohmann::json> serializeMaterials(EntityHandle h, const Co
 }
 
 static void deserializeMaterials(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                                 const Context& ctx, World&)
+                                 const Engine& ctx, World&)
 {
     if (!j.contains("materials") || !j["materials"].is_array())
         return;
@@ -189,7 +189,7 @@ nlohmann::json toJson(const PointLight_C& c)
             {"castShadows", c.castShadows_}};
 }
 
-static std::optional<ComponentDesc> extractPointLight(EntityHandle h, const Context&)
+static std::optional<ComponentDesc> extractPointLight(EntityHandle h, const Engine&)
 {
     auto* pl = h._reg->try_get<PointLight_C>(h._entity);
     if (!pl)
@@ -197,7 +197,7 @@ static std::optional<ComponentDesc> extractPointLight(EntityHandle h, const Cont
     return *pl;
 }
 
-static std::optional<nlohmann::json> serializePointLight(EntityHandle h, const Context& ctx)
+static std::optional<nlohmann::json> serializePointLight(EntityHandle h, const Engine& ctx)
 {
     if (auto d = extractPointLight(h, ctx))
         return toJson(std::get<PointLight_C>(*d));
@@ -205,7 +205,7 @@ static std::optional<nlohmann::json> serializePointLight(EntityHandle h, const C
 }
 
 static void deserializePointLight(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                                  const Context&, World&)
+                                  const Engine&, World&)
 {
     auto* pl = h._reg->try_get<PointLight_C>(h._entity);
     if (!pl)
@@ -224,7 +224,7 @@ nlohmann::json toJson(const Camera_C& c)
     return {{"znear", c._znear}, {"zfar", c._zfar}, {"fov", c._fov}, {"active", c._active}};
 }
 
-static std::optional<ComponentDesc> extractCamera(EntityHandle h, const Context&)
+static std::optional<ComponentDesc> extractCamera(EntityHandle h, const Engine&)
 {
     auto* cam = h._reg->try_get<Camera_C>(h._entity);
     if (!cam)
@@ -232,7 +232,7 @@ static std::optional<ComponentDesc> extractCamera(EntityHandle h, const Context&
     return *cam;
 }
 
-static std::optional<nlohmann::json> serializeCamera(EntityHandle h, const Context& ctx)
+static std::optional<nlohmann::json> serializeCamera(EntityHandle h, const Engine& ctx)
 {
     if (auto d = extractCamera(h, ctx))
         return toJson(std::get<Camera_C>(*d));
@@ -240,7 +240,7 @@ static std::optional<nlohmann::json> serializeCamera(EntityHandle h, const Conte
 }
 
 static void deserializeCamera(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                              const Context&, World&)
+                              const Engine&, World&)
 {
     auto* cam = h._reg->try_get<Camera_C>(h._entity);
     if (!cam)
@@ -266,7 +266,7 @@ nlohmann::json toJson(const SkyboxDesc& d)
     };
 }
 
-static std::optional<ComponentDesc> extractSkybox(EntityHandle h, const Context& ctx)
+static std::optional<ComponentDesc> extractSkybox(EntityHandle h, const Engine& ctx)
 {
     auto* sky = h._reg->try_get<Skybox_C>(h._entity);
     if (!sky)
@@ -284,7 +284,7 @@ static std::optional<ComponentDesc> extractSkybox(EntityHandle h, const Context&
     return desc;
 }
 
-static std::optional<nlohmann::json> serializeSkybox(EntityHandle h, const Context& ctx)
+static std::optional<nlohmann::json> serializeSkybox(EntityHandle h, const Engine& ctx)
 {
     if (auto d = extractSkybox(h, ctx))
         return toJson(std::get<SkyboxDesc>(*d));
@@ -292,7 +292,7 @@ static std::optional<nlohmann::json> serializeSkybox(EntityHandle h, const Conte
 }
 
 static void deserializeSkybox(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                              const Context& ctx, World&)
+                              const Engine& ctx, World&)
 {
     auto* sky = h._reg->try_get<Skybox_C>(h._entity);
     if (!sky)

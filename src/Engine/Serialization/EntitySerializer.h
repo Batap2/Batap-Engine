@@ -9,15 +9,15 @@ namespace batap
 {
 
 struct World;
-struct Context;
+struct Engine;
 
 struct EntitySerializer
 {
-    static void save(World& world, const Context& ctx, const std::string& path);
+    static void save(World& world, const Engine& ctx, const std::string& path);
     static void save(const std::vector<EntityDesc>& entities, const std::string& path);
     
-    static void clearSceneAndLoad(World& world, const Context& ctx, const std::string& path);
-    static void instantiate(World& world, const Context& ctx, const std::string& path);
+    static void clearSceneAndLoad(World& world, const Engine& ctx, const std::string& path);
+    static void instantiate(World& world, const Engine& ctx, const std::string& path);
 };
 
 }  // namespace batap

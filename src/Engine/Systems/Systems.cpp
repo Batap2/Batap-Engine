@@ -1,6 +1,6 @@
 #include "Systems.h"
 
-#include "Context.h"
+#include "Engine.h"
 #include "FreeCamController_S.h"
 #include "Scene.h"
 #include "Transform_S.h"
@@ -13,7 +13,7 @@ namespace batap
 
 Systems::~Systems() = default;
 
-void Systems::update(float deltaTime, Context& ctx, World& world)
+void Systems::update(float deltaTime, Engine& ctx, World& world)
 {
     freecam_->update(ctx, world, deltaTime);
     _transforms->update(world.scene_->_registry, *world.instanceManager_);
@@ -21,6 +21,7 @@ void Systems::update(float deltaTime, Context& ctx, World& world)
 
 Systems::Systems()
 {
+    freecam_ = std::make_unique<FreeCamController_S>();
     _transforms = std::make_unique<Transform_S>();
 }
 }  // namespace batap

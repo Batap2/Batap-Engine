@@ -12,15 +12,15 @@
 namespace batap
 {
 
-struct Context;
+struct Engine;
 struct World;
 
 struct ComponentHandler
 {
-    using SerFn = std::optional<nlohmann::json> (*)(EntityHandle, const Context&);
-    using DeserFn = void (*)(EntityHandle, const nlohmann::json&, uint32_t version, const Context&,
+    using SerFn = std::optional<nlohmann::json> (*)(EntityHandle, const Engine&);
+    using DeserFn = void (*)(EntityHandle, const nlohmann::json&, uint32_t version, const Engine&,
                              World&);
-    using ExtractFn = std::optional<ComponentDesc> (*)(EntityHandle, const Context&);
+    using ExtractFn = std::optional<ComponentDesc> (*)(EntityHandle, const Engine&);
 
     std::string_view type;
     uint32_t currentVersion;

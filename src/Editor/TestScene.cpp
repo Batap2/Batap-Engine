@@ -31,5 +31,5 @@ TestScene::TestScene(World& world) : Scene(*world.instanceManager_)
     camC->_fov = std::numbers::pi_v<float> / 3;
 }
 
-void TestScene::update(float deltaTime, Context& ctx, World& world) {}
+void TestScene::update(float deltaTime, Engine& ctx, World& world) {}
 }  // namespace batap

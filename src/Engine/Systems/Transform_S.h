@@ -5,13 +5,13 @@
 
 #include "Components/EntityHandle.h"
 #include "Components/Transform_C.h"
-#include "Context.h"
 #include "EigenTypes.h"
 
 namespace batap
 {
 
 struct World;
+struct GPUInstanceManager;
 
 enum class Space
 {

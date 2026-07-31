@@ -1,7 +1,7 @@
 #include "AssetLoader.h"
 
 #include "AssetManager.h"
-#include "Context.h"
+#include "Engine.h"
 #include "Material.h"
 #include "Mesh.h"
 #include "Texture.h"
@@ -31,7 +31,7 @@ static std::string_view extractExtension(std::string_view path)
     return path.substr(dot + 1);
 }
 
-static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Context& ctx)
+static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Engine& ctx)
 {
     auto& assetManager = *ctx._assetManager;
     assert(!assetManager.baseDir().empty() &&
@@ -153,7 +153,7 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Co
     return AssetHandleAny{handle};
 }
 
-static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const Context& ctx,
+static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const Engine& ctx,
                                                   bool isBtex)
 {
     namespace fs = std::filesystem;
@@ -262,7 +262,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     return AssetHandleAny{handle};
 }
 
-static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, const Context& ctx)
+static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, const Engine& ctx)
 {
     namespace fs = std::filesystem;
     auto& assetManager = *ctx._assetManager;
@@ -301,7 +301,7 @@ static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, cons
     return AssetHandleAny{handle};
 }
 
-void createDefaultAssets(const Context& ctx)
+void createDefaultAssets(const Engine& ctx)
 {
     auto& assetManager = *ctx._assetManager;
     auto* rm           = assetManager.resourceManager_;
@@ -384,7 +384,7 @@ void createDefaultAssets(const Context& ctx)
     assetManager.emplace<Material>("__default_material", "__default_material", defMat);
 }
 
-std::optional<AssetHandleAny> loadAsset(std::string_view path, const Context& ctx)
+std::optional<AssetHandleAny> loadAsset(std::string_view path, const Engine& ctx)
 {
     const auto ext = extractExtension(path);
 

@@ -8,8 +8,6 @@
 
 namespace batap
 {
-struct Context;
-
 enum class Key : uint16_t
 {
     Unknown = 0,
@@ -154,8 +152,6 @@ enum class MouseButton
 
 struct InputManager
 {
-    Context* Ctx;
-
     enum class KeyState
     {
         Pressed,
@@ -200,8 +196,17 @@ struct InputManager
     void DispatchEvents();
     void ClearFrameState();
 
-    bool IsKeyDown(Key key);
-    bool IsMouseButtonDown(MouseButton button);
-    v2i GetMouseDelta();
+    // held this frame / went down this frame / went up this frame
+    bool down(Key key) const;
+    bool pressed(Key key) const;
+    bool released(Key key) const;
+
+    bool down(MouseButton button) const;
+    bool pressed(MouseButton button) const;
+    bool released(MouseButton button) const;
+
+    v2i mouseDelta() const;
+    v2i mousePos() const;
+    float wheel() const;
 };
 }  // namespace batap

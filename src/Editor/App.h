@@ -5,23 +5,26 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "IApp.h"
 #include "UI/UIPanels.h"
 #include "WindowsUtils/FileDialog.h"
 #include "World.h"
 
 namespace batap
 {
-struct Context;
+struct Engine;
 struct AssetManager;
 
 enum class AppState { SelectProject, Running };
 
-struct App : IApp
+struct App
 {
-    Context*               ctx_ = nullptr;
-    std::unique_ptr<World> world_;
-    AssetManager*          assetManager_;
+    App(Engine& engine, World& world);
+
+    void update();
+
+    Engine* ctx_ = nullptr;
+    World*   world_ = nullptr;
+    AssetManager* assetManager_ = nullptr;
 
     UIPanels uiPanels_;
 
@@ -32,10 +35,6 @@ struct App : IApp
     FileDialogMsgBus fileDialogMsgBus_;
     using FileDialogAfterJob = std::function<void(std::vector<std::string>&&)>;
     std::unordered_map<uint64_t, FileDialogAfterJob> fileDialogAfterJobs_;
-
-    void start(Context& ctx) override;
-    void update(Context& ctx) override;
-    void shutdown(Context& ctx) override;
 
     void selectProject(const std::string& dir);
     void loadRecentProjects();

@@ -11,7 +11,7 @@
 #include "Components/PointLight_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
-#include "Context.h"
+#include "Engine.h"
 #include "EigenTypes.h"
 #include "Handles.h"
 #include "Renderer/SkyIrradiance.h"
@@ -24,8 +24,6 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
-
-#pragma clang optimize off
 
 namespace batap
 {
@@ -55,7 +53,7 @@ struct PatchDesc
 {
     uint32_t _offset;
     uint32_t _size;
-    void (*fill)(Context& ctx, const entt::registry& r, entt::entity e, void* dst);
+    void (*fill)(Engine& ctx, const entt::registry& r, entt::entity e, void* dst);
 };
 
 struct PatchRange
@@ -127,7 +125,7 @@ using PointLightInstance =
 template <>
 struct InstancePatches<StaticMeshInstance>
 {
-    static void fillWorld(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    static void fillWorld(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* t = r.try_get<Transform_C>(e);
         if (!t)
@@ -135,7 +133,7 @@ struct InstancePatches<StaticMeshInstance>
         std::memcpy(dst, t->worldMatrix().data(), 16 * sizeof(float));
     }
 
-    static void fillMesh(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    static void fillMesh(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
         std::fill(std::begin(out->_triangleOffsets), std::end(out->_triangleOffsets), 0u);
@@ -153,7 +151,7 @@ struct InstancePatches<StaticMeshInstance>
             triSpan[i] = mesh->subMeshes[i].indexOffset / 3;
     }
 
-    static void fillMaterials(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    static void fillMaterials(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
         std::fill(std::begin(out->_materialIndices), std::end(out->_materialIndices), 0xFFFFFFFFu);
@@ -195,7 +193,7 @@ struct InstancePatches<StaticMeshInstance>
 template <>
 struct InstancePatches<CameraInstance>
 {
-    static void fillCamData(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    static void fillCamData(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* camC = r.try_get<Camera_C>(e);
         if (!camC)
@@ -248,7 +246,7 @@ struct InstancePatches<CameraInstance>
 template <>
 struct InstancePatches<PointLightInstance>
 {
-    static void fillTransform(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    static void fillTransform(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* transC = r.try_get<Transform_C>(e);
         auto* out = reinterpret_cast<PointLightInstance::GPUData*>(dst);
@@ -260,7 +258,7 @@ struct InstancePatches<PointLightInstance>
         }
     }
 
-    static void fillLight(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    static void fillLight(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* pLightC = r.try_get<PointLight_C>(e);
 
@@ -314,7 +312,7 @@ using SkyboxInstance = GPUInstanceBase<SkyboxGPUData, ComponentFlag::Skybox>;
 template <>
 struct InstancePatches<SkyboxInstance>
 {
-    static void fillSkyboxData(Context& ctx, const entt::registry& r, entt::entity e, void* dst)
+    static void fillSkyboxData(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* sky = r.try_get<Skybox_C>(e);
         if (!sky)

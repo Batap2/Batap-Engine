@@ -11,7 +11,7 @@ namespace batap
 {
 
 struct App;
-struct Context;
+struct Engine;
 
 struct AssetPickerPopup
 {

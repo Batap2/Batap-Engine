@@ -278,18 +278,48 @@ void InputManager::ClearFrameState()
     MouseWheelAccumulated = 0.0f;
 }
 
-bool InputManager::IsKeyDown(Key key)
+bool InputManager::down(Key key) const
 {
     return KeysDown.contains(key);
 }
 
-bool InputManager::IsMouseButtonDown(MouseButton button)
+bool InputManager::pressed(Key key) const
+{
+    return KeysPressed.contains(key);
+}
+
+bool InputManager::released(Key key) const
+{
+    return KeysReleased.contains(key);
+}
+
+bool InputManager::down(MouseButton button) const
 {
     return MouseButtonsDown[static_cast<size_t>(button)];
 }
 
-v2i InputManager::GetMouseDelta()
+bool InputManager::pressed(MouseButton button) const
+{
+    return MouseButtonsPressed[static_cast<size_t>(button)];
+}
+
+bool InputManager::released(MouseButton button) const
+{
+    return MouseButtonsReleased[static_cast<size_t>(button)];
+}
+
+v2i InputManager::mouseDelta() const
 {
     return MouseDeltaAccumulated;
+}
+
+v2i InputManager::mousePos() const
+{
+    return MousePosition;
+}
+
+float InputManager::wheel() const
+{
+    return MouseWheelAccumulated;
 }
 }  // namespace batap

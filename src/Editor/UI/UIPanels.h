@@ -11,12 +11,12 @@ namespace batap
 {
 struct World;
 struct App;
-struct Context;
+struct Engine;
 
 struct UIPanels
 {
-    void draw(World& world, App& app, Context& ctx);
-    void drawStartupScreen(App& app, Context& ctx);
+    void draw(World& world, App& app, Engine& ctx);
+    void drawStartupScreen(App& app, Engine& ctx);
 
    private:
     float panelWidth_ = 260.0f;

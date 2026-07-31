@@ -1,13 +1,13 @@
 #include "Renderer.h"
 
 #include <directx/d3d12.h>
+#include <directx/dxgiformat.h>
 #include <dxgi1_2.h>
 #include <dxgidebug.h>
 #include <wrl/client.h>
 #include "Renderer/includeDX12.h"
 
 #include <cstddef>
-#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -16,6 +16,7 @@
 #include "DebugUtils.h"
 #include "DescriptorHeapAllocator.h"
 #include "FenceManager.h"
+#include "Paths.h"
 #include "RenderGraph.h"
 #include "Renderer/EngineConfig.h"
 #include "ResourceManager.h"
@@ -77,14 +78,18 @@ void Renderer::initImgui(HWND hwnd, uint32_t clientWidth, uint32_t clientHeight)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
 
-    io.Fonts->AddFontFromFileTTF("assets/Roboto-Regular.ttf", 16.0f);
+    const std::string robotoPath =
+        resolveEngineFile("assets/Roboto-Regular.ttf", "assets/Roboto-Regular.ttf");
+    io.Fonts->AddFontFromFileTTF(robotoPath.c_str(), 16.0f);
     ImFontConfig cfg;
     cfg.MergeMode = true;
     cfg.PixelSnapH = true;
     cfg.GlyphOffset = ImVec2(0.0f, 2.0f);
 
     static const ImWchar icon_ranges[] = {ICON_MIN_MD, ICON_MAX_MD, 0};
-    io.Fonts->AddFontFromFileTTF("assets/MaterialIcons-Regular.ttf", 14.0f, &cfg, icon_ranges);
+    const std::string iconsPath =
+        resolveEngineFile("assets/MaterialIcons-Regular.ttf", "assets/MaterialIcons-Regular.ttf");
+    io.Fonts->AddFontFromFileTTF(iconsPath.c_str(), 14.0f, &cfg, icon_ranges);
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -307,9 +312,7 @@ void Renderer::resize(uint32_t w, uint32_t h)
 
 void Renderer::initPsosAndShaders()
 {
-    std::string shader_dir;
-    shader_dir = std::filesystem::current_path().filename() == "build" ? "../src/Engine/Shaders"
-                                                                       : "src/Engine/Shaders";
+    const std::string shader_dir = resolveEngineFile("shaders", "src/Engine/Shaders");
     {
         auto vs = _psoManager->compileShaderFromFile(
             toS(RN::shader_3D_VS), shader_dir + "/VertexShader.hlsl", "main", "vs_5_1");
@@ -424,7 +427,7 @@ void Renderer::initPsosAndShaders()
                 d.VS = {skyVS->_blob->GetBufferPointer(), skyVS->_blob->GetBufferSize()};
                 d.PS = {skyPS->_blob->GetBufferPointer(), skyPS->_blob->GetBufferSize()};
                 d.InputLayout = {};
-                d.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+                d.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
                 d.DepthStencilState.DepthEnable = TRUE;
                 d.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
                 d.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;

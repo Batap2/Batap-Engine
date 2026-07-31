@@ -98,6 +98,7 @@ endfunction()
 # ------------------------------------------------------------------------------
 add_subdirectory("${source_dir}/Engine")
 add_subdirectory("${source_dir}/Editor")
+add_subdirectory("${PROJECT_SOURCE_DIR}/GameExemple")
 
 silence_external_sources(Batap_Engine)
 silence_external_sources(Batap_Editor)

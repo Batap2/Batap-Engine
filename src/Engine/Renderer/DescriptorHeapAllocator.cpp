@@ -64,6 +64,8 @@ DescriptorHandle* DescriptorHeapAllocator::alloc()
             heap->GetGPUDescriptorHandleForHeapStart().ptr + idx * descriptorSize;
     }
 
+    createdDescriptorHandles[idx] = handle;
+
     return handle;
 }
 
@@ -73,8 +75,12 @@ void DescriptorHeapAllocator::free(const DescriptorHandle& desc)
 }
 void DescriptorHeapAllocator::free(UINT heapIdx)
 {
+    auto it = createdDescriptorHandles.find(heapIdx);
+    if (it == createdDescriptorHandles.end())
+        return;
+
+    delete it->second;
+    createdDescriptorHandles.erase(it);
     freeList.push(heapIdx);
-    delete createdDescriptorHandles[heapIdx];
-    createdDescriptorHandles.erase(heapIdx);
 }
 }  // namespace batap

@@ -4,7 +4,7 @@
 #include "Components/Hierarchy_C.h"
 #include "Components/Kind_C.h"
 #include "Components/Name_C.h"
-#include "Context.h"
+#include "Engine.h"
 #include "Instance/EntityFactory.h"
 #include "Scene.h"
 #include "Systems/Hierarchy_S.h"
@@ -32,7 +32,7 @@ static void collectDFS(entt::registry& reg, entt::entity e, std::vector<entt::en
         collectDFS(reg, child, order, indexMap);
 }
 
-static std::vector<EntityDesc> toEntityDescs(World& world, const Context& ctx)
+static std::vector<EntityDesc> toEntityDescs(World& world, const Engine& ctx)
 {
     auto& reg = world.scene_->_registry;
 
@@ -139,7 +139,7 @@ static void serializeEntityDescs(const std::vector<EntityDesc>& entities, const 
     f << root.dump(2);
 }
 
-void EntitySerializer::save(World& world, const Context& ctx, const std::string& path)
+void EntitySerializer::save(World& world, const Engine& ctx, const std::string& path)
 {
     save(toEntityDescs(world, ctx), path);
 }
@@ -149,7 +149,7 @@ void EntitySerializer::save(const std::vector<EntityDesc>& entities, const std::
     serializeEntityDescs(entities, path);
 }
 
-static void populateWorld(World& world, const Context& ctx, const nlohmann::json& root)
+static void populateWorld(World& world, const Engine& ctx, const nlohmann::json& root)
 {
     if (!root.contains("entities"))
         return;
@@ -223,7 +223,7 @@ static void populateWorld(World& world, const Context& ctx, const nlohmann::json
     }
 }
 
-void EntitySerializer::clearSceneAndLoad(World& world, const Context& ctx, const std::string& path)
+void EntitySerializer::clearSceneAndLoad(World& world, const Engine& ctx, const std::string& path)
 {
     std::ifstream f(path);
     if (!f.is_open())
@@ -255,7 +255,7 @@ void EntitySerializer::clearSceneAndLoad(World& world, const Context& ctx, const
     populateWorld(world, ctx, root);
 }
 
-void EntitySerializer::instantiate(World& world, const Context& ctx, const std::string& path)
+void EntitySerializer::instantiate(World& world, const Engine& ctx, const std::string& path)
 {
     std::ifstream f(path);
     if (!f.is_open())

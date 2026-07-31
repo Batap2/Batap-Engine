@@ -1,12 +1,17 @@
-// #define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
-#include "WindowsApp.h"
+#include "App.h"
+#include "Engine.h"
+#include "World.h"
 
-using namespace batap;
-
-int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
+int CALLBACK wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
 {
-    RedirectIOToConsole();
-    App app;
-    return runWindowApp(hInstance, app);
+    batap::Engine engine{{.title = "Batap Engine", .width = 1280, .height = 720}};
+    batap::World  world{engine};
+    batap::App    app{engine, world};
+
+    while (batap::Frame frame = engine.nextFrame())
+        app.update();
+
+    return 0;
 }

@@ -1,8 +1,7 @@
 #include "App.h"
 
-#include "Context.h"
+#include "Engine.h"
 #include "Importers/FileImporter.h"
-#include "Renderer/SceneRenderer.h"
 #include "TestScene.h"
 #include "UI/UITheme.h"
 #include "UI/UIPanels.h"
@@ -19,42 +18,30 @@
 namespace batap
 {
 
-void App::start(Context& ctx)
+App::App(Engine& engine, World& world)
+    : ctx_(&engine), world_(&world), assetManager_(ctx_->_assetManager.get())
 {
-    ctx_          = &ctx;
-    assetManager_ = ctx._assetManager.get();
-
     ui::ApplyTheme();
 
-    world_         = std::make_unique<World>(ctx);
-    world_->scene_ = std::make_unique<TestScene>(*world_);
+    world.scene_ = std::make_unique<TestScene>(world);
 
     loadRecentProjects();
 }
 
-void App::update(Context& ctx)
+void App::update()
 {
-    ctx.beginFrame();
-
     pumpMsgFileDialog();
 
     if (state_ == AppState::SelectProject)
     {
-        uiPanels_.drawStartupScreen(*this, ctx);
+        uiPanels_.drawStartupScreen(*this, *ctx_);
     }
     else
     {
-        uiPanels_.draw(*world_, *this, ctx);
-        world_->update(ctx);
-        ctx._sceneRenderer->setScene(
-            {&world_->scene_->_registry, world_->instanceManager_.get()});
-        ctx._sceneRenderer->uploadDirty();
+        uiPanels_.draw(*world_, *this, *ctx_);
+        world_->update();
     }
-
-    ctx.endFrame();
 }
-
-void App::shutdown(Context& /*ctx*/) {}
 
 static std::filesystem::path configPath()
 {

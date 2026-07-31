@@ -10,14 +10,14 @@ namespace batap
 {
 
 struct World;
-struct Context;
+struct Engine;
 
 struct Scene
 {
     Scene(GPUInstanceManager& instanceManager);
     virtual ~Scene() = default;
 
-    virtual void update(float deltaTime, Context& ctx, World& world) {}
+    virtual void update(float deltaTime, Engine& ctx, World& world) {}
 
     entt::registry _registry;
 

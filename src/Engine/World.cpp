@@ -1,21 +1,28 @@
 #include "World.h"
+#include <filesystem>
+#include <iostream>
 #include <memory>
 
 #include "Components/Camera_C.h"
 #include "Components/ComponentFlag.h"
-#include "Context.h"
+#include "Engine.h"
 #include "Instance/EntityFactory.h"
 #include "Instance/InstanceManager.h"
 #include "Renderer/Renderer.h"
+#include "Renderer/SceneRenderer.h"
+#include "Serialization/EntitySerializer.h"
 #include "Systems/Systems.h"
 
 namespace batap
 {
-World::World(Context& ctx)
+World::World(Engine& ctx) : ctx_(&ctx)
 {
     systems_ = std::make_unique<Systems>();
     instanceManager_ = std::make_unique<GPUInstanceManager>(ctx);
     entityFactory_ = std::make_unique<EntityFactory>(*instanceManager_);
+
+    // Empty scene, never a null one. The editor replaces it with its own subclass.
+    scene_ = std::make_unique<Scene>(*instanceManager_);
 
     // refresh camera ratio on window resize
     ctx._renderer->onResize(
@@ -32,9 +39,39 @@ World::World(Context& ctx)
 
 World::~World() = default;
 
-void World::update(Context& ctx)
+void World::update()
 {
-    scene_->update(ctx._deltaTime, ctx, *this);
-    systems_->update(ctx._deltaTime, ctx, *this);
+    scene_->update(ctx_->_deltaTime, *ctx_, *this);
+    systems_->update(ctx_->_deltaTime, *ctx_, *this);
+    ctx_->_sceneRenderer->setScene({&scene_->_registry, instanceManager_.get()});
+    ctx_->_sceneRenderer->uploadDirty();
+}
+
+bool World::loadScene(const std::string& path)
+{
+    namespace fs = std::filesystem;
+
+    // Asset paths inside a .btpl are relative to the project dir; guessing a
+    // base from the scene file's location resolves them wrong as soon as the
+    // scene lives in a subfolder.
+    const std::string& base = ctx_->_assetManager->baseDir();
+    if (base.empty())
+    {
+        std::cerr << "[World] loadScene: call Engine::setProjectDir() first.\n";
+        return false;
+    }
+
+    fs::path scenePath{path};
+    if (scenePath.is_relative())
+        scenePath = fs::path(base) / scenePath;
+
+    if (!fs::exists(scenePath))
+    {
+        std::cerr << "[World] loadScene: file not found: " << scenePath.string() << "\n";
+        return false;
+    }
+
+    EntitySerializer::clearSceneAndLoad(*this, *ctx_, scenePath.string());
+    return true;
 }
 }  // namespace batap

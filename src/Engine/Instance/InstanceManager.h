@@ -53,7 +53,7 @@ namespace batap
 
 struct FrameDirtyFlag
 {
-    std::array<ComponentFlag, FramesInFlight> _dirtyComponentsByFrame;
+    std::array<ComponentFlag, FramesInFlight> _dirtyComponentsByFrame {};
 
     void assignAll(ComponentFlag flag)
     {
@@ -240,9 +240,9 @@ struct FrameInstancePool
 // That approach would remove InstanceKind routing and simplify upload logic.
 struct GPUInstanceManager
 {
-    GPUInstanceManager(Context& ctx);
+    GPUInstanceManager(Engine& ctx);
 
-    void uploadRemainingFrameDirty(Context& ctx);
+    void uploadRemainingFrameDirty(Engine& ctx);
     void markDirty(const EntityHandle& handle, ComponentFlag componentFlag);
 
     ResourceManager& _resourceManager;

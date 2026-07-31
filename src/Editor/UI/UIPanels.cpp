@@ -2,7 +2,7 @@
 
 #include "App.h"
 #include "Assets/AssetManager.h"
-#include "Context.h"
+#include "Engine.h"
 #include "Importers/FileImporter.h"
 #include "Serialization/EntitySerializer.h"
 #include "WindowsUtils/FileDialog.h"
@@ -15,7 +15,7 @@
 namespace batap
 {
 
-void UIPanels::draw(World& world, App& app, Context& ctx)
+void UIPanels::draw(World& world, App& app, Engine& ctx)
 {
     ImGuiViewport* vp = ImGui::GetMainViewport();
 
@@ -137,7 +137,7 @@ void UIPanels::draw(World& world, App& app, Context& ctx)
     ImGui::End();
 }
 
-void UIPanels::drawStartupScreen(App& app, Context& /*ctx*/)
+void UIPanels::drawStartupScreen(App& app, Engine& /*ctx*/)
 {
     ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->Pos);
