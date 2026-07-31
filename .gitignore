@@ -1,6 +1,6 @@
 build
 .cache
 .claude
-GameExemple/*
+GameExemple/scenes/sponza
 compile_commands.json
 CMakeCache.txt
