@@ -4,6 +4,7 @@
 #include "Assets/AssetManager.h"
 #include "InputManager.h"
 #include "Platform/PlatformWindow.h"
+#include "Reflection/ComponentRegistry.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
 
@@ -32,6 +33,12 @@ float Frame::dt() const
 
 Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fpsInTitle)
 {
+    // Components self-registered at static init (BATAP_COMPONENT); field
+    // serializers arrive now. Validate the whole registry while a stack
+    // trace still points here rather than at the first load/save.
+    registerBuiltinFieldTypes();
+    ComponentRegistry::instance().validate();
+
     platformInit();
 
     window_ = platformCreateWindow(desc);

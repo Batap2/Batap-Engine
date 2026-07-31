@@ -10,9 +10,9 @@
 #include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
-#include "Components/PointLight_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
+#include "Reflection/ComponentRegistry.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
 #include "UI/AssetHolder.h"
@@ -22,18 +22,61 @@
 
 #include <imgui.h>
 #include <Eigen/Geometry>
+#include <cctype>
 #include <numbers>
 
 namespace batap
 {
+
+// "castShadows" / "pointLight" -> "Cast Shadows" / "Point Light"
+static std::string prettyLabel(const std::string& name)
+{
+    std::string out;
+    out.reserve(name.size() + 4);
+    for (char c : name)
+    {
+        if (out.empty())
+            out += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        else
+        {
+            if (std::isupper(static_cast<unsigned char>(c)))
+                out += ' ';
+            out += c;
+        }
+    }
+    return out;
+}
+
+// Registry-declared components: one collapsing group per component, one row
+// per field — no per-component editor code.
+void InspectorPanel::drawReflected(EntityHandle ent, World& world)
+{
+    for (const ComponentType& t : ComponentRegistry::instance().all())
+    {
+        void* c = t.tryGet(*ent._reg, ent._entity);
+        if (!c)
+            continue;
+
+        bool changed = false;
+        if (auto g = ui::CollapsingGroup(prettyLabel(t.name).c_str()))
+            if (auto _ = ui::BeginFields(t.name.c_str()))
+                for (const Field& f : t.fields)
+                    if (f.type->drawUI)
+                        changed |= ui::Field(prettyLabel(f.name).c_str(),
+                                             [&] { return f.type->drawUI(f.ptrIn(c), f); });
+
+        if (changed && any(t.meta.flag))
+            world.instanceManager_->markDirty(ent, t.meta.flag);
+    }
+}
 
 void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
 {
     drawTransform(ent, world);
     drawMesh(ent, app);
     drawMaterials(ent, app);
-    drawPointLight(ent, world);
     drawSkybox(ent, app);
+    drawReflected(ent, world);
 }
 
 // -----------------------------------------------------------------------------
@@ -226,31 +269,6 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
         }
         assetPicker_.draw(app);
     }
-}
-
-// -----------------------------------------------------------------------------
-
-void InspectorPanel::drawPointLight(EntityHandle ent, World& world)
-{
-    auto* plC = ent.try_get<PointLight_C>();
-    if (!plC)
-        return;
-
-    bool changed = false;
-
-    if (auto g = ui::CollapsingGroup("Point Light"))
-        if (auto _ = ui::BeginFields("pointlight"))
-        {
-            changed |= ui::FieldDragFloat3("Color", plC->color_.data(), 0.01f);
-            changed |= ui::FieldDragFloat("Intensity", &plC->intensity_, 0.1f);
-            changed |= ui::FieldDragFloat("Radius", &plC->radius_, 0.1f);
-            changed |= ui::FieldDragFloat("Falloff", &plC->falloff_, 0.01f);
-            changed |= ui::Field("Shadows",
-                                 [&] { return ImGui::Checkbox("##castSh", &plC->castShadows_); });
-        }
-
-    if (changed)
-        world.instanceManager_->markDirty(ent, ComponentFlag::PointLight);
 }
 
 // -----------------------------------------------------------------------------

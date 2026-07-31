@@ -59,6 +59,7 @@ target_compile_options(batap_warnings INTERFACE
   -Werror
   -Wno-c++98-compat
   -Wno-c++98-compat-pedantic
+  -Wno-c++20-compat
   -Wno-reserved-macro-identifier
   -Wno-nonportable-system-include-path
   -Wno-microsoft-enum-value

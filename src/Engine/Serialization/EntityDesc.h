@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Components/Camera_C.h"
-#include "Components/PointLight_C.h"
 #include "Components/Transform_C.h"
 #include "EigenTypes.h"
 
@@ -18,7 +17,7 @@ namespace batap
 // data to serializeEntityDescs() without depending on nlohmann or live ECS state.
 //
 // Component types are used directly as values (no ECS) when possible:
-//   Transform_C, PointLight_C, Camera_C — plain data, copied by value.
+//   Transform_C, Camera_C — plain data, copied by value.
 //
 // Exception: MeshDesc (path string) instead of Mesh_C (AssetHandle<Mesh>).
 // Mesh_C is an opaque handle to a GPU-loaded resource; its serializable
@@ -47,7 +46,7 @@ struct SkyboxDesc
 };
 
 using ComponentDesc =
-    std::variant<Transform_C, MeshDesc, MaterialsDesc, PointLight_C, Camera_C, SkyboxDesc>;
+    std::variant<Transform_C, MeshDesc, MaterialsDesc, Camera_C, SkyboxDesc>;
 
 struct EntityDesc
 {

@@ -9,7 +9,6 @@
 #include "Components/Camera_C.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
-#include "Components/PointLight_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "Engine.h"
@@ -178,45 +177,6 @@ static void deserializeMaterials(EntityHandle h, const nlohmann::json& j, uint32
     }
 }
 
-// --- PointLight --------------------------------------------------------------
-
-nlohmann::json toJson(const PointLight_C& c)
-{
-    return {{"color", toJson(c.color_)},
-            {"intensity", c.intensity_},
-            {"radius", c.radius_},
-            {"falloff", c.falloff_},
-            {"castShadows", c.castShadows_}};
-}
-
-static std::optional<ComponentDesc> extractPointLight(EntityHandle h, const Engine&)
-{
-    auto* pl = h._reg->try_get<PointLight_C>(h._entity);
-    if (!pl)
-        return std::nullopt;
-    return *pl;
-}
-
-static std::optional<nlohmann::json> serializePointLight(EntityHandle h, const Engine& ctx)
-{
-    if (auto d = extractPointLight(h, ctx))
-        return toJson(std::get<PointLight_C>(*d));
-    return std::nullopt;
-}
-
-static void deserializePointLight(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                                  const Engine&, World&)
-{
-    auto* pl = h._reg->try_get<PointLight_C>(h._entity);
-    if (!pl)
-        return;
-    pl->color_ = fromJsonV3f(j["color"]);
-    pl->intensity_ = j["intensity"].get<float>();
-    pl->radius_ = j["radius"].get<float>();
-    pl->falloff_ = j["falloff"].get<float>();
-    pl->castShadows_ = j["castShadows"].get<bool>();
-}
-
 // --- Camera ------------------------------------------------------------------
 
 nlohmann::json toJson(const Camera_C& c)
@@ -323,11 +283,10 @@ static void deserializeSkybox(EntityHandle h, const nlohmann::json& j, uint32_t 
 
 std::span<const ComponentHandler> getComponentHandlers()
 {
-    static const std::array<ComponentHandler, 6> handlers = {{
+    static const std::array<ComponentHandler, 5> handlers = {{
         {"transform", 1, serializeTransform, deserializeTransform, extractTransform},
         {"mesh", 1, serializeMesh, deserializeMesh, extractMesh},
         {"materials", 1, serializeMaterials, deserializeMaterials, extractMaterials},
-        {"pointLight", 1, serializePointLight, deserializePointLight, extractPointLight},
         {"camera", 1, serializeCamera, deserializeCamera, extractCamera},
         {"skybox", 1, serializeSkybox, deserializeSkybox, extractSkybox},
     }};
@@ -346,8 +305,6 @@ std::string_view componentTypeName(const ComponentDesc& d)
                 return "mesh";
             if constexpr (std::is_same_v<T, MaterialsDesc>)
                 return "materials";
-            if constexpr (std::is_same_v<T, PointLight_C>)
-                return "pointLight";
             if constexpr (std::is_same_v<T, Camera_C>)
                 return "camera";
             if constexpr (std::is_same_v<T, SkyboxDesc>)

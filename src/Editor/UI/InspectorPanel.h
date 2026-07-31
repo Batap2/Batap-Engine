@@ -19,8 +19,9 @@ struct InspectorPanel
     void drawTransform(EntityHandle ent, World& world);
     void drawMesh(EntityHandle ent, App& app);
     void drawMaterials(EntityHandle ent, App& app);
-    void drawPointLight(EntityHandle ent, World& world);
     void drawSkybox(EntityHandle ent, App& app);
+    // registry-declared components — generic, no per-component code
+    void drawReflected(EntityHandle ent, World& world);
 
     // Cache for euler rotation
     std::optional<EntityHandle> rotationEditEntity_;

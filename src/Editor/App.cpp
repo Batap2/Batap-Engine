@@ -3,6 +3,7 @@
 #include "Engine.h"
 #include "Importers/FileImporter.h"
 #include "TestScene.h"
+#include "UI/FieldUI.h"
 #include "UI/UITheme.h"
 #include "UI/UIPanels.h"
 #include "Utils/UIDGenerator.h"
@@ -22,6 +23,7 @@ App::App(Engine& engine, World& world)
     : ctx_(&engine), world_(&world), assetManager_(ctx_->_assetManager.get())
 {
     ui::ApplyTheme();
+    installFieldUI();
 
     world.scene_ = std::make_unique<TestScene>(world);
 

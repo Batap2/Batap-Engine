@@ -39,6 +39,14 @@ using m4d_rm = MatRM<double, 4, 4>;
 using quatf      = Eigen::Quaternionf;
 using quatd      = Eigen::Quaterniond;
 
+// An RGB color. Distinct type on purpose: reflection keys serialization and
+// editor widgets on the field type, so `col3 tint_;` gets a color picker
+// where `v3f offset_;` gets a drag — no per-field metadata needed.
+struct col3 : v3f
+{
+    using v3f::v3f;
+};
+
 using angleaxisf = Eigen::AngleAxisf;
 using angleaxisd = Eigen::AngleAxisd;
 
