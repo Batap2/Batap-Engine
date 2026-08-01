@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Assets/AssetHandle.h"
+#include "Reflection/ComponentRegistry.h"
 #include <Eigen/Core>
 
 namespace batap
@@ -17,4 +18,11 @@ struct Skybox_C
     float           horizonWidth_ = 0.15f;                   // largeur de la bande horizon [0.01, 1]
     float           intensity_    = 1.0f;
 };
+
+// Serialization is derived from the struct; the inspector keeps its own panel
+// for the HDRI asset picker and the mode combo, which the generic field loop
+// cannot express.
+BATAP_COMPONENT(Skybox_C, "skybox",
+                ComponentMeta{.flag = ComponentFlag::Skybox, .customEditor = true},
+                fieldMeta<&Skybox_C::horizonWidth_>({.speed = 0.01f, .min = 0.01f, .max = 1.f}));
 }  // namespace batap

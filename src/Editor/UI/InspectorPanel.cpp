@@ -53,6 +53,9 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world)
 {
     for (const ComponentType& t : ComponentRegistry::instance().all())
     {
+        if (t.meta.customEditor)  // drawn by its own panel above
+            continue;
+
         void* c = t.tryGet(*ent._reg, ent._entity);
         if (!c)
             continue;

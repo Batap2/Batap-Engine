@@ -31,6 +31,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace batap
@@ -73,6 +74,18 @@ FieldType& fieldTypeSlot()
     return slot;
 }
 
+// The slot a field of type M is served by. An enum borrows its underlying
+// integer's slot — same bytes, same json — so enum fields need no
+// registration of their own. Everything else uses its own slot.
+template <class M>
+FieldType* fieldTypeFor()
+{
+    if constexpr (std::is_enum_v<M>)
+        return &fieldTypeSlot<std::underlying_type_t<M>>();
+    else
+        return &fieldTypeSlot<M>();
+}
+
 struct Field
 {
     std::string name;  // json key / UI label ("castShadows")
@@ -99,6 +112,10 @@ struct ComponentMeta
     // Post-load hook for components whose state isn't just its fields
     // (e.g. Transform must rebuild matrices through Transform_S).
     void (*onDeserialized)(EntityHandle, World&) = nullptr;
+    // The editor draws this component with its own panel (asset pickers and
+    // the like), so the generic field loop skips it. Serialization is still
+    // fully reflected — this only concerns the inspector.
+    bool customEditor = false;
 };
 
 struct ComponentType
@@ -194,7 +211,7 @@ bool registerComponent(std::string_view name, Extra&&... extra)
     {
         (t.fields.push_back(Field{
              std::string(refl::fieldName<T, I>()),
-             &fieldTypeSlot<refl::FieldTypeAt<I, T>>(),
+             fieldTypeFor<refl::FieldTypeAt<I, T>>(),
              size_t(reinterpret_cast<const char*>(std::addressof(std::get<I>(refs))) -
                     reinterpret_cast<const char*>(std::addressof(probe))),
              FieldMeta{}}),

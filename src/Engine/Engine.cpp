@@ -5,6 +5,7 @@
 #include "InputManager.h"
 #include "Platform/PlatformWindow.h"
 #include "Reflection/ComponentRegistry.h"
+#include "Serialization/AssetFieldTypes.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
 
@@ -37,6 +38,7 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
     // serializers arrive now. Validate the whole registry while a stack
     // trace still points here rather than at the first load/save.
     registerBuiltinFieldTypes();
+    registerAssetFieldTypes();
     ComponentRegistry::instance().validate();
 
     platformInit();

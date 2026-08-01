@@ -38,7 +38,5 @@ std::string_view componentTypeName(const ComponentDesc& d);
 nlohmann::json toJson(const Transform_C& c);
 nlohmann::json toJson(const MeshDesc& d);
 nlohmann::json toJson(const MaterialsDesc& d);
-nlohmann::json toJson(const Camera_C& c);
-nlohmann::json toJson(const SkyboxDesc& d);
 
 }  // namespace batap

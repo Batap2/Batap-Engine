@@ -5,11 +5,8 @@
 #include "Assets/AssetManager.h"
 #include "Assets/Material.h"
 #include "Assets/Mesh.h"
-#include "Assets/Texture.h"
-#include "Components/Camera_C.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
-#include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "Engine.h"
 #include "Systems/Systems.h"
@@ -177,118 +174,14 @@ static void deserializeMaterials(EntityHandle h, const nlohmann::json& j, uint32
     }
 }
 
-// --- Camera ------------------------------------------------------------------
-
-nlohmann::json toJson(const Camera_C& c)
-{
-    return {{"znear", c._znear}, {"zfar", c._zfar}, {"fov", c._fov}, {"active", c._active}};
-}
-
-static std::optional<ComponentDesc> extractCamera(EntityHandle h, const Engine&)
-{
-    auto* cam = h._reg->try_get<Camera_C>(h._entity);
-    if (!cam)
-        return std::nullopt;
-    return *cam;
-}
-
-static std::optional<nlohmann::json> serializeCamera(EntityHandle h, const Engine& ctx)
-{
-    if (auto d = extractCamera(h, ctx))
-        return toJson(std::get<Camera_C>(*d));
-    return std::nullopt;
-}
-
-static void deserializeCamera(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                              const Engine&, World&)
-{
-    auto* cam = h._reg->try_get<Camera_C>(h._entity);
-    if (!cam)
-        return;
-    cam->_znear = j["znear"].get<float>();
-    cam->_zfar = j["zfar"].get<float>();
-    cam->_fov = j["fov"].get<float>();
-    cam->_active = j["active"].get<bool>();
-}
-
-// --- Skybox ------------------------------------------------------------------
-
-nlohmann::json toJson(const SkyboxDesc& d)
-{
-    return {
-        {"hdri", d.hdriPath.empty() ? nlohmann::json(nullptr) : nlohmann::json(d.hdriPath)},
-        {"mode", d.mode},
-        {"color1", toJson(d.color1)},
-        {"color2", toJson(d.color2)},
-        {"color3", toJson(d.color3)},
-        {"horizonWidth", d.horizonWidth},
-        {"intensity", d.intensity},
-    };
-}
-
-static std::optional<ComponentDesc> extractSkybox(EntityHandle h, const Engine& ctx)
-{
-    auto* sky = h._reg->try_get<Skybox_C>(h._entity);
-    if (!sky)
-        return std::nullopt;
-    SkyboxDesc desc;
-    desc.mode = static_cast<uint32_t>(sky->mode_);
-    desc.color1 = sky->color1_;
-    desc.color2 = sky->color2_;
-    desc.color3 = sky->color3_;
-    desc.horizonWidth = sky->horizonWidth_;
-    desc.intensity    = sky->intensity_;
-    if (sky->hdri_)
-        if (auto* p = ctx._assetManager->getPath<Texture>(sky->hdri_))
-            desc.hdriPath = *p;
-    return desc;
-}
-
-static std::optional<nlohmann::json> serializeSkybox(EntityHandle h, const Engine& ctx)
-{
-    if (auto d = extractSkybox(h, ctx))
-        return toJson(std::get<SkyboxDesc>(*d));
-    return std::nullopt;
-}
-
-static void deserializeSkybox(EntityHandle h, const nlohmann::json& j, uint32_t /*version*/,
-                              const Engine& ctx, World&)
-{
-    auto* sky = h._reg->try_get<Skybox_C>(h._entity);
-    if (!sky)
-        return;
-    sky->mode_ = static_cast<Skybox_C::Mode>(j.value("mode", 0u));
-    sky->horizonWidth_ = j.value("horizonWidth", 0.15f);
-    sky->intensity_    = j.value("intensity", 1.0f);
-    if (j.contains("color1"))
-        sky->color1_ = fromJsonV3f(j["color1"]);
-    if (j.contains("color2"))
-        sky->color2_ = fromJsonV3f(j["color2"]);
-    if (j.contains("color3"))
-        sky->color3_ = fromJsonV3f(j["color3"]);
-    if (j.contains("hdri") && !j["hdri"].is_null())
-    {
-        const std::string path = j["hdri"].get<std::string>();
-        auto handle = ctx._assetManager->getHandle<Texture>(path);
-        if (!handle)
-            if (auto any = loadAsset(path, ctx))
-                if (auto* th = std::get_if<TextureHandle>(&*any))
-                    handle = *th;
-        if (handle)
-            sky->hdri_ = *handle;
-    }
-}
-
 // --- Handler table -----------------------------------------------------------
 
 std::span<const ComponentHandler> getComponentHandlers()
 {
-    static const std::array<ComponentHandler, 5> handlers = {{
+    static const std::array<ComponentHandler, 3> handlers = {{
         {"transform", 1, serializeTransform, deserializeTransform, extractTransform},
         {"mesh", 1, serializeMesh, deserializeMesh, extractMesh},
         {"materials", 1, serializeMaterials, deserializeMaterials, extractMaterials},
-        {"camera", 1, serializeCamera, deserializeCamera, extractCamera},
-        {"skybox", 1, serializeSkybox, deserializeSkybox, extractSkybox},
     }};
     return handlers;
 }
@@ -305,10 +198,6 @@ std::string_view componentTypeName(const ComponentDesc& d)
                 return "mesh";
             if constexpr (std::is_same_v<T, MaterialsDesc>)
                 return "materials";
-            if constexpr (std::is_same_v<T, Camera_C>)
-                return "camera";
-            if constexpr (std::is_same_v<T, SkyboxDesc>)
-                return "skybox";
             return "";
         },
         d);

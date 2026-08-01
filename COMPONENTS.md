@@ -218,9 +218,10 @@ partout pour la même raison, c'est le signe qu'un type sémantique manque.
   nommée au boot. Le point d'extension existe (`FieldType`), on l'implémentera
   au premier composant qui en a réellement besoin. Verdict : bon choix —
   construire ça sans cas d'usage réel, c'est du code spéculatif intestable.
-- **`Transform_C` et `Materials_C`** restent dans l'ancien système. Forcer
-  `Transform_C` dans le moule (champs private, matrices à reconstruire via
-  `Transform_S`) aurait demandé plus de mécanisme que ça n'en économise.
+- **`Transform_C`, `Mesh_C` et `Materials_C`** restent dans l'ancien système.
+  Forcer `Transform_C` dans le moule (champs private, matrices à reconstruire
+  via `Transform_S`) aurait demandé plus de mécanisme que ça n'en économise ;
+  `Mesh_C` et `Materials_C` sont produits par l'importeur sans ECS vivant.
   Verdict : bon choix.
 - **Portabilité compilateur** : clang-cl uniquement pour les noms de champs.
   Verdict : bon choix *tant que* le projet est mono-compilo — c'est le cas.
@@ -232,9 +233,34 @@ partout pour la même raison, c'est le signe qu'un type sémantique manque.
 | Composant | État |
 |---|---|
 | `PointLight_C` | ✅ migré, vérifié en runtime (valeurs de scène chargées) |
-| `Camera_C` | à migrer (aggregate simple, prochaine étape) |
-| `Mesh_C`, `Skybox_C` | à migrer après ajout de `AssetHandle<T>` comme type de champ |
-| `Transform_C`, `Materials_C` | restent à la main (assumé) |
+| `Camera_C` | ✅ migré — gagne au passage un panneau d'inspecteur qu'il n'avait pas |
+| `Skybox_C` | ✅ sérialisation migrée ; l'inspecteur garde son panneau (`customEditor`) |
+| `Mesh_C`, `Materials_C` | restent à la main — l'importeur les construit **sans ECS** |
+| `Transform_C` | reste à la main (champs private, passe par `Transform_S`) |
 
-Quand tout est migré : `ComponentSerializers.cpp` (~300 lignes), le variant
-`ComponentDesc` et les `drawX` de l'inspecteur disparaissent.
+Les trois handlers restants ne sont pas de la dette : `MeshDecomposer` fabrique
+des `EntityDesc` hors de tout registry entt, et la réflexion a besoin d'un
+composant vivant (`tryGet`). Les supprimer suppose d'abord de faire écrire
+l'importeur dans un monde temporaire — un autre chantier, pas un oubli.
+
+Ce que la migration a ajouté au passage :
+
+- `fieldName` retire aussi un `_` **en tête** (`_znear` → `"znear"`), la
+  convention du projet étant mixte. Les clés json sur disque sont inchangées,
+  et des `static_assert` dans `Camera_C.h` le figent.
+- Les **enums** n'ont rien à enregistrer : `fieldTypeFor<M>()` leur rend le slot
+  de leur type sous-jacent (mêmes octets, même json).
+- `Serialization/AssetFieldTypes.cpp` enregistre `AssetHandle<T>` pour Mesh,
+  Texture et Material : le handle est écrit comme le chemin que l'AssetManager
+  lui connaît, et rechargé à la lecture. C'est le seul type de champ qui se sert
+  du `const Engine&` de la signature.
+- `ComponentMeta::customEditor` : la sérialisation est réfléchie, mais
+  l'inspecteur laisse le panneau écrit à la main dessiner le composant. C'est
+  ce qui permet de migrer un composant dont l'UI a besoin d'un asset picker,
+  sans attendre que `drawUI` sache en faire un.
+
+**Limite connue de `drawUI`** : sa signature est `(void* field, const Field&)`
+— aucun contexte. Un champ `AssetHandle<T>` se sérialise donc tout seul mais ne
+peut pas s'éditer (il faudrait l'AssetManager pour peupler un picker). C'est
+exactement pourquoi `Skybox_C` garde son panneau. Le jour où on veut supprimer
+les derniers `drawX`, c'est cette signature qu'il faut élargir.
