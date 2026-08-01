@@ -68,7 +68,7 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world)
                         changed |= ui::Field(prettyLabel(f.name).c_str(),
                                              [&] { return f.type->drawUI(f.ptrIn(c), f); });
 
-        if (changed && any(t.meta.flag))
+        if (changed)
             world.instanceManager_->markDirty(ent, t.meta.flag);
     }
 }

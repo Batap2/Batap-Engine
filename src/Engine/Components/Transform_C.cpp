@@ -1,6 +1,44 @@
 #include "Transform_C.h"
 
+#include "Reflection/ComponentRegistry.h"
+#include "Systems/Systems.h"
+#include "Systems/Transform_S.h"
+#include "World.h"
+
 namespace batap {
+
+    void Transform_C::afterDeserialize(EntityHandle h, World& world)
+    {
+        auto* tc = h._reg->try_get<Transform_C>(h._entity);
+        if (!tc)
+            return;
+        tc->_localDirty = true;
+        world.systems_->_transforms->markDirty(h);
+    }
+
+    void Transform_C::registerReflection()
+    {
+        // Keys kept as pos/rot/scale — they are what scenes on disk use.
+        addComponentType<Transform_C>(
+            "transform",
+            ComponentMeta{.flag = ComponentFlag::Transform,
+                          .onDeserialized = &Transform_C::afterDeserialize,
+                          .customEditor = true},
+            {field<&Transform_C::_localPosition>("pos"),
+             field<&Transform_C::_localRotation>("rot"),
+             field<&Transform_C::_localScale>("scale")});
+    }
+
+    namespace
+    {
+    // Registration at static init is the point: silence -Wglobal-constructors.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+    [[maybe_unused]] const bool _batapTransformRegistered =
+        (Transform_C::registerReflection(), true);
+#pragma clang diagnostic pop
+    }  // namespace
+
     void Transform_C::setLocalFromTransform(const transform& t)
     {
         _localPosition = t.translation();

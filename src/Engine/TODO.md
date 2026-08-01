@@ -41,7 +41,7 @@ Fix : allocateur de staging par blocs, recyclés derrière une fence. Design ide
 | DX4 | | Pas de `IsKeyPressed`/`IsKeyReleased`/`GetMouseWheel` — les sets existent mais sans accesseur | `InputManager.h:203` |
 | DX5 | | `get<T>()` est `noexcept` **et** lève → `std::terminate`. `emplace<T>()` ne transmet pas d'arguments. Pas de surcharges `const` | `Components/EntityHandle.h:28,46` |
 | DX6 | | `Transform_S::setParent` déclaré, jamais défini → erreur de link. C'est celui avec `keepWorld` | `Systems/Transform_S.h:39` |
-| DX7 | | Trois conventions de nommage. `_meshInstancesPool` et `pointLightInstancePool_` à 7 lignes d'écart | partout |
+| DX7 | | Trois conventions de nommage (`_prefixe`, `suffixe_`, nu). Ex. `Mesh_C::_mesh` et `Skybox_C::hdri_`. Les pools d'instances, eux, ne sont plus nommés du tout — ils s'adressent par type | partout |
 | DX8 | | `v3f`/`m4f`/`quatf`/**`transform`** dans le namespace global | `EigenTypes.h` |
 | DX9 | | Ni `#pragma once` ni `namespace batap` — seul composant dans ce cas | `Components/FreeCamController_C.h` |
 | DX10 | | Jeu d'exemple avec du **code** — `GameExemple/` n'a que des assets | `GameExemple/` |

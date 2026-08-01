@@ -98,17 +98,17 @@ void SceneRenderer::initRenderPasses()
                     return;
 
                 auto camSRVHandle = r->_resourceManager->getFrameView(
-                    instanceM->_cameraInstancesPool._instancePoolViewHandle)[frameIndex];
+                    instanceM->pool<CameraInstance>()._instancePoolViewHandle)[frameIndex];
                 auto meshesSRVHandle = r->_resourceManager->getFrameView(
-                    instanceM->_meshInstancesPool._instancePoolViewHandle)[frameIndex];
+                    instanceM->pool<StaticMeshInstance>()._instancePoolViewHandle)[frameIndex];
                 auto pointLightSRVHandle = r->_resourceManager->getFrameView(
-                    instanceM->pointLightInstancePool_._instancePoolViewHandle)[frameIndex];
+                    instanceM->pool<PointLightInstance>()._instancePoolViewHandle)[frameIndex];
 
                 auto matSrvHandle = _ctx._assetManager->getGPUArena<Material>()->srvHandle();
                 auto& matSrv      = rM->getStaticView(matSrvHandle);
 
                 auto skyboxSRVHandle = rM->getFrameView(
-                    instanceM->skyboxInstancePool_._instancePoolViewHandle)[frameIndex];
+                    instanceM->pool<SkyboxInstance>()._instancePoolViewHandle)[frameIndex];
 
                 camSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
                 meshesSRVHandle._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -128,11 +128,11 @@ void SceneRenderer::initRenderPasses()
                     5, rM->_descriptorHeapAllocator_CBV_SRV_UAV.heap->GetGPUDescriptorHandleForHeapStart());
                 cmdList->SetGraphicsRootDescriptorTable(6, skyboxSRVHandle._descriptorHandle->gpuHandle);
 
-                auto camID = instanceM->_cameraInstancesPool.getGPUIndex(cam);
+                auto camID = instanceM->pool<CameraInstance>().getGPUIndex(cam);
                 if (!camID.valid())
                     return;
 
-                uint32_t bindedConstants[3] = {camID, 0, static_cast<uint32_t>(instanceM->pointLightInstancePool_.size())};
+                uint32_t bindedConstants[3] = {camID, 0, static_cast<uint32_t>(instanceM->pool<PointLightInstance>().size())};
 
                 auto meshes = reg->view<Mesh_C>();
                 meshes.each(
@@ -144,7 +144,7 @@ void SceneRenderer::initRenderPasses()
 
                         cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-                        auto id = instanceM->_meshInstancesPool.getGPUIndex({reg, e});
+                        auto id = instanceM->pool<StaticMeshInstance>().getGPUIndex({reg, e});
                         if (!id.valid())
                             return;
 
@@ -218,7 +218,7 @@ void SceneRenderer::initRenderPasses()
 
                 // Slot 0 : camera SRV
                 auto camSRV = rM->getFrameView(
-                    instanceM->_cameraInstancesPool._instancePoolViewHandle)[frameIndex];
+                    instanceM->pool<CameraInstance>()._instancePoolViewHandle)[frameIndex];
                 camSRV._resource->transitionTo(cmdList, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
                 cmdList->SetGraphicsRootDescriptorTable(0, camSRV._descriptorHandle->gpuHandle);
 
@@ -229,7 +229,7 @@ void SceneRenderer::initRenderPasses()
                     { if (c._active) cam = {reg, e}; });
                 if (!cam.valid())
                     return;
-                auto camID = instanceM->_cameraInstancesPool.getGPUIndex(cam);
+                auto camID = instanceM->pool<CameraInstance>().getGPUIndex(cam);
                 if (!camID.valid())
                     return;
 

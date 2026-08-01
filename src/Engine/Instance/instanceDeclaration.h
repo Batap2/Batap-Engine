@@ -1,6 +1,5 @@
 #pragma once
 
-#include <assimp/code/AssetLib/Collada/ColladaHelper.h>
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "Assets/Texture.h"
@@ -14,6 +13,7 @@
 #include "Engine.h"
 #include "EigenTypes.h"
 #include "Handles.h"
+#include "Instance/EntityKind.h"
 #include "Renderer/SkyIrradiance.h"
 
 #include "entt/entt.hpp"
@@ -27,6 +27,11 @@
 
 namespace batap
 {
+
+template <class... Ts>
+struct TypeList
+{
+};
 
 template <size_t SmallN>
 struct TempBytes
@@ -66,11 +71,20 @@ struct InstancePatches;
 
 // ----------- Instances :
 
+// Everything the engine needs to know about one GPU-mirrored aspect: its
+// buffer layout, which components invalidate it, and how to size and name its
+// pool. Deriving instead of aliasing is what lets a type add InitialCapacity
+// and PoolName, so a pool is fully described where its instance is declared —
+// GPUInstanceManager just holds one per declared kind.
 template <class GPUDataT, ComponentFlag UsedFlags>
 struct GPUInstanceBase
 {
     static constexpr ComponentFlag UsedComposents = UsedFlags;
     using GPUData = GPUDataT;
+
+    // Overridable by the derived instance type.
+    static constexpr size_t InitialCapacity = 1;
+    static constexpr const char* PoolName = "FrameInstancePool";
 
     static_assert(std::is_trivially_copyable_v<GPUDataT>);
     static_assert((sizeof(GPUDataT) % 4) == 0);
@@ -86,9 +100,13 @@ struct StaticMeshGPUData
 };
 static_assert(sizeof(StaticMeshGPUData) == 144);
 
-using StaticMeshInstance =
-    GPUInstanceBase<StaticMeshGPUData,
-                    ComponentFlag::Mesh | ComponentFlag::Transform | ComponentFlag::Materials>;
+struct StaticMeshInstance
+    : GPUInstanceBase<StaticMeshGPUData,
+                      ComponentFlag::Mesh | ComponentFlag::Transform | ComponentFlag::Materials>
+{
+    static constexpr size_t InitialCapacity = 256;
+    static constexpr const char* PoolName = "StaticMeshInstancePool";
+};
 
 struct CameraGPUData
 {
@@ -104,8 +122,12 @@ struct CameraGPUData
     float _pad;
 };
 
-using CameraInstance =
-    GPUInstanceBase<CameraGPUData, ComponentFlag::Transform | ComponentFlag::Camera>;
+struct CameraInstance
+    : GPUInstanceBase<CameraGPUData, ComponentFlag::Transform | ComponentFlag::Camera>
+{
+    static constexpr size_t InitialCapacity = 1;
+    static constexpr const char* PoolName = "CameraInstancePool";
+};
 
 struct PointLightGPUData
 {
@@ -117,8 +139,12 @@ struct PointLightGPUData
     uint32_t castShadows_;
 };
 
-using PointLightInstance =
-    GPUInstanceBase<PointLightGPUData, ComponentFlag::Transform | ComponentFlag::PointLight>;
+struct PointLightInstance
+    : GPUInstanceBase<PointLightGPUData, ComponentFlag::Transform | ComponentFlag::PointLight>
+{
+    static constexpr size_t InitialCapacity = 32;
+    static constexpr const char* PoolName = "pointLightInstancePool";
+};
 
 // ----------- InstancePatches : How to get components data
 
@@ -307,7 +333,11 @@ struct SkyboxGPUData
     // Total : 144 + 16 + 48 + 16 = 224 bytes
 };
 
-using SkyboxInstance = GPUInstanceBase<SkyboxGPUData, ComponentFlag::Skybox>;
+struct SkyboxInstance : GPUInstanceBase<SkyboxGPUData, ComponentFlag::Skybox>
+{
+    static constexpr size_t InitialCapacity = 1;
+    static constexpr const char* PoolName = "SkyboxInstancePool";
+};
 
 template <>
 struct InstancePatches<SkyboxInstance>
@@ -365,5 +395,25 @@ struct InstancePatches<SkyboxInstance>
         return t;
     }();
 };
+
+// ----------- GPUKinds : which entity kinds own a GPU instance ---------------
+
+// The one list the plumbing reads. Adding a line here gives the new kind its
+// pool, its upload pass, its dirty routing and its teardown — GPUInstanceManager
+// and EntityFactory iterate this, they never name a pool.
+//
+// A kind absent from the list (EntityKind::Empty) simply has no GPU mirror;
+// every visit over it is a no-op rather than a case to remember.
+template <EntityKind K, class Instance>
+struct GPUKind
+{
+    static constexpr EntityKind kind = K;
+    using InstanceType = Instance;
+};
+
+using GPUKinds = TypeList<GPUKind<EntityKind::StaticMesh, StaticMeshInstance>,
+                          GPUKind<EntityKind::Camera, CameraInstance>,
+                          GPUKind<EntityKind::PointLight, PointLightInstance>,
+                          GPUKind<EntityKind::Skybox, SkyboxInstance>>;
 
 }  // namespace batap

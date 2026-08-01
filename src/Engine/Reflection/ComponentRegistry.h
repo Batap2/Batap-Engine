@@ -17,8 +17,14 @@
 //       ComponentMeta{.flag = ComponentFlag::Enemy},          // GPU mirror
 //       fieldMeta<&Enemy_C::aggro_>({.min = 0.f, .max = 1.f}));  // bounded
 //
-// Non-aggregate components (Transform_C) are registered by hand: build a
-// ComponentType yourself and call ComponentRegistry::add().
+// The declaration is also where the GPU dirty flag lives, for everyone:
+// Scene::write<T> and the field loops read it back through componentFlag<T>(),
+// so there is nothing to specialize elsewhere and a CPU-only component simply
+// leaves it at None.
+//
+// Components the aggregate reflection cannot read — Transform_C, whose fields
+// are private — register themselves from a .cpp: build the field list with
+// field<&T::member>("key") and hand it to addComponentType<T>().
 
 #include "Components/ComponentFlag.h"
 #include "Components/EntityHandle.h"
@@ -32,6 +38,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace batap
@@ -118,6 +125,23 @@ struct ComponentMeta
     bool customEditor = false;
 };
 
+// The GPU dirty flag T declared, or None when T is CPU-only or not a
+// registered component at all. Same mutable-slot pattern as fieldTypeSlot:
+// filled at static init by addComponentType, so BATAP_COMPONENT stays the one
+// and only place a component names its flag.
+template <class T>
+ComponentFlag& componentFlagSlot()
+{
+    static ComponentFlag flag = ComponentFlag::None;
+    return flag;
+}
+
+template <class T>
+ComponentFlag componentFlag()
+{
+    return componentFlagSlot<T>();
+}
+
 struct ComponentType
 {
     std::string name;  // json "type" value ("pointLight")
@@ -146,8 +170,8 @@ struct ComponentRegistry
     std::vector<ComponentType> types_;
 };
 
-// Fills toJson/fromJson for float, bool, int32_t, uint32_t, std::string,
-// v3f, quatf. Called once by the Engine ctor.
+// Fills toJson/fromJson for float, bool, int32_t, uint32_t, uint8_t,
+// std::string, v3f, quatf. Called once by the Engine ctor.
 void registerBuiltinFieldTypes();
 
 // --- per-field override (only exceptions are written) --------------------
@@ -178,6 +202,42 @@ FieldOverride fieldMeta(FieldMeta m)
     const auto offset = size_t(reinterpret_cast<const char*>(std::addressof(probe.*Member)) -
                                reinterpret_cast<const char*>(std::addressof(probe)));
     return {offset, m};
+}
+
+// --- manual registration (non-aggregates) --------------------------------
+
+// One field of a hand-registered component: the json key is spelled out
+// instead of being derived from the member name. Same offset probe as
+// fieldMeta. Instantiate it from inside the owning class when the member is
+// private — access is checked where the template argument is written, which
+// is how Transform_C reaches its own fields.
+template <auto Member>
+Field field(std::string name, FieldMeta m = {})
+{
+    using C = typename detail::MemberPtr<decltype(Member)>::Owner;
+    using M = typename detail::MemberPtr<decltype(Member)>::Type;
+    C probe{};
+    const auto offset = size_t(reinterpret_cast<const char*>(std::addressof(probe.*Member)) -
+                               reinterpret_cast<const char*>(std::addressof(probe)));
+    return Field{std::move(name), fieldTypeFor<M>(), offset, m};
+}
+
+// Type-erased entt access for T. Shared by both registration paths.
+template <class T>
+void addComponentType(std::string_view name, ComponentMeta meta, std::vector<Field> fields)
+{
+    ComponentType t;
+    t.name = name;
+    t.meta = meta;
+    t.fields = std::move(fields);
+
+    t.tryGet = [](entt::registry& r, entt::entity e) -> void* { return r.try_get<T>(e); };
+    t.getOrEmplace = [](entt::registry& r, entt::entity e) -> void*
+    { return &r.get_or_emplace<T>(e); };
+    t.remove = [](entt::registry& r, entt::entity e) { r.remove<T>(e); };
+
+    componentFlagSlot<T>() = meta.flag;
+    ComponentRegistry::instance().add(std::move(t));
 }
 
 // --- registration ------------------------------------------------------------
@@ -223,12 +283,7 @@ bool registerComponent(std::string_view name, Extra&&... extra)
             if (f.offset == o.offset)
                 f.meta = o.meta;
 
-    t.tryGet = [](entt::registry& r, entt::entity e) -> void* { return r.try_get<T>(e); };
-    t.getOrEmplace = [](entt::registry& r, entt::entity e) -> void*
-    { return &r.get_or_emplace<T>(e); };
-    t.remove = [](entt::registry& r, entt::entity e) { r.remove<T>(e); };
-
-    ComponentRegistry::instance().add(std::move(t));
+    addComponentType<T>(name, t.meta, std::move(t.fields));
     return true;
 }
 

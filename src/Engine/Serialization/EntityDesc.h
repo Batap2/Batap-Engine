@@ -11,19 +11,20 @@
 namespace batap
 {
 
-// Intermediate representation of an entity and its components.
-// Used by importers (e.g. MeshDecomposer) and EntitySerializer::save() to pass
-// data to serializeEntityDescs() without depending on nlohmann or live ECS state.
+// Intermediate representation of an entity and its components, for importers
+// (e.g. MeshDecomposer) that build a scene offline: no ECS registry to read
+// components from, and no AssetManager holding the assets they just wrote, so
+// no AssetHandle exists to serialize.
 //
-// Component types are used directly as values (no ECS) when possible:
+// Component types are used directly as values when possible:
 //   Transform_C — plain data, copied by value.
 //
-// Exception: MeshDesc (path string) instead of Mesh_C (AssetHandle<Mesh>).
-// Mesh_C is an opaque handle to a GPU-loaded resource; its serializable
-// representation is a path that lives in the AssetManager — not the handle.
+// Exception: MeshDesc / MaterialsDesc carry paths instead of Mesh_C and
+// Materials_C, whose handles are indices into a live AssetManager arena.
 //
-// Only what the importer builds lives here. Components the importer never
-// produces (camera, skybox, pointLight) go through the reflection registry.
+// Saving a running scene does NOT come through here — EntitySerializer::save
+// walks the component registry directly. This path exists only because the
+// importer has no ECS to walk.
 
 struct MeshDesc
 {

@@ -100,6 +100,7 @@ void registerBuiltinFieldTypes()
     setPlain<bool>("bool");
     setPlain<int32_t>("int32_t");
     setPlain<uint32_t>("uint32_t");
+    setPlain<uint8_t>("uint8_t");
     setPlain<std::string>("std::string");
 
     setVec3<v3f>("v3f");

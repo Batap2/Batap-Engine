@@ -73,34 +73,22 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
         }
     };
 
-    upload(_meshInstancesPool);
-    upload(_cameraInstancesPool);
-    upload(pointLightInstancePool_);
-    upload(skyboxInstancePool_);
+    pools_.forEach(upload);
 }
 
 void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag componentFlag)
 {
+    // A CPU-only component has no GPU mirror to invalidate. Bailing out here
+    // rather than at each call site is what lets generic code — the field
+    // loops, Scene::write<T> — mark anything without knowing whether it is
+    // mirrored, and avoids allocating a dirty entry for nothing.
+    if (!any(componentFlag))
+        return;
+
     auto* k = handle._reg->try_get<Kind_C>(handle._entity);
     if (!k)
         return;
 
-    switch (k->value)
-    {
-        case EntityKind::StaticMesh:
-            _meshInstancesPool.dirtyComponents_[handle].setAll(componentFlag);
-            break;
-        case EntityKind::Camera:
-            _cameraInstancesPool.dirtyComponents_[handle].setAll(componentFlag);
-            break;
-        case EntityKind::PointLight:
-            pointLightInstancePool_.dirtyComponents_[handle].setAll(componentFlag);
-            break;
-        case EntityKind::Skybox:
-            skyboxInstancePool_.dirtyComponents_[handle].setAll(componentFlag);
-            break;
-        case EntityKind::Empty:
-            break;
-    }
+    visitPool(k->value, [&](auto& pool) { pool.dirtyComponents_[handle].setAll(componentFlag); });
 }
 }  // namespace batap

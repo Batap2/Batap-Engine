@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Components/ComponentToFlag.h"
 #include "Components/EntityHandle.h"
 #include "Instance/InstanceManager.h"
+#include "Reflection/ComponentRegistry.h"
 
 #include <entt/entt.hpp>
 
@@ -40,9 +40,11 @@ struct Scene
 
         void commit() noexcept
         {
+            // componentFlag<T>() is None for a CPU-only component, and
+            // markDirty ignores it — writing to one is not an error.
             if (ptr && instanceManager)
             {
-                instanceManager->markDirty(EntityHandle(r, e), ComponentToFlag<T>::value);
+                instanceManager->markDirty(EntityHandle(r, e), componentFlag<T>());
             }
             // avoid double commit
             ptr = nullptr;

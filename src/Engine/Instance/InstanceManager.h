@@ -17,7 +17,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace batap
@@ -98,12 +100,13 @@ struct FrameInstancePool
     static_assert(HasUsedComponents<type>);
     using InstanceType = type;
 
-    FrameInstancePool(ResourceManager& rm, size_t initCapacity,
-                      const std::string& name = "FrameInstancePool", bool dense = false)
-        : _resourceManager(rm)
+    // Size and name come from the instance type, so a pool carries no
+    // configuration of its own and can be built from the resource manager
+    // alone — which is what lets the whole set live in a tuple.
+    explicit FrameInstancePool(ResourceManager& rm) : _resourceManager(rm)
     {
-        gpuPoolCapacity_ = initCapacity;
-        _name = name;
+        gpuPoolCapacity_ = type::InitialCapacity;
+        _name = type::PoolName;
         createGPUResourcesAndViews();
     }
 
@@ -234,6 +237,51 @@ struct FrameInstancePool
     }
 };
 
+// One pool per entry of GPUKinds, addressed by instance type rather than by
+// member name. Everything generic — uploading, dirty routing, teardown — goes
+// through forEach/visit, so a kind added to GPUKinds is picked up by all three
+// without a line to write here.
+template <class KindList>
+struct InstancePools;
+
+template <class... Ks>
+struct InstancePools<TypeList<Ks...>>
+{
+    // Repeats rm once per kind so the tuple builds each pool in place — no
+    // move, and no arity to keep in sync by hand.
+    template <class>
+    static ResourceManager& sameRm(ResourceManager& rm)
+    {
+        return rm;
+    }
+
+    explicit InstancePools(ResourceManager& rm) : pools_{sameRm<Ks>(rm)...} {}
+
+    std::tuple<FrameInstancePool<typename Ks::InstanceType>...> pools_;
+
+    template <class Instance>
+    FrameInstancePool<Instance>& get()
+    {
+        return std::get<FrameInstancePool<Instance>>(pools_);
+    }
+
+    template <class F>
+    void forEach(F&& f)
+    {
+        std::apply([&](auto&... p) { (f(p), ...); }, pools_);
+    }
+
+    // Runs f on the pool backing `kind`. A kind with no GPU instance —
+    // EntityKind::Empty — matches nothing and the call is a no-op, which is
+    // why callers need neither a switch nor a default case.
+    template <class F>
+    void visit(EntityKind kind, F&& f)
+    {
+        std::apply([&](auto&... p)
+                   { ((Ks::kind == kind ? static_cast<void>(f(p)) : void()), ...); }, pools_);
+    }
+};
+
 // Current design assumes one rendering aspect (InstanceKind) per entity.
 // If one day we need true multi-aspect rendering (e.g. Mesh + Light on the same entity),
 // we can switch to a per-component GPU pool model.
@@ -245,20 +293,21 @@ struct GPUInstanceManager
     void uploadRemainingFrameDirty(Engine& ctx);
     void markDirty(const EntityHandle& handle, ComponentFlag componentFlag);
 
+    // Named access when you know the instance type; kind-driven access when
+    // you only have a Kind_C. Neither one names a pool member.
+    template <class Instance>
+    FrameInstancePool<Instance>& pool()
+    {
+        return pools_.get<Instance>();
+    }
+
+    template <class F>
+    void visitPool(EntityKind kind, F&& f)
+    {
+        pools_.visit(kind, std::forward<F>(f));
+    }
+
     ResourceManager& _resourceManager;
-    FrameInstancePool<StaticMeshInstance> _meshInstancesPool{_resourceManager, 256,
-                                                             "StaticMeshInstancePool"};
-
-    FrameInstancePool<CameraInstance> _cameraInstancesPool{_resourceManager, 1,
-                                                           "CameraInstancePool"};
-
-    FrameInstancePool<PointLightInstance> pointLightInstancePool_{_resourceManager, 32,
-                                                                  "pointLightInstancePool"};
-
-    FrameInstancePool<SkyboxInstance> skyboxInstancePool_{_resourceManager, 1,
-                                                          "SkyboxInstancePool"};
-
-    // prochaine fois que t'ajoutes un type d'instance note toutes les étapes pour voir ce qu'on
-    // peut améliorer là le processus est trop long
+    InstancePools<GPUKinds> pools_{_resourceManager};
 };
 }  // namespace batap

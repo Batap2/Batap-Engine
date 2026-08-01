@@ -7,9 +7,20 @@ namespace batap
 {
 
 struct Transform_S;
+struct World;
 
 struct Transform_C
 {
+    // The fields below are private, so the reflection registry cannot
+    // discover them: registration is spelled out by hand from inside the
+    // class, where the member pointers are accessible. Defined in the .cpp.
+    static void registerReflection();
+
+    // Deserialization writes the local pos/rot/scale straight through the
+    // field offsets, bypassing Transform_S — this puts the entity back in the
+    // dirty list so the local and world matrices get rebuilt.
+    static void afterDeserialize(EntityHandle h, World& world);
+
     const transform& local() const { return _local; }
     const transform& world() const { return _world; }
     m4f worldMatrix() const { return _world.matrix(); }

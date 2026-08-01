@@ -44,7 +44,7 @@ EntityHandle EntityFactory::createStaticMesh(entt::registry& reg, std::optional<
     reg.emplace<Transform_C>(entity);
     EntityHandle h{&reg, entity};
 
-    auto iid = _instanceManager._meshInstancesPool.insert(h);
+    auto iid = _instanceManager.pool<StaticMeshInstance>().insert(h);
 
     reg.emplace<Kind_C>(entity, EntityKind::StaticMesh);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
@@ -62,7 +62,7 @@ EntityHandle EntityFactory::createCamera(entt::registry& reg)
     reg.emplace<Transform_C>(entity);
     EntityHandle h{&reg, entity};
 
-    auto iid = _instanceManager._cameraInstancesPool.insert(h);
+    auto iid = _instanceManager.pool<CameraInstance>().insert(h);
     reg.emplace<Kind_C>(entity, EntityKind::Camera);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
     rInstance._instanceID = iid;
@@ -80,7 +80,7 @@ EntityHandle EntityFactory::createPointLight(entt::registry& reg)
     reg.emplace<Transform_C>(entity);
     EntityHandle h{&reg, entity};
 
-    auto iid = _instanceManager.pointLightInstancePool_.insert(h);
+    auto iid = _instanceManager.pool<PointLightInstance>().insert(h);
     reg.emplace<Kind_C>(entity, EntityKind::PointLight);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
     rInstance._instanceID = iid;
@@ -96,7 +96,7 @@ EntityHandle EntityFactory::createSkybox(entt::registry& reg)
     reg.emplace<Kind_C>(entity, EntityKind::Skybox);
     EntityHandle h{&reg, entity};
 
-    auto iid = _instanceManager.skyboxInstancePool_.insert(h);
+    auto iid = _instanceManager.pool<SkyboxInstance>().insert(h);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
     rInstance._instanceID = iid;
 
@@ -120,25 +120,7 @@ void EntityFactory::destroy(EntityHandle h)
     Hierarchy_S::detach(h);
 
     if (auto* k = reg.try_get<Kind_C>(h._entity))
-    {
-        switch (k->value)
-        {
-            case EntityKind::StaticMesh:
-                _instanceManager._meshInstancesPool.remove(h);
-                break;
-            case EntityKind::Camera:
-                _instanceManager._cameraInstancesPool.remove(h);
-                break;
-            case EntityKind::PointLight:
-                _instanceManager.pointLightInstancePool_.remove(h);
-                break;
-            case EntityKind::Skybox:
-                _instanceManager.skyboxInstancePool_.remove(h);
-                break;
-            case EntityKind::Empty:
-                break;
-        }
-    }
+        _instanceManager.visitPool(k->value, [&](auto& pool) { pool.remove(h); });
 
     reg.destroy(h._entity);
 }
