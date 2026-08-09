@@ -1,71 +1,138 @@
-# Objectifs — rendre le moteur utilisable pour faire un jeu
+# Objectifs
 
-**Le test** : `testgame/`, un tir sur cibles. Bouger, tirer, toucher, score.
-
-Cible CMake séparée (`Batap_TestGame`), à la racine et non dans `src/` : c'est un *consommateur* du moteur, pas une partie du produit. Il ne voit que les includes `PUBLIC` de `Batap_Engine`, jamais `src/Editor` — donc s'il lui manque quelque chose, il ne peut pas tricher. Pas de branche : le jeu doit compiler en permanence, sinon il ne détecte plus rien.
-
-Arène construite en code. C'est lui qui valide chaque objectif — si le jeu se tape sans lire les internes du moteur, c'est gagné.
-
-Les bugs du moteur (ring d'upload, shutdown, etc.) restent dans `TODO.md`. Piste séparée.
+Feuille de route issue de la revue d'architecture (août 2026).
+Fil conducteur : réduire ce qu'un dev doit toucher pour ajouter un composant,
+et faire du composant de jeu un citoyen de première classe partout
+(éditeur, sérialisation, play mode, hot reload). Tout repose sur le même
+investissement déjà en place : la réflexion (`BATAP_COMPONENT` + `ComponentRegistry`).
 
 ---
 
-## Étape 1 — le jeu de test peut exister
+## 1. Hygiène immédiate (quelques heures, aucun risque)
 
-Rien ne se fait avant. Un exe de jeu doit ouvrir une fenêtre, et ce code est dans `Editor/`, qui est un exe.
+- [ ] **Header interop C++/HLSL** — `InstanceData` existe en 3 copies synchronisées
+      à la main (`StaticMeshGPUData` C++, `VertexShader.hlsl`, `PixelShader.hlsl`).
+      Un seul header partagé (`#ifdef __cplusplus` pour `float4x4` ↔ `float[16]`),
+      inclus par le C++ et les shaders. C'est le seul vrai risque de corruption
+      silencieuse identifié. Règles à écrire dans le header : structs de données
+      uniquement (jamais de bindings — `register()` reste dans les shaders),
+      padding explicite, pas de `float3` nu, `static_assert` sizeof côté C++,
+      convention matricielle documentée. Ce sous-ensemble a le même layout en
+      D3D12 et en Vulkan → le header survivra tel quel à un port.
+- [ ] **Migration FXC → DXC** — `Shaders.cpp` utilise `D3DCompileFromFile` (legacy :
+      SM 5.x max, pas de HLSL 2021, pas de SPIR-V). Passer à `IDxcCompiler3` :
+      mécanique, mêmes sources HLSL. Préalable au point suivant, au hot reload
+      shaders (§5) et à tout port Vulkan (DXC = le chemin HLSL → SPIR-V).
+- [ ] **Validation des layouts par réflexion shader** — au chargement d'un shader,
+      comparer le layout reflété (`IDxcUtils::CreateReflection` : offset/taille de
+      chaque champ d'`InstanceData`) avec `offsetof`/`sizeof` C++. Mismatch → erreur
+      franche au démarrage nommant le champ. Complète le header interop : le header
+      garantit les *sources*, la réflexion vérifie le *binaire chargé* (cache
+      périmé, oubli de rebuild, futur hot reload). ~50 lignes. Design : logique de
+      comparaison écrite contre une représentation neutre (`{name, offset, size}`
+      par champ), remplie par un extracteur par backend — DXC/DXIL aujourd'hui,
+      SPIRV-Reflect le jour de Vulkan (les offsets sont des décorations
+      obligatoires du SPIR-V : la capacité est garantie, seul le lecteur change).
+- [ ] **Round-trip des composants inconnus** dans `EntitySerializer` — aujourd'hui
+      `if (!ct) continue;` au load + save reflété = un composant non enregistré
+      dans le binaire est **silencieusement détruit** à la sauvegarde. Conserver
+      le blob JSON tel quel et le réémettre. Protège aussi entre versions du moteur.
+- [ ] **Supprimer `RenderInstance_C`** — écrit dans chaque factory, jamais lu,
+      et de toute façon périmé dès qu'un swap-remove déplace l'entité dans le pool.
+- [ ] **`GPUInstanceID` par défaut = invalide** — défaut actuel `value = 0` mais
+      `valid()` teste contre `uint32_max` : un ID défaut pointe le slot 0. Initialiser à max.
 
-1. **Couche plateforme dans le moteur.** Déplacer `Editor/WindowsApp.cpp` → `Engine/Platform/Win32/`. Pas de SDL — c'est du déplacement de code qui marche déjà. Un `Window` + une boucle, et un constructeur qui impose l'ordre `renderer->init()` puis `ctx.init()` au lieu de l'espérer.
-2. **`testgame/`** — cible exe, linke `Batap_Engine`, ouvre une fenêtre, affiche un cube. C'est le premier consommateur du moteur qui n'est pas l'éditeur.
+## 2. Simplification du pipeline composant (1-2 jours)
 
-## Étape 2 — l'API dont le tir a besoin
+Objectif final : ajouter un composant GPU-visible = le header du composant,
+un bloc compact dans `instanceDeclaration.h` (struct interop + un `fill` + une
+ligne de déclaration), un bit de `ComponentFlag`. Trois fichiers, zéro plomberie.
 
-3. **Input** : `pressed()`, `released()`, `wheel()`. Les données existent (`KeysPressed`/`KeysReleased`), il manque les accesseurs.
-4. **`Transform_S`** : `worldPos()`, `forward()`, `right()`, `up()`. Le calcul existe déjà dans `fillCamData`, il n'est pas exposé. `pos()` est locale.
-5. **Services atteignables depuis `World`** : `w.transforms()`, `w.input()`, `w.assets()`. Fini `world.systems_->_transforms->`.
-6. **`spawnMesh(path)`** + `loadAsset<T>()` typé. Un appel qui charge l'asset, crée l'entité et câble `Kind_C` + pool + `Materials_C`.
-7. **Dirty automatique à la construction** (hooks entt `on_construct`/`on_destroy`) + `write<T>()` pour la mutation. Supprime le no-op silencieux — le bug qu'on a trouvé dans ton propre `TestScene`.
+- [ ] **Patches partiels → un `fill()` unique par instance** — les structs GPU font
+      40-224 octets : ré-uploader la struct entière coûte des miettes de bande
+      passante et supprime `PatchDesc`/`PatchRange`/`byBit` + le risque de
+      désynchronisation offset/layout. Moins de petits `CopyBufferRegion` en prime.
+- [ ] **Pools peuplés par hooks entt** (`on_construct`/`on_destroy` par composant
+      miroir) — la présence du composant *devient* l'appartenance au pool.
+      Supprime le câblage manuel des factories (aujourd'hui un `emplace<Mesh_C>`
+      hors factory = entité jamais rendue, silencieusement).
+- [ ] **Kind dérivé des composants** — `markDirty` route par
+      `(pool.usedFlags & flag) && pool.contains(handle)` au lieu de `Kind_C`;
+      `destroy` fait un `forEach` (remove est déjà no-op si absent). `EntityKind`,
+      `Kind_C`, `kindName()` et le switch `if (kind == "...")` du load disparaissent.
+      Le load devient : créer l'entité, appliquer les composants reflétés, fin.
+      (Le modèle single-aspect par entité est conservé — assemblage par hiérarchie ;
+      un assert dans le hook « déjà dans un autre pool » garantit l'invariant.)
+- [ ] **Factories → spawnables data-driven** — `createStaticMesh` etc. deviennent
+      des listes de composants (nom affiché + composants à emplacer). Le menu de
+      `ScenePanel` boucle dessus comme l'inspecteur boucle sur `ComponentRegistry::all()`.
+- [ ] **Règle officielle : un composant est un agrégat trivially copyable** —
+      `static_assert` à l'enregistrement. C'est la contrainte qui rend possibles
+      à la fois les pools GPU simples et le hot reload memcpy (§5). Payée une fois.
+- [ ] `ComponentFlag` reste manuel (une ligne d'enum) — l'auto-dériver coûterait
+      la constexpr-ness (`UsedComposents`, tables) pour un gain nul.
 
-## Étape 3 — le gameplay
+## 3. Éditeur en bibliothèque (le modèle Unity/UE, version statique)
 
-8. **`raycast(origin, dir, maxDist)`** → `RayHit{entity, position, normal, distance}`. `Bbox.hpp` existe et n'est pas utilisé.
-9. **`debug().line(a, b, color)`** — une passe de lignes. Seul morceau renderer. Sans ça, écrire du gameplay se fait à l'aveugle.
-10. **Le jeu** : déplacement, tir au clic, cibles touchées qui disparaissent et réapparaissent, score à l'écran.
+Problème résolu : le `ComponentRegistry` vit par binaire ; l'éditeur ne connaît
+pas les composants du jeu → perte de données (mitigée par le round-trip du §1,
+réglée pour de bon ici).
+
+- [ ] **`src/Editor` → lib `Batap_Editor`** avec un point d'entrée `runEditor(cfg)`.
+- [ ] **L'éditeur standalone** redevient un exe trivial (main de 3 lignes).
+- [ ] **Chaque jeu déclare une cible `MyGame_Editor`** : `editor_main.cpp` qui
+      inclut `GameComponents.h` (header agrégateur, par convention) + `runEditor()`.
+      L'init statique enregistre les composants du jeu dans le binaire éditeur :
+      inspecteur, menu add-component et sérialisation marchent nativement,
+      zéro schéma, zéro manifeste.
+
+## 4. Play / Stop (modèle snapshot, à la Unity)
+
+- [ ] **Interface `Game { init(World&); update(World&, Frame&); }`** — sortir la
+      logique du `main()` du jeu pour que l'éditeur puisse la piloter. Le `main()`
+      du jeu devient : boucle moteur + `game.update()`. C'est le seul vrai chantier.
+- [ ] **Play** : `save(world)` → buffer mémoire ; les systèmes du jeu tickent.
+      **Stop** : clear registry + pools GPU → `load(buffer)`.
+- [ ] Vider/remapper la sélection éditeur au Stop (les `EntityHandle` meurent).
+- [ ] **Bouton « Run » en process séparé** (~20 lignes : scène temp + spawn du jeu) —
+      un jeu qui crashe n'emporte pas l'éditeur. Complémentaire, pas concurrent.
+
+## 5. Hot reload
+
+Ordre : shaders d'abord (indépendant, petit), code ensuite (réutilise §4).
+
+- [ ] **Shaders** : watch mtime sur le dossier shaders + recompilation/rebind.
+      Pattern hôte du template Odin directement transposable. S'appuie sur DXC +
+      la validation par réflexion (§1) : un shader rechargé avec un layout
+      incompatible est rejeté avec une erreur claire au lieu de corrompre le rendu.
+- [ ] **Jeu en DLL** + boucle hôte : copie de la DLL avant chargement (verrou
+      fichier Windows), watch mtime, versionnage `game_{n}.dll`, swap de la table
+      de fonctions. Ré-enregistrement propre du `ComponentRegistry` au reload
+      (ses function pointers pointent dans la DLL).
+- [ ] **Préservation d'état par snapshot binaire + hash de layout** — PAS de JSON,
+      PAS de handoff de pointeur brut (pattern Odin : garde des pointeurs vers la
+      vieille DLL, interdit de la décharger, casse si une struct change) :
+      - snapshot binaire par pool (memcpy — composants trivially copyable, cf. §2) ;
+      - au reload, hash du layout par type (champs : nom+type+offset, tout est
+        dans le registry) ;
+      - type inchangé → restore memcpy ; type modifié → migration champ-par-champ
+        (le mécanisme de désérialisation existant), payée seulement par ce type.
+      Coût dominé par le link de la DLL (~50-100 ms), indépendant de la taille de
+      la scène. Les assets/GPU vivent côté hôte : jamais rechargés.
+- [ ] entt à travers la frontière DLL : type ids stables (`ENTT_STANDARD_CPP`).
+- [ ] Règle côté jeu : pas d'état statique dans la DLL (tout état vit dans le World).
 
 ---
 
-## Décisions prises
+## Notes / vigilance (pas des tâches)
 
-| Décision | Pourquoi |
-|---|---|
-| `EntityHandle` ne change pas (hors bugs DX5) | c'est une clé de `emhash8::HashMap` dans les 3 maps des pools GPU — doit rester 16 o et hashable |
-| Pas de transform sur toute entité | `createSkybox`/`createEmpty` n'en ont pas, et `Transform_S` no-op silencieusement. Une API qui prétend le contraire fabrique des bugs muets |
-| Services sur `World`, pas de curseur `Entity` | 80 % du confort pour ~0 surface d'API. Un `Entity` fat peut s'ajouter par-dessus plus tard sans rien casser |
-| Syntaxe cible : systèmes libres sur requêtes + `write<T>()` | c'est l'état de l'art ECS (Bevy, flecs), et `reg.view<A,B>().each()` t'y met déjà à 80 %. Ton `WriteProxy` est le `Mut<T>` de Bevy |
-| Jeu de test dans le dépôt, template plus tard | le test garde le moteur honnête ; le template prouve le chemin « je télécharge et j'utilise ». `FETCHCONTENT_SOURCE_DIR_BATAP` permet d'itérer sur les deux à la fois |
-| Arène en code | ne demande rien de neuf. Charger un `.btpl` quand tu voudras tester ce chemin |
-
-## Hors périmètre
-
-DX12/Vulkan, SDL, relogeabilité, dépôt template, éditeur (gizmo, picking, Play/Stop). Aucun effet sur le jeu de test.
-
-## objectif de syntaxe pour lancer le moteur — ATTEINT (voir GameExemple/main.cpp)
-int main()
-{
-    batap::Engine engine{{.title = "My Game", .width = 1280, .height = 720}};
-    batap::World  world{engine};              // construit AVEC le moteur, possédé PAR le jeu
-    world.loadScene("arena.btpl");
-
-    while (batap::Frame frame = engine.nextFrame())
-    {
-        if (frame.input().pressed(Key::Space))
-            shoot(world, frame.dt());
-
-        world.update();   // LA ligne de simulation — la sauter = pause
-    }
-}
-
-Décision : `Frame` ne connaît pas `World`. ~Frame ne garantit que l'invariant moteur
-(present + clear input). La simulation est explicite dans la boucle : le moteur ne
-touche jamais au contenu, et pause/timescale/timestep fixe se grefferont sur cette
-ligne sans toucher Frame. Oublier world.update() = scène figée mais présentée
-(défaillance visible), pas un hang.
+- **IDs GPU instables** (swap-remove dans les pools) : correct aujourd'hui, mais
+  dès que quelque chose côté GPU persiste un index entre frames (culling GPU-driven,
+  historique TAA, picking différé), il faudra des slots stables + free-list.
+- Le triple-buffering des instance buffers est assumé (choix simplicité/sécurité).
+- Composants avec `std::string`/`std::vector` : basculent dans le chemin migration
+  du hot reload même à layout constant — à éviter par design (handles + valeurs plates).
+- La réflexion shader ouvre deux chantiers pour plus tard : générer les root
+  signatures / descriptor layouts depuis les shaders au lieu de les câbler à la
+  main (quasi obligatoire pour Vulkan), et l'UI matériaux auto-générée depuis les
+  cbuffers (même philosophie que `BATAP_COMPONENT` : source de vérité unique).
