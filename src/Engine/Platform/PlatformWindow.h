@@ -23,6 +23,18 @@ void platformShowWindow(void* nativeHandle);
 
 void platformSetWindowTitle(void* nativeHandle, const std::string& title);
 
+// PAS le handle de fenêtre (ça, c'est le retour de platformCreateWindow) :
+// l'objet sur lequel le renderer crée sa surface d'affichage (VkSurfaceKHR).
+// Windows : le HWND lui-même (les deux rôles coïncident).
+// macOS   : la CAMetalLayer* posée dans la fenêtre (≠ la NSWindow).
+void* platformSurfaceHandle(void* nativeHandle);
+
+// Backend plateforme d'ImGui (imgui_impl_osx / imgui_impl_win32) — appelé par
+// le renderer, qui possède le cycle de vie ImGui mais pas les types natifs.
+void platformImGuiInit(void* nativeHandle);
+void platformImGuiNewFrame(void* nativeHandle);
+void platformImGuiShutdown();
+
 // False once the window asked to close.
 bool platformPumpMessages();
 

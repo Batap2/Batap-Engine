@@ -21,6 +21,12 @@ struct WindowDesc
     uint32_t    width  = 1280;
     uint32_t    height = 720;
     bool        fpsInTitle = false;
+
+    // Fenêtre composée avec alpha par pixel (le bureau se voit là où la frame
+    // a un alpha < 1 — clear compris). Pour les outils/overlays uniquement :
+    // une fenêtre transparente ne peut jamais obtenir le scanout direct, le
+    // compositeur de l'OS reste dans la boucle à chaque frame.
+    bool        transparent = false;
 };
 
 // The destructor ends the frame (input clear + present). Simulation stays in

@@ -1,45 +1,53 @@
 {
-  "componentVersions": {
-    "materials": 1,
-    "mesh": 1,
-    "transform": 1
-  },
-  "entities": [
+ "componentVersions": {
+  "materials": 1,
+  "mesh": 1,
+  "transform": 1
+ },
+ "entities": [
+  {
+   "components": [
     {
-      "components": [
-        {
-          "pos": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "rot": [
-            0.0,
-            0.0,
-            0.0,
-            1.0
-          ],
-          "scale": [
-            1.0,
-            1.0,
-            1.0
-          ],
-          "type": "transform"
-        },
-        {
-          "path": "scenes/Cornel/assets/3d/cornel/Torus.bmesh",
-          "type": "mesh"
-        },
-        {
-          "materials": [
-            "scenes/Cornel/assets/3d/cornel/Material.001.bmat"
-          ],
-          "type": "materials"
-        }
-      ],
-      "kind": "mesh",
-      "name": "Torus",
-      "parent": null
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rot": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "type": "transform"
+    },
+    {
+     "type": "mesh",
+     "mesh": "scenes/Cornel/assets/3d/cornel/Torus.bmesh"
+    },
+    {
+     "type": "materials",
+     "slots": [
+      "scenes/Cornel/assets/3d/cornel/Material.001.bmat",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "count": 1
     }
-  ]
+   ],
+   "kind": "mesh",
+   "name": "Torus",
+   "parent": null
+  }
+ ]
 }

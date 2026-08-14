@@ -1,192 +1,243 @@
 {
-  "componentVersions": {
-    "camera": 1,
-    "materials": 1,
-    "mesh": 1,
-    "pointLight": 1,
-    "transform": 1
-  },
-  "entities": [
+ "componentVersions": {
+  "camera": 1,
+  "materials": 1,
+  "mesh": 1,
+  "pointLight": 1,
+  "transform": 1,
+  "skybox": 1
+ },
+ "entities": [
+  {
+   "components": [
     {
-      "components": [
-        {
-          "pos": [
-            0.0,
-            50.0,
-            0.0
-          ],
-          "rot": [
-            0.0,
-            0.0,
-            0.0,
-            1.0
-          ],
-          "scale": [
-            1.0,
-            1.0,
-            1.0
-          ],
-          "type": "transform"
-        },
-        {
-          "castShadows": false,
-          "color": [
-            1.0,
-            1.0,
-            1.0
-          ],
-          "falloff": 1.0,
-          "intensity": 2.0999999046325684,
-          "radius": 1000.0,
-          "type": "pointLight"
-        }
-      ],
-      "kind": "pointLight",
-      "name": "PointLight",
-      "parent": null
+     "pos": [
+      0.0,
+      50.0,
+      0.0
+     ],
+     "rot": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "type": "transform"
     },
     {
-      "components": [
-        {
-          "pos": [
-            -35.38666915893555,
-            -2.667938232421875,
-            -24.48461151123047
-          ],
-          "rot": [
-            -0.7071068286895752,
-            0.0,
-            0.0,
-            0.7071067094802856
-          ],
-          "scale": [
-            45.05279541015625,
-            45.05279541015625,
-            45.05279541015625
-          ],
-          "type": "transform"
-        },
-        {
-          "path": "scenes/Cornel/assets/3d/cornel/Torus.bmesh",
-          "type": "mesh"
-        },
-        {
-          "materials": [
-            "scenes/Cornel/assets/3d/cornel/Material.001.bmat"
-          ],
-          "type": "materials"
-        }
-      ],
-      "kind": "mesh",
-      "name": "Torus",
-      "parent": null
-    },
-    {
-      "components": [
-        {
-          "pos": [
-            -34.73248291015625,
-            35.090126037597656,
-            39.748477935791016
-          ],
-          "rot": [
-            -0.6615457534790039,
-            0.24971449375152588,
-            0.24971452355384827,
-            0.6615456342697144
-          ],
-          "scale": [
-            30.775156021118164,
-            18.25288200378418,
-            39.64851379394531
-          ],
-          "type": "transform"
-        },
-        {
-          "path": "scenes/Cornel/assets/3d/cornel/Cube.001.bmesh",
-          "type": "mesh"
-        },
-        {
-          "materials": [
-            "scenes/Cornel/assets/3d/cornel/Material.bmat"
-          ],
-          "type": "materials"
-        }
-      ],
-      "kind": "mesh",
-      "name": "Cube.001",
-      "parent": null
-    },
-    {
-      "components": [
-        {
-          "pos": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "rot": [
-            -0.7071068286895752,
-            0.0,
-            0.0,
-            0.7071067094802856
-          ],
-          "scale": [
-            100.0,
-            100.0,
-            100.0
-          ],
-          "type": "transform"
-        },
-        {
-          "path": "scenes/Cornel/assets/3d/cornel/Cube.bmesh",
-          "type": "mesh"
-        },
-        {
-          "materials": [
-            "scenes/Cornel/assets/3d/cornel/M_white.bmat",
-            "scenes/Cornel/assets/3d/cornel/M_red.bmat",
-            "scenes/Cornel/assets/3d/cornel/M_green.bmat"
-          ],
-          "type": "materials"
-        }
-      ],
-      "kind": "mesh",
-      "name": "Cube",
-      "parent": null
-    },
-    {
-      "components": [
-        {
-          "pos": [
-            39.56640625,
-            31.107742309570313,
-            -39.90608596801758
-          ],
-          "rot": [
-            0.002150163287296891,
-            0.9028021693229675,
-            -0.004514068830758333,
-            0.4300271272659302
-          ],
-          "scale": [
-            1.0,
-            1.0,
-            1.0
-          ],
-          "type": "transform"
-        },
-        {
-          "active": true,
-          "fov": 1.0471975803375244,
-          "type": "camera",
-          "zfar": 1000.0,
-          "znear": 0.10000000149011612
-        }
-      ],
-      "kind": "camera",
-      "name": "Camera",
-      "parent": null
+     "castShadows": false,
+     "color": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "falloff": 1.0,
+     "intensity": 2.0999999046325684,
+     "radius": 1000.0,
+     "type": "pointLight"
     }
-  ]
+   ],
+   "kind": "pointLight",
+   "name": "PointLight",
+   "parent": null
+  },
+  {
+   "components": [
+    {
+     "pos": [
+      -35.38666915893555,
+      -2.667938232421875,
+      -24.48461151123047
+     ],
+     "rot": [
+      -0.7071068286895752,
+      0.0,
+      0.0,
+      0.7071067094802856
+     ],
+     "scale": [
+      45.05279541015625,
+      45.05279541015625,
+      45.05279541015625
+     ],
+     "type": "transform"
+    },
+    {
+     "type": "mesh",
+     "mesh": "scenes/Cornel/assets/3d/cornel/Torus.bmesh"
+    },
+    {
+     "type": "materials",
+     "slots": [
+      "scenes/Cornel/assets/3d/cornel/Material.001.bmat",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "count": 1
+    }
+   ],
+   "kind": "mesh",
+   "name": "Torus",
+   "parent": null
+  },
+  {
+   "components": [
+    {
+     "pos": [
+      -34.73248291015625,
+      35.090126037597656,
+      39.748477935791016
+     ],
+     "rot": [
+      -0.6615457534790039,
+      0.24971449375152588,
+      0.24971452355384827,
+      0.6615456342697144
+     ],
+     "scale": [
+      30.775156021118164,
+      18.25288200378418,
+      39.64851379394531
+     ],
+     "type": "transform"
+    },
+    {
+     "type": "mesh",
+     "mesh": "scenes/Cornel/assets/3d/cornel/Cube.001.bmesh"
+    },
+    {
+     "type": "materials",
+     "slots": [
+      "scenes/Cornel/assets/3d/cornel/Material.bmat",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "count": 1
+    }
+   ],
+   "kind": "mesh",
+   "name": "Cube.001",
+   "parent": null
+  },
+  {
+   "components": [
+    {
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rot": [
+      -0.7071068286895752,
+      0.0,
+      0.0,
+      0.7071067094802856
+     ],
+     "scale": [
+      100.0,
+      100.0,
+      100.0
+     ],
+     "type": "transform"
+    },
+    {
+     "type": "mesh",
+     "mesh": "scenes/Cornel/assets/3d/cornel/Cube.bmesh"
+    },
+    {
+     "type": "materials",
+     "slots": [
+      "scenes/Cornel/assets/3d/cornel/M_white.bmat",
+      "scenes/Cornel/assets/3d/cornel/M_red.bmat",
+      "scenes/Cornel/assets/3d/cornel/M_green.bmat",
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "count": 3
+    }
+   ],
+   "kind": "mesh",
+   "name": "Cube",
+   "parent": null
+  },
+  {
+   "components": [
+    {
+     "pos": [
+      39.56640625,
+      31.107742309570312,
+      -39.90608596801758
+     ],
+     "rot": [
+      0.002150163287296891,
+      0.9028021693229675,
+      -0.004514068830758333,
+      0.4300271272659302
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "type": "transform"
+    },
+    {
+     "active": true,
+     "fov": 1.0471975803375244,
+     "type": "camera",
+     "zfar": 1000.0,
+     "znear": 0.10000000149011612
+    }
+   ],
+   "kind": "camera",
+   "name": "Camera",
+   "parent": null
+  },
+  {
+   "components": [
+    {
+     "type": "skybox",
+     "mode": 2,
+     "color1": [
+      0.25,
+      0.45,
+      0.85
+     ],
+     "color2": [
+      0.85,
+      0.9,
+      1.0
+     ],
+     "color3": [
+      0.25,
+      0.2,
+      0.15
+     ],
+     "horizonWidth": 0.15,
+     "intensity": 1.0
+    }
+   ],
+   "kind": "skybox",
+   "name": "Sky",
+   "parent": null
+  }
+ ]
 }

@@ -1,3 +1,10 @@
+// Modèle de binding Vulkan (docs/vulkan.md §10) :
+//   set 0 = bindless global (sampler s0, textures t4[])
+//   set 1 = données de frame (storage buffers)
+//   push constants = indices du draw courant
+// Changement vs DX12 : une seule sortie couleur — le normalRT (SV_Target1)
+// était écrit mais jamais lu par aucune passe.
+
 struct CameraData
 {
     float4x4 _view;
@@ -8,17 +15,14 @@ struct CameraData
     float3 _fwd;   float _pad;
 };
 
-StructuredBuffer<CameraData> CameraInstancebuffer : register(t0);
+[[vk::binding(0, 1)]] StructuredBuffer<CameraData> CameraInstancebuffer : register(t0);
 
 struct InstanceData
 {
     float4x4 _world;              // 64 bytes
     uint     _materialIndices[8]; // 32 bytes
-    uint     _triangleOffsets[8]; // 32 bytes
-    uint     _subMeshCount;       //  4 bytes
-    uint     _pad[3];             // 12 bytes
 };
-StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
+[[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
 
 struct PointLight
 {
@@ -29,7 +33,7 @@ struct PointLight
     float falloff_;
     bool castShadows_;
 };
-StructuredBuffer<PointLight> PointLightBuffer : register(t2);
+[[vk::binding(2, 1)]] StructuredBuffer<PointLight> PointLightBuffer : register(t2);
 
 struct MaterialData
 {
@@ -43,14 +47,16 @@ struct MaterialData
     uint   metallicTexIdx;
     uint   _pad;
 };
-StructuredBuffer<MaterialData> MaterialBuffer : register(t3);
+[[vk::binding(3, 1)]] StructuredBuffer<MaterialData> MaterialBuffer : register(t3);
 
-cbuffer DrawParams : register(b0)
+struct DrawPush
 {
     uint _cameraIndex;
     uint _instanceIndex;
-    uint PointLightBufferSize;
+    uint _submeshIndex;
+    uint _pointLightCount;
 };
+[[vk::push_constant]] DrawPush g_draw;
 
 struct VS_OUTPUT
 {
@@ -74,10 +80,10 @@ struct SkyboxGPUData
     float  horizonWidth;
     float3 _pad;
 };
-StructuredBuffer<SkyboxGPUData> SkyboxBuffer : register(t0, space1);
+[[vk::binding(4, 1)]] StructuredBuffer<SkyboxGPUData> SkyboxBuffer : register(t0, space1);
 
-SamplerState      g_sampler    : register(s0);
-Texture2D<float4> g_textures[] : register(t4);
+[[vk::binding(0, 0)]] SamplerState      g_sampler    : register(s0);
+[[vk::binding(1, 0)]] Texture2D<float4> g_textures[] : register(t4);
 
 static const float PI = 3.14159265358979f;
 
@@ -152,25 +158,17 @@ float3 F_Schlick(float HdotV, float3 F0)
     return F0 + (1.0f - F0) * pow(saturate(1.0f - HdotV), 5.0f);
 }
 
-struct PS_OUT
+float4 main(VS_OUTPUT i) : SV_Target
 {
-    float4 color  : SV_Target0;
-    float4 normal : SV_Target1;
-};
-
-PS_OUT main(VS_OUTPUT i, uint primId : SV_PrimitiveID)
-{
-    CameraData cam = CameraInstancebuffer[_cameraIndex];
+    CameraData cam = CameraInstancebuffer[g_draw._cameraIndex];
 
     // --------- matériau ----------
-    InstanceData inst = StaticMeshInstancebuffer[_instanceIndex];
-    uint submesh = 0;
-    [unroll]
-    for (uint s = 1; s < inst._subMeshCount; ++s)
-        if (primId >= inst._triangleOffsets[s]) submesh = s;
+    // Un draw par submesh, l'index arrive en push constant : SV_PrimitiveID
+    // déclarerait la capability Geometry, absente sur Metal/MoltenVK.
+    InstanceData inst = StaticMeshInstancebuffer[g_draw._instanceIndex];
 
     // matIdx 0xFFFFFFFF → slot 0 = default material (created at engine init)
-    uint matIdx    = inst._materialIndices[submesh];
+    uint matIdx    = inst._materialIndices[g_draw._submeshIndex];
     uint safeIdx   = (matIdx != 0xFFFFFFFFu) ? matIdx : 0u;
     MaterialData mat = MaterialBuffer[safeIdx];
 
@@ -213,7 +211,7 @@ PS_OUT main(VS_OUTPUT i, uint primId : SV_PrimitiveID)
     float3 color = kD * EvalSH9(N) * albedo + specIBL;
 
     [loop]
-    for (uint lightIndex = 0; lightIndex < PointLightBufferSize; ++lightIndex)
+    for (uint lightIndex = 0; lightIndex < g_draw._pointLightCount; ++lightIndex)
     {
         PointLight light = PointLightBuffer[lightIndex];
 
@@ -242,14 +240,11 @@ PS_OUT main(VS_OUTPUT i, uint primId : SV_PrimitiveID)
         float3 specular = (D * G * F) / max(4.0f * NdotV * NdotL, 0.0001f);
 
         // Diffuse lambertien : les métaux n'ont pas de diffuse
-        float3 kD = (1.0f - F) * (1.0f - metallic);
-        float3 diffuse = kD * albedo / PI;
+        float3 kD_light = (1.0f - F) * (1.0f - metallic);
+        float3 diffuse = kD_light * albedo / PI;
 
         color += (diffuse + specular) * radiance * NdotL;
     }
 
-    PS_OUT o;
-    o.color  = float4(saturate(color), 1.0f);
-    o.normal = float4(N * 0.5f + 0.5f, 0.0f);
-    return o;
+    return float4(saturate(color), 1.0f);
 }

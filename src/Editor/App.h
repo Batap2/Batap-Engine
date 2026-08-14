@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 #include "UI/UIPanels.h"
-#include "WindowsUtils/FileDialog.h"
+#include "FileDialog.h"
 #include "World.h"
 
 namespace batap

@@ -124,6 +124,19 @@
             "problemMatcher": [
                 "$msCompile"
             ]
+        },
+        {
+            "label": "Build (macos-debug)",
+            "type": "shell",
+            "command": "cmake --preset macos-debug && cmake --build build/macos-debug",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
         }
     ]
 }

@@ -1,9 +1,6 @@
 [submodule "include/assimp"]
 	path = include/assimp
 	url = https://github.com/assimp/assimp.git
-[submodule "include/DirectX-Headers"]
-	path = include/DirectX-Headers
-	url = https://github.com/microsoft/DirectX-Headers.git
 [submodule "include/eigen"]
 	path = include/eigen
 	url = https://gitlab.com/libeigen/eigen.git
@@ -31,3 +28,12 @@
 [submodule "include/stb"]
 	path = include/stb
 	url = https://github.com/nothings/stb.git
+[submodule "include/volk"]
+	path = include/volk
+	url = https://github.com/zeux/volk.git
+[submodule "include/vk-bootstrap"]
+	path = include/vk-bootstrap
+	url = https://github.com/charles-lunarg/vk-bootstrap.git
+[submodule "include/VulkanMemoryAllocator"]
+	path = include/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

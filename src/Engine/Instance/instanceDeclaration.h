@@ -94,11 +94,8 @@ struct StaticMeshGPUData
 {
     float _world[16];              // 64 bytes — world matrix
     uint32_t _materialIndices[8];  // 32 bytes — GPU arena slot per submesh (0xFFFFFFFF = none)
-    uint32_t _triangleOffsets[8];  // 32 bytes — subMesh[i].indexOffset / 3
-    uint32_t _subMeshCount;        //  4 bytes
-    uint32_t _pad[3];              // 12 bytes
 };
-static_assert(sizeof(StaticMeshGPUData) == 144);
+static_assert(sizeof(StaticMeshGPUData) == 96);
 
 struct StaticMeshInstance
     : GPUInstanceBase<StaticMeshGPUData,
@@ -159,24 +156,6 @@ struct InstancePatches<StaticMeshInstance>
         std::memcpy(dst, t->worldMatrix().data(), 16 * sizeof(float));
     }
 
-    static void fillMesh(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
-    {
-        auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
-        std::fill(std::begin(out->_triangleOffsets), std::end(out->_triangleOffsets), 0u);
-        out->_subMeshCount = 1;
-
-        auto* meshC = r.try_get<Mesh_C>(e);
-        if (!meshC || !ctx._assetManager)
-            return;
-        auto* mesh = ctx._assetManager->get(meshC->_mesh);
-        if (!mesh || mesh->subMeshCount == 0)
-            return;
-        out->_subMeshCount = mesh->subMeshCount;
-        auto triSpan = std::span{out->_triangleOffsets};
-        for (uint8_t i = 0; i < mesh->subMeshCount; ++i)
-            triSpan[i] = mesh->subMeshes[i].indexOffset / 3;
-    }
-
     static void fillMaterials(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
@@ -196,11 +175,6 @@ struct InstancePatches<StaticMeshInstance>
                   ._size = 16 * sizeof(float),
                   .fill = &fillWorld}};
 
-    static constexpr PatchDesc _meshPatch[] = {
-        PatchDesc{._offset = offsetof(StaticMeshGPUData, _triangleOffsets),
-                  ._size = 9 * sizeof(uint32_t),  // _triangleOffsets[8] + _subMeshCount
-                  .fill = &fillMesh}};
-
     static constexpr PatchDesc _materialsPatch[] = {
         PatchDesc{._offset = offsetof(StaticMeshGPUData, _materialIndices),
                   ._size = 8 * sizeof(uint32_t),
@@ -210,7 +184,7 @@ struct InstancePatches<StaticMeshInstance>
     {
         std::array<PatchRange, 32> t{};
         t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatch};
-        t[flagToIndex(ComponentFlag::Mesh)] = PatchRange{_meshPatch};
+        // ComponentFlag::Mesh : plus de miroir GPU (un dirty Mesh est un no-op)
         t[flagToIndex(ComponentFlag::Materials)] = PatchRange{_materialsPatch};
         return t;
     }();

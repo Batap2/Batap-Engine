@@ -1,119 +1,141 @@
 {
-  "componentVersions": {
-    "materials": 1,
-    "mesh": 1,
-    "transform": 1
-  },
-  "entities": [
+ "componentVersions": {
+  "materials": 1,
+  "mesh": 1,
+  "transform": 1
+ },
+ "entities": [
+  {
+   "components": [
     {
-      "components": [
-        {
-          "pos": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "rot": [
-            -0.7071068286895752,
-            0.0,
-            0.0,
-            0.7071067094802856
-          ],
-          "scale": [
-            100.0,
-            100.0,
-            100.0
-          ],
-          "type": "transform"
-        },
-        {
-          "path": "scenes/Cornel/assets/3d/cornel/Cube.bmesh",
-          "type": "mesh"
-        },
-        {
-          "materials": [
-            "scenes/Cornel/assets/3d/cornel/M_white.bmat",
-            "scenes/Cornel/assets/3d/cornel/M_red.bmat",
-            "scenes/Cornel/assets/3d/cornel/M_green.bmat"
-          ],
-          "type": "materials"
-        }
-      ],
-      "kind": "mesh",
-      "name": "Cube",
-      "parent": null
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rot": [
+      -0.7071068286895752,
+      0.0,
+      0.0,
+      0.7071067094802856
+     ],
+     "scale": [
+      100.0,
+      100.0,
+      100.0
+     ],
+     "type": "transform"
     },
     {
-      "components": [
-        {
-          "pos": [
-            -34.73248291015625,
-            35.090126037597656,
-            39.748477935791016
-          ],
-          "rot": [
-            -0.6615457534790039,
-            0.24971449375152588,
-            0.24971452355384827,
-            0.6615456342697144
-          ],
-          "scale": [
-            30.775156021118164,
-            18.25288200378418,
-            39.64851379394531
-          ],
-          "type": "transform"
-        },
-        {
-          "path": "scenes/Cornel/assets/3d/cornel/Cube.001.bmesh",
-          "type": "mesh"
-        },
-        {
-          "materials": [
-            "scenes/Cornel/assets/3d/cornel/Material.bmat"
-          ],
-          "type": "materials"
-        }
-      ],
-      "kind": "mesh",
-      "name": "Cube.001",
-      "parent": null
+     "type": "mesh",
+     "mesh": "scenes/Cornel/assets/3d/cornel/Cube.bmesh"
     },
     {
-      "components": [
-        {
-          "pos": [
-            -35.38666915893555,
-            -2.667938232421875,
-            -24.48461151123047
-          ],
-          "rot": [
-            -0.7071068286895752,
-            0.0,
-            0.0,
-            0.7071067094802856
-          ],
-          "scale": [
-            45.05279541015625,
-            45.05279541015625,
-            45.05279541015625
-          ],
-          "type": "transform"
-        },
-        {
-          "path": "scenes/Cornel/assets/3d/cornel/Torus.bmesh",
-          "type": "mesh"
-        },
-        {
-          "materials": [
-            "scenes/Cornel/assets/3d/cornel/Material.001.bmat"
-          ],
-          "type": "materials"
-        }
-      ],
-      "kind": "mesh",
-      "name": "Torus",
-      "parent": null
+     "type": "materials",
+     "slots": [
+      "scenes/Cornel/assets/3d/cornel/M_white.bmat",
+      "scenes/Cornel/assets/3d/cornel/M_red.bmat",
+      "scenes/Cornel/assets/3d/cornel/M_green.bmat",
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "count": 3
     }
-  ]
+   ],
+   "kind": "mesh",
+   "name": "Cube",
+   "parent": null
+  },
+  {
+   "components": [
+    {
+     "pos": [
+      -34.73248291015625,
+      35.090126037597656,
+      39.748477935791016
+     ],
+     "rot": [
+      -0.6615457534790039,
+      0.24971449375152588,
+      0.24971452355384827,
+      0.6615456342697144
+     ],
+     "scale": [
+      30.775156021118164,
+      18.25288200378418,
+      39.64851379394531
+     ],
+     "type": "transform"
+    },
+    {
+     "type": "mesh",
+     "mesh": "scenes/Cornel/assets/3d/cornel/Cube.001.bmesh"
+    },
+    {
+     "type": "materials",
+     "slots": [
+      "scenes/Cornel/assets/3d/cornel/Material.bmat",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "count": 1
+    }
+   ],
+   "kind": "mesh",
+   "name": "Cube.001",
+   "parent": null
+  },
+  {
+   "components": [
+    {
+     "pos": [
+      -35.38666915893555,
+      -2.667938232421875,
+      -24.48461151123047
+     ],
+     "rot": [
+      -0.7071068286895752,
+      0.0,
+      0.0,
+      0.7071067094802856
+     ],
+     "scale": [
+      45.05279541015625,
+      45.05279541015625,
+      45.05279541015625
+     ],
+     "type": "transform"
+    },
+    {
+     "type": "mesh",
+     "mesh": "scenes/Cornel/assets/3d/cornel/Torus.bmesh"
+    },
+    {
+     "type": "materials",
+     "slots": [
+      "scenes/Cornel/assets/3d/cornel/Material.001.bmat",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "count": 1
+    }
+   ],
+   "kind": "mesh",
+   "name": "Torus",
+   "parent": null
+  }
+ ]
 }

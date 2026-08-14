@@ -1,26 +1,66 @@
 # Engine
 
+## Architecture
+
+```mermaid
+graph TD
+    Engine --> World
+    Engine --> Input[InputManager]
+    Engine --> AM[AssetManager]
+    Engine --> IM[InstanceManager]
+    Engine --> R[VulkanRenderer]
+    Engine --> P[PlatformWindow]
+
+    World --> Scene
+    Scene --> ECS["ECS (entt registry)"]
+    ECS --> C[Components]
+    ECS --> S[Systems]
+
+    AM --> AL[AssetLoader]
+    AM --> AD["Mesh / Texture / Material"]
+
+    IM --> Pool["FrameInstancePool (one per instance type)"]
+
+    R --> Ctx[VulkanContext]
+    R --> Swap[VulkanSwapchain]
+    R --> Pipe[VulkanPipelines]
+    R --> Res[VulkanResources]
+    R --> Pass[VulkanScenePasses]
+
+    P --> Mac[MacOS]
+    P --> Win[Win32]
+```
+
+---
 ## **Frame Life Cycle**
 
-```text
-Frame start
-│
-├─ Async messages
-│   └─ File dialog → asset import
-│
-├─ Input
-│   ├─ Dispatch events
-│   └─ Update input state
-│
-├─ Simulation (CPU)
-│   ├─ Scene update (game logic)
-│   └─ ECS systems update
-│       └─ Update components & mark components dirty for GPU
-│
-├─ ECS → GPU sync
-│   └─ Update GPU instances from dirty ECS data
-│
-└─ Render
+The game loop is `while (Frame frame = engine.nextFrame()) { ...; world.update(); }` — the `Frame` destructor triggers `endFrame()`.
+
+```mermaid
+flowchart TD
+    NF["Engine::nextFrame()"] --> PM["platformPumpMessages()<br/>OS events → input queue, resize"]
+    PM --> BIF["Renderer::beginImGuiFrame()<br/>wait frame fence · ResourceManager::beginFrame()<br/>ImGui::NewFrame()"]
+    BIF --> DE["InputManager::DispatchEvents()"]
+    DE --> GAME["Game / editor code<br/>game logic, ImGui UI<br/>editor: pump async messages (file dialog → asset import)"]
+    GAME --> WU
+
+    subgraph WU["World::update()"]
+        direction TB
+        SU["Scene::update()<br/>game logic hook"] --> SY["Systems::update()<br/>write components + mark dirty"]
+        SY --> UD["SceneRenderer::uploadDirty()<br/>dirty components → InstancePatch → staging buffer"]
+    end
+
+    WU --> EF["~Frame → Engine::endFrame()"]
+    EF --> CS["InputManager::ClearFrameState()"]
+    CS --> RR
+
+    subgraph RR["Renderer::render()"]
+        direction TB
+        AC["acquire swapchain image<br/>out of date → recreate + skip frame"] --> FU["flushUploads()<br/>staged uploads recorded into the command buffer"]
+        FU --> REC["ScenePasses::record()<br/>scene draw (dynamic rendering)"]
+        REC --> IMG["ImGui::Render()"]
+        IMG --> SP["submit + present"]
+    end
 ```
 ---
 ## Asset Manager
@@ -40,6 +80,18 @@ Frame start
 - Mesh
 - Texture
 - Material data
+
+**Import pipeline**
+
+```mermaid
+graph LR
+    F[File on disk] --> Imp[Importers]
+    Imp --> AL[AssetLoader]
+    AL --> AM[AssetManager]
+    AM --> CPU["CPU asset (data-only)"]
+    CPU --> GPU[AssetGPUArena]
+    CPU -. referenced by .-> MC[Mesh_C / Materials_C]
+```
 
 ---
 
@@ -110,4 +162,16 @@ Frame start
 - GPU-compatible alignment
 - No pointers or ownership
 - No direct GPU access
+
+**ECS → GPU sync**
+
+```mermaid
+graph LR
+    S[Systems] -- "write" --> C[Components]
+    C -- "mark dirty" --> D[DirtyFlag]
+    D --> IM[InstanceManager]
+    IM -- "InstancePatch" --> GD[GPUData]
+    GD --> Pool[FrameInstancePool]
+    Pool -- "structured buffer" --> GPU[(GPU)]
+```
 

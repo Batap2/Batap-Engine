@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <iostream>
 #include <array>
 #include <cstddef>
 #include <string>
@@ -41,6 +42,10 @@ AssetHandle<A> handleFromJson(const nlohmann::json& in, const Engine& ctx)
         if (auto any = loadAsset(path, ctx))
             if (auto* h = std::get_if<AssetHandle<A>>(&*any))
                 found = *h;
+    // Un chemin qui ne se résout pas est une perte de données silencieuse au
+    // prochain save (cf. OBJECTIFS §1, round-trip) — toujours le signaler.
+    if (!found)
+        std::cerr << "[AssetFieldTypes] handle non résolu : " << path << "\n";
     return found ? *found : AssetHandle<A>{};
 }
 

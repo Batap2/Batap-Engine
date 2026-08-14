@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -329,10 +329,32 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#frame-life-cycle" class="md-nav__link">
     <span class="md-ellipsis">
       
         Frame Life Cycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flowchart-td-nfenginenextframe-pmplatformpumpmessagesbros-events-input-queue-resize-pm-bifrendererbeginimguiframebrwait-frame-fence-resourcemanagerbeginframebrimguinewframe-bif-deinputmanagerdispatchevents-de-gamegame-editor-codebrgame-logic-imgui-uibreditor-pump-async-messages-file-dialog-asset-import-game-wu-subgraph-wuworldupdate-direction-tb-susceneupdatebrgame-logic-hook-sysystemsupdatebrfreecamcontroller_s-transform_sbrwrite-components-mark-dirty-sy-udscenerendereruploaddirtybrdirty-components-instancepatch-staging-buffer-end-wu-efframe-engineendframe-ef-csinputmanagerclearframestate-cs-rr-subgraph-rrrendererrender-direction-tb-acacquire-swapchain-imagebrout-of-date-recreate-skip-frame-fuflushuploadsbrstaged-uploads-recorded-into-the-command-buffer-fu-recscenepassesrecordbrscene-draw-dynamic-rendering-rec-imgimguirender-img-spsubmit-present-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        flowchart TD NF["Engine::nextFrame()"] --&gt; PM["platformPumpMessages()&lt;br/&gt;OS events → input queue, resize"] PM --&gt; BIF["Renderer::beginImGuiFrame()&lt;br/&gt;wait frame fence · ResourceManager::beginFrame()&lt;br/&gt;ImGui::NewFrame()"] BIF --&gt; DE["InputManager::DispatchEvents()"] DE --&gt; GAME["Game / editor code&lt;br/&gt;game logic, ImGui UI&lt;br/&gt;editor: pump async messages (file dialog → asset import)"] GAME --&gt; WU subgraph WU["World::update()"] direction TB SU["Scene::update()&lt;br/&gt;game logic hook"] --&gt; SY["Systems::update()&lt;br/&gt;FreeCamController_S, Transform_S&lt;br/&gt;write components + mark dirty"] SY --&gt; UD["SceneRenderer::uploadDirty()&lt;br/&gt;dirty components → InstancePatch → staging buffer"] end WU --&gt; EF["~Frame → Engine::endFrame()"] EF --&gt; CS["InputManager::ClearFrameState()"] CS --&gt; RR subgraph RR["Renderer::render()"] direction TB AC["acquire swapchain image&lt;br/&gt;out of date → recreate + skip frame"] --&gt; FU["flushUploads()&lt;br/&gt;staged uploads recorded into the command buffer"] FU --&gt; REC["ScenePasses::record()&lt;br/&gt;scene draw (dynamic rendering)"] REC --&gt; IMG["ImGui::Render()"] IMG --&gt; SP["submit + present"] end
       
     </span>
   </a>
@@ -424,6 +446,60 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vulkan-changements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branche vulkan — guide de relecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vulkan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vulkan — comprendre le backend
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -451,10 +527,32 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#frame-life-cycle" class="md-nav__link">
     <span class="md-ellipsis">
       
         Frame Life Cycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flowchart-td-nfenginenextframe-pmplatformpumpmessagesbros-events-input-queue-resize-pm-bifrendererbeginimguiframebrwait-frame-fence-resourcemanagerbeginframebrimguinewframe-bif-deinputmanagerdispatchevents-de-gamegame-editor-codebrgame-logic-imgui-uibreditor-pump-async-messages-file-dialog-asset-import-game-wu-subgraph-wuworldupdate-direction-tb-susceneupdatebrgame-logic-hook-sysystemsupdatebrfreecamcontroller_s-transform_sbrwrite-components-mark-dirty-sy-udscenerendereruploaddirtybrdirty-components-instancepatch-staging-buffer-end-wu-efframe-engineendframe-ef-csinputmanagerclearframestate-cs-rr-subgraph-rrrendererrender-direction-tb-acacquire-swapchain-imagebrout-of-date-recreate-skip-frame-fuflushuploadsbrstaged-uploads-recorded-into-the-command-buffer-fu-recscenepassesrecordbrscene-draw-dynamic-rendering-rec-imgimguirender-img-spsubmit-present-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        flowchart TD NF["Engine::nextFrame()"] --&gt; PM["platformPumpMessages()&lt;br/&gt;OS events → input queue, resize"] PM --&gt; BIF["Renderer::beginImGuiFrame()&lt;br/&gt;wait frame fence · ResourceManager::beginFrame()&lt;br/&gt;ImGui::NewFrame()"] BIF --&gt; DE["InputManager::DispatchEvents()"] DE --&gt; GAME["Game / editor code&lt;br/&gt;game logic, ImGui UI&lt;br/&gt;editor: pump async messages (file dialog → asset import)"] GAME --&gt; WU subgraph WU["World::update()"] direction TB SU["Scene::update()&lt;br/&gt;game logic hook"] --&gt; SY["Systems::update()&lt;br/&gt;FreeCamController_S, Transform_S&lt;br/&gt;write components + mark dirty"] SY --&gt; UD["SceneRenderer::uploadDirty()&lt;br/&gt;dirty components → InstancePatch → staging buffer"] end WU --&gt; EF["~Frame → Engine::endFrame()"] EF --&gt; CS["InputManager::ClearFrameState()"] CS --&gt; RR subgraph RR["Renderer::render()"] direction TB AC["acquire swapchain image&lt;br/&gt;out of date → recreate + skip frame"] --&gt; FU["flushUploads()&lt;br/&gt;staged uploads recorded into the command buffer"] FU --&gt; REC["ScenePasses::record()&lt;br/&gt;scene draw (dynamic rendering)"] REC --&gt; IMG["ImGui::Render()"] IMG --&gt; SP["submit + present"] end
       
     </span>
   </a>
@@ -529,27 +627,60 @@
 
 
 <h1 id="engine">Engine</h1>
-<h2 id="frame-life-cycle"><strong>Frame Life Cycle</strong></h2>
-<pre><code class="language-text">Frame start
-│
-├─ Async messages
-│   └─ File dialog → asset import
-│
-├─ Input
-│   ├─ Dispatch events
-│   └─ Update input state
-│
-├─ Simulation (CPU)
-│   ├─ Scene update (game logic)
-│   └─ ECS systems update
-│       └─ Update components &amp; mark components dirty for GPU
-│
-├─ ECS → GPU sync
-│   └─ Update GPU instances from dirty ECS data
-│
-└─ Render
-</code></pre>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid"><code>graph TD
+    Engine --&gt; World
+    Engine --&gt; Input[InputManager]
+    Engine --&gt; AM[AssetManager]
+    Engine --&gt; IM[InstanceManager]
+    Engine --&gt; R[VulkanRenderer]
+    Engine --&gt; P[PlatformWindow]
+
+    World --&gt; Scene
+    Scene --&gt; ECS["ECS (entt registry)"]
+    ECS --&gt; C[Components]
+    ECS --&gt; S[Systems]
+
+    AM --&gt; AL[AssetLoader]
+    AM --&gt; AD["Mesh / Texture / Material"]
+
+    IM --&gt; Pool["FrameInstancePool (one per instance type)"]
+
+    R --&gt; Ctx[VulkanContext]
+    R --&gt; Swap[VulkanSwapchain]
+    R --&gt; Pipe[VulkanPipelines]
+    R --&gt; Res[VulkanResources]
+    R --&gt; Pass[VulkanScenePasses]
+
+    P --&gt; Mac[MacOS]
+    P --&gt; Win[Win32]</code></pre>
 <hr />
+<h2 id="frame-life-cycle"><strong>Frame Life Cycle</strong></h2>
+<p>The game loop is <code>while (Frame frame = engine.nextFrame()) { ...; world.update(); }</code> — the <code>Frame</code> destructor triggers <code>endFrame()</code>.</p>
+<h2 id="flowchart-td-nfenginenextframe-pmplatformpumpmessagesbros-events-input-queue-resize-pm-bifrendererbeginimguiframebrwait-frame-fence-resourcemanagerbeginframebrimguinewframe-bif-deinputmanagerdispatchevents-de-gamegame-editor-codebrgame-logic-imgui-uibreditor-pump-async-messages-file-dialog-asset-import-game-wu-subgraph-wuworldupdate-direction-tb-susceneupdatebrgame-logic-hook-sysystemsupdatebrfreecamcontroller_s-transform_sbrwrite-components-mark-dirty-sy-udscenerendereruploaddirtybrdirty-components-instancepatch-staging-buffer-end-wu-efframe-engineendframe-ef-csinputmanagerclearframestate-cs-rr-subgraph-rrrendererrender-direction-tb-acacquire-swapchain-imagebrout-of-date-recreate-skip-frame-fuflushuploadsbrstaged-uploads-recorded-into-the-command-buffer-fu-recscenepassesrecordbrscene-draw-dynamic-rendering-rec-imgimguirender-img-spsubmit-present-end"><pre class="mermaid"><code>flowchart TD
+    NF["Engine::nextFrame()"] --&gt; PM["platformPumpMessages()&lt;br/&gt;OS events → input queue, resize"]
+    PM --&gt; BIF["Renderer::beginImGuiFrame()&lt;br/&gt;wait frame fence · ResourceManager::beginFrame()&lt;br/&gt;ImGui::NewFrame()"]
+    BIF --&gt; DE["InputManager::DispatchEvents()"]
+    DE --&gt; GAME["Game / editor code&lt;br/&gt;game logic, ImGui UI&lt;br/&gt;editor: pump async messages (file dialog → asset import)"]
+    GAME --&gt; WU
+
+    subgraph WU["World::update()"]
+        direction TB
+        SU["Scene::update()&lt;br/&gt;game logic hook"] --&gt; SY["Systems::update()&lt;br/&gt;FreeCamController_S, Transform_S&lt;br/&gt;write components + mark dirty"]
+        SY --&gt; UD["SceneRenderer::uploadDirty()&lt;br/&gt;dirty components → InstancePatch → staging buffer"]
+    end
+
+    WU --&gt; EF["~Frame → Engine::endFrame()"]
+    EF --&gt; CS["InputManager::ClearFrameState()"]
+    CS --&gt; RR
+
+    subgraph RR["Renderer::render()"]
+        direction TB
+        AC["acquire swapchain image&lt;br/&gt;out of date → recreate + skip frame"] --&gt; FU["flushUploads()&lt;br/&gt;staged uploads recorded into the command buffer"]
+        FU --&gt; REC["ScenePasses::record()&lt;br/&gt;scene draw (dynamic rendering)"]
+        REC --&gt; IMG["ImGui::Render()"]
+        IMG --&gt; SP["submit + present"]
+    end</code></pre></h2>
 <h2 id="asset-manager">Asset Manager</h2>
 <p><strong>Purpose</strong>  </p>
 <ul>
@@ -567,6 +698,14 @@
 <li>Texture</li>
 <li>Material data</li>
 </ul>
+<p><strong>Import pipeline</strong></p>
+<pre class="mermaid"><code>graph LR
+    F[File on disk] --&gt; Imp[Importers]
+    Imp --&gt; AL[AssetLoader]
+    AL --&gt; AM[AssetManager]
+    AM --&gt; CPU["CPU asset (data-only)"]
+    CPU --&gt; GPU[AssetGPUArena]
+    CPU -. referenced by .-&gt; MC[Mesh_C / Materials_C]</code></pre>
 <hr />
 <h2 id="ecs">ECS</h2>
 <p><strong>Overview</strong></p>
@@ -632,6 +771,14 @@
 <li>No pointers or ownership</li>
 <li>No direct GPU access</li>
 </ul>
+<p><strong>ECS → GPU sync</strong></p>
+<pre class="mermaid"><code>graph LR
+    S[Systems] -- "write" --&gt; C[Components]
+    C -- "mark dirty" --&gt; D[DirtyFlag]
+    D --&gt; IM[InstanceManager]
+    IM -- "InstancePatch" --&gt; GD[GPUData]
+    GD --&gt; Pool[FrameInstancePool]
+    Pool -- "structured buffer" --&gt; GPU[(GPU)]</code></pre>
 
 
 
@@ -684,7 +831,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

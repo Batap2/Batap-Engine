@@ -1,3 +1,10 @@
+// Modèle de binding Vulkan (docs/vulkan.md §10) :
+//   set 0 = bindless global (sampler, textures) — pas utilisé ici
+//   set 1 = données de frame (storage buffers : caméras, instances, …)
+//   push constants = indices du draw courant
+// Les register() DX12 sont conservés à titre documentaire ; ils sont ignorés
+// dès qu'un [[vk::binding]] est présent.
+
 struct CameraData
 {
     float4x4 _view;
@@ -12,19 +19,19 @@ struct InstanceData
 {
     float4x4 _world;              // 64 bytes
     uint     _materialIndices[8]; // 32 bytes
-    uint     _triangleOffsets[8]; // 32 bytes
-    uint     _subMeshCount;       //  4 bytes
-    uint     _pad[3];             // 12 bytes
 };
 
-StructuredBuffer<CameraData>   CameraInstancebuffer     : register(t0);
-StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
+[[vk::binding(0, 1)]] StructuredBuffer<CameraData>   CameraInstancebuffer     : register(t0);
+[[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
 
-cbuffer DrawParams : register(b0)
+struct DrawPush
 {
     uint _cameraIndex;
     uint _instanceIndex;
+    uint _submeshIndex;
+    uint _pointLightCount;
 };
+[[vk::push_constant]] DrawPush g_draw;
 
 struct VS_INPUT
 {
@@ -47,8 +54,8 @@ VS_OUTPUT main(VS_INPUT input)
 {
     VS_OUTPUT o;
 
-    CameraData cam   = CameraInstancebuffer[_cameraIndex];
-    InstanceData inst = StaticMeshInstancebuffer[_instanceIndex];
+    CameraData cam   = CameraInstancebuffer[g_draw._cameraIndex];
+    InstanceData inst = StaticMeshInstancebuffer[g_draw._instanceIndex];
 
     // World position
     float4 posWS4 = mul(inst._world, float4(input._position, 1.0f));

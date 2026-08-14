@@ -2,12 +2,17 @@
 #include "InputManager.h"
 #include "World.h"
 
+#include <imgui.h>
+
 #include <iostream>
 
 int main()
 {
-    batap::Engine engine{
-        {.title = "Batap TestGame", .width = 1280, .height = 720, .fpsInTitle = true}};
+    batap::Engine engine{{.title = "Batap TestGame",
+                          .width = 1280,
+                          .height = 720,
+                          .fpsInTitle = true,
+                          .transparent = true}};
 
     batap::World world{engine};
     world.loadScene("scenes/Cornel/cornelScene.btpl");
@@ -16,6 +21,8 @@ int main()
     {
         if (frame.input().pressed(batap::Key::Space))
             std::cout << "oep\n";
+
+        ImGui::ShowDemoWindow();
 
         world.update();
     }

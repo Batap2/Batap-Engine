@@ -58,8 +58,7 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
 
     {
         const auto bufSize = sizeof(uint32_t) * data->indices.size();
-        const auto guid = rm->createBufferStaticResource(bufSize, D3D12_RESOURCE_STATE_COPY_DEST,
-                                                         D3D12_HEAP_TYPE_DEFAULT, rname("_i"));
+        const auto guid = rm->createStaticBuffer(bufSize, rname("_i"));
         mesh->_indexBuffer =
             rm->createStaticIBV(guid, ResourceFormat::R32_UINT, rname("_iv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 4);
@@ -68,8 +67,7 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
     }
     {
         const auto bufSize = sizeof(v3f) * data->vertices.size();
-        const auto guid = rm->createBufferStaticResource(bufSize, D3D12_RESOURCE_STATE_COPY_DEST,
-                                                         D3D12_HEAP_TYPE_DEFAULT, rname("_v"));
+        const auto guid = rm->createStaticBuffer(bufSize, rname("_v"));
         mesh->_vertexBuffer = rm->createStaticVBV(guid, sizeof(v3f), rname("_vv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 0);
         std::memcpy(span.data(), data->vertices.data(), bufSize);
@@ -78,8 +76,7 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
     if (!data->normals.empty())
     {
         const auto bufSize = sizeof(v3f) * data->normals.size();
-        const auto guid = rm->createBufferStaticResource(bufSize, D3D12_RESOURCE_STATE_COPY_DEST,
-                                                         D3D12_HEAP_TYPE_DEFAULT, rname("_n"));
+        const auto guid = rm->createStaticBuffer(bufSize, rname("_n"));
         mesh->_normalBuffer = rm->createStaticVBV(guid, sizeof(v3f), rname("_nv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 0);
         std::memcpy(span.data(), data->normals.data(), bufSize);
@@ -87,8 +84,7 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
     if (!data->uvs.empty())
     {
         const auto bufSize = sizeof(v2f) * data->uvs.size();
-        const auto guid = rm->createBufferStaticResource(bufSize, D3D12_RESOURCE_STATE_COPY_DEST,
-                                                         D3D12_HEAP_TYPE_DEFAULT, rname("_uv"));
+        const auto guid = rm->createStaticBuffer(bufSize, rname("_uv"));
         mesh->_uv0Buffer = rm->createStaticVBV(guid, sizeof(v2f), rname("_uvv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 0);
         std::memcpy(span.data(), data->uvs.data(), bufSize);
@@ -138,8 +134,7 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
         }
 
         const auto bufSize = sizeof(v4f) * vcount;
-        const auto guid = rm->createBufferStaticResource(bufSize, D3D12_RESOURCE_STATE_COPY_DEST,
-                                                         D3D12_HEAP_TYPE_DEFAULT, rname("_tan"));
+        const auto guid = rm->createStaticBuffer(bufSize, rname("_tan"));
         mesh->_tangeantBuffer = rm->createStaticVBV(guid, sizeof(v4f), rname("_tanv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 0);
         std::memcpy(span.data(), tangents.data(), bufSize);
@@ -201,8 +196,6 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
         return std::nullopt;
     }
 
-    const DXGI_FORMAT    gpuFmt        = isHdr ? DXGI_FORMAT_R32G32B32A32_FLOAT
-                                                : DXGI_FORMAT_R8G8B8A8_UNORM;
     const uint32_t       bytesPerPixel = isHdr ? 16u : 4u;
     const ResourceFormat resFmt        = isHdr ? ResourceFormat::R32G32B32A32_FLOAT
                                                 : ResourceFormat::R8G8B8A8_UNORM;
@@ -210,28 +203,14 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     auto* rm = assetManager.resourceManager_;
     const std::string prefix = key + "_" + std::to_string(next_uid64());
 
-    // GPU resource
-    const auto resHandle = rm->createTexture2DStaticResource(
-        static_cast<uint32_t>(w), static_cast<uint32_t>(h),
-        gpuFmt,
-        D3D12_RESOURCE_FLAG_NONE,
-        D3D12_RESOURCE_STATE_COPY_DEST,
-        D3D12_HEAP_TYPE_DEFAULT,
-        prefix + "_tex");
+    // GPU resource + SRV (slot bindless)
+    const auto gpuTex = rm->createTexture2D(static_cast<uint32_t>(w), static_cast<uint32_t>(h),
+                                            resFmt, prefix + "_tex");
 
-    // SRV — allocates a bindless slot in the descriptor heap
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-    srvDesc.Format                        = gpuFmt;
-    srvDesc.ViewDimension                 = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Shader4ComponentMapping       = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Texture2D.MipLevels           = 1;
-    auto viewHandle = rm->createStaticView<D3D12_SHADER_RESOURCE_VIEW_DESC>(resHandle, srvDesc,
-                                                                             prefix + "_srv");
-
-    // upload rows with D3D12 pitch alignment
+    // upload rows with pitch alignment
     uint32_t rowPitch = 0;
-    auto span = rm->requestTextureUploadOwned(resHandle, static_cast<uint32_t>(w),
-                                              static_cast<uint32_t>(h), gpuFmt, rowPitch);
+    auto span = rm->requestTextureUploadOwned(gpuTex.resource, static_cast<uint32_t>(w),
+                                              static_cast<uint32_t>(h), resFmt, rowPitch);
     const uint32_t srcRowPitch = static_cast<uint32_t>(w) * bytesPerPixel;
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
@@ -249,8 +228,8 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
 
     // build runtime Texture
     Texture tex{};
-    tex.viewHandle_ = viewHandle;
-    tex.heapIdx_    = rm->getStaticView(viewHandle)._descriptorHandle->heapIdx;
+    tex.viewHandle_ = gpuTex.srv;
+    tex.heapIdx_    = gpuTex.bindlessIndex;
     tex.format_     = resFmt;
     tex.colorSpace_    = isHdr ? TextureColorSpace::Linear : TextureColorSpace::SRGB;
     tex.sizeX_         = static_cast<uint32_t>(w);
@@ -311,25 +290,17 @@ void createDefaultAssets(const Engine& ctx)
     const std::string texKey            = "__default_white";
     const std::string prefix            = texKey + "_" + std::to_string(next_uid64());
 
-    const auto resHandle = rm->createTexture2DStaticResource(
-        1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_NONE,
-        D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, prefix + "_tex");
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-    srvDesc.Format                  = DXGI_FORMAT_R8G8B8A8_UNORM;
-    srvDesc.ViewDimension           = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Texture2D.MipLevels     = 1;
-    auto viewHandle =
-        rm->createStaticView<D3D12_SHADER_RESOURCE_VIEW_DESC>(resHandle, srvDesc, prefix + "_srv");
+    const auto whiteGpu = rm->createTexture2D(1, 1, ResourceFormat::R8G8B8A8_UNORM,
+                                              prefix + "_tex");
 
     uint32_t rowPitch = 0;
-    auto span = rm->requestTextureUploadOwned(resHandle, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, rowPitch);
+    auto span = rm->requestTextureUploadOwned(whiteGpu.resource, 1, 1,
+                                              ResourceFormat::R8G8B8A8_UNORM, rowPitch);
     std::memcpy(span.data(), kWhite, 4);
 
     Texture whiteTex{};
-    whiteTex.viewHandle_ = viewHandle;
-    whiteTex.heapIdx_    = rm->getStaticView(viewHandle)._descriptorHandle->heapIdx;
+    whiteTex.viewHandle_ = whiteGpu.srv;
+    whiteTex.heapIdx_    = whiteGpu.bindlessIndex;
     whiteTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
     whiteTex.sizeX_      = 1;
     whiteTex.sizeY_      = 1;
@@ -340,26 +311,17 @@ void createDefaultAssets(const Engine& ctx)
     const std::string flatNrmKey    = "__default_flat_normal";
     const std::string flatNrmPrefix = flatNrmKey + "_" + std::to_string(next_uid64());
 
-    const auto flatResHandle = rm->createTexture2DStaticResource(
-        1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_NONE,
-        D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, flatNrmPrefix + "_tex");
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC flatSrvDesc{};
-    flatSrvDesc.Format                  = DXGI_FORMAT_R8G8B8A8_UNORM;
-    flatSrvDesc.ViewDimension           = D3D12_SRV_DIMENSION_TEXTURE2D;
-    flatSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    flatSrvDesc.Texture2D.MipLevels     = 1;
-    auto flatViewHandle = rm->createStaticView<D3D12_SHADER_RESOURCE_VIEW_DESC>(
-        flatResHandle, flatSrvDesc, flatNrmPrefix + "_srv");
+    const auto flatGpu = rm->createTexture2D(1, 1, ResourceFormat::R8G8B8A8_UNORM,
+                                             flatNrmPrefix + "_tex");
 
     uint32_t flatRowPitch = 0;
-    auto flatSpan = rm->requestTextureUploadOwned(flatResHandle, 1, 1,
-                                                  DXGI_FORMAT_R8G8B8A8_UNORM, flatRowPitch);
+    auto flatSpan = rm->requestTextureUploadOwned(flatGpu.resource, 1, 1,
+                                                  ResourceFormat::R8G8B8A8_UNORM, flatRowPitch);
     std::memcpy(flatSpan.data(), kFlatNormal, 4);
 
     Texture flatNrmTex{};
-    flatNrmTex.viewHandle_ = flatViewHandle;
-    flatNrmTex.heapIdx_    = rm->getStaticView(flatViewHandle)._descriptorHandle->heapIdx;
+    flatNrmTex.viewHandle_ = flatGpu.srv;
+    flatNrmTex.heapIdx_    = flatGpu.bindlessIndex;
     flatNrmTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
     flatNrmTex.sizeX_      = 1;
     flatNrmTex.sizeY_      = 1;

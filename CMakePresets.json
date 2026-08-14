@@ -70,6 +70,22 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "RelWithDebInfo"
             }
+        },
+        {
+            "name": "macos-debug",
+            "displayName": "macOS Debug",
+            "description": "Debug build with AppleClang and Ninja (Vulkan/MoltenVK)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/macos-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            }
         }
     ],
     "buildPresets": [
@@ -96,6 +112,12 @@
             "displayName": "Build RelWithDebInfo",
             "configurePreset": "msvc-relwithdebinfo",
             "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "macos-debug",
+            "displayName": "Build macOS Debug",
+            "configurePreset": "macos-debug",
+            "configuration": "Debug"
         }
     ]
 }

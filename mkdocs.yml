@@ -21,6 +21,7 @@ theme:
       accent: deep purple
 
     # Palette toggle for dark mode
+
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       toggle:
@@ -28,3 +29,10 @@ theme:
         name: Switch to system preference
       primary: deep purple
       accent: deep purple
+
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

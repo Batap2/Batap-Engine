@@ -170,21 +170,10 @@ struct GPUArena
 
     void createGpuResources(size_t capacity)
     {
-        resourceHandle_ = rm_->createBufferStaticResource(
-            capacity * sizeof(T), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT, name_);
-
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.NumElements = static_cast<UINT>(capacity);
-        srvDesc.Buffer.StructureByteStride = static_cast<UINT>(sizeof(T));
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-
-        srvHandle_ =
-            rm_->createStaticView<D3D12_SHADER_RESOURCE_VIEW_DESC>(resourceHandle_, srvDesc);
-
+        auto structured =
+            rm_->createStaticStructuredBuffer(capacity, static_cast<uint32_t>(sizeof(T)), name_);
+        resourceHandle_ = structured.resource;
+        srvHandle_ = structured.srv;
         gpuCapacity_ = capacity;
     }
 

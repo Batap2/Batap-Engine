@@ -1,7 +1,9 @@
 #include "DebugUtils.h"
 
-#include <windows.h>
-#include <winerror.h>
+#if defined(_WIN32)
+  #include <windows.h>
+  #include <winerror.h>
+#endif
 #include <source_location>
 #include <stdexcept>
 #include <string>
@@ -12,7 +14,7 @@ namespace batap
 void ThrowIfFailed(long hr)
 {
 #ifndef NDEBUG
-    if (FAILED(hr))
+    if (hr < 0)  // FAILED(hr), sans dépendre de winerror.h
     {
         throw std::exception();
     }
@@ -38,11 +40,13 @@ void ThrowAssert(bool condition, std::string_view msg)
 
 [[noreturn]] void ThrowRuntime(const char* msg)
 {
+#if defined(_WIN32)
     OutputDebugStringA(msg);
     OutputDebugStringA("\n");
+#endif
     fprintf(stderr, "[FATAL] %s\n", msg);
     fflush(stderr);
-#ifdef _DEBUG
+#if defined(_DEBUG) && defined(_WIN32)
     __debugbreak();  // break AVANT l'unwind
 #endif
     throw std::runtime_error(msg);

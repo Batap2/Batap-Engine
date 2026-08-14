@@ -46,7 +46,18 @@ set(ASSIMP_INSTALL            OFF CACHE BOOL "" FORCE)
 # ------------------------------------------------------------------------------
 # Third-party dependencies
 # ------------------------------------------------------------------------------
-add_subdirectory("${include_dir}/DirectX-Headers")
+# volk a besoin de savoir quelle surface de plateforme déclarer (l'équivalent
+# du VK_USE_PLATFORM_* qu'on passerait à vulkan.h)
+if(WIN32)
+  set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
+  add_compile_definitions(VK_USE_PLATFORM_WIN32_KHR)
+elseif(APPLE)
+  set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_METAL_EXT)
+  add_compile_definitions(VK_USE_PLATFORM_METAL_EXT)
+endif()
+add_subdirectory("${include_dir}/volk")
+add_subdirectory("${include_dir}/vk-bootstrap")
+# assimp : consommé par Importers/ (import éditeur)
 add_subdirectory("${include_dir}/assimp")
 add_subdirectory("${include_dir}/tracy")
 
@@ -73,6 +84,38 @@ target_compile_options(batap_warnings INTERFACE
   -Wno-missing-prototypes
   -Wno-missing-designated-field-initializers
 )
+if(APPLE)
+  # Parité avec tools/compile-check : diagnostics que le build Windows
+  # n'applique pas, ou spécifiques à AppleClang
+  target_compile_options(batap_warnings INTERFACE
+    -Wno-padded
+    -Wno-poison-system-directories
+    -Wno-weak-vtables
+    -Wno-exit-time-destructors
+    -Wno-global-constructors
+    -Wno-unsafe-buffer-usage
+    -Wno-covered-switch-default
+    -Wno-float-equal
+    -Wno-double-promotion
+    -Wno-implicit-int-float-conversion
+    -Wno-shorten-64-to-32
+    -Wno-sign-conversion
+    -Wno-implicit-int-conversion
+    -Wno-old-style-cast
+    -Wno-cast-align
+    -Wno-cast-qual
+    -Wno-shadow
+    -Wno-shadow-field-in-constructor
+    -Wno-documentation
+    -Wno-documentation-unknown-command
+    -Wno-newline-eof
+    -Wno-extra-semi
+    -Wno-extra-semi-stmt
+    -Wno-ctad-maybe-unsupported
+    -Wno-switch-default
+    -Wno-c++20-extensions
+  )
+endif()
 
 # Global compile defs (Windows)
 if(WIN32)
@@ -108,9 +151,11 @@ silence_external_sources(Batap_Editor)
 # Third-party warning tweaks
 # ------------------------------------------------------------------------------
 # Silence assimp
-target_compile_options(assimp PRIVATE
-  $<$<CXX_COMPILER_ID:Clang>:-w>
-)
+if(TARGET assimp)
+  target_compile_options(assimp PRIVATE
+    $<$<CXX_COMPILER_ID:Clang>:-w>
+  )
+endif()
 
 # ------------------------------------------------------------------------------
 # Utilities

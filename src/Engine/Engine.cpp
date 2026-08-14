@@ -53,7 +53,7 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
 
     // Order matters: Renderer::init creates the ResourceManager the
     // AssetManager needs.
-    _renderer->init(static_cast<HWND>(window_), desc.width, desc.height);
+    _renderer->init(window_, desc.width, desc.height, desc.transparent);
     _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
     createDefaultAssets(*this);
     _sceneRenderer = std::make_unique<SceneRenderer>(*this);

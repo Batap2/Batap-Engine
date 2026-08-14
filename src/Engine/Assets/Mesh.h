@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "Handles.h"
-#include "Renderer/ResourceFormatWrapper.h"
+#include "Renderer/ResourceFormat.h"
 
 namespace batap
 {

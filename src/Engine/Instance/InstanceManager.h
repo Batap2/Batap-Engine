@@ -1,6 +1,5 @@
 #pragma once
 
-#include <directx/d3d12.h>
 #include "Components/EntityHandle.h"
 #include "DirtyFlag.h"
 #include "EigenTypes.h"
@@ -197,21 +196,9 @@ struct FrameInstancePool
             _resourceManager.requestDestroy(_instancePoolViewHandle, true);
         }
 
-        auto rhandle = _resourceManager.createBufferFrameResource(
-            gpuPoolCapacity_ * sizeof(typename type::GPUData), D3D12_RESOURCE_STATE_COPY_DEST,
-            D3D12_HEAP_TYPE_DEFAULT, _name);
-
-        D3D12_SHADER_RESOURCE_VIEW_DESC desc{};
-        desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        desc.Format = DXGI_FORMAT_UNKNOWN;
-        desc.Buffer.FirstElement = 0;
-        desc.Buffer.NumElements = static_cast<UINT>(gpuPoolCapacity_);
-        desc.Buffer.StructureByteStride = static_cast<UINT>(sizeof(typename type::GPUData));
-        desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-
-        _instancePoolViewHandle =
-            _resourceManager.createFrameView<D3D12_SHADER_RESOURCE_VIEW_DESC>(rhandle, desc);
+        auto structured = _resourceManager.createFrameStructuredBuffer(
+            gpuPoolCapacity_, static_cast<uint32_t>(sizeof(typename type::GPUData)), _name);
+        _instancePoolViewHandle = structured.srv;
     }
 
     void markAllinstanceDirty()

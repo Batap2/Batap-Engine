@@ -1,0 +1,1192 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../vulkan-changements/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Vulkan — comprendre le backend - Batap Engine</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#vulkan-comprendre-le-backend" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Batap Engine" class="md-header__button md-logo" aria-label="Batap Engine" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Batap Engine
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Vulkan — comprendre le backend
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="deep-purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="deep-purple"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Batap Engine" class="md-nav__button md-logo" aria-label="Batap Engine" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Batap Engine
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Batap Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../renderer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renderer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vulkan-changements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branche vulkan — guide de relecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vulkan — comprendre le backend
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vulkan — comprendre le backend
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-la-pile-de-ton-code-au-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. La pile, de ton code au GPU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-dictionnaire-dx12-vulkan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Dictionnaire DX12 → Vulkan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-vulkancontext-pas-a-pas-jalon-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. VulkanContext pas à pas (jalon 1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-layouts-dimage-et-barrieres-le-concept-a-integrer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Layouts d'image et barrières — LE concept à intégrer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-shaders-hlsl-spir-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Shaders : HLSL → SPIR-V
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-le-pipeline-et-le-rendu-jalon-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Le pipeline et le rendu (jalon 2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-execution-et-synchronisation-cpugpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Exécution et synchronisation CPU↔GPU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-les-descriptors-et-vulkanresources-jalon-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Les descriptors et VulkanResources (jalon 3)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-larchitecture-de-frame-du-moteur-jalon-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. L'architecture de frame du moteur (jalon 5)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-gotchas-mac-moltenvk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Gotchas mac / MoltenVK
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-la-pile-de-ton-code-au-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. La pile, de ton code au GPU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-dictionnaire-dx12-vulkan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Dictionnaire DX12 → Vulkan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-vulkancontext-pas-a-pas-jalon-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. VulkanContext pas à pas (jalon 1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-layouts-dimage-et-barrieres-le-concept-a-integrer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Layouts d'image et barrières — LE concept à intégrer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-shaders-hlsl-spir-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Shaders : HLSL → SPIR-V
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-le-pipeline-et-le-rendu-jalon-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Le pipeline et le rendu (jalon 2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-execution-et-synchronisation-cpugpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Exécution et synchronisation CPU↔GPU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-les-descriptors-et-vulkanresources-jalon-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Les descriptors et VulkanResources (jalon 3)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-larchitecture-de-frame-du-moteur-jalon-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. L'architecture de frame du moteur (jalon 5)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-gotchas-mac-moltenvk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Gotchas mac / MoltenVK
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="vulkan-comprendre-le-backend">Vulkan — comprendre le backend</h1>
+<p>Guide de lecture du code Vulkan du moteur, écrit pour quelqu'un qui connaît
+déjà DX12 (toi). Chaque concept est expliqué à travers le code réel du repo :
+<code>src/Engine/Renderer/Vulkan/VulkanContext.{h,cpp}</code> et le harness
+<code>tools/vk-smoke/main.cpp</code> (jalons 1-2 : triangle offscreen → PNG).</p>
+<p>Pour voir tourner tout ce qui est décrit ici :</p>
+<div class="highlight"><pre><span></span><code>./tools/vk-smoke/run.sh<span class="w">      </span><span class="c1"># build + run, produit vk_smoke.png</span>
+</code></pre></div>
+<hr />
+<h2 id="1-la-pile-de-ton-code-au-gpu">1. La pile, de ton code au GPU</h2>
+<div class="highlight"><pre><span></span><code>ton code ──&gt; loader Vulkan (libvulkan) ──&gt; driver / ICD ──&gt; GPU
+             │                             │
+             │ dispatche les appels        │ sur mac : MoltenVK,
+             │ + injecte les layers        │ qui traduit vers Metal
+             └─ validation layers ici ─────┘
+</code></pre></div>
+<p>Trois différences de philosophie avec DX12 à intégrer d'entrée :</p>
+<ol>
+<li>
+<p><strong>Le loader est une indirection explicite.</strong> En DX12 tu linkes <code>d3d12.lib</code>
+   et c'est fini. En Vulkan, un <em>loader</em> (libvulkan) trouve les drivers (ICD)
+   et te donne des pointeurs de fonctions. C'est le rôle de <strong>volk</strong>
+   (<code>include/volk</code>, un seul <code>.c</code>) : il <code>dlopen</code> le loader et remplit tous les
+   pointeurs — <code>volkInitialize()</code>, puis <code>volkLoadInstance()</code>/<code>volkLoadDevice()</code>
+   pour court-circuiter le dispatch et gagner un chouïa de perf.
+   Sur mac, le loader brew vit dans <code>/opt/homebrew/lib</code>, hors des chemins
+   <code>dlopen</code> par défaut → <code>run.sh</code> pose <code>DYLD_LIBRARY_PATH</code>.</p>
+</li>
+<li>
+<p><strong>La validation est une couche optionnelle, pas un mode du driver.</strong>
+   L'équivalent du debug layer DX12 (<code>ID3D12Debug</code>) est la <em>validation layer</em>
+   Khronos, interposée par le loader entre ton code et le driver. On l'active
+   à la création de l'instance + un <em>debug messenger</em> qui reçoit les messages
+   (l'équivalent de l'info queue). C'est ton premier réflexe de debug, comme
+   sous DX12.</p>
+</li>
+<li>
+<p><strong>Sur mac il n'y a pas de driver Vulkan natif</strong> : MoltenVK est un ICD qui
+   traduit Vulkan vers Metal. Il expose Vulkan 1.4 sur l'Apple M3 et accepte
+   toutes les features qu'on exige (vérifié au jalon 1) — pour nous c'est un
+   driver comme un autre.</p>
+</li>
+</ol>
+<h2 id="2-dictionnaire-dx12-vulkan">2. Dictionnaire DX12 → Vulkan</h2>
+<table>
+<thead>
+<tr>
+<th>Tu connais (DX12)</th>
+<th>Équivalent Vulkan</th>
+<th>Nuance qui compte</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IDXGIFactory</code> + debug layer</td>
+<td><code>VkInstance</code></td>
+<td>+ validation layers et extensions déclarées à la création</td>
+</tr>
+<tr>
+<td><code>IDXGIAdapter</code></td>
+<td><code>VkPhysicalDevice</code></td>
+<td>énumération + <em>feature query</em> très fine</td>
+</tr>
+<tr>
+<td><code>ID3D12Device</code></td>
+<td><code>VkDevice</code></td>
+<td>créé en déclarant les queues ET les features qu'on utilisera</td>
+</tr>
+<tr>
+<td><code>ID3D12CommandQueue</code> (DIRECT/COMPUTE/COPY)</td>
+<td><code>VkQueue</code> d'une <em>queue family</em></td>
+<td>les familles sont découvertes, pas choisies : chaque GPU expose les siennes</td>
+</tr>
+<tr>
+<td><code>ID3D12CommandAllocator</code> + <code>GraphicsCommandList</code></td>
+<td><code>VkCommandPool</code> + <code>VkCommandBuffer</code></td>
+<td>reset par <em>pool</em> entier de préférence (1 pool/frame)</td>
+</tr>
+<tr>
+<td><code>ID3D12Fence</code> (+ valeur monotone)</td>
+<td><code>VkSemaphore</code> <strong>timeline</strong></td>
+<td>mapping 1:1 avec <code>FenceManager</code> ; le <code>VkFence</code> binaire ne sert qu'à attendre côté CPU</td>
+</tr>
+<tr>
+<td><code>D3D12_RESOURCE_STATES</code> + <code>transitionTo</code></td>
+<td><code>VkImageLayout</code> + <code>vkCmdPipelineBarrier2</code></td>
+<td>voir §4, c'est LE morceau à comprendre</td>
+</tr>
+<tr>
+<td>Root signature</td>
+<td><code>VkPipelineLayout</code></td>
+<td>même rôle : la « signature » des ressources du pipeline</td>
+</tr>
+<tr>
+<td>Root constants</td>
+<td>Push constants</td>
+<td>idem, ~128 octets garantis</td>
+</tr>
+<tr>
+<td>Descriptor heap + tables</td>
+<td><code>VkDescriptorPool</code> / <code>VkDescriptorSetLayout</code> / <code>VkDescriptorSet</code></td>
+<td>le plus gros écart conceptuel — jalon 3</td>
+</tr>
+<tr>
+<td>PSO (<code>D3D12_GRAPHICS_PIPELINE_STATE_DESC</code>)</td>
+<td><code>VkPipeline</code></td>
+<td>quasi identique champ à champ</td>
+</tr>
+<tr>
+<td>RTV + <code>OMSetRenderTargets</code> + <code>ClearRenderTargetView</code></td>
+<td><code>VkImageView</code> + <code>vkCmdBeginRendering</code> (dynamic rendering)</td>
+<td>le clear est un <code>loadOp</code>, pas une commande</td>
+</tr>
+<tr>
+<td><code>CreateCommittedResource</code></td>
+<td><code>VkBuffer</code>/<code>VkImage</code> <strong>sans mémoire</strong> + allocation séparée</td>
+<td>d'où VMA, voir §3</td>
+</tr>
+<tr>
+<td>DXIL</td>
+<td>SPIR-V</td>
+<td>mêmes sources HLSL, <code>dxc -spirv</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-vulkancontext-pas-a-pas-jalon-1">3. <code>VulkanContext</code> pas à pas (jalon 1)</h2>
+<p><code>VulkanContext::init()</code> fait, dans l'ordre :</p>
+<ol>
+<li>
+<p><strong><code>volkInitialize()</code></strong> — trouve le loader, remplit les pointeurs globaux.</p>
+</li>
+<li>
+<p><strong><code>VkInstance</code></strong> via vk-bootstrap (<code>include/vk-bootstrap</code> — uniquement du
+   boilerplate d'init, remplaçable par du code maison plus tard) :
+   validation layers + debug messenger + version d'API exigée (1.3).
+   L'instance est l'objet « monde Vulkan » : c'est à travers elle qu'on
+   énumère les GPUs.</p>
+</li>
+<li>
+<p><strong>Sélection du <code>VkPhysicalDevice</code></strong> — c'est ici que Vulkan est plus strict
+   (et plus honnête) que DX12 : chaque feature qu'on compte utiliser doit être
+   <em>déclarée et supportée</em>, sinon la création échoue. On exige :</p>
+</li>
+<li><code>dynamicRendering</code> (1.3) — rendre sans <code>VkRenderPass</code>, cf. §6 ;</li>
+<li><code>synchronization2</code> (1.3) — l'API moderne des barrières, cf. §4 ;</li>
+<li><code>timelineSemaphore</code> (1.2) — le modèle exact de ton <code>FenceManager</code> ;</li>
+<li><code>bufferDeviceAddress</code> (1.2) — pointeurs GPU (utile plus tard) ;</li>
+<li>
+<p><code>descriptorIndexing</code> + <code>runtimeDescriptorArray</code> + <code>partiallyBound</code> +
+     <code>variableDescriptorCount</code> (1.2) — <strong>le bindless</strong> : l'équivalent de tes
+     descriptor heaps + <code>g_textures[]</code> unbounded.</p>
+</li>
+<li>
+<p><strong><code>VkDevice</code> + queue</strong> — on récupère une queue <em>graphics</em> et l'index de sa
+   famille. Note : en Vulkan on ne crée pas les queues, on les <em>demande</em> à la
+   création du device parmi les familles que le GPU expose (graphics,
+   compute-only, transfer-only…). L'équivalent de tes trois
+   <code>D3D12_COMMAND_LIST_TYPE</code> existe donc, mais découvert à l'exécution.</p>
+</li>
+<li>
+<p><strong>VMA</strong> (<code>include/VulkanMemoryAllocator</code>) — en Vulkan, créer un
+   <code>VkBuffer</code>/<code>VkImage</code> n'alloue <em>pas</em> de mémoire : tu dois choisir un <em>memory
+   type</em> (device-local, host-visible, cached…), allouer, et binder — et le
+   nombre d'allocations est limité, donc il faut sous-allouer. VMA est
+   l'allocateur qui fait ça bien (c'est l'équivalent du travail que
+   <code>CreateCommittedResource</code> fait pour toi en DX12, en mieux contrôlable).
+   Config dans <code>VulkanMemory.h</code> : fonctions récupérées dynamiquement via volk.</p>
+</li>
+</ol>
+<p><code>shutdown()</code> détruit dans l'ordre inverse — Vulkan exige que le device soit
+détruit après tout ce qu'il a créé (les validation layers hurlent sinon, c'est
+le pendant du B8 de TODO.md).</p>
+<h2 id="4-layouts-dimage-et-barrieres-le-concept-a-integrer">4. Layouts d'image et barrières — LE concept à intégrer</h2>
+<p>En DX12 tu penses « états » : <code>transitionTo(cmdList, D3D12_RESOURCE_STATE_X)</code>.
+En Vulkan, une barrière dit <strong>trois</strong> choses, explicitement :</p>
+<div class="highlight"><pre><span></span><code><span class="n">VkImageMemoryBarrier2</span><span class="w"> </span><span class="n">b</span><span class="p">{};</span>
+<span class="n">b</span><span class="p">.</span><span class="n">srcStageMask</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w">  </span><span class="c1">// 1. j&#39;attends que CES étages du pipe aient fini</span>
+<span class="n">b</span><span class="p">.</span><span class="n">srcAccessMask</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w">  </span><span class="c1">//    ... et que CES types d&#39;écriture soient flushés</span>
+<span class="n">b</span><span class="p">.</span><span class="n">dstStageMask</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w">  </span><span class="c1">// 2. avant que CES étages ne démarrent</span>
+<span class="n">b</span><span class="p">.</span><span class="n">dstAccessMask</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w">  </span><span class="c1">//    ... avec CES types d&#39;accès visibles</span>
+<span class="n">b</span><span class="p">.</span><span class="n">oldLayout</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w">  </span><span class="c1">// 3. et au passage, réarrange la mémoire de l&#39;image</span>
+<span class="n">b</span><span class="p">.</span><span class="n">newLayout</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w">  </span><span class="c1">//    de CE layout vers CE layout</span>
+</code></pre></div>
+<ul>
+<li>Le <strong>layout</strong> (<code>VK_IMAGE_LAYOUT_*</code>) est la partie qui ressemble aux resource
+  states : <code>COLOR_ATTACHMENT_OPTIMAL</code> ≈ <code>RENDER_TARGET</code>, <code>TRANSFER_SRC_OPTIMAL</code>
+  ≈ <code>COPY_SOURCE</code>, etc. C'est un vrai réarrangement mémoire potentiel
+  (compression, tiling), pas juste un flag de bookkeeping.</li>
+<li>Les <strong>stage/access masks</strong> sont la partie que DX12 déduisait pour toi : la
+  synchronisation. <code>synchronization2</code> (qu'on utilise partout) permet de les
+  donner par paires src/dst dans un seul appel <code>vkCmdPipelineBarrier2</code>.</li>
+</ul>
+<p>Exemple concret du smoke test — « l'image devient une render target » :</p>
+<div class="highlight"><pre><span></span><code><span class="n">imageBarrier</span><span class="p">(</span><span class="n">VK_IMAGE_LAYOUT_UNDEFINED</span><span class="p">,</span><span class="w">                    </span><span class="c1">// je me fiche du contenu</span>
+<span class="w">             </span><span class="n">VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL</span><span class="p">,</span><span class="w">     </span><span class="c1">// deviens une RT</span>
+<span class="w">             </span><span class="n">VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">       </span><span class="c1">// rien à attendre</span>
+<span class="w">             </span><span class="n">VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT</span><span class="p">,</span>
+<span class="w">             </span><span class="n">VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT</span><span class="p">);</span><span class="w">      </span><span class="c1">// avant les écritures de RT</span>
+</code></pre></div>
+<p>Le futur <code>ResourceManager</code> Vulkan encapsulera ça exactement comme
+<code>GPUResource::transitionTo</code> le fait en DX12 — l'appelant continuera de penser
+en usages, la table usage → (layout, stage, access) vivra dans le backend.</p>
+<h2 id="5-shaders-hlsl-spir-v">5. Shaders : HLSL → SPIR-V</h2>
+<p>Rien ne change dans tes sources : <strong>les mêmes <code>.hlsl</code></strong>, compilés par <strong>le même
+dxc</strong> (l'API <code>IDxcCompiler3</code> de <code>Shaders.cpp</code>), avec un flag en plus :
+<code>-spirv -fspv-target-env=vulkan1.3</code>. Les 5 shaders du moteur passent déjà.</p>
+<p>Côté C++, le bytecode SPIR-V s'enveloppe dans un <code>VkShaderModule</code> (trois
+lignes, cf. <code>createShaderModule</code> dans le smoke test) et se branche au pipeline
+avec son <em>entry point</em> — d'où les <code>mainVS</code>/<code>mainPS</code> de <code>triangle.hlsl</code> : un
+seul fichier peut contenir plusieurs entry points, chacun compilé séparément.</p>
+<p>Deux conventions à connaître (fixées au jalon 2) :</p>
+<ul>
+<li><strong>Bindings</strong> : <code>register(t0, space1)</code> HLSL devient <code>binding/set</code> SPIR-V. Tant
+  qu'on n'a pas de descriptors (jalon 3), pas de décision à prendre ; ce sera
+  les flags <code>-fvk-{b,t,u,s}-shift</code> ou <code>[[vk::binding]]</code>, décidé une fois.</li>
+<li><strong>Y inversé</strong> : le NDC Vulkan a Y vers le bas. Plutôt que toucher shaders ou
+  matrices, on passe un <strong>viewport à hauteur négative</strong> (core depuis 1.1) —
+  le triangle du smoke test pointe vers le haut précisément grâce à ça.
+  NDC z ∈ [0,1] : identique à DX12, rien à faire.</li>
+</ul>
+<h2 id="6-le-pipeline-et-le-rendu-jalon-2">6. Le pipeline et le rendu (jalon 2)</h2>
+<p><code>VkGraphicsPipelineCreateInfo</code> est ton <code>D3D12_GRAPHICS_PIPELINE_STATE_DESC</code>
+éclaté en sous-structs — la correspondance est presque mécanique :</p>
+<table>
+<thead>
+<tr>
+<th>DX12 (<code>desc.</code>)</th>
+<th>Vulkan (<code>pipelineInfo.p*State</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VS</code>, <code>PS</code></td>
+<td><code>pStages[]</code> (module + entry point)</td>
+</tr>
+<tr>
+<td><code>InputLayout</code></td>
+<td><code>pVertexInputState</code></td>
+</tr>
+<tr>
+<td><code>PrimitiveTopologyType</code></td>
+<td><code>pInputAssemblyState</code></td>
+</tr>
+<tr>
+<td><code>RasterizerState</code></td>
+<td><code>pRasterizationState</code></td>
+</tr>
+<tr>
+<td><code>BlendState</code></td>
+<td><code>pColorBlendState</code></td>
+</tr>
+<tr>
+<td><code>DepthStencilState</code></td>
+<td><code>pDepthStencilState</code></td>
+</tr>
+<tr>
+<td><code>RTVFormats</code> / <code>DSVFormat</code></td>
+<td><code>VkPipelineRenderingCreateInfo</code> (chaîné en <code>pNext</code>)</td>
+</tr>
+<tr>
+<td><code>pRootSignature</code></td>
+<td><code>layout</code> (<code>VkPipelineLayout</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>La ligne « RTVFormats » mérite un mot : historiquement Vulkan exigeait un
+<code>VkRenderPass</code> + <code>VkFramebuffer</code> décrivant tout le graphe d'attachments à
+l'avance. <strong>Dynamic rendering</strong> (core 1.3) supprime tout ça : le pipeline
+déclare juste les formats, et au moment de dessiner :</p>
+<div class="highlight"><pre><span></span><code><span class="n">vkCmdBeginRendering</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">renderingInfo</span><span class="p">);</span><span class="w">   </span><span class="c1">// ≈ OMSetRenderTargets + Clear</span>
+<span class="n">vkCmdBindPipeline</span><span class="p">(...);</span><span class="w">                     </span><span class="c1">// ≈ SetPipelineState + SetRootSignature</span>
+<span class="n">vkCmdDraw</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w">                 </span><span class="c1">// ≈ DrawInstanced</span>
+<span class="n">vkCmdEndRendering</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+</code></pre></div>
+<p><code>VkRenderingAttachmentInfo</code> fusionne le bind de RT et le clear : <code>loadOp =
+CLEAR</code> + <code>clearValue</code> remplacent <code>ClearRenderTargetView</code> (et <code>storeOp = STORE</code>
+dit de garder le résultat). C'est le modèle que le <code>RenderGraph</code> portera.</p>
+<h2 id="7-execution-et-synchronisation-cpugpu">7. Exécution et synchronisation CPU↔GPU</h2>
+<p>Le flux du smoke test, qui est aussi le squelette d'une frame :</p>
+<div class="highlight"><pre><span></span><code>CommandPool ── alloc ──&gt; CommandBuffer
+                             │  begin (ONE_TIME_SUBMIT)
+                             │  barrier  UNDEFINED → COLOR_ATTACHMENT
+                             │  beginRendering (clear bleu) / bind / draw / end
+                             │  barrier  COLOR_ATTACHMENT → TRANSFER_SRC
+                             │  copyImageToBuffer (readback host-visible, mappé)
+                             │  end
+vkQueueSubmit(queue, ..., fence)
+vkWaitForFences(...)         ← équivalent de ton signal() + waitForLastSignal()
+</code></pre></div>
+<ul>
+<li>Le <code>VkFence</code> binaire suffit ici (attente CPU ponctuelle). Pour le moteur, ce
+  seront des <strong>timeline semaphores</strong> : un compteur 64 bits monotone qu'on
+  signale/attend par valeur — ton <code>FenceManager</code> (id + <code>_currentValue</code>) mappe
+  dessus sans changer d'API.</li>
+<li>Le buffer de readback est créé par VMA en mémoire host-visible et <strong>mappé en
+  permanence</strong> (<code>VMA_ALLOCATION_CREATE_MAPPED_BIT</code>) — même principe que ton
+  ring d'upload DX12 qui reste mappé.</li>
+</ul>
+<h2 id="8-les-descriptors-et-vulkanresources-jalon-3">8. Les descriptors et <code>VulkanResources</code> (jalon 3)</h2>
+<p>Le plus gros écart conceptuel avec DX12. Là-bas : un grand descriptor heap
+shader-visible, des handles GPU, <code>g_textures[]</code> unbounded indexé par
+<code>heapIdx</code>. En Vulkan, trois objets :</p>
+<ul>
+<li><code>VkDescriptorSetLayout</code> — la <em>forme</em> d'un set (≈ une entrée de root signature) ;</li>
+<li><code>VkDescriptorPool</code> — l'arène d'allocation (≈ le heap) ;</li>
+<li><code>VkDescriptorSet</code> — un paquet de descriptors qu'on binde d'un coup.</li>
+</ul>
+<p><code>Renderer/Vulkan/VulkanResources.{h,cpp}</code> reproduit le modèle du moteur avec
+<strong>un seul set bindless global</strong>, construit dans <code>init()</code> :</p>
+<ul>
+<li>binding 0 : le sampler par défaut, <em>immutable</em> (gravé dans le layout —
+  l'équivalent exact de ton static sampler <code>s0</code>) ;</li>
+<li>binding 1 : un tableau de sampled images à taille <strong>variable</strong> (4096),
+  <code>PARTIALLY_BOUND</code> (pas besoin que tous les slots soient remplis) et
+  <code>UPDATE_AFTER_BIND</code> (on peut écrire des slots alors que le set est déjà
+  utilisé par des frames en vol — indispensable pour charger des textures en
+  cours de jeu). Contrainte de spec : le binding à taille variable doit être
+  le dernier du set.</li>
+</ul>
+<p><code>createTexture2D()</code> alloue un slot (free-list + compteur), écrit le descriptor
+via <code>vkUpdateDescriptorSets</code>, et renvoie ce <code>bindlessIndex</code> — le même rôle que
+<code>heapIdx</code> en DX12 : tes matériaux le stockent, le shader indexe avec. Côté
+HLSL (cf. <code>tools/vk-smoke/texture.hlsl</code>), l'index arrive en <strong>push constant</strong>
+(<code>[[vk::push_constant]]</code>, l'équivalent des root constants) :</p>
+<div class="highlight"><pre><span></span><code><span class="p">[[</span><span class="n">vk</span><span class="o">::</span><span class="n">binding</span><span class="p">(</span><span class="mo">0</span><span class="p">,</span><span class="w"> </span><span class="mo">0</span><span class="p">)]]</span><span class="w"> </span><span class="kt">SamplerState</span><span class="w"> </span><span class="n">g_sampler</span><span class="w">   </span><span class="o">:</span><span class="w"> </span><span class="k">register</span><span class="p">(</span><span class="n">s0</span><span class="p">);</span>
+<span class="p">[[</span><span class="n">vk</span><span class="o">::</span><span class="n">binding</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mo">0</span><span class="p">)]]</span><span class="w"> </span><span class="kt">Texture2D</span><span class="w">    </span><span class="n">g_textures</span><span class="p">[]</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">register</span><span class="p">(</span><span class="n">t0</span><span class="p">);</span>
+<span class="p">[[</span><span class="n">vk</span><span class="o">::</span><span class="n">push_constant</span><span class="p">]]</span><span class="w"> </span><span class="n">PushConstants</span><span class="w"> </span><span class="n">g_push</span><span class="p">;</span>
+<span class="p">...</span>
+<span class="n">g_textures</span><span class="p">[</span><span class="n">g_push</span><span class="p">.</span><span class="n">texIdx</span><span class="p">].</span><span class="n">Sample</span><span class="p">(</span><span class="n">g_sampler</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">.</span><span class="n">uv</span><span class="p">);</span>
+</code></pre></div>
+<p>Les autres différences de design vs le ResourceManager DX12 :</p>
+<ul>
+<li><strong>Pas d'objets « view » pour les buffers</strong> : un descriptor référence
+  <code>{buffer, offset, range}</code> directement, et les vertex/index buffers se
+  bindent par <code>vkCmdBindVertexBuffers</code>/<code>BindIndexBuffer</code> sans view du tout.
+  <code>GPUMeshView</code> et le zoo CBV/SRV/UAV/RTV/DSV n'ont pas d'équivalent — les
+  handles de view restent des alias stables, pour la parité du contrat.</li>
+<li><strong>Staging ring zéro-copie</strong> : <code>requestUploadOwned</code> rend un span <em>directement
+  dans le ring mappé</em> (en DX12 il rendait un <code>std::vector</code> recopié ensuite —
+  le bug B7). <code>flushUploads(cmd)</code> enregistre les <code>vkCmdCopyBuffer</code>/
+  <code>CopyBufferToImage</code> + les barrières de layout. Un ring par frame-in-flight,
+  recyclé par <code>beginFrame(i)</code> quand le GPU a fini ce slot.</li>
+<li><strong>Pas d'alignement de row pitch</strong> pour les textures : le 256 était une règle
+  DX12 ; en Vulkan les rangées sont serrées (<code>bufferRowLength = 0</code>).</li>
+<li><strong>Destruction différée par slot de frame</strong> : <code>requestDestroy</code> met en file,
+  <code>beginFrame(i)</code> détruit ce qui avait été mis en file au cycle précédent —
+  plus simple que la fence par flush du DX12, même garantie.</li>
+</ul>
+<h2 id="9-larchitecture-de-frame-du-moteur-jalon-5">9. L'architecture de frame du moteur (jalon 5)</h2>
+<p>Le moteur entier tourne sur mac : <code>cmake --preset macos-debug</code>, puis</p>
+<div class="highlight"><pre><span></span><code><span class="nv">DYLD_LIBRARY_PATH</span><span class="o">=</span>/opt/homebrew/lib<span class="w"> </span>./build/macos-debug/bin/Batap_TestGame<span class="w"> </span>--project<span class="w"> </span>GameExemple
+<span class="c1"># BATAP_DUMP_FRAME=60 en plus → écrit frame_dump.png (readback de la frame 60)</span>
+</code></pre></div>
+<p>Le rendu n'est PAS un portage 1:1 du RenderGraph DX12 — c'est le design que
+Vulkan 1.3 permet, en plus simple. Les fichiers, dans l'ordre de lecture :</p>
+<ul>
+<li><code>Renderer/Vulkan/VulkanRenderer.{h,cpp}</code> — l'orchestrateur. Une frame :
+  <code>beginImGuiFrame()</code> (début de frame CPU : attend la fence du slot, recycle
+  staging + destructions, publie <code>_frameIndex</code>, ouvre la frame ImGui) → la
+  simulation écrit ses uploads → <code>render()</code> : check hot-reload → <code>flushUploads</code>
+  → barrières → <strong>un</strong> rendering scope (swapchain + depth, loadOp CLEAR) dans
+  lequel la scène s'enregistre puis ImGui se dessine → barrière → present.
+  <code>_frameIndex</code> est publié en DÉBUT de frame CPU exprès : tout ce qui est
+  « par frame en vol » (dirty tracking, staging) doit voir le slot en cours
+  de production, pas celui de la frame passée.</li>
+<li><code>Renderer/Vulkan/VulkanScenePasses.{h,cpp}</code> — les passes geometry + sky,
+  et le hot reload (mtime des .hlsl du dossier source → recompile → rebuild
+  des pipelines ; une erreur HLSL garde les pipelines courantes).</li>
+<li><code>Renderer/Vulkan/VulkanPipelines.{h,cpp}</code> — chargement SPIR-V + builder de
+  pipeline (dynamic rendering, viewport dynamique Y-up).</li>
+<li><code>Renderer/Vulkan/VulkanShaderCompiler.{h,cpp}</code> — HLSL → SPIR-V à chaud via
+  <code>libdxcompiler.dylib</code> (dlopen paresseux ; même <code>IDxcCompiler3</code> que Windows).</li>
+<li><code>Renderer/Vulkan/VulkanSceneRenderer.cpp</code> — le pont trois-lignes entre le
+  header neutre <code>SceneRenderer.h</code> et le backend.</li>
+</ul>
+<p><strong>Autour du rendu :</strong></p>
+<ul>
+<li><em>Présentation</em> : IMMEDIATE si disponible (pas de vsync, comme le DX12),
+  sinon MAILBOX, sinon FIFO. Le mode se choisit dans
+  <code>VulkanSwapchain::createSwapchain()</code>, réutilisé tel quel au resize.</li>
+<li><em>Resize</em> : le delegate Cocoa (<code>syncLayerSize</code>) ajuste la CAMetalLayer puis
+  appelle <code>Renderer::resize</code> → <code>VulkanSwapchain::recreate()</code> (oldSwapchain
+  dans la create-info, sémaphores de rendu par image recréés) + depth. Si la
+  swapchain périme entre deux événements, <code>acquire()</code> rend <code>OutOfDate</code> et la
+  frame est sautée — les uploads en attente partent à la suivante.</li>
+<li><em>ImGui</em> : <code>imgui_impl_vulkan</code> (dynamic rendering, fonctions via volk) dessine
+  dans le même rendering scope que la scène ; le backend plateforme
+  (<code>imgui_impl_osx</code> / <code>imgui_impl_win32</code>) est derrière les hooks neutres
+  <code>platformImGui{Init,NewFrame,Shutdown}</code> de <code>PlatformWindow.h</code>.</li>
+<li><em>Input</em> : chaque OS décode ses événements natifs dans sa couche plateforme
+  (NSEvent dans <code>MacOSWindow.mm</code>, WM_*/RAWINPUT dans <code>Win32Window.cpp</code>) et
+  alimente l'API neutre <code>InputManager::feed()</code> ; quand ImGui capture
+  (WantCaptureMouse/Keyboard), le jeu ne voit pas l'événement.</li>
+</ul>
+<p><strong>Le modèle de binding — deux sets, un layout, zéro écriture par draw :</strong></p>
+<table>
+<thead>
+<tr>
+<th>Quoi</th>
+<th>Où</th>
+<th>Fréquence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sampler + textures bindless</td>
+<td>set 0 (ResourceManager)</td>
+<td>écrit à la création des textures, bindé 1×/frame</td>
+</tr>
+<tr>
+<td>caméras, instances, lights, matériaux, skybox (5 storage buffers)</td>
+<td>set 1 (ScenePasses, un par frame en vol)</td>
+<td>réécrit 1×/frame (les pools grandissent)</td>
+</tr>
+<tr>
+<td><code>{camIdx, instanceIdx, submeshIdx, nLights}</code></td>
+<td>push constants (16 octets, VS+PS)</td>
+<td>par draw</td>
+</tr>
+</tbody>
+</table>
+<p>Côté HLSL, chaque ressource porte son <code>[[vk::binding(n, set)]]</code> — c'est LE
+contrat entre <code>VulkanScenePasses.cpp</code> (enum <code>FrameSetBinding</code>) et les shaders.</p>
+<p><strong>Ce qui a disparu par rapport au DX12, et pourquoi :</strong></p>
+<ul>
+<li><em>La passe composition</em> — c'était un <code>CopyResource</code> render3D → backbuffer sans
+  post-process. On rend directement dans la swapchain.</li>
+<li><em>Le normalRT</em> — écrit par le PS, lu par personne. Le PS a une seule sortie.</li>
+<li><em><code>SV_PrimitiveID</code> + le scan <code>triangleOffsets</code></em> — la capability Geometry
+  n'existe pas sur Metal. À la place : <strong>un draw par submesh</strong>, l'index de
+  submesh en push constant — plus simple ET portable.</li>
+<li><em>Les 16 root constants du sky</em> — le SkyPS lit le storage buffer skybox, où
+  ces données étaient déjà (le PixelShader s'en sert pour l'IBL). Une source
+  de vérité.</li>
+<li><em>Les 7 slots de root signature</em> → un pipeline layout partagé par les passes.</li>
+</ul>
+<p><strong>Leçon du premier debug</strong> (la scène noire) : le chargement ignorait des champs
+au nom périmé dans les <code>.btpl</code> (<code>path</code> → <code>mesh</code>, <code>materials</code> → <code>slots</code>/<code>count</code>)
+— <em>silencieusement</em>. Les scènes ont été migrées (backups <code>.old-format.bak</code>), et
+<code>AssetFieldTypes</code> signale désormais tout handle non résolu sur stderr. Le
+round-trip des composants inconnus (OBJECTIFS §1) réglera le fond du problème.</p>
+<h2 id="10-gotchas-mac-moltenvk">10. Gotchas mac / MoltenVK</h2>
+<ul>
+<li><strong>Loader introuvable au run</strong> (<code>volkInitialize</code> échoue) → il manque
+  <code>DYLD_LIBRARY_PATH=/opt/homebrew/lib</code> ; <code>run.sh</code> s'en charge.</li>
+<li><strong>dxc</strong> vient du SDK LunarG (<code>~/VulkanSDK/1.4.357.0/macOS/bin</code>) — pas de
+  binaire Microsoft pour mac, pas de formule brew.</li>
+<li>MoltenVK traduit vers Metal : quelques limites du <em>portability subset</em>
+  existent, mais rien de ce qu'on utilise (vérifié au jalon 1 : toutes nos
+  features 1.3/1.2 passent, bindless compris).</li>
+<li>La fenêtre mac passe par <code>VK_EXT_metal_surface</code> sur la <code>CAMetalLayer</code> posée
+  par <code>Platform/MacOS/MacOSWindow.mm</code> (impl Cocoa de <code>PlatformWindow.h</code>).</li>
+<li>Le hot reload cherche <code>libdxcompiler.dylib</code> via dlopen (DYLD_LIBRARY_PATH,
+  puis le SDK repéré au configure) — absente, il se désactive sans casser.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

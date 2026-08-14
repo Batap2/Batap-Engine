@@ -7,7 +7,7 @@
 #include "UI/UITheme.h"
 #include "UI/UIPanels.h"
 #include "Utils/UIDGenerator.h"
-#include "WindowsUtils/FileDialog.h"
+#include "FileDialog.h"
 
 #include <imgui.h>
 #include <nlohmann/json.hpp>
@@ -45,13 +45,20 @@ void App::update()
     }
 }
 
+// L'emplacement par-utilisateur de chaque OS : %APPDATA% / Application Support
 static std::filesystem::path configPath()
 {
+#if defined(_WIN32)
     char* appdata = nullptr;
     size_t len    = 0;
     _dupenv_s(&appdata, &len, "APPDATA");
     std::filesystem::path base = appdata ? appdata : ".";
     free(appdata);
+#else
+    const char* home = std::getenv("HOME");
+    std::filesystem::path base =
+        home ? std::filesystem::path(home) / "Library/Application Support" : ".";
+#endif
     return base / "BatapEngine" / "recent.json";
 }
 

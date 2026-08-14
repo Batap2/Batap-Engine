@@ -8,6 +8,21 @@ file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
 )
 
+# --- Tri par plateforme : le GLOB ramasse tout, on retire la couche
+#     plateforme, puis on réinjecte celle de l'OS courant ---
+list(FILTER ENGINE_SOURCES EXCLUDE REGEX "/Platform/")
+
+if(WIN32)
+  file(GLOB WIN32_PLATFORM_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Platform/Win32/*.cpp")
+  list(APPEND ENGINE_SOURCES ${WIN32_PLATFORM_SOURCES})
+else()
+  file(GLOB MACOS_PLATFORM_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Platform/MacOS/*.mm")
+  list(APPEND ENGINE_SOURCES ${MACOS_PLATFORM_SOURCES})
+  set_source_files_properties(${MACOS_PLATFORM_SOURCES}
+    PROPERTIES COMPILE_OPTIONS
+    "-fobjc-arc;-Wno-objc-missing-property-synthesis;-Wno-nullable-to-nonnull-conversion;-Wno-direct-ivar-access")
+endif()
+
 # ImGui compiled into the engine (as you want)
 set(IMGUI_SOURCES
   "${include_dir}/imgui/imgui.cpp"
@@ -15,9 +30,18 @@ set(IMGUI_SOURCES
   "${include_dir}/imgui/imgui_tables.cpp"
   "${include_dir}/imgui/imgui_widgets.cpp"
   "${include_dir}/imgui/imgui_demo.cpp"
-  "${include_dir}/imgui/backends/imgui_impl_win32.cpp"
-  "${include_dir}/imgui/backends/imgui_impl_dx12.cpp"
+  "${include_dir}/imgui/backends/imgui_impl_vulkan.cpp"
 )
+if(WIN32)
+  list(APPEND IMGUI_SOURCES "${include_dir}/imgui/backends/imgui_impl_win32.cpp")
+else()
+  list(APPEND IMGUI_SOURCES "${include_dir}/imgui/backends/imgui_impl_osx.mm")
+  # Code tiers : pas soumis à -Weverything
+  set_source_files_properties(
+    "${include_dir}/imgui/backends/imgui_impl_osx.mm"
+    "${include_dir}/imgui/backends/imgui_impl_vulkan.cpp"
+    PROPERTIES COMPILE_OPTIONS "-w")
+endif()
 
 list(APPEND ENGINE_SOURCES ${IMGUI_SOURCES})
 
@@ -35,7 +59,6 @@ target_include_directories(Batap_Engine PUBLIC
 target_include_directories(Batap_Engine SYSTEM PUBLIC
   "${include_dir}"
   "${include_dir}/json/single_include"
-  "${include_dir}/DirectX-Headers/include"
   "${include_dir}/eigen"
   "${include_dir}/imgui"
   "${include_dir}/nano-signal-slot"
@@ -52,6 +75,9 @@ target_compile_definitions(Batap_Engine PUBLIC
   BATAP_ROOT_DIR="${CMAKE_SOURCE_DIR}"
   $<$<CONFIG:Debug>:_DEBUG>
 )
+# imgui_impl_vulkan passe par les pointeurs de fonctions volk (pas de lien
+# statique avec un loader Vulkan)
+target_compile_definitions(Batap_Engine PUBLIC IMGUI_IMPL_VULKAN_USE_VOLK)
 
 # Optimization flags (keep your current behavior)
 target_compile_options(Batap_Engine PRIVATE
@@ -63,11 +89,97 @@ target_compile_options(Batap_Engine PRIVATE
 # Link
 target_link_libraries(Batap_Engine PUBLIC
   batap_warnings
-  d3d12.lib
-  dxgi.lib
-  dxguid.lib
-  D3DCompiler.lib
-  dcomp.lib
+  volk
+  vk-bootstrap::vk-bootstrap
   assimp
 )
+if(APPLE)
+  target_link_libraries(Batap_Engine PUBLIC
+    "-framework Cocoa"
+    "-framework QuartzCore"
+    "-framework Metal"
+    "-framework GameController"  # exigé par imgui_impl_osx
+    "-framework UniformTypeIdentifiers"  # UTType (filtres NSOpenPanel)
+  )
+elseif(WIN32)
+  target_link_libraries(Batap_Engine PUBLIC
+    dwmapi.lib  # DwmEnableBlurBehindWindow (fenêtre transparente)
+  )
+endif()
+target_include_directories(Batap_Engine SYSTEM PUBLIC
+  "${include_dir}/VulkanMemoryAllocator/include"
+)
+
+# ------------------------------------------------------------------------------
+# Shaders HLSL -> SPIR-V (dxc du SDK Vulkan LunarG), déposés à côté des
+# exécutables. resolveEngineFile("shaders", ...) les trouve via platformExeDir().
+# ------------------------------------------------------------------------------
+if(WIN32)
+  set(_dxc_names dxc.exe)
+  file(GLOB _sdk_dxc "C:/VulkanSDK/*/Bin/dxc.exe")
+else()
+  set(_dxc_names dxc)
+  file(GLOB _sdk_dxc "$ENV{HOME}/VulkanSDK/*/macOS/bin/dxc")
+endif()
+if(DEFINED ENV{VULKAN_SDK})
+  find_program(DXC_EXE NAMES ${_dxc_names} PATHS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin"
+               NO_DEFAULT_PATH)
+endif()
+if(NOT DXC_EXE)
+  list(SORT _sdk_dxc COMPARE NATURAL)
+  list(POP_BACK _sdk_dxc DXC_EXE)
+endif()
+if(NOT DXC_EXE)
+  message(FATAL_ERROR "dxc introuvable — installer le SDK Vulkan LunarG")
+endif()
+
+# Le même SDK fournit l'API runtime (hot reload) : headers dxc/dxcapi.h
+# (VulkanShaderCompiler) et libdxcompiler (chargée à l'exécution ;
+# BATAP_DXC_LIB_DIR sert de chemin de secours quand DYLD/PATH ne la couvre pas).
+get_filename_component(_dxc_bin_dir "${DXC_EXE}" DIRECTORY)
+get_filename_component(_dxc_sdk_root "${_dxc_bin_dir}" DIRECTORY)
+if(EXISTS "${_dxc_sdk_root}/include")
+  target_include_directories(Batap_Engine SYSTEM PRIVATE "${_dxc_sdk_root}/include")
+else()
+  target_include_directories(Batap_Engine SYSTEM PRIVATE "${_dxc_sdk_root}/Include")
+endif()
+if(EXISTS "${_dxc_sdk_root}/lib")
+  target_compile_definitions(Batap_Engine PRIVATE BATAP_DXC_LIB_DIR="${_dxc_sdk_root}/lib")
+else()
+  target_compile_definitions(Batap_Engine PRIVATE BATAP_DXC_LIB_DIR="${_dxc_bin_dir}")
+endif()
+
+set(engine_shader_out "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
+file(MAKE_DIRECTORY "${engine_shader_out}")
+
+function(batap_compile_shader src out target)
+  add_custom_command(
+    OUTPUT "${engine_shader_out}/${out}"
+    COMMAND "${DXC_EXE}" -T ${target} -E main
+            -spirv -fspv-target-env=vulkan1.3
+            "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/${src}"
+            -Fo "${engine_shader_out}/${out}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/${src}"
+    COMMENT "dxc ${src} -> ${out}"
+  )
+endfunction()
+
+batap_compile_shader(VertexShader.hlsl VertexShader.spv vs_6_6)
+batap_compile_shader(PixelShader.hlsl  PixelShader.spv  ps_6_6)
+batap_compile_shader(SkyVS.hlsl        SkyVS.spv        vs_6_6)
+batap_compile_shader(SkyPS.hlsl        SkyPS.spv        ps_6_6)
+
+add_custom_target(Batap_Shaders DEPENDS
+  "${engine_shader_out}/VertexShader.spv"
+  "${engine_shader_out}/PixelShader.spv"
+  "${engine_shader_out}/SkyVS.spv"
+  "${engine_shader_out}/SkyPS.spv")
+add_dependencies(Batap_Engine Batap_Shaders)
+
+# Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —
+# la sortie SPIR-V n'est pas signée, contrairement au DXIL)
+if(WIN32 AND EXISTS "${_dxc_bin_dir}/dxcompiler.dll")
+  file(COPY "${_dxc_bin_dir}/dxcompiler.dll"
+       DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+endif()
 

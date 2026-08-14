@@ -191,8 +191,13 @@ struct InputManager
     Nano::Signal<void(KeyEvent)> KeySignal;
     Nano::Signal<void(MouseEvent)> MouseSignal;
 
-    void ProcessWindowsEvent(uint32_t message, uintptr_t wParam, intptr_t lParam);
-    void ProcessWindowsRawInput(intptr_t hRawInput);
+    // API neutre : la couche plateforme décode ses événements natifs (NSEvent
+    // dans MacOSWindow.mm, WM_* dans Win32Window.cpp) et alimente l'état de
+    // frame ici. Sur Move, Delta s'accumule et ScreenPosition remplace la
+    // position courante.
+    void feed(KeyEvent e);
+    void feed(MouseEvent e);
+
     void DispatchEvents();
     void ClearFrameState();
 

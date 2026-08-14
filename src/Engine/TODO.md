@@ -45,7 +45,7 @@ Fix : allocateur de staging par blocs, recyclés derrière une fence. Design ide
 | DX8 | | `v3f`/`m4f`/`quatf`/**`transform`** dans le namespace global | `EigenTypes.h` |
 | DX9 | | Ni `#pragma once` ni `namespace batap` — seul composant dans ce cas | `Components/FreeCamController_C.h` |
 | DX10 | | Jeu d'exemple avec du **code** — `GameExemple/` n'a que des assets | `GameExemple/` |
-| DX11 | | **Couche plateforme SDL3** — fusionne ex-DX11 + ex-DX15 + ex-D6, voir détail plus bas | `Editor/WindowsApp.cpp`, `WindowsUtils/`, `InputManager.cpp`, `Renderer.h:73` |
+| DX11 | ❌ | **Couche plateforme SDL3** — refusé (août 2026) : couche **native par OS** à la place (« pur, minimum de libs »). Le diagnostic du détail ci-dessous reste valable ; la solution devient une impl `PlatformWindow` par OS (Win32 existante, Cocoa au jalon 4 de VULKAN.md) + `InputManager::feed()` | `Editor/WindowsApp.cpp`, `WindowsUtils/`, `InputManager.cpp` |
 | DX12 | | Pas d'enregistrement de systèmes utilisateur — `Systems::update` est en dur | `Systems/Systems.cpp:16` |
 | DX13 | | Aucune requête : pas de raycast, pas de `findByName`, pas de query spatiale (`Bbox.hpp` existe, inutilisé) | — |
 | DX14 | | Pas de timestep fixe, pas de pause, pas de timescale | `Context.cpp:69` |
@@ -65,7 +65,7 @@ Bonne nouvelle : le vocabulaire agnostique existe déjà (`Key`, `MouseButton`, 
 
 **Ne pas utiliser** : `SDL_Render`, et surtout **`SDL_GPU`** — plus petit dénominateur commun, pas de bindless, incompatible avec le système d'instances. SDL sert à abstraire l'OS, pas le GPU. L'audio SDL est un device + des streams, pas un moteur audio (mixage/spatialisation → miniaudio ou SoLoud par-dessus, plus tard).
 
-**Quand** : le jour où tu écris un exe de jeu. Pas urgent — B6 et DX1 font plus de dégâts aujourd'hui.
+**Quand** : **jalon 4 du port Vulkan** (VULKAN.md, étape B) — le moteur vise mac d'abord, SDL3 est sa couche fenêtre/input/dialogs. La note sur la fenêtre transparente/DComp est caduque (DComp meurt avec DX12).
 
 ---
 
@@ -96,11 +96,11 @@ Objectif retenu : améliorer le moteur en minimisant le couplage, **sans** s'eng
 
 | ID | Statut | Sujet | Où |
 |----|--------|-------|-----|
-| D1 | | fxc/SM 5.1 → DXC/SM 6.6. Gain immédiat : `ResourceDescriptorHeap`, wave intrinsics. Et DXC sait sortir du SPIR-V | `Renderer/Shaders.cpp:36` |
-| D2 | | API `ResourceManager` agnostique : `createStructuredBuffer(count, stride)`, `createTexture2D(w,h,ResourceFormat,mips)`, `bindlessIndex(handle)` | `Renderer/ResourceManager.h` |
-| D3 | | Sortir D3D12 de `InstanceManager.h` (construit des `D3D12_SHADER_RESOURCE_VIEW_DESC` à la main) | `Instance/InstanceManager.h` |
-| D4 | | Sortir D3D12 de `GPUArena.h` | `Utils/GPUArena.h` |
-| D5 | | Sortir `DXGI_FORMAT` / `D3D12_RESOURCE_STATE` de `AssetLoader.cpp` | `Assets/AssetLoader.cpp` |
+| D1 | ✅ | fxc/SM 5.1 → DXC/SM 6.6. Gain immédiat : wave intrinsics, et DXC sait sortir du SPIR-V. (⚠️ `ResourceDescriptorHeap` : pas supporté par la sortie SPIR-V de DXC — rester en bindings explicites, cf. VULKAN.md) | `Renderer/Shaders.cpp` |
+| D2 | ✅ | API `ResourceManager` agnostique : `createStaticBuffer`, `createStatic/FrameStructuredBuffer(count, stride)`, `createTexture2D(w,h,ResourceFormat)`, `bindlessIndex(view)` | `Renderer/ResourceManager.h` |
+| D3 | ✅ | Sortir D3D12 de `InstanceManager.h` (construit des `D3D12_SHADER_RESOURCE_VIEW_DESC` à la main) | `Instance/InstanceManager.h` |
+| D4 | ✅ | Sortir D3D12 de `GPUArena.h` | `Utils/GPUArena.h` |
+| D5 | ✅ | Sortir `DXGI_FORMAT` / `D3D12_RESOURCE_STATE` de `AssetLoader.cpp` | `Assets/AssetLoader.cpp` |
 | D6 | → | Fusionné dans **DX11** | — |
 | D7 | | CMake : séparer les flags clang des flags MSVC (`/O2`, `/EHsc` mélangés aux warnings clang) | `CMakeLists.txt:57` |
 

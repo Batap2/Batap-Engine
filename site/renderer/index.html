@@ -12,12 +12,14 @@
         <link rel="prev" href="../engine/">
       
       
+        <link rel="next" href="../vulkan-changements/">
+      
       
         
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -25,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -438,6 +440,60 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vulkan-changements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branche vulkan — guide de relecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vulkan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vulkan — comprendre le backend
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -649,46 +705,46 @@
 <li>Root constants (<code>RootConstantsDesc</code>)</li>
 </ul>
 <p><strong>exemple : creation of a 3D pipeline state</strong></p>
-<pre><code class="language-cpp">{
-        auto vs = _psoManager-&gt;compileShaderFromFile(
-            toS(&quot;shader_3D_VS&quot;), shader_dir + &quot;/VertexShader.hlsl&quot;, &quot;main&quot;, &quot;vs_5_1&quot;);
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">        </span><span class="k">auto</span><span class="w"> </span><span class="n">vs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_psoManager</span><span class="o">-&gt;</span><span class="n">compileShaderFromFile</span><span class="p">(</span>
+<span class="w">            </span><span class="n">toS</span><span class="p">(</span><span class="s">&quot;shader_3D_VS&quot;</span><span class="p">),</span><span class="w"> </span><span class="n">shader_dir</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;/VertexShader.hlsl&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;main&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;vs_5_1&quot;</span><span class="p">);</span>
 
-        auto ps = _psoManager-&gt;compileShaderFromFile(
-            toS(&quot;shader_3D_PS&quot;), shader_dir + &quot;/PixelShader.hlsl&quot;, &quot;main&quot;, &quot;ps_5_1&quot;);
+<span class="w">        </span><span class="k">auto</span><span class="w"> </span><span class="n">ps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_psoManager</span><span class="o">-&gt;</span><span class="n">compileShaderFromFile</span><span class="p">(</span>
+<span class="w">            </span><span class="n">toS</span><span class="p">(</span><span class="s">&quot;shader_3D_PS&quot;</span><span class="p">),</span><span class="w"> </span><span class="n">shader_dir</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;/PixelShader.hlsl&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;main&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;ps_5_1&quot;</span><span class="p">);</span>
 
-        RootSignatureDescription rsDesc_VS{
-            {
-                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0,
-                                    D3D12_SHADER_VISIBILITY_ALL},            // Camera
-                DescriptorTableDesc{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0,
-                                    D3D12_SHADER_VISIBILITY_VERTEX},         // Mesh InstanceData
-                RootConstantsDesc{2, 0, 0, D3D12_SHADER_VISIBILITY_ALL}      // indices : Camera, Mesh
-            },
-            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT};
+<span class="w">        </span><span class="n">RootSignatureDescription</span><span class="w"> </span><span class="n">rsDesc_VS</span><span class="p">{</span>
+<span class="w">            </span><span class="p">{</span>
+<span class="w">                </span><span class="n">DescriptorTableDesc</span><span class="p">{</span><span class="n">D3D12_DESCRIPTOR_RANGE_TYPE_SRV</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">                                    </span><span class="n">D3D12_SHADER_VISIBILITY_ALL</span><span class="p">},</span><span class="w">            </span><span class="c1">// Camera</span>
+<span class="w">                </span><span class="n">DescriptorTableDesc</span><span class="p">{</span><span class="n">D3D12_DESCRIPTOR_RANGE_TYPE_SRV</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">                                    </span><span class="n">D3D12_SHADER_VISIBILITY_VERTEX</span><span class="p">},</span><span class="w">         </span><span class="c1">// Mesh InstanceData</span>
+<span class="w">                </span><span class="n">RootConstantsDesc</span><span class="p">{</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">D3D12_SHADER_VISIBILITY_ALL</span><span class="p">}</span><span class="w">      </span><span class="c1">// indices : Camera, Mesh</span>
+<span class="w">            </span><span class="p">},</span>
+<span class="w">            </span><span class="n">D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT</span><span class="p">};</span>
 
-        D3D12_INPUT_ELEMENT_DESC layout[] = {
-            {&quot;POSITION&quot;, 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-            {&quot;NORMAL&quot;, 0, DXGI_FORMAT_R32G32B32_FLOAT, 1, 0,
-             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-            {&quot;TEXCOORD&quot;, 0, DXGI_FORMAT_R32G32_FLOAT, 2, 0,
-             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-        };
+<span class="w">        </span><span class="n">D3D12_INPUT_ELEMENT_DESC</span><span class="w"> </span><span class="n">layout</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="p">{</span><span class="s">&quot;POSITION&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">DXGI_FORMAT_R32G32B32_FLOAT</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">             </span><span class="n">D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span>
+<span class="w">            </span><span class="p">{</span><span class="s">&quot;NORMAL&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">DXGI_FORMAT_R32G32B32_FLOAT</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">             </span><span class="n">D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span>
+<span class="w">            </span><span class="p">{</span><span class="s">&quot;TEXCOORD&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">DXGI_FORMAT_R32G32_FLOAT</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">             </span><span class="n">D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span>
+<span class="w">        </span><span class="p">};</span>
 
-        _psoManager-&gt;createGraphicsPipelineState(
-            &quot;geometry_pass&quot;, rsDesc_VS,
-            [&amp;](D3D12_GRAPHICS_PIPELINE_STATE_DESC&amp; desc)
-            {
-                desc.InputLayout = {layout, _countof(layout)};
-                desc.VS = {vs-&gt;_blob-&gt;GetBufferPointer(), vs-&gt;_blob-&gt;GetBufferSize()};
-                desc.PS = {ps-&gt;_blob-&gt;GetBufferPointer(), ps-&gt;_blob-&gt;GetBufferSize()};
-                desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-                desc.DepthStencilState.DepthEnable = 1;
-                desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-                desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-            });
-    }
-</code></pre>
+<span class="w">        </span><span class="n">_psoManager</span><span class="o">-&gt;</span><span class="n">createGraphicsPipelineState</span><span class="p">(</span>
+<span class="w">            </span><span class="s">&quot;geometry_pass&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">rsDesc_VS</span><span class="p">,</span>
+<span class="w">            </span><span class="p">[</span><span class="o">&amp;</span><span class="p">](</span><span class="n">D3D12_GRAPHICS_PIPELINE_STATE_DESC</span><span class="o">&amp;</span><span class="w"> </span><span class="n">desc</span><span class="p">)</span>
+<span class="w">            </span><span class="p">{</span>
+<span class="w">                </span><span class="n">desc</span><span class="p">.</span><span class="n">InputLayout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">layout</span><span class="p">,</span><span class="w"> </span><span class="n">_countof</span><span class="p">(</span><span class="n">layout</span><span class="p">)};</span>
+<span class="w">                </span><span class="n">desc</span><span class="p">.</span><span class="n">VS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">vs</span><span class="o">-&gt;</span><span class="n">_blob</span><span class="o">-&gt;</span><span class="n">GetBufferPointer</span><span class="p">(),</span><span class="w"> </span><span class="n">vs</span><span class="o">-&gt;</span><span class="n">_blob</span><span class="o">-&gt;</span><span class="n">GetBufferSize</span><span class="p">()};</span>
+<span class="w">                </span><span class="n">desc</span><span class="p">.</span><span class="n">PS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">ps</span><span class="o">-&gt;</span><span class="n">_blob</span><span class="o">-&gt;</span><span class="n">GetBufferPointer</span><span class="p">(),</span><span class="w"> </span><span class="n">ps</span><span class="o">-&gt;</span><span class="n">_blob</span><span class="o">-&gt;</span><span class="n">GetBufferSize</span><span class="p">()};</span>
+<span class="w">                </span><span class="n">desc</span><span class="p">.</span><span class="n">DSVFormat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DXGI_FORMAT_D32_FLOAT</span><span class="p">;</span>
+<span class="w">                </span><span class="n">desc</span><span class="p">.</span><span class="n">DepthStencilState</span><span class="p">.</span><span class="n">DepthEnable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="n">desc</span><span class="p">.</span><span class="n">DepthStencilState</span><span class="p">.</span><span class="n">DepthFunc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">D3D12_COMPARISON_FUNC_LESS</span><span class="p">;</span>
+<span class="w">                </span><span class="n">desc</span><span class="p">.</span><span class="n">DepthStencilState</span><span class="p">.</span><span class="n">DepthWriteMask</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">D3D12_DEPTH_WRITE_MASK_ALL</span><span class="p">;</span>
+<span class="w">            </span><span class="p">});</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
 <hr />
 <h2 id="scenerenderer">SceneRenderer</h2>
 <p>Decouples rendering from the Scene.</p>
@@ -774,7 +830,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

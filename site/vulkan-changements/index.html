@@ -1,0 +1,871 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../renderer/">
+      
+      
+        <link rel="next" href="../vulkan/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Branche vulkan — guide de relecture - Batap Engine</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#branche-vulkan-guide-de-relecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Batap Engine" class="md-header__button md-logo" aria-label="Batap Engine" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Batap Engine
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Branche vulkan — guide de relecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="deep-purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="deep-purple"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Batap Engine" class="md-nav__button md-logo" aria-label="Batap Engine" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Batap Engine
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Batap Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../renderer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renderer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branche vulkan — guide de relecture
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branche vulkan — guide de relecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-le-backend-srcenginerenderer-vulkan-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Le backend — src/Engine/Renderer/ (Vulkan-only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-la-couche-plateforme-srcengineplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. La couche plateforme — src/Engine/Platform/
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-modifs-du-code-moteur-existant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Modifs du code moteur existant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-shaders-hlsl-srcengineshaders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Shaders HLSL (src/Engine/Shaders/)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-donnees-gameexemple" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Données (GameExemple/)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-build-outillage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Build &amp; outillage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-ce-qui-nest-pas-teste-a-faire-au-retour-windows-a-la-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Ce qui n'est PAS testé (à faire au retour Windows / à la main)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vulkan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vulkan — comprendre le backend
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-le-backend-srcenginerenderer-vulkan-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Le backend — src/Engine/Renderer/ (Vulkan-only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-la-couche-plateforme-srcengineplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. La couche plateforme — src/Engine/Platform/
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-modifs-du-code-moteur-existant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Modifs du code moteur existant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-shaders-hlsl-srcengineshaders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Shaders HLSL (src/Engine/Shaders/)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-donnees-gameexemple" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Données (GameExemple/)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-build-outillage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Build &amp; outillage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-ce-qui-nest-pas-teste-a-faire-au-retour-windows-a-la-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Ce qui n'est PAS testé (à faire au retour Windows / à la main)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="branche-vulkan-guide-de-relecture">Branche vulkan — guide de relecture</h1>
+<p>Tout ce qui a changé depuis <code>main</code>, fichier par fichier, avec le pourquoi.
+<strong>L'étape C est faite : DX12 n'existe plus dans le repo</strong> — le moteur est
+Vulkan-only, mac et Windows partagent le même backend.</p>
+<p>À lire avec les deux autres docs :</p>
+<ul>
+<li><strong><code>src/Engine/VULKAN.md</code></strong> — le plan et son état (jalons, décisions actées) ;</li>
+<li><strong><code>docs/vulkan.md</code></strong> — le doc pédagogique : les concepts Vulkan expliqués à
+  travers le code du repo (à lire AVANT le code si Vulkan est encore flou) ;</li>
+<li><strong>ce fichier</strong> — la carte du diff, pour la relecture.</li>
+</ul>
+<p>Ordre conseillé : docs/vulkan.md (concepts) → le backend (§1, dans l'ordre
+donné) → la couche plateforme (§2) → le reste en diagonale avec ce guide.</p>
+<hr />
+<h2 id="1-le-backend-srcenginerenderer-vulkan-only">1. Le backend — <code>src/Engine/Renderer/</code> (Vulkan-only)</h2>
+<p>Ce qui reste dans <code>Renderer/</code> à la racine :</p>
+<table>
+<thead>
+<tr>
+<th>Fichier</th>
+<th>Rôle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Renderer.h</code>, <code>ResourceManager.h</code></td>
+<td>Simples <strong>forwarders</strong> vers <code>Renderer/Vulkan/</code> — les 40+ appelants n'ont pas à connaître l'arborescence.</td>
+</tr>
+<tr>
+<td><code>SceneRenderer.h</code></td>
+<td>Header neutre du pont scène↔renderer (impl : <code>Vulkan/VulkanSceneRenderer.cpp</code>).</td>
+</tr>
+<tr>
+<td><code>EngineConfig.h</code></td>
+<td><code>FramesInFlight = 3</code>. (Les tailles de descriptor heaps et <code>CompositionSwapChain</code> sont morts avec DX12.)</td>
+</tr>
+<tr>
+<td><code>ResourceFormatWrapper.h</code></td>
+<td>L'enum <code>ResourceFormat</code> — il garde les <strong>valeurs DXGI</strong> exprès : les assets sérialisés y font référence, la traduction Vulkan est une table (<code>VulkanFormats.h</code>).</td>
+</tr>
+<tr>
+<td><code>SkyIrradiance.{h,cpp}</code></td>
+<td>Projection SH de l'HDRI/du gradient — <strong>CPU, portable</strong> (utilisé par le pipeline d'assets et l'instance skybox).</td>
+</tr>
+</tbody>
+</table>
+<p><code>Renderer/Vulkan/</code>, dans l'ordre de lecture :</p>
+<table>
+<thead>
+<tr>
+<th>Fichier</th>
+<th>Rôle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VulkanContext.{h,cpp}</code></td>
+<td>Init : volk (loader) + vk-bootstrap (instance/device) + VMA + validation layers. Toutes les features 1.3/1.2 exigées (dynamic rendering, sync2, bindless…) sont listées ici.</td>
+</tr>
+<tr>
+<td><code>VulkanSwapchain.{h,cpp}</code></td>
+<td>Surface (Metal sur mac, Win32 sur Windows — <code>#elif</code> sur <code>VK_USE_PLATFORM_*</code>) + swapchain + synchro de présentation. <code>recreate()</code> pour le resize, présentation sans vsync (IMMEDIATE &gt; MAILBOX &gt; FIFO).</td>
+</tr>
+<tr>
+<td><code>VulkanResources.{h,cpp}</code></td>
+<td>La classe <code>ResourceManager</code>. Set 0 bindless (sampler immutable + 4096 textures, update-after-bind), staging rings mappés par frame, buffers par-frame, destructions différées par slot.</td>
+</tr>
+<tr>
+<td><code>VulkanPipelines.{h,cpp}</code></td>
+<td>SPIR-V + builder de pipeline (dynamic rendering). <code>setViewportYUp</code> : viewport à hauteur <strong>négative</strong> = convention Y-up de DX12, shaders/matrices inchangés.</td>
+</tr>
+<tr>
+<td><code>VulkanScenePasses.{h,cpp}</code></td>
+<td>Passes geometry + sky. Set 1 = 5 storage buffers par frame (caméras, instances, lights, matériaux, skybox). Un draw <strong>par submesh</strong> (l'index en push constant — pas de SV_PrimitiveID sur Metal). Le hot reload vit ici.</td>
+</tr>
+<tr>
+<td><code>VulkanShaderCompiler.{h,cpp}</code></td>
+<td>HLSL → SPIR-V à chaud via la lib DXC native (dlopen/LoadLibrary paresseux, non-fatal si absente). ComPtr RAII local (pas d'ATL).</td>
+</tr>
+<tr>
+<td><code>VulkanRenderer.{h,cpp}</code></td>
+<td>L'orchestrateur, classe <code>Renderer</code>. Frame complète : docs/vulkan.md §9. Init ImGui. Debug : <code>BATAP_DUMP_FRAME=N</code> → <code>frame_dump.png</code>.</td>
+</tr>
+<tr>
+<td><code>VulkanSceneRenderer.cpp</code></td>
+<td>Le pont trois-lignes vers le header neutre <code>SceneRenderer.h</code>.</td>
+</tr>
+<tr>
+<td><code>VulkanFormats.h</code>, <code>VulkanMemory.h</code></td>
+<td>Table <code>ResourceFormat</code>→<code>VkFormat</code> ; config VMA.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pièges corrigés en route, à connaître pour la relecture :</strong></p>
+<ul>
+<li><code>_frameIndex</code> est publié dans <code>beginImGuiFrame()</code> (début de frame CPU), pas
+  dans <code>render()</code> : le dirty tracking par frame-in-flight doit voir le slot en
+  cours de production. L'avoir en fin de frame donnait UNE FRAME SUR DEUX NOIRE.</li>
+<li>FIFO (vsync) plafonnait à 60 fps → IMMEDIATE quand dispo.</li>
+<li><code>acquire()</code> rend <code>OutOfDate</code> (frame sautée proprement) au lieu de jeter.</li>
+</ul>
+<h2 id="2-la-couche-plateforme-srcengineplatform">2. La couche plateforme — <code>src/Engine/Platform/</code></h2>
+<ul>
+<li><code>PlatformWindow.h</code> — le contrat neutre. Ajouts : <code>platformSurfaceHandle()</code>
+  (ce sur quoi la VkSurface se crée : HWND sur Windows, CAMetalLayer* sur mac)
+  et <code>platformImGui{Init,NewFrame,Shutdown}</code> (backend ImGui par OS).</li>
+<li><code>MacOS/MacOSWindow.mm</code> — <strong>neuf</strong> : NSWindow + CAMetalLayer, delegate
+  (close, resize → <code>Renderer::resize</code>), pompe NSEvent, <strong>décodage input
+  complet</strong> (keycodes Carbon → <code>Key</code>, modificateurs via <code>flagsChanged</code>,
+  souris en pixels physiques origine haut-gauche) → <code>InputManager::feed()</code>.
+  Respecte la capture ImGui (WantCaptureMouse/Keyboard).</li>
+<li><code>MacOS/MacOSFileDialog.mm</code> — <strong>neuf</strong> : NSOpenPanel/NSSavePanel pour
+  <code>FileDialog.h</code>. Variantes Async modales (AppKit exige le main thread) mais
+  même contrat de bus que les threads détachés de Win32.</li>
+<li><code>Win32/Win32Window.cpp</code> — le décodage WM_*/RAWINPUT a déménagé ici depuis
+  InputManager.cpp (miroir exact du .mm : table VkToKey + <code>feed()</code>), hooks
+  <code>platformImGui*</code> (ImGui_ImplWin32), <code>WS_EX_NOREDIRECTIONBITMAP</code> retiré
+  (mort avec DirectComposition).</li>
+<li><code>Win32/Win32FileDialog.cpp</code> — l'ex <code>WindowsUtils/FileDialog.cpp</code> (COM),
+  déplacé ici ; <code>WindowsUtils/</code> n'existe plus, le header neutre est
+  <code>src/Engine/FileDialog.h</code>.</li>
+<li><code>InputManager.{h,cpp}</code> — plus AUCUN code plateforme. <code>feed(KeyEvent)</code> /
+  <code>feed(MouseEvent)</code> : la plateforme décode, l'InputManager accumule.</li>
+</ul>
+<p><strong>⚠ Rien de la couche Win32 ni du chemin Vulkan-Windows n'a été compilé</strong>
+(pas de machine Windows pendant le port) — voir §7.</p>
+<h2 id="3-modifs-du-code-moteur-existant">3. Modifs du code moteur existant</h2>
+<ul>
+<li><code>Engine.cpp</code> — <code>_renderer-&gt;init(window_, …)</code> sans cast HWND.</li>
+<li><code>DebugUtils.cpp</code> — portable (<code>windows.h</code>/<code>OutputDebugString</code>/<code>__debugbreak</code>
+  sous <code>#ifdef</code>, <code>FAILED(hr)</code> → <code>hr &lt; 0</code>).</li>
+<li><code>Utils/GPUArena.h</code>, <code>Instance/InstanceManager.h</code>, <code>Assets/AssetLoader.cpp</code> —
+  types neutres partout (l'étape A : plus une trace de D3D12 hors backend).</li>
+<li><code>Serialization/AssetFieldTypes.cpp</code> — warning stderr permanent sur handle
+  non résolu (la leçon de la scène noire, cf. §5).</li>
+<li><code>Editor/main.cpp</code> — <code>main()</code>/<code>wWinMain</code> par #ifdef ; <code>Editor/App.cpp</code> —
+  <code>configPath()</code> portable (%APPDATA% / ~/Library/Application Support).</li>
+</ul>
+<h2 id="4-shaders-hlsl-srcengineshaders">4. Shaders HLSL (<code>src/Engine/Shaders/</code>)</h2>
+<p>Il reste 4 shaders (les ComputeShader*.hlsl du DX12, orphelins, sont supprimés) :</p>
+<ul>
+<li>chaque ressource porte <code>[[vk::binding(n, set)]]</code> — le contrat avec l'enum
+  <code>FrameSetBinding</code> de VulkanScenePasses ;</li>
+<li>root constants → <code>[[vk::push_constant]] struct DrawPush
+  {_cameraIndex,_instanceIndex,_submeshIndex,_pointLightCount}</code> partagé VS/PS ;</li>
+<li><code>PixelShader.hlsl</code> : une seule sortie SV_Target (le normalRT, écrit-jamais-lu,
+  a disparu) ; matériau via <code>_materialIndices[_submeshIndex]</code> (plus de
+  SV_PrimitiveID — capability Geometry absente sur Metal) ;</li>
+<li><code>SkyPS.hlsl</code> : lit <code>SkyboxBuffer[0]</code> au lieu de 16 root constants dédiés.</li>
+</ul>
+<h2 id="5-donnees-gameexemple">5. Données (<code>GameExemple/</code>)</h2>
+<ul>
+<li><strong>Migration <code>.btpl</code></strong> : anciens noms de champs (<code>mesh.path</code> → <code>mesh</code> ;
+  <code>materials</code> → <code>slots[8]</code> + <code>count</code>) ignorés EN SILENCE par le chargement →
+  scène noire au premier allumage. Migrées, originaux en <code>*.old-format.bak</code>
+  (non suivis — à supprimer quand tu valides).</li>
+<li><strong><code>cornelScene.btpl</code> : entité <code>Sky</code> ajoutée</strong> (Skybox_C Gradient) pour
+  valider la passe sky. <strong>Ça change l'éclairage de la Cornel</strong> (IBL du ciel
+  active) — comportement correct, pas une régression.</li>
+<li><code>GameExemple/main.cpp</code> : <code>ImGui::ShowDemoWindow()</code> laissé pour tester
+  ImGui/input à la main — à virer quand tu n'en as plus besoin.</li>
+</ul>
+<h2 id="6-build-outillage">6. Build &amp; outillage</h2>
+<ul>
+<li><strong>Submodules</strong> : + <code>volk</code>, <code>vk-bootstrap</code>, <code>VulkanMemoryAllocator</code> ;
+  − <code>DirectX-Headers</code> (supprimé avec DX12).</li>
+<li><code>CMakeLists.txt</code> racine — volk/vk-bootstrap/assimp pour les DEUX OS ;
+  <code>VOLK_STATIC_DEFINES</code> = <code>VK_USE_PLATFORM_WIN32_KHR</code> / <code>METAL_EXT</code> selon
+  l'OS ; l'éditeur n'est plus gated Windows.</li>
+<li><code>src/Engine/CmakeLists.txt</code> — tri plateforme réduit à la couche Platform/
+  (le backend est commun) ; imgui : <code>imgui_impl_vulkan</code> partout + win32/osx
+  par OS (<code>-w</code> sur le code tiers) ; compilation des 4 shaders → <code>bin/shaders/</code>
+  via le dxc du SDK Vulkan (découverte par OS) ; headers dxc + chemin de la
+  lib DXC pour le hot reload ; sous Windows, copie de <code>dxcompiler.dll</code> à côté
+  des exes (pas de dxil.dll : la sortie SPIR-V n'est pas signée).</li>
+<li><code>tools/compile-check/</code> — <strong>supprimé</strong> : il servait à vérifier le code DX12
+  depuis le mac ; le build mac est maintenant un vrai build du moteur entier.</li>
+<li><code>tools/vk-smoke/</code> — <strong>neuf</strong> : harness des jalons 1-4 (offscreen PNG,
+  triangle, texture bindless, fenêtre). Garde sa valeur de repro minimale.</li>
+<li><code>CMakePresets.json</code> — preset <code>macos-debug</code> ; <code>.vscode/</code> — F5
+  <code>TestGame/Editor (macos-debug)</code> (CodeLLDB,
+  <code>DYLD_LIBRARY_PATH=/opt/homebrew/lib</code>), chemins Windows en dur retirés de
+  settings.json.</li>
+</ul>
+<h2 id="7-ce-qui-nest-pas-teste-a-faire-au-retour-windows-a-la-main">7. Ce qui n'est PAS testé (à faire au retour Windows / à la main)</h2>
+<ol>
+<li><strong>Tout le chemin Windows</strong> : la couche Win32 modifiée (input migré, hooks
+   ImGui, FileDialog déplacé) et le backend Vulkan sous Windows (surface
+   win32, CMake unifié, hot reload via LoadLibrary) — écrit proprement mais
+   <strong>jamais compilé</strong>. Au retour : installer le SDK Vulkan LunarG, configurer,
+   prévoir une passe de fix.</li>
+<li><strong>L'éditeur mac en interactif</strong> : Browse (NSOpenPanel) → projet → scène,
+   import assimp, sauvegarde. Il compile, se lance et rend son écran de
+   démarrage sans erreur de validation — le parcours complet est à toi.</li>
+<li><strong>Le resize en live</strong> (drag de la fenêtre) : mécanisme validé par code,
+   pas encore à l'œil.</li>
+<li>La comparaison visuelle avec les anciennes captures DX12.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

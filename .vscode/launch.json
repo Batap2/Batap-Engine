@@ -45,5 +45,29 @@
       "console": "integratedTerminal",
       "preLaunchTask": "Build (msvc-relwithdebinfo)"
     },
+    {
+      "name": "TestGame (macos-debug)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/macos-debug/bin/Batap_TestGame",
+      "args": ["--project", "${workspaceFolder}/GameExemple"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        // le loader Vulkan (brew) vit hors des chemins dlopen par défaut
+        "DYLD_LIBRARY_PATH": "/opt/homebrew/lib"
+      },
+      "preLaunchTask": "Build (macos-debug)"
+    },
+    {
+      "name": "Editor (macos-debug)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/macos-debug/bin/Batap_Editor",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DYLD_LIBRARY_PATH": "/opt/homebrew/lib"
+      },
+      "preLaunchTask": "Build (macos-debug)"
+    },
   ]
 }

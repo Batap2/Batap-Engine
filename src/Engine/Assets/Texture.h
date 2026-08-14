@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include "Renderer/ResourceFormatWrapper.h"
+#include "Renderer/ResourceFormat.h"
 #include "Renderer/ResourceManager.h"
 #include "Renderer/SkyIrradiance.h"
 
