@@ -17,16 +17,16 @@ struct SubMesh
 
 struct Mesh
 {
-    GPUMeshViewHandle _indexBuffer;
-    GPUMeshViewHandle _vertexBuffer;
-    GPUMeshViewHandle _normalBuffer;
-    GPUMeshViewHandle _tangeantBuffer;
-    GPUMeshViewHandle _uv0Buffer;
+    GPUMeshViewHandle indexBuffer_;
+    GPUMeshViewHandle vertexBuffer_;
+    GPUMeshViewHandle normalBuffer_;
+    GPUMeshViewHandle tangeantBuffer_;
+    GPUMeshViewHandle uv0Buffer_;
 
-    ResourceFormat _indexFormat = ResourceFormat::R32_UINT;
+    ResourceFormat indexFormat_ = ResourceFormat::R32_UINT;
 
-    uint32_t _vertexCount = 0;
-    uint32_t _indexCount  = 0;
+    uint32_t vertexCount_ = 0;
+    uint32_t indexCount_  = 0;
 
     std::array<SubMesh, 8> subMeshes{};
     uint8_t                subMeshCount = 0;

@@ -15,6 +15,7 @@
 #include "Paths.h"
 
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -52,7 +53,7 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, uint32_t 
     depthFormat_ = depthFormat;
 
     // ---- Set 1 : 5 storage buffers, visibles VS+PS ----
-    VkDescriptorSetLayoutBinding bindings[FrameSetBindingCount]{};
+    std::array<VkDescriptorSetLayoutBinding, FrameSetBindingCount> bindings{};
     for (uint32_t i = 0; i < FrameSetBindingCount; ++i)
     {
         bindings[i].binding = i;
@@ -64,7 +65,7 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, uint32_t 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = FrameSetBindingCount;
-    layoutInfo.pBindings = bindings;
+    layoutInfo.pBindings = bindings.data();
     if (vkCreateDescriptorSetLayout(ctx.device_, &layoutInfo, nullptr, &frameSetLayout_) !=
         VK_SUCCESS)
         throw std::runtime_error("ScenePasses : frame set layout");
@@ -152,18 +153,18 @@ void ScenePasses::checkHotReload(VkDevice device)
 
     // Les sources HLSL de l'arbre (pas les .spv du build) : le hot reload est
     // un outil de dev, il vit là où on édite.
-    static const fs::path sourceDir = fs::path(BATAP_ROOT_DIR) / "src/Engine/Shaders";
+    const fs::path sourceDir = fs::path(BATAP_ROOT_DIR) / "src/Engine/Shaders";
     struct Stage
     {
         const char* file;
         const char* target;
     };
-    static constexpr Stage stages[] = {
+    static constexpr std::array<Stage, 4> stages = {{
         {"VertexShader.hlsl", "vs_6_6"},
         {"PixelShader.hlsl", "ps_6_6"},
         {"SkyVS.hlsl", "vs_6_6"},
         {"SkyPS.hlsl", "ps_6_6"},
-    };
+    }};
 
     fs::file_time_type latest{};
     std::error_code ec;
@@ -180,8 +181,8 @@ void ScenePasses::checkHotReload(VkDevice device)
     shadersMtime_ = latest;  // même en cas d'échec : on retentera à la
                              // prochaine sauvegarde, pas à chaque check
 
-    std::vector<uint8_t> spirv[4];
-    for (size_t i = 0; i < 4; ++i)
+    std::array<std::vector<uint8_t>, 4> spirv;
+    for (size_t i = 0; i < stages.size(); ++i)
     {
         spirv[i] = shaderCompiler_.compile((sourceDir / stages[i].file).string(),
                                            stages[i].target);
@@ -214,20 +215,20 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
 {
     auto* instanceM = args.instanceManager_;
 
-    const VkBuffer buffers[FrameSetBindingCount] = {
-        resources_->bufferForView(instanceM->pool<CameraInstance>()._instancePoolViewHandle,
+    const std::array<VkBuffer, FrameSetBindingCount> buffers = {
+        resources_->bufferFor(instanceM->pool<CameraInstance>().instancePoolHandle_,
                                   frame),
-        resources_->bufferForView(instanceM->pool<StaticMeshInstance>()._instancePoolViewHandle,
+        resources_->bufferFor(instanceM->pool<StaticMeshInstance>().instancePoolHandle_,
                                   frame),
-        resources_->bufferForView(instanceM->pool<PointLightInstance>()._instancePoolViewHandle,
+        resources_->bufferFor(instanceM->pool<PointLightInstance>().instancePoolHandle_,
                                   frame),
-        resources_->bufferForView(ctx._assetManager->getGPUArena<Material>()->srvHandle(), frame),
-        resources_->bufferForView(instanceM->pool<SkyboxInstance>()._instancePoolViewHandle,
+        resources_->bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle(), frame),
+        resources_->bufferFor(instanceM->pool<SkyboxInstance>().instancePoolHandle_,
                                   frame),
     };
 
-    VkDescriptorBufferInfo bufferInfos[FrameSetBindingCount]{};
-    VkWriteDescriptorSet writes[FrameSetBindingCount]{};
+    std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
+    std::array<VkWriteDescriptorSet, FrameSetBindingCount> writes{};
     for (uint32_t i = 0; i < FrameSetBindingCount; ++i)
     {
         bufferInfos[i].buffer = buffers[i];
@@ -240,7 +241,7 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
         writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writes[i].pBufferInfo = &bufferInfos[i];
     }
-    vkUpdateDescriptorSets(resources_->device(), FrameSetBindingCount, writes, 0, nullptr);
+    vkUpdateDescriptorSets(resources_->device(), FrameSetBindingCount, writes.data(), 0, nullptr);
 }
 
 void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, uint32_t height,
@@ -256,7 +257,7 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
     reg->view<Camera_C, Transform_C>().each(
         [&](entt::entity e, Camera_C& c, Transform_C&)
         {
-            if (c._active)
+            if (c.active_)
                 cam = {reg, e};
         });
     if (!cam.valid())
@@ -283,19 +284,19 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
     reg->view<Mesh_C>().each(
         [&](entt::entity e, Mesh_C& meshC)
         {
-            if (!meshC._mesh)
+            if (!meshC.mesh_)
                 return;
-            auto* mesh = ctx._assetManager->get(meshC._mesh);
+            auto* mesh = ctx.assetManager_->get(meshC.mesh_);
 
             const auto id = instanceM->pool<StaticMeshInstance>().getGPUIndex({reg, e});
             if (!id.valid())
                 return;
 
-            auto* ib = resources_->getMeshView(mesh->_indexBuffer);
-            auto* vb = resources_->getMeshView(mesh->_vertexBuffer);
-            auto* nb = resources_->getMeshView(mesh->_normalBuffer);
-            auto* uvb = resources_->getMeshView(mesh->_uv0Buffer);
-            auto* tb = resources_->getMeshView(mesh->_tangeantBuffer);
+            auto* ib = resources_->getMeshView(mesh->indexBuffer_);
+            auto* vb = resources_->getMeshView(mesh->vertexBuffer_);
+            auto* nb = resources_->getMeshView(mesh->normalBuffer_);
+            auto* uvb = resources_->getMeshView(mesh->uv0Buffer_);
+            auto* tb = resources_->getMeshView(mesh->tangeantBuffer_);
             if (!ib || !vb || !nb || !uvb || !tb)
                 return;  // mesh incomplet (pas de normales/uv/tangentes)
 
@@ -319,7 +320,7 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
                 vkCmdPushConstants(cmd, pipelineLayout_,
                                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                    sizeof(push), &push);
-                vkCmdDrawIndexed(cmd, mesh->_indexCount, 1, 0, 0, 0);
+                vkCmdDrawIndexed(cmd, mesh->indexCount_, 1, 0, 0, 0);
                 return;
             }
             for (uint8_t sub = 0; sub < mesh->subMeshCount; ++sub)

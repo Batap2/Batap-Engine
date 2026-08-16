@@ -17,18 +17,18 @@ namespace batap
 {
 TestScene::TestScene(World& world) : Scene(*world.instanceManager_)
 {
-    _camera = world.entityFactory_->createCamera(_registry);
-    auto& camController = _camera.emplace<FreeCamController_C>();
+    camera_ = world.entityFactory_->createCamera(registry_);
+    auto& camController = camera_.emplace<FreeCamController_C>();
     camController.controlled_ = true;
     camController.requireRightMouseButton_ = true;
 
-    world.systems_->_transforms->translate(_camera, v3f(0, 2, 6), Space::Local);
+    world.systems_->transforms_->translate(camera_, v3f(0, 2, 6), Space::Local);
 
-    auto camC = _camera.try_get<Camera_C>();
-    camC->_active = true;
-    camC->_znear = 0.1f;
-    camC->_zfar = 1000;
-    camC->_fov = std::numbers::pi_v<float> / 3;
+    auto camC = camera_.try_get<Camera_C>();
+    camC->active_ = true;
+    camC->znear_ = 0.1f;
+    camC->zfar_ = 1000;
+    camC->fov_ = std::numbers::pi_v<float> / 3;
 }
 
 void TestScene::update(float deltaTime, Engine& ctx, World& world) {}

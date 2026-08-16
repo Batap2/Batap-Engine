@@ -13,7 +13,7 @@ struct GPUInstanceManager;
 
 struct EntityFactory
 {
-    GPUInstanceManager& _instanceManager;
+    GPUInstanceManager& instanceManager_;
 
     EntityFactory(GPUInstanceManager& instanceManager);
     EntityHandle createEmpty(entt::registry& reg);

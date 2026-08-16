@@ -24,7 +24,7 @@ nlohmann::json toJson(const Transform_C& c)
     return {{"pos", toJson(c.pos())}, {"rot", toJson(c.rot())}, {"scale", toJson(c.scale())}};
 }
 
-// Key mirrors Mesh_C::_mesh.
+// Key mirrors Mesh_C::mesh_.
 nlohmann::json toJson(const MeshDesc& d)
 {
     return {{"mesh", d.path.empty() ? nlohmann::json(nullptr) : nlohmann::json(d.path)}};

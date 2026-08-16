@@ -287,12 +287,12 @@ Le rendu n'est PAS un portage 1:1 du RenderGraph DX12 — c'est le design que
 Vulkan 1.3 permet, en plus simple. Les fichiers, dans l'ordre de lecture :
 
 - `Renderer/Vulkan/VulkanRenderer.{h,cpp}` — l'orchestrateur. Une frame :
-  `beginImGuiFrame()` (début de frame CPU : attend la fence du slot, recycle
-  staging + destructions, publie `_frameIndex`, ouvre la frame ImGui) → la
+  `beginFrame()` (début de frame CPU : attend la fence du slot, recycle
+  staging + destructions, publie `frameIndex_`, ouvre la frame ImGui) → la
   simulation écrit ses uploads → `render()` : check hot-reload → `flushUploads`
   → barrières → **un** rendering scope (swapchain + depth, loadOp CLEAR) dans
   lequel la scène s'enregistre puis ImGui se dessine → barrière → present.
-  `_frameIndex` est publié en DÉBUT de frame CPU exprès : tout ce qui est
+  `frameIndex_` est publié en DÉBUT de frame CPU exprès : tout ce qui est
   « par frame en vol » (dirty tracking, staging) doit voir le slot en cours
   de production, pas celui de la frame passée.
 - `Renderer/Vulkan/VulkanScenePasses.{h,cpp}` — les passes geometry + sky,

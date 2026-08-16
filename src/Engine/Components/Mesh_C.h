@@ -7,7 +7,7 @@ namespace batap
 {
 struct Mesh_C
 {
-    MeshHandle _mesh;
+    MeshHandle mesh_;
 };
 
 // The handle is serialized as its asset path (AssetFieldTypes); the inspector

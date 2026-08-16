@@ -12,7 +12,7 @@ Réponds en éditant la colonne statut, ou en chat avec l'ID (`B6 go`, `DX7 ❌`
 |----|--------|-------|-----|
 | B6 | | **Ring d'upload : corruption quand la frame dépasse 64 Mo** (détail ci-dessous) | `Renderer/ResourceManager.cpp:154-186` |
 | B7 | | `requestUploadOwned` alloue un `std::vector` par requête → une alloc par patch/entité/frame | `Renderer/ResourceManager.cpp` |
-| B8 | | Shutdown : `_resourceManager`/`_psoManager`/`_renderGraph` en `new` jamais détruits, device libéré avant ses ressources | `Renderer/Renderer.cpp:637` |
+| B8 | | Shutdown : `resourceManager_`/`_psoManager`/`_renderGraph` en `new` jamais détruits, device libéré avant ses ressources | `Renderer/Renderer.cpp:637` |
 | B9 | ✅ | `Systems::freecam_` jamais construit — UB qui marche par accident (aucun membre, `this` jamais touché) | `Systems/Systems.cpp:22` |
 
 ### B6 — détail
@@ -36,12 +36,12 @@ Fix : allocateur de staging par blocs, recyclés derrière une fence. Design ide
 | ID | Statut | Sujet | Où |
 |----|--------|-------|-----|
 | DX1 | | **Ajouter/modifier un composant ne marque pas dirty → échec silencieux.** Hooks entt `on_construct`/`on_update`/`on_destroy` → `markDirty`. Aucun hook n'existe aujourd'hui | `Scene.h`, `Instance/InstanceManager.cpp` |
-| DX2 | | Façade jeu (`spawn`/`setPosition`/`input`/`load`) + header parapluie `batap.h`. Aujourd'hui : `world.systems_->_transforms->setLocalPosition(...)` et 9 includes | — |
+| DX2 | | Façade jeu (`spawn`/`setPosition`/`input`/`load`) + header parapluie `batap.h`. Aujourd'hui : `world.systems_->transforms_->setLocalPosition(...)` et 9 includes | — |
 | DX3 | | `loadAsset<T>()` typé au lieu de `optional<variant<...>>` + `std::get` | `Assets/AssetLoader.h` |
 | DX4 | | Pas de `IsKeyPressed`/`IsKeyReleased`/`GetMouseWheel` — les sets existent mais sans accesseur | `InputManager.h:203` |
 | DX5 | | `get<T>()` est `noexcept` **et** lève → `std::terminate`. `emplace<T>()` ne transmet pas d'arguments. Pas de surcharges `const` | `Components/EntityHandle.h:28,46` |
 | DX6 | | `Transform_S::setParent` déclaré, jamais défini → erreur de link. C'est celui avec `keepWorld` | `Systems/Transform_S.h:39` |
-| DX7 | | Trois conventions de nommage (`_prefixe`, `suffixe_`, nu). Ex. `Mesh_C::_mesh` et `Skybox_C::hdri_`. Les pools d'instances, eux, ne sont plus nommés du tout — ils s'adressent par type | partout |
+| DX7 | | Trois conventions de nommage (`_prefixe`, `suffixe_`, nu). Ex. `Mesh_C::mesh_` et `Skybox_C::hdri_`. Les pools d'instances, eux, ne sont plus nommés du tout — ils s'adressent par type | partout |
 | DX8 | | `v3f`/`m4f`/`quatf`/**`transform`** dans le namespace global | `EigenTypes.h` |
 | DX9 | | Ni `#pragma once` ni `namespace batap` — seul composant dans ce cas | `Components/FreeCamController_C.h` |
 | DX10 | | Jeu d'exemple avec du **code** — `GameExemple/` n'a que des assets | `GameExemple/` |

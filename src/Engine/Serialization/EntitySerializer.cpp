@@ -40,7 +40,7 @@ static nlohmann::json reflectedComponents(EntityHandle h, const Engine& ctx)
     nlohmann::json arr = nlohmann::json::array();
     for (const ComponentType& t : ComponentRegistry::instance().all())
     {
-        void* c = t.tryGet(*h._reg, h._entity);
+        void* c = t.tryGet(*h.reg_, h.entity_);
         if (!c)
             continue;
         nlohmann::json cj;
@@ -86,7 +86,7 @@ static void writeFile(nlohmann::json& root, const std::unordered_set<std::string
 
 void EntitySerializer::save(World& world, const Engine& ctx, const std::string& path)
 {
-    auto& reg = world.scene_->_registry;
+    auto& reg = world.scene_->registry_;
 
     std::vector<entt::entity> order;
     std::unordered_map<uint32_t, int> indexMap;
@@ -108,7 +108,7 @@ void EntitySerializer::save(World& world, const Engine& ctx, const std::string& 
         nlohmann::json ej;
 
         auto* nc = reg.try_get<Name_C>(e);
-        ej["name"] = nc ? nc->_name : std::string{};
+        ej["name"] = nc ? nc->name_ : std::string{};
 
         auto* k = reg.try_get<Kind_C>(e);
         ej["kind"] = k ? kindName(k->value) : "empty";
@@ -170,7 +170,7 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
     if (!root.contains("entities"))
         return;
 
-    auto& reg = world.scene_->_registry;
+    auto& reg = world.scene_->registry_;
     auto& factory = *world.entityFactory_;
 
     const auto& entitiesJ = root["entities"];
@@ -196,8 +196,8 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
         else
             h = factory.createEmpty(reg);
 
-        if (auto* nc = reg.try_get<Name_C>(h._entity))
-            nc->_name = ej.value("name", "");
+        if (auto* nc = reg.try_get<Name_C>(h.entity_))
+            nc->name_ = ej.value("name", "");
 
         for (const auto& cj : compsJ)
         {
@@ -205,7 +205,7 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
             if (!ct)
                 continue;
 
-            void* c = ct->getOrEmplace(reg, h._entity);
+            void* c = ct->getOrEmplace(reg, h.entity_);
             for (const Field& f : ct->fields)
                 if (cj.contains(f.name))
                     f.type->fromJson(f.ptrIn(c), cj[f.name], ctx);
@@ -215,7 +215,7 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
             world.instanceManager_->markDirty(h, ct->meta.flag);
         }
 
-        created.push_back(h._entity);
+        created.push_back(h.entity_);
     }
 
     // Pass 2 — hierarchy
@@ -248,7 +248,7 @@ void EntitySerializer::clearSceneAndLoad(World& world, const Engine& ctx, const 
         return;
     }
 
-    auto& reg = world.scene_->_registry;
+    auto& reg = world.scene_->registry_;
     auto& factory = *world.entityFactory_;
 
     std::vector<entt::entity> roots;

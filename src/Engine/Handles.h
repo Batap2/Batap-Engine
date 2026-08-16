@@ -17,29 +17,29 @@ struct Handle
     using ObjectType = TypeEnum;
     Handle() = default;
 
-    explicit Handle(ObjectType type) : _type(type), _guid(random64()) {}
+    explicit Handle(ObjectType type) : type_(type), guid_(random64()) {}
 
     Handle(ObjectType type, std::string_view name)
-        : _type(type), _guid(hash64(name) ^ (uint64_t(type) * 0x9e3779b97f4a7c15ull))
+        : type_(type), guid_(hash64(name) ^ (uint64_t(type) * 0x9e3779b97f4a7c15ull))
     {}
 
-    bool valid() const { return _guid != 0; }
+    bool valid() const { return guid_ != 0; }
 
     bool operator==(const Handle& other) const
     {
-        return _type == other._type && _guid == other._guid;
+        return type_ == other.type_ && guid_ == other.guid_;
     }
 
     std::string toString() const
     {
-        std::string s(magic_enum::enum_name(_type));
+        std::string s(magic_enum::enum_name(type_));
         s += ":";
-        s += std::to_string(_guid);
+        s += std::to_string(guid_);
         return s;
     }
 
-    ObjectType _type{};
-    uint64_t _guid = 0;
+    ObjectType type_{};
+    uint64_t guid_ = 0;
 
    private:
     static uint64_t random64()
@@ -69,14 +69,6 @@ enum class GPUResourceType : uint8_t
 };
 using GPUResourceHandle = Handle<GPUResourceType>;
 
-enum class GPUViewType : uint8_t
-{
-    Unknown,
-    StaticView,
-    FrameView
-};
-using GPUViewHandle = Handle<GPUViewType>;
-
 enum class GPUMeshViewType : uint8_t
 {
     Unknown,
@@ -85,7 +77,7 @@ enum class GPUMeshViewType : uint8_t
 };
 using GPUMeshViewHandle = Handle<GPUMeshViewType>;
 
-using GPUHandle = std::variant<GPUResourceHandle, GPUViewHandle, GPUMeshViewHandle>;
+using GPUHandle = std::variant<GPUResourceHandle, GPUMeshViewHandle>;
 }  // namespace batap
 
 namespace std
@@ -95,7 +87,7 @@ struct hash<batap::Handle<T>>
 {
     size_t operator()(const batap::Handle<T>& g) const noexcept
     {
-        return std::hash<uint64_t>{}(g._guid);
+        return std::hash<uint64_t>{}(g.guid_);
     }
 };
 }  // namespace std

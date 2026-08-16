@@ -28,8 +28,6 @@ static_assert(refl::fieldName<ReflProbeTest, 2>() == "gamma");
 
 ComponentRegistry& ComponentRegistry::instance()
 {
-    // Function-local so component headers registering at static init never
-    // race it. Lives until process exit on purpose.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wexit-time-destructors"
     static ComponentRegistry registry;
@@ -77,7 +75,7 @@ void setPlain(const char* typeName)
     { *static_cast<M*>(f) = in.get<M>(); };
 }
 
-template <class M>  // v3f and col3 — [x,y,z] array
+template <class M>
 void setVec3(const char* typeName)
 {
     auto& slot = fieldTypeSlot<M>();
@@ -109,7 +107,6 @@ void registerBuiltinFieldTypes()
     {
         auto& slot = fieldTypeSlot<quatf>();
         slot.typeName = "quatf";
-        // stored [x,y,z,w], Eigen ctor takes (w,x,y,z)
         slot.toJson = [](const void* f, nlohmann::json& out, const Engine&)
         {
             const auto& q = *static_cast<const quatf*>(f);

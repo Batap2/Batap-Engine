@@ -6,7 +6,11 @@ namespace
 {
 int run()
 {
-    batap::Engine engine{{.title = "Batap Engine", .width = 1280, .height = 720, true, true}};
+    batap::Engine engine{{.title = "Batap Engine",
+                          .width = 1280,
+                          .height = 720,
+                          .fpsInTitle = true,
+                          .transparent = true}};
     batap::World  world{engine};
     batap::App    app{engine, world};
 

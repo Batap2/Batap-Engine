@@ -109,7 +109,7 @@ void AssetPickerPopup::open(MaterialHandle mat, uint8_t channel, const std::stri
 
 static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, uint32_t heapIdx)
 {
-    auto* mat = app.ctx_->_assetManager->get<Material>(matHandle);
+    auto* mat = app.ctx_->assetManager_->get<Material>(matHandle);
     if (!mat)
         return;
     Material copy = *mat;
@@ -128,7 +128,7 @@ static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, ui
             copy.metallicTexIdx_ = heapIdx;
             break;
     }
-    app.ctx_->_assetManager->update(matHandle, copy);
+    app.ctx_->assetManager_->update(matHandle, copy);
 }
 
 void AssetPickerPopup::draw(App& app)
@@ -169,7 +169,7 @@ void AssetPickerPopup::draw(App& app)
             {
                 if (type_ == AssetType::Mesh)
                     if (auto* meshC = ent_.try_get<Mesh_C>())
-                        meshC->_mesh = std::get<MeshHandle>(*handle);
+                        meshC->mesh_ = std::get<MeshHandle>(*handle);
 
                 if (type_ == AssetType::Material)
                     if (auto* mc = ent_.try_get<Materials_C>())
@@ -181,7 +181,7 @@ void AssetPickerPopup::draw(App& app)
 
                 if (type_ == AssetType::Texture && matHandle_)
                     if (auto* th = std::get_if<TextureHandle>(&*handle))
-                        if (auto* tex = app.ctx_->_assetManager->get<Texture>(*th))
+                        if (auto* tex = app.ctx_->assetManager_->get<Texture>(*th))
                             applyTexture(app, matHandle_, texChannel_, tex->heapIdx_);
 
                 if (isHdriPick_)
@@ -204,7 +204,7 @@ void AssetPickerPopup::draw(App& app)
     {
         if (type_ == AssetType::Mesh)
             if (auto* meshC = ent_.try_get<Mesh_C>())
-                meshC->_mesh = MeshHandle::null();
+                meshC->mesh_ = MeshHandle::null();
 
         if (type_ == AssetType::Material)
             if (auto* mc = ent_.try_get<Materials_C>())
@@ -215,7 +215,7 @@ void AssetPickerPopup::draw(App& app)
         {
             const std::string defaultKey = (texChannel_ == 1) ? "__default_flat_normal"
                                                               : "__default_white";
-            if (auto* def = app.ctx_->_assetManager->get<Texture>(defaultKey))
+            if (auto* def = app.ctx_->assetManager_->get<Texture>(defaultKey))
                 applyTexture(app, matHandle_, texChannel_, def->heapIdx_);
         }
 

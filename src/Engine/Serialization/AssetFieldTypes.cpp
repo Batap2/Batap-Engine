@@ -26,7 +26,7 @@ namespace
 template <class A>
 nlohmann::json handleToJson(AssetHandle<A> handle, const Engine& ctx)
 {
-    const std::string* path = handle ? ctx._assetManager->getPath<A>(handle) : nullptr;
+    const std::string* path = handle ? ctx.assetManager_->getPath<A>(handle) : nullptr;
     return path ? nlohmann::json(*path) : nlohmann::json(nullptr);
 }
 
@@ -37,13 +37,11 @@ AssetHandle<A> handleFromJson(const nlohmann::json& in, const Engine& ctx)
         return {};
 
     const std::string path = in.get<std::string>();
-    auto found = ctx._assetManager->getHandle<A>(path);
+    auto found = ctx.assetManager_->getHandle<A>(path);
     if (!found)
         if (auto any = loadAsset(path, ctx))
             if (auto* h = std::get_if<AssetHandle<A>>(&*any))
                 found = *h;
-    // Un chemin qui ne se résout pas est une perte de données silencieuse au
-    // prochain save (cf. OBJECTIFS §1, round-trip) — toujours le signaler.
     if (!found)
         std::cerr << "[AssetFieldTypes] handle non résolu : " << path << "\n";
     return found ? *found : AssetHandle<A>{};

@@ -1,30 +1,22 @@
 #pragma once
 
-// Component reflection registry — the single source of truth for what a
-// component is made of. Declaring a component once with BATAP_COMPONENT gives
-// serialization, deserialization and editor UI for free: they are generic
-// loops over the registered field lists, not per-component code.
+// Component reflection registry. Declaring a component once with
+// BATAP_COMPONENT gives serialization, deserialization and editor UI for
+// free: they are generic loops over the registered field lists.
 //
 //   struct Health_C { float current = 100.f; float max = 100.f; };
 //   BATAP_COMPONENT(Health_C, "health");
 //
-// Fields, types and json keys are auto-discovered from the aggregate
-// (trailing '_' stripped: color_ -> "color"). Semantics belong to the field
-// type (col3 gets a color picker, not metadata); fieldMeta<> is for true
-// one-offs only:
+// The field list is read from the struct itself: each member becomes a json
+// key, with the trailing '_' stripped (color_ -> "color").
+//
+// To change how a field is edited, change its type: `col3` instead of `v3f`
+// gives a color picker. Only what no type can carry — a slider range, a drag
+// speed — is passed as an extra:
 //
 //   BATAP_COMPONENT(Enemy_C, "enemy",
-//       ComponentMeta{.flag = ComponentFlag::Enemy},          // GPU mirror
-//       fieldMeta<&Enemy_C::aggro_>({.min = 0.f, .max = 1.f}));  // bounded
-//
-// The declaration is also where the GPU dirty flag lives, for everyone:
-// Scene::write<T> and the field loops read it back through componentFlag<T>(),
-// so there is nothing to specialize elsewhere and a CPU-only component simply
-// leaves it at None.
-//
-// Components the aggregate reflection cannot read — Transform_C, whose fields
-// are private — register themselves from a .cpp: build the field list with
-// field<&T::member>("key") and hand it to addComponentType<T>().
+//       ComponentMeta{.flag = ComponentFlag::Enemy},
+//       fieldMeta<&Enemy_C::aggro_>({.min = 0.f, .max = 1.f}));
 
 #include "Components/ComponentFlag.h"
 #include "Components/EntityHandle.h"
@@ -47,18 +39,11 @@ struct Engine;
 struct World;
 struct Field;
 
-enum class Widget : uint8_t
-{
-    Auto,   // picked from the field type
-    Color,  // v3f as color picker
-};
-
 struct FieldMeta
 {
-    float speed = 0.1f;       // drag speed
-    float min = 0.f;          // min == max == 0 -> unbounded
+    float speed = 0.1f;
+    float min = 0.f;
     float max = 0.f;
-    Widget widget = Widget::Auto;
 };
 
 // One per C++ field type (float, v3f, MeshHandle, ...). toJson/fromJson are
@@ -81,9 +66,8 @@ FieldType& fieldTypeSlot()
     return slot;
 }
 
-// The slot a field of type M is served by. An enum borrows its underlying
-// integer's slot — same bytes, same json — so enum fields need no
-// registration of their own. Everything else uses its own slot.
+// An enum borrows its underlying integer's slot — same bytes, same json — so
+// enum fields need no registration of their own.
 template <class M>
 FieldType* fieldTypeFor()
 {
@@ -125,10 +109,9 @@ struct ComponentMeta
     bool customEditor = false;
 };
 
-// The GPU dirty flag T declared, or None when T is CPU-only or not a
-// registered component at all. Same mutable-slot pattern as fieldTypeSlot:
-// filled at static init by addComponentType, so BATAP_COMPONENT stays the one
-// and only place a component names its flag.
+// The GPU dirty flag T declared, or None when T is CPU-only or unregistered.
+// Filled at static init by addComponentType, so BATAP_COMPONENT stays the one
+// place a component names its flag.
 template <class T>
 ComponentFlag& componentFlagSlot()
 {
@@ -170,8 +153,8 @@ struct ComponentRegistry
     std::vector<ComponentType> types_;
 };
 
-// Fills toJson/fromJson for float, bool, int32_t, uint32_t, uint8_t,
-// std::string, v3f, quatf. Called once by the Engine ctor.
+// Fills toJson/fromJson for the built-in field types. Called once by the
+// Engine ctor.
 void registerBuiltinFieldTypes();
 
 // --- per-field override (only exceptions are written) --------------------
@@ -206,11 +189,11 @@ FieldOverride fieldMeta(FieldMeta m)
 
 // --- manual registration (non-aggregates) --------------------------------
 
-// One field of a hand-registered component: the json key is spelled out
-// instead of being derived from the member name. Same offset probe as
-// fieldMeta. Instantiate it from inside the owning class when the member is
-// private — access is checked where the template argument is written, which
-// is how Transform_C reaches its own fields.
+// One field of a component the aggregate reflection cannot read (Transform_C,
+// whose fields are private): the json key is spelled out instead of derived
+// from the member name. Instantiate it from inside the owning class when the
+// member is private — access is checked where the template argument is
+// written.
 template <auto Member>
 Field field(std::string name, FieldMeta m = {})
 {
@@ -222,7 +205,6 @@ Field field(std::string name, FieldMeta m = {})
     return Field{std::move(name), fieldTypeFor<M>(), offset, m};
 }
 
-// Type-erased entt access for T. Shared by both registration paths.
 template <class T>
 void addComponentType(std::string_view name, ComponentMeta meta, std::vector<Field> fields)
 {

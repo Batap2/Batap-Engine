@@ -16,12 +16,12 @@ Systems::~Systems() = default;
 void Systems::update(float deltaTime, Engine& ctx, World& world)
 {
     freecam_->update(ctx, world, deltaTime);
-    _transforms->update(world.scene_->_registry, *world.instanceManager_);
+    transforms_->update(world.scene_->registry_, *world.instanceManager_);
 }
 
 Systems::Systems()
 {
     freecam_ = std::make_unique<FreeCamController_S>();
-    _transforms = std::make_unique<Transform_S>();
+    transforms_ = std::make_unique<Transform_S>();
 }
 }  // namespace batap

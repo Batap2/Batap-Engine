@@ -8,10 +8,6 @@ VK_DEFINE_HANDLE(VmaAllocator)
 
 namespace batap
 {
-// Fondation du backend Vulkan : instance, device, queues, allocateur.
-// Headless pour l'instant — la surface et la swapchain arrivent avec la
-// couche fenêtre (Windows). Cible : Vulkan 1.3 core (dynamic rendering,
-// synchronization2, timeline semaphores, descriptor indexing).
 struct VulkanContext
 {
     void init();

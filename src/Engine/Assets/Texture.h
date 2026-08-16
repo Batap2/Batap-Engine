@@ -29,7 +29,6 @@ enum class TextureWrap : uint8_t
 
 struct Texture
 {
-    GPUViewHandle viewHandle_;
     uint32_t heapIdx_;
     SH9 irradianceSH_;  // SH L2 irradiance, calculé au chargement pour les textures HDR
     ResourceFormat format_;

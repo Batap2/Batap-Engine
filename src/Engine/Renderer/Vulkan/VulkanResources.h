@@ -21,33 +21,26 @@ namespace batap
 {
 struct VulkanContext;
 
-// Backend Vulkan du ResourceManager — même nom de classe que la version DX12 :
-// le header Renderer/ResourceManager.h sélectionne l'un ou l'autre par
-// plateforme, les appelants (AssetLoader, InstanceManager, GPUArena…) ne
-// changent pas. Internes repensés pour Vulkan :
-// - pas d'objets « view » pour les buffers : les handles de view/mesh view ne
-//   sont que des alias + métadonnées de bind ({buffer, offset, stride}) ;
-// - un seul set bindless global pour les textures (sampler immutable +
-//   tableau variable partially-bound/update-after-bind), indexé par le même
-//   bindlessIndex que les shaders utilisent via heapIdx ;
-// - staging ring par frame, mappé en permanence : requestUploadOwned rend un
-//   span directement dans le ring (zéro copie), flushUploads enregistre les
-//   copies + barrières ;
-// - frame resources : FramesInFlight buffers derrière un seul handle, la copie
-//   est routée vers le buffer de la frame au flush ;
-// - destruction différée par slot de frame.
+// Owns every GPU resource of the engine. Vulkan has no view object for
+// buffers, so a resource is identified by a single GPUResourceHandle all the
+// way through — a descriptor is written straight from {buffer, offset, size}.
+// Design notes:
+// - one global bindless set for textures (immutable sampler + variable-sized
+//   partially-bound/update-after-bind array), indexed by the same
+//   bindlessIndex the shaders reach through heapIdx;
+// - mesh views are not GPU objects either, only bind metadata
+//   ({buffer, offset, stride}) consumed by vkCmdBind*Buffer;
+// - one permanently mapped staging ring per frame: requestUploadOwned hands
+//   back a span inside the ring (no copy), flushUploads records the copies
+//   and the barriers;
+// - frame resources: FramesInFlight buffers behind a single handle, the copy
+//   is routed to that frame's buffer on flush;
+// - destruction is deferred per frame slot.
 struct ResourceManager
 {
-    struct StructuredBuffer
-    {
-        GPUResourceHandle resource;
-        GPUViewHandle srv;
-    };
-
     struct Texture2D
     {
         GPUResourceHandle resource;
-        GPUViewHandle srv;
         uint32_t bindlessIndex = 0;
     };
 
@@ -70,11 +63,11 @@ struct ResourceManager
     GPUResourceHandle createStaticBuffer(uint64_t sizeBytes,
                                          std::optional<std::string_view> name = std::nullopt);
 
-    StructuredBuffer
+    GPUResourceHandle
     createStaticStructuredBuffer(uint64_t elementCount, uint32_t elementStride,
                                  std::optional<std::string_view> name = std::nullopt);
 
-    StructuredBuffer
+    GPUResourceHandle
     createFrameStructuredBuffer(uint64_t elementCount, uint32_t elementStride,
                                 std::optional<std::string_view> name = std::nullopt);
 
@@ -90,16 +83,12 @@ struct ResourceManager
                                       std::optional<std::string_view> name = std::nullopt,
                                       uint64_t offset = 0, uint64_t size = 0);
 
-    uint32_t bindlessIndex(GPUViewHandle view);
+    uint32_t bindlessIndex(GPUResourceHandle texture);
 
     // Rend un span de dataSize octets dans le staging ring de la frame
     // courante. Si subRegionSize != 0, seule cette sous-région (à partir de
     // subRegionOffset dans le span) est copiée vers destinationOffset.
     std::span<std::byte> requestUploadOwned(GPUResourceHandle dest, uint64_t dataSize,
-                                            uint32_t alignment, uint64_t destinationOffset = 0,
-                                            uint64_t subRegionOffset = 0,
-                                            uint64_t subRegionSize = 0);
-    std::span<std::byte> requestUploadOwned(GPUViewHandle dest, uint64_t dataSize,
                                             uint32_t alignment, uint64_t destinationOffset = 0,
                                             uint64_t subRegionOffset = 0,
                                             uint64_t subRegionSize = 0);
@@ -109,7 +98,6 @@ struct ResourceManager
                                                    uint32_t& outRowPitch);
 
     void requestDestroy(GPUResourceHandle handle);
-    void requestDestroy(GPUViewHandle handle, bool destroyAssociatedResources = false);
 
     // ---- Cycle de frame (appelé par le Renderer) ----
     void flushUploads(VkCommandBuffer cmd, uint32_t frameIndex);
@@ -140,9 +128,10 @@ struct ResourceManager
     Image* getImage(GPUResourceHandle handle);
     MeshView* getMeshView(GPUMeshViewHandle handle);
 
-    // Le VkBuffer derrière une view (SRV de structured buffer), résolu pour
-    // la frame donnée — c'est ce que les passes bindent dans leur set.
-    VkBuffer bufferForView(GPUViewHandle view, uint32_t frame);
+    // The VkBuffer behind a handle, resolved for the given frame (a frame
+    // resource holds one buffer per frame in flight). This is what the passes
+    // write into their descriptor set.
+    VkBuffer bufferFor(GPUResourceHandle handle, uint32_t frame);
 
     VkDevice device() const;
 
@@ -184,7 +173,6 @@ struct ResourceManager
     std::unordered_map<GPUResourceHandle, Buffer> buffers_;
     std::unordered_map<GPUResourceHandle, std::vector<Buffer>> frameBuffers_;
     std::unordered_map<GPUResourceHandle, Image> images_;
-    std::unordered_map<GPUViewHandle, GPUResourceHandle> viewToResource_;
     std::unordered_map<GPUMeshViewHandle, MeshView> meshViews_;
 
     std::vector<StagingRing> staging_;

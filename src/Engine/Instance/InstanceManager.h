@@ -54,21 +54,21 @@ namespace batap
 
 struct FrameDirtyFlag
 {
-    std::array<ComponentFlag, FramesInFlight> _dirtyComponentsByFrame {};
+    std::array<ComponentFlag, FramesInFlight> dirtyComponentsByFrame_ {};
 
     void assignAll(ComponentFlag flag)
     {
-        for (auto& f : _dirtyComponentsByFrame)
+        for (auto& f : dirtyComponentsByFrame_)
         {
             f = flag;
         }
     }
 
-    void clear(size_t frame) { _dirtyComponentsByFrame[frame] = ComponentFlag::None; }
+    void clear(size_t frame) { dirtyComponentsByFrame_[frame] = ComponentFlag::None; }
 
     void setAll(ComponentFlag flag)
     {
-        for (auto& f : _dirtyComponentsByFrame)
+        for (auto& f : dirtyComponentsByFrame_)
         {
             f |= flag;
         }
@@ -76,7 +76,7 @@ struct FrameDirtyFlag
 
     bool none()
     {
-        for (auto& f : _dirtyComponentsByFrame)
+        for (auto& f : dirtyComponentsByFrame_)
         {
             if (f != ComponentFlag::None)
             {
@@ -102,23 +102,23 @@ struct FrameInstancePool
     // Size and name come from the instance type, so a pool carries no
     // configuration of its own and can be built from the resource manager
     // alone — which is what lets the whole set live in a tuple.
-    explicit FrameInstancePool(ResourceManager& rm) : _resourceManager(rm)
+    explicit FrameInstancePool(ResourceManager& rm) : resourceManager_(rm)
     {
         gpuPoolCapacity_ = type::InitialCapacity;
-        _name = type::PoolName;
-        createGPUResourcesAndViews();
+        name_ = type::PoolName;
+        createGPUResources();
     }
 
-    ResourceManager& _resourceManager;
-    std::string _name;
+    ResourceManager& resourceManager_;
+    std::string name_;
 
     emhash8::HashMap<EntityHandle, GPUInstanceID> entityToId_;
     emhash8::HashMap<GPUInstanceID, EntityHandle> idToEntity_;
     emhash8::HashMap<EntityHandle, FrameDirtyFlag> dirtyComponents_;
 
-    static constexpr ComponentFlag _instanceUsedComponentFlag = type::UsedComposents;
+    static constexpr ComponentFlag instanceUsedComponentFlag_ = type::UsedComposents;
 
-    GPUViewHandle _instancePoolViewHandle;
+    GPUResourceHandle instancePoolHandle_;
 
     GPUInstanceID insert(const EntityHandle& e)
     {
@@ -128,7 +128,7 @@ struct FrameInstancePool
         GPUInstanceID id = static_cast<uint32_t>(size());
 
         FrameDirtyFlag dirtyf;
-        dirtyf.setAll(_instanceUsedComponentFlag);
+        dirtyf.setAll(instanceUsedComponentFlag_);
         dirtyComponents_.emplace(e, dirtyf);
 
         idToEntity_.emplace(id, e);
@@ -161,7 +161,7 @@ struct FrameInstancePool
                 idToEntity_[removedId] = movedEntity;
 
                 FrameDirtyFlag dirtyf;
-                dirtyf.setAll(_instanceUsedComponentFlag);
+                dirtyf.setAll(instanceUsedComponentFlag_);
                 dirtyComponents_[movedEntity] = dirtyf;
             }
         }
@@ -189,16 +189,15 @@ struct FrameInstancePool
     size_t gpuPoolSize_ = 0;
     size_t gpuPoolCapacity_ = 1;
 
-    void createGPUResourcesAndViews()
+    void createGPUResources()
     {
-        if (_instancePoolViewHandle.valid())
+        if (instancePoolHandle_.valid())
         {
-            _resourceManager.requestDestroy(_instancePoolViewHandle, true);
+            resourceManager_.requestDestroy(instancePoolHandle_);
         }
 
-        auto structured = _resourceManager.createFrameStructuredBuffer(
-            gpuPoolCapacity_, static_cast<uint32_t>(sizeof(typename type::GPUData)), _name);
-        _instancePoolViewHandle = structured.srv;
+        instancePoolHandle_ = resourceManager_.createFrameStructuredBuffer(
+            gpuPoolCapacity_, static_cast<uint32_t>(sizeof(typename type::GPUData)), name_);
     }
 
     void markAllinstanceDirty()
@@ -207,7 +206,7 @@ struct FrameInstancePool
         for (auto&& [handle, _] : entityToId_)
         {
             auto& flags = dirtyComponents_[handle] = FrameDirtyFlag();
-            flags.setAll(_instanceUsedComponentFlag);
+            flags.setAll(instanceUsedComponentFlag_);
         }
     }
 
@@ -216,7 +215,7 @@ struct FrameInstancePool
         if (gpuPoolSize_ > gpuPoolCapacity_)
         {
             gpuPoolCapacity_ *= 2;
-            createGPUResourcesAndViews();
+            createGPUResources();
             markAllinstanceDirty();
             return true;
         }
@@ -294,7 +293,7 @@ struct GPUInstanceManager
         pools_.visit(kind, std::forward<F>(f));
     }
 
-    ResourceManager& _resourceManager;
-    InstancePools<GPUKinds> pools_{_resourceManager};
+    ResourceManager& resourceManager_;
+    InstancePools<GPUKinds> pools_{resourceManager_};
 };
 }  // namespace batap

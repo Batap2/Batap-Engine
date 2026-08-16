@@ -13,15 +13,15 @@ namespace batap
 
 void SceneRenderer::uploadDirty()
 {
-    args_.instanceManager_->uploadRemainingFrameDirty(_ctx);
+    args_.instanceManager_->uploadRemainingFrameDirty(ctx_);
 }
 
 void SceneRenderer::initRenderPasses()
 {
-    auto* passes = _ctx._renderer->scenePasses();
-    _ctx._renderer->setSceneRecord(
+    auto* passes = ctx_.renderer_->scenePasses();
+    ctx_.renderer_->setSceneRecord(
         [this, passes](VkCommandBuffer cmd, uint32_t frame, uint32_t width, uint32_t height)
-        { passes->record(cmd, frame, width, height, args_, _ctx); });
+        { passes->record(cmd, frame, width, height, args_, ctx_); });
 }
 
 }  // namespace batap

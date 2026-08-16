@@ -15,12 +15,12 @@ namespace batap
 
 void Transform_S::ensure_chain_up_to_date(EntityHandle h, GPUInstanceManager& instanceManager)
 {
-    auto& reg = *h._reg;
+    auto& reg = *h.reg_;
 
     std::vector<entt::entity> path;
     path.reserve(32);
 
-    entt::entity cur = h._entity;
+    entt::entity cur = h.entity_;
     while (cur != entt::null && reg.valid(cur) && reg.any_of<Transform_C>(cur))
     {
         path.push_back(cur);
@@ -35,20 +35,20 @@ void Transform_S::ensure_chain_up_to_date(EntityHandle h, GPUInstanceManager& in
         const entt::entity node = *it;
         auto& t = reg.get<Transform_C>(node);
 
-        if (t._localDirty)
+        if (t.localDirty_)
         {
-            t._local = TRS_Transform(t._localPosition, t._localRotation, t._localScale);
-            t._localDirty = false;
+            t.local_ = TRS_Transform(t.localPosition_, t.localRotation_, t.localScale_);
+            t.localDirty_ = false;
         }
 
         const entt::entity p = Hierarchy_S::getParent({&reg, node});
         if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
         {
-            t._world = reg.get<Transform_C>(p)._world * t._local;
+            t.world_ = reg.get<Transform_C>(p).world_ * t.local_;
         }
         else
         {
-            t._world = t._local;
+            t.world_ = t.local_;
         }
         instanceManager.markDirty({&reg, node}, ComponentFlag::Transform);
     }
@@ -58,14 +58,14 @@ void Transform_S::markDirty(EntityHandle h)
 {
     if (!has_transform(h))
         return;
-    auto& reg = *h._reg;
-    auto& t = reg.get<Transform_C>(h._entity);
+    auto& reg = *h.reg_;
+    auto& t = reg.get<Transform_C>(h.entity_);
 
-    if (t._dirtyStamp == frameCount)
+    if (t.dirtyStamp_ == frameCount)
         return;
 
-    t._dirtyStamp = frameCount;
-    dirty.push_back(h._entity);
+    t.dirtyStamp_ = frameCount;
+    dirty.push_back(h.entity_);
 }
 
 void Transform_S::setLocalPosition(EntityHandle h, const v3f& p)
@@ -73,8 +73,8 @@ void Transform_S::setLocalPosition(EntityHandle h, const v3f& p)
     if (!has_transform(h))
         return;
     auto& t = h.get<Transform_C>();
-    t._localPosition = p;
-    t._localDirty = true;
+    t.localPosition_ = p;
+    t.localDirty_ = true;
     markDirty(h);
 }
 
@@ -83,8 +83,8 @@ void Transform_S::setLocalRotation(EntityHandle h, const quatf& q)
     if (!has_transform(h))
         return;
     auto& t = h.get<Transform_C>();
-    t._localRotation = q.normalized();
-    t._localDirty = true;
+    t.localRotation_ = q.normalized();
+    t.localDirty_ = true;
     markDirty(h);
 }
 
@@ -93,8 +93,8 @@ void Transform_S::setLocalScale(EntityHandle h, const v3f& s)
     if (!has_transform(h))
         return;
     auto& t = h.get<Transform_C>();
-    t._localScale = s;
-    t._localDirty = true;
+    t.localScale_ = s;
+    t.localDirty_ = true;
     markDirty(h);
 }
 
@@ -102,36 +102,36 @@ void Transform_S::translate(EntityHandle h, const v3f& vec, Space space)
 {
     if (!has_transform(h))
         return;
-    auto& reg = *h._reg;
+    auto& reg = *h.reg_;
     auto& t = h.get<Transform_C>();
 
     switch (space)
     {
         case Space::Local:
-            t._localPosition += t._localRotation * vec;
+            t.localPosition_ += t.localRotation_ * vec;
             break;
 
         case Space::Parent:
-            t._localPosition += vec;
+            t.localPosition_ += vec;
             break;
 
         case Space::World: {
             const entt::entity p = Hierarchy_S::getParent(h);
             if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
             {
-                const transform& pw = reg.get<Transform_C>(p)._world;
+                const transform& pw = reg.get<Transform_C>(p).world_;
                 const transform inv = pw.inverse();
-                t._localPosition += (inv * vec);
+                t.localPosition_ += (inv * vec);
             }
             else
             {
-                t._localPosition += vec;
+                t.localPosition_ += vec;
             }
             break;
         }
     }
 
-    t._localDirty = true;
+    t.localDirty_ = true;
     markDirty(h);
 }
 
@@ -139,36 +139,36 @@ void Transform_S::rotate(EntityHandle h, const quatf& delta, Space space)
 {
     if (!has_transform(h))
         return;
-    auto& reg = *h._reg;
-    auto& t = reg.get<Transform_C>(h._entity);
+    auto& reg = *h.reg_;
+    auto& t = reg.get<Transform_C>(h.entity_);
     const quatf d = delta.normalized();
 
     switch (space)
     {
         case Space::Local:
-            t._localRotation = (t._localRotation * d).normalized();
+            t.localRotation_ = (t.localRotation_ * d).normalized();
             break;
 
         case Space::Parent:
-            t._localRotation = (d * t._localRotation).normalized();
+            t.localRotation_ = (d * t.localRotation_).normalized();
             break;
 
         case Space::World: {
             const entt::entity p = Hierarchy_S::getParent(h);
             if (p != entt::null && reg.valid(p) && reg.any_of<Transform_C>(p))
             {
-                const quatf Qp = Transform_C::extractWorldRotation(reg.get<Transform_C>(p)._world);
-                t._localRotation = (Qp.conjugate() * d * Qp * t._localRotation).normalized();
+                const quatf Qp = Transform_C::extractWorldRotation(reg.get<Transform_C>(p).world_);
+                t.localRotation_ = (Qp.conjugate() * d * Qp * t.localRotation_).normalized();
             }
             else
             {
-                t._localRotation = (d * t._localRotation).normalized();
+                t.localRotation_ = (d * t.localRotation_).normalized();
             }
             break;
         }
     }
 
-    t._localDirty = true;
+    t.localDirty_ = true;
     markDirty(h);
 }
 
@@ -183,10 +183,10 @@ void Transform_S::scale(EntityHandle h, const v3f& vec)
 {
     if (!has_transform(h))
         return;
-    auto& reg = *h._reg;
-    auto& t = reg.get<Transform_C>(h._entity);
-    t._localScale = t._localScale.cwiseProduct(vec);
-    t._localDirty = true;
+    auto& reg = *h.reg_;
+    auto& t = reg.get<Transform_C>(h.entity_);
+    t.localScale_ = t.localScale_.cwiseProduct(vec);
+    t.localDirty_ = true;
     markDirty(h);
 }
 
@@ -250,7 +250,7 @@ void Transform_S::flushDirty(entt::registry& reg, GPUInstanceManager& instanceMa
             if (has_transform_e(p))
             {
                 ensure_chain_up_to_date(EntityHandle{&reg, p}, instanceManager);
-                pw = reg.get<Transform_C>(p)._world;
+                pw = reg.get<Transform_C>(p).world_;
             }
         }
 
@@ -267,21 +267,21 @@ void Transform_S::flushDirty(entt::registry& reg, GPUInstanceManager& instanceMa
 
             auto& t = reg.get<Transform_C>(it.e);
 
-            const bool dirtyHere = it.parentDirty || t._localDirty;
+            const bool dirtyHere = it.parentDirty || t.localDirty_;
 
-            if (t._localDirty)
+            if (t.localDirty_)
             {
-                t._local = TRS_Transform(t._localPosition, t._localRotation, t._localScale);
-                t._localDirty = false;
+                t.local_ = TRS_Transform(t.localPosition_, t.localRotation_, t.localScale_);
+                t.localDirty_ = false;
             }
 
             if (dirtyHere)
             {
-                t._world = it.parentWorld * t._local;
+                t.world_ = it.parentWorld * t.local_;
                 instanceManager.markDirty({&reg, it.e}, ComponentFlag::Transform);
             }
 
-            const transform childPW = t._world;
+            const transform childPW = t.world_;
             const bool childParentDirty = dirtyHere;
 
 

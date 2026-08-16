@@ -36,16 +36,16 @@ struct TypeList
 template <size_t SmallN>
 struct TempBytes
 {
-    std::array<std::byte, SmallN> _small{};
-    std::vector<std::byte> _heap{};
+    std::array<std::byte, SmallN> small_{};
+    std::vector<std::byte> heap_{};
 
     std::span<std::byte> get(size_t n)
     {
         if (n <= SmallN)
-            return std::span<std::byte>(_small).first(n);
+            return std::span<std::byte>(small_).first(n);
 
-        _heap.resize(n);
-        return std::span<std::byte>(_heap);
+        heap_.resize(n);
+        return std::span<std::byte>(heap_);
     }
 };
 
@@ -56,8 +56,8 @@ constexpr size_t flagToIndex(ComponentFlag f)
 
 struct PatchDesc
 {
-    uint32_t _offset;
-    uint32_t _size;
+    uint32_t offset_;
+    uint32_t size_;
     void (*fill)(Engine& ctx, const entt::registry& r, entt::entity e, void* dst);
 };
 
@@ -92,8 +92,8 @@ struct GPUInstanceBase
 
 struct StaticMeshGPUData
 {
-    float _world[16];              // 64 bytes — world matrix
-    uint32_t _materialIndices[8];  // 32 bytes — GPU arena slot per submesh (0xFFFFFFFF = none)
+    float world_[16];              // 64 bytes — world matrix
+    uint32_t materialIndices_[8];  // 32 bytes — GPU arena slot per submesh (0xFFFFFFFF = none)
 };
 static_assert(sizeof(StaticMeshGPUData) == 96);
 
@@ -107,16 +107,16 @@ struct StaticMeshInstance
 
 struct CameraGPUData
 {
-    float _view[16];
-    float _proj[16];
-    float _pos[3];
-    float _znear;
-    float _right[3];
-    float _zfar;
-    float _up[3];
-    float _fov;
-    float _fwd[3];
-    float _pad;
+    float view_[16];
+    float proj_[16];
+    float pos_[3];
+    float znear_;
+    float right_[3];
+    float zfar_;
+    float up_[3];
+    float fov_;
+    float fwd_[3];
+    float pad_;
 };
 
 struct CameraInstance
@@ -159,33 +159,33 @@ struct InstancePatches<StaticMeshInstance>
     static void fillMaterials(Engine& ctx, const entt::registry& r, entt::entity e, void* dst)
     {
         auto* out = reinterpret_cast<StaticMeshInstance::GPUData*>(dst);
-        std::fill(std::begin(out->_materialIndices), std::end(out->_materialIndices), 0xFFFFFFFFu);
+        std::fill(std::begin(out->materialIndices_), std::end(out->materialIndices_), 0xFFFFFFFFu);
 
         auto* matsC = r.try_get<Materials_C>(e);
         if (!matsC)
             return;
-        auto idxSpan = std::span{out->_materialIndices};
+        auto idxSpan = std::span{out->materialIndices_};
         for (uint8_t i = 0; i < matsC->count && i < 8; ++i)
             if (matsC->slots[i])
                 idxSpan[i] = matsC->slots[i].index;
     }
 
-    static constexpr PatchDesc _transformPatch[] = {
-        PatchDesc{._offset = offsetof(StaticMeshGPUData, _world),
-                  ._size = 16 * sizeof(float),
+    static constexpr PatchDesc transformPatch_[] = {
+        PatchDesc{.offset_ = offsetof(StaticMeshGPUData, world_),
+                  .size_ = 16 * sizeof(float),
                   .fill = &fillWorld}};
 
-    static constexpr PatchDesc _materialsPatch[] = {
-        PatchDesc{._offset = offsetof(StaticMeshGPUData, _materialIndices),
-                  ._size = 8 * sizeof(uint32_t),
+    static constexpr PatchDesc materialsPatch_[] = {
+        PatchDesc{.offset_ = offsetof(StaticMeshGPUData, materialIndices_),
+                  .size_ = 8 * sizeof(uint32_t),
                   .fill = &fillMaterials}};
 
     static constexpr std::array<PatchRange, 32> byBit = []()
     {
         std::array<PatchRange, 32> t{};
-        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_transformPatch};
+        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{transformPatch_};
         // ComponentFlag::Mesh : plus de miroir GPU (un dirty Mesh est un no-op)
-        t[flagToIndex(ComponentFlag::Materials)] = PatchRange{_materialsPatch};
+        t[flagToIndex(ComponentFlag::Materials)] = PatchRange{materialsPatch_};
         return t;
     }();
 };
@@ -202,43 +202,43 @@ struct InstancePatches<CameraInstance>
         auto* transC = r.try_get<Transform_C>(e);
 
         auto* out = reinterpret_cast<CameraInstance::GPUData*>(dst);
-        out->_znear = camC->_znear;
-        out->_zfar = camC->_zfar;
-        out->_fov = camC->_fov;
+        out->znear_ = camC->znear_;
+        out->zfar_ = camC->zfar_;
+        out->fov_ = camC->fov_;
 
         if (transC)
         {
             auto worldM = transC->world();
             auto view = camC->make_view(worldM);
-            std::memcpy(out->_view, view.data(), sizeof(out->_view));
+            std::memcpy(out->view_, view.data(), sizeof(out->view_));
             auto frameSize = ctx.getFrameSize();
             auto aspect = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
 
             auto proj = camC->make_proj(aspect);
-            std::memcpy(out->_proj, proj.data(), sizeof(out->_proj));
+            std::memcpy(out->proj_, proj.data(), sizeof(out->proj_));
 
             v3f pos   = worldM.translation();
             v3f right = worldM.linear().col(0).normalized();
             v3f up    = worldM.linear().col(1).normalized();
             v3f fwd   = -worldM.linear().col(2).normalized();
 
-            std::memcpy(out->_pos,   pos.data(),   3 * sizeof(float));
-            std::memcpy(out->_right, right.data(), 3 * sizeof(float));
-            std::memcpy(out->_up,    up.data(),    3 * sizeof(float));
-            std::memcpy(out->_fwd,   fwd.data(),   3 * sizeof(float));
+            std::memcpy(out->pos_,   pos.data(),   3 * sizeof(float));
+            std::memcpy(out->right_, right.data(), 3 * sizeof(float));
+            std::memcpy(out->up_,    up.data(),    3 * sizeof(float));
+            std::memcpy(out->fwd_,   fwd.data(),   3 * sizeof(float));
         }
     }
 
-    static constexpr PatchDesc _cameraPatches[] = {
-        PatchDesc{._offset = 0,
-                  ._size = static_cast<uint32_t>(sizeof(CameraInstance::GPUData)),
+    static constexpr PatchDesc cameraPatches_[] = {
+        PatchDesc{.offset_ = 0,
+                  .size_ = static_cast<uint32_t>(sizeof(CameraInstance::GPUData)),
                   .fill = &fillCamData}};
 
     static constexpr std::array<PatchRange, 32> byBit = []()
     {
         std::array<PatchRange, 32> t{};
-        t[flagToIndex(ComponentFlag::Camera)] = PatchRange{_cameraPatches};
-        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{_cameraPatches};
+        t[flagToIndex(ComponentFlag::Camera)] = PatchRange{cameraPatches_};
+        t[flagToIndex(ComponentFlag::Transform)] = PatchRange{cameraPatches_};
         return t;
     }();
 };
@@ -274,11 +274,11 @@ struct InstancePatches<PointLightInstance>
     }
 
     static constexpr PatchDesc posPatch_[] = {PatchDesc{
-        ._offset = 0, ._size = static_cast<uint32_t>(3 * sizeof(float)), .fill = &fillTransform}};
+        .offset_ = 0, .size_ = static_cast<uint32_t>(3 * sizeof(float)), .fill = &fillTransform}};
 
     static constexpr PatchDesc lightPatch_[] = {
-        PatchDesc{._offset = static_cast<uint32_t>(3 * sizeof(float)),
-                  ._size = static_cast<uint32_t>(7 * sizeof(float)),
+        PatchDesc{.offset_ = static_cast<uint32_t>(3 * sizeof(float)),
+                  .size_ = static_cast<uint32_t>(7 * sizeof(float)),
                   .fill = &fillLight}};
 
     static constexpr std::array<PatchRange, 32> byBit = []()
@@ -326,7 +326,7 @@ struct InstancePatches<SkyboxInstance>
         SH9 sh;
         if (sky->mode_ == Skybox_C::Mode::HDRI && sky->hdri_)
         {
-            if (auto* tex = ctx._assetManager->get<Texture>(sky->hdri_))
+            if (auto* tex = ctx.assetManager_->get<Texture>(sky->hdri_))
                 sh = tex->irradianceSH_;
         }
         else
@@ -352,20 +352,20 @@ struct InstancePatches<SkyboxInstance>
         out->mipCount     = 1u;
         out->pad          = {};
         if (sky->mode_ == Skybox_C::Mode::HDRI && sky->hdri_)
-            if (auto* tex = ctx._assetManager->get<Texture>(sky->hdri_))
+            if (auto* tex = ctx.assetManager_->get<Texture>(sky->hdri_))
             {
                 out->heapIdx  = tex->heapIdx_;
                 out->mipCount = tex->mipLevels_;
             }
     }
 
-    static constexpr PatchDesc _patch[] = {
+    static constexpr PatchDesc patch_[] = {
         {0, static_cast<uint32_t>(sizeof(SkyboxGPUData)), &fillSkyboxData}};
 
     static constexpr std::array<PatchRange, 32> byBit = []()
     {
         std::array<PatchRange, 32> t{};
-        t[flagToIndex(ComponentFlag::Skybox)] = PatchRange{_patch};
+        t[flagToIndex(ComponentFlag::Skybox)] = PatchRange{patch_};
         return t;
     }();
 };

@@ -19,7 +19,7 @@
 namespace batap
 {
 EntityFactory::EntityFactory(GPUInstanceManager& instanceManager)
-    : _instanceManager(instanceManager)
+    : instanceManager_(instanceManager)
 {}
 
 EntityHandle EntityFactory::createEmpty(entt::registry& reg)
@@ -39,16 +39,16 @@ EntityHandle EntityFactory::createStaticMesh(entt::registry& reg, std::optional<
     auto& meshC = reg.emplace<Mesh_C>(entity);
     if (handle)
     {
-        meshC._mesh = *handle;
+        meshC.mesh_ = *handle;
     }
     reg.emplace<Transform_C>(entity);
     EntityHandle h{&reg, entity};
 
-    auto iid = _instanceManager.pool<StaticMeshInstance>().insert(h);
+    auto iid = instanceManager_.pool<StaticMeshInstance>().insert(h);
 
     reg.emplace<Kind_C>(entity, EntityKind::StaticMesh);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
-    rInstance._instanceID = iid;
+    rInstance.instanceID_ = iid;
 
     return h;
 }
@@ -62,10 +62,10 @@ EntityHandle EntityFactory::createCamera(entt::registry& reg)
     reg.emplace<Transform_C>(entity);
     EntityHandle h{&reg, entity};
 
-    auto iid = _instanceManager.pool<CameraInstance>().insert(h);
+    auto iid = instanceManager_.pool<CameraInstance>().insert(h);
     reg.emplace<Kind_C>(entity, EntityKind::Camera);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
-    rInstance._instanceID = iid;
+    rInstance.instanceID_ = iid;
 
     return h;
 }
@@ -80,10 +80,10 @@ EntityHandle EntityFactory::createPointLight(entt::registry& reg)
     reg.emplace<Transform_C>(entity);
     EntityHandle h{&reg, entity};
 
-    auto iid = _instanceManager.pool<PointLightInstance>().insert(h);
+    auto iid = instanceManager_.pool<PointLightInstance>().insert(h);
     reg.emplace<Kind_C>(entity, EntityKind::PointLight);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
-    rInstance._instanceID = iid;
+    rInstance.instanceID_ = iid;
 
     return h;
 }
@@ -96,17 +96,17 @@ EntityHandle EntityFactory::createSkybox(entt::registry& reg)
     reg.emplace<Kind_C>(entity, EntityKind::Skybox);
     EntityHandle h{&reg, entity};
 
-    auto iid = _instanceManager.pool<SkyboxInstance>().insert(h);
+    auto iid = instanceManager_.pool<SkyboxInstance>().insert(h);
     auto& rInstance = reg.emplace<RenderInstance_C>(entity);
-    rInstance._instanceID = iid;
+    rInstance.instanceID_ = iid;
 
     return h;
 }
 
 void EntityFactory::destroy(EntityHandle h)
 {
-    auto& reg = *h._reg;
-    if (!reg.valid(h._entity))
+    auto& reg = *h.reg_;
+    if (!reg.valid(h.entity_))
         return;
 
     // Collect children before modifying hierarchy
@@ -119,9 +119,9 @@ void EntityFactory::destroy(EntityHandle h)
 
     Hierarchy_S::detach(h);
 
-    if (auto* k = reg.try_get<Kind_C>(h._entity))
-        _instanceManager.visitPool(k->value, [&](auto& pool) { pool.remove(h); });
+    if (auto* k = reg.try_get<Kind_C>(h.entity_))
+        instanceManager_.visitPool(k->value, [&](auto& pool) { pool.remove(h); });
 
-    reg.destroy(h._entity);
+    reg.destroy(h.entity_);
 }
 }  // namespace batap

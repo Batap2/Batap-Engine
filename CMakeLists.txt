@@ -46,6 +46,15 @@ set(ASSIMP_INSTALL            OFF CACHE BOOL "" FORCE)
 # ------------------------------------------------------------------------------
 # Third-party dependencies
 # ------------------------------------------------------------------------------
+# Le SDK Vulkan LunarG fournit les headers (volk, vk-bootstrap, VMA) et dxc.
+# FindVulkan le localise via l'env VULKAN_SDK posé par l'installeur ; pour un
+# SDK ailleurs, configurer avec -DVulkan_ROOT=<chemin du SDK>.
+find_package(Vulkan)
+if(NOT Vulkan_FOUND)
+  message(FATAL_ERROR
+    "Vulkan SDK not found. https://vulkan.lunarg.com")
+endif()
+
 # volk a besoin de savoir quelle surface de plateforme déclarer (l'équivalent
 # du VK_USE_PLATFORM_* qu'on passerait à vulkan.h)
 if(WIN32)
@@ -93,7 +102,6 @@ if(APPLE)
     -Wno-weak-vtables
     -Wno-exit-time-destructors
     -Wno-global-constructors
-    -Wno-unsafe-buffer-usage
     -Wno-covered-switch-default
     -Wno-float-equal
     -Wno-double-promotion

@@ -1,9 +1,11 @@
 #include "VulkanShaderCompiler.h"
 
 #if defined(_WIN32)
-  #define WIN32_LEAN_AND_MEAN
-  #define NOMINMAX
-  #include <windows.h>  // avant dxcapi.h (HRESULT, IUnknown)
+  #include <windows.h>  // avant dxcapi.h (HRESULT)
+  // WIN32_LEAN_AND_MEAN (global, cf. CMakeLists) exclut COM de windows.h :
+  // dxcapi.h a besoin de IUnknown et IStream
+  #include <objidl.h>
+  #include <unknwn.h>
 #else
   #include <dlfcn.h>
 #endif
@@ -191,7 +193,11 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
         return {};
 
     const auto* data = static_cast<const uint8_t*>(object->GetBufferPointer());
+    // le blob dxc n'expose que pointeur + taille
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
     return {data, data + object->GetBufferSize()};
+#pragma clang diagnostic pop
 }
 
 }  // namespace batap

@@ -33,7 +33,7 @@ static std::string_view extractExtension(std::string_view path)
 
 static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Engine& ctx)
 {
-    auto& assetManager = *ctx._assetManager;
+    auto& assetManager = *ctx.assetManager_;
     assert(!assetManager.baseDir().empty() &&
            "AssetManager baseDir not set — call setBaseDir before loading assets");
     const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / relPath).string();
@@ -59,33 +59,33 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
     {
         const auto bufSize = sizeof(uint32_t) * data->indices.size();
         const auto guid = rm->createStaticBuffer(bufSize, rname("_i"));
-        mesh->_indexBuffer =
+        mesh->indexBuffer_ =
             rm->createStaticIBV(guid, ResourceFormat::R32_UINT, rname("_iv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 4);
         std::memcpy(span.data(), data->indices.data(), bufSize);
-        mesh->_indexCount = static_cast<uint32_t>(data->indices.size());
+        mesh->indexCount_ = static_cast<uint32_t>(data->indices.size());
     }
     {
         const auto bufSize = sizeof(v3f) * data->vertices.size();
         const auto guid = rm->createStaticBuffer(bufSize, rname("_v"));
-        mesh->_vertexBuffer = rm->createStaticVBV(guid, sizeof(v3f), rname("_vv"), 0, bufSize);
+        mesh->vertexBuffer_ = rm->createStaticVBV(guid, sizeof(v3f), rname("_vv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 0);
         std::memcpy(span.data(), data->vertices.data(), bufSize);
-        mesh->_vertexCount = static_cast<uint32_t>(data->vertices.size());
+        mesh->vertexCount_ = static_cast<uint32_t>(data->vertices.size());
     }
     if (!data->normals.empty())
     {
         const auto bufSize = sizeof(v3f) * data->normals.size();
         const auto guid = rm->createStaticBuffer(bufSize, rname("_n"));
-        mesh->_normalBuffer = rm->createStaticVBV(guid, sizeof(v3f), rname("_nv"), 0, bufSize);
+        mesh->normalBuffer_ = rm->createStaticVBV(guid, sizeof(v3f), rname("_nv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 0);
         std::memcpy(span.data(), data->normals.data(), bufSize);
     }
     if (!data->uvs.empty())
     {
         const auto bufSize = sizeof(v2f) * data->uvs.size();
-        const auto guid = rm->createStaticBuffer(bufSize, rname("_uv"));
-        mesh->_uv0Buffer = rm->createStaticVBV(guid, sizeof(v2f), rname("_uvv"), 0, bufSize);
+        const auto guid = rm->createStaticBuffer(bufSize, rname("uv_"));
+        mesh->uv0Buffer_ = rm->createStaticVBV(guid, sizeof(v2f), rname("_uvv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 0);
         std::memcpy(span.data(), data->uvs.data(), bufSize);
     }
@@ -135,12 +135,12 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
 
         const auto bufSize = sizeof(v4f) * vcount;
         const auto guid = rm->createStaticBuffer(bufSize, rname("_tan"));
-        mesh->_tangeantBuffer = rm->createStaticVBV(guid, sizeof(v4f), rname("_tanv"), 0, bufSize);
+        mesh->tangeantBuffer_ = rm->createStaticVBV(guid, sizeof(v4f), rname("_tanv"), 0, bufSize);
         auto span = rm->requestUploadOwned(guid, bufSize, 0);
         std::memcpy(span.data(), tangents.data(), bufSize);
     }
 
-    mesh->_indexFormat = ResourceFormat::R32_UINT;
+    mesh->indexFormat_ = ResourceFormat::R32_UINT;
     mesh->subMeshCount = static_cast<uint8_t>(std::min(data->subMeshes.size(), size_t(8)));
     for (uint8_t i = 0; i < mesh->subMeshCount; ++i)
         mesh->subMeshes[i] = {data->subMeshes[i].indexOffset, data->subMeshes[i].indexCount};
@@ -152,7 +152,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
                                                   bool isBtex)
 {
     namespace fs = std::filesystem;
-    auto& assetManager = *ctx._assetManager;
+    auto& assetManager = *ctx.assetManager_;
     const std::string key = std::string(relPath);
 
     // Early-out: already loaded, no GPU work needed.
@@ -228,7 +228,6 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
 
     // build runtime Texture
     Texture tex{};
-    tex.viewHandle_ = gpuTex.srv;
     tex.heapIdx_    = gpuTex.bindlessIndex;
     tex.format_     = resFmt;
     tex.colorSpace_    = isHdr ? TextureColorSpace::Linear : TextureColorSpace::SRGB;
@@ -244,7 +243,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
 static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, const Engine& ctx)
 {
     namespace fs = std::filesystem;
-    auto& assetManager = *ctx._assetManager;
+    auto& assetManager = *ctx.assetManager_;
     const std::string absPath = (fs::path(assetManager.baseDir()) / relPath).string();
 
     auto data = readBmat(absPath);
@@ -282,7 +281,7 @@ static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, cons
 
 void createDefaultAssets(const Engine& ctx)
 {
-    auto& assetManager = *ctx._assetManager;
+    auto& assetManager = *ctx.assetManager_;
     auto* rm           = assetManager.resourceManager_;
 
     // ---- 1×1 white RGBA texture ----
@@ -299,7 +298,6 @@ void createDefaultAssets(const Engine& ctx)
     std::memcpy(span.data(), kWhite, 4);
 
     Texture whiteTex{};
-    whiteTex.viewHandle_ = whiteGpu.srv;
     whiteTex.heapIdx_    = whiteGpu.bindlessIndex;
     whiteTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
     whiteTex.sizeX_      = 1;
@@ -320,7 +318,6 @@ void createDefaultAssets(const Engine& ctx)
     std::memcpy(flatSpan.data(), kFlatNormal, 4);
 
     Texture flatNrmTex{};
-    flatNrmTex.viewHandle_ = flatGpu.srv;
     flatNrmTex.heapIdx_    = flatGpu.bindlessIndex;
     flatNrmTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
     flatNrmTex.sizeX_      = 1;

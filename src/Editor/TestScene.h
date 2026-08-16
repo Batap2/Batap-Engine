@@ -14,6 +14,6 @@ struct TestScene : Scene
 
     void update(float deltaTime, Engine& ctx, World& world) override;
 
-    EntityHandle _camera;
+    EntityHandle camera_;
 };
 }  // namespace batap

@@ -142,11 +142,9 @@ consteval std::string_view fieldName()
     constexpr auto name = detail::parseFieldName(detail::prettySignature<detail::fieldPtr<T, I>>());
     static_assert(!name.empty(),
                   "field name extraction failed — unsupported compiler output format");
-    // The codebase marks members with an underscore on either side (color_,
-    // _znear); json keys and UI labels carry neither.
-    constexpr auto trimmed =
-        name.back() == '_' ? name.substr(0, name.size() - 1) : name;
-    return trimmed.front() == '_' ? trimmed.substr(1) : trimmed;
+    // Members are spelled with a trailing underscore (color_); json keys and
+    // UI labels carry none.
+    return name.back() == '_' ? name.substr(0, name.size() - 1) : name;
 }
 
 }  // namespace batap::refl

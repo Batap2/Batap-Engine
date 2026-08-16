@@ -23,7 +23,7 @@ bool AssetHolder(AssetHolderConfig config)
     ImVec2 p_max = ImGui::GetItemRectMax();
 
     ImColor col = ImColor(50,50,50,50);
-    if(config._thumbnail){
+    if(config.thumbnail_){
         col = ImColor(200, 200, 200, 50);
     }
 

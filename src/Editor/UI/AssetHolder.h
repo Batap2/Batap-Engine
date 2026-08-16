@@ -10,7 +10,7 @@ struct AssetHolderConfig
 {
     v2f         pos_;
     v2f         size_;
-    ImTextureID _thumbnail;
+    ImTextureID thumbnail_;
     std::string label_;
 };
 

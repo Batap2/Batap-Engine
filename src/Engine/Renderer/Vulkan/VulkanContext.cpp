@@ -18,15 +18,24 @@
 namespace batap
 {
 
+namespace
+{
+#if defined(_DEBUG)
+constexpr bool UseValidation = true;
+#else
+constexpr bool UseValidation = false;
+#endif
+}  // namespace
+
 void VulkanContext::init()
 {
     if (volkInitialize() != VK_SUCCESS)
-        throw std::runtime_error("Vulkan loader introuvable (volkInitialize)");
+        throw std::runtime_error("Unable to find Vulkan loader (volkInitialize)");
 
     auto instanceResult = vkb::InstanceBuilder()
                               .set_app_name("Batap")
                               .require_api_version(1, 3, 0)
-                              .request_validation_layers(true)
+                              .request_validation_layers(UseValidation)
                               .use_default_debug_messenger()
                               .build();
     if (!instanceResult)
@@ -57,13 +66,11 @@ void VulkanContext::init()
                          .set_minimum_version(1, 3)
                          .set_required_features_13(features13)
                          .set_required_features_12(features12)
-                         // Pas de surface à l'init (headless possible), mais on
-                         // exige la capacité de présenter pour plus tard
                          .require_present(false)
                          .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
                          .select();
     if (!selection)
-        throw std::runtime_error("Aucun GPU Vulkan 1.3 compatible : " +
+        throw std::runtime_error("No Vulkan 1.3 compatible GPU" +
                                  selection.error().message());
 
     vkb::PhysicalDevice vkbPhysicalDevice = selection.value();

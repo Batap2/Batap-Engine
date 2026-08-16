@@ -14,13 +14,13 @@ namespace batap
 struct ScenePasses;
 
 // Backend Vulkan du Renderer — même nom de classe que la version DX12, même
-// surface publique consommée par Engine.cpp / World.cpp (init, render,
-// beginImGuiFrame, flush, resize, onResize, _resourceManager, _width/_height,
-// _frameIndex). Le header Renderer/Renderer.h sélectionne le backend par
+// surface publique consommée par Engine.cpp / World.cpp (render,
+// beginFrame, flush, resize, onResize, resourceManager_, width_/height_,
+// frameIndex_). Le header Renderer/Renderer.h sélectionne le backend par
 // plateforme.
 //
 // Architecture de frame (docs/vulkan.md §10) :
-//   beginImGuiFrame (début de frame CPU) : attend la fence du slot, recycle
+//   beginFrame (début de frame CPU) : attend la fence du slot, recycle
 //   staging/destructions — les uploads de la frame s'écrivent ensuite ;
 //   render : flushUploads → un rendering scope (swapchain + depth) dans
 //   lequel la scène s'enregistre (callback posé par SceneRenderer) → present.
@@ -29,16 +29,15 @@ struct ScenePasses;
 struct Renderer
 {
     // Définis dans le .cpp : le unique_ptr<ScenePasses> exige le type complet
-    Renderer();
+    Renderer(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeight,
+             bool transparent = false);
     ~Renderer();
 
-    void init(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeight,
-              bool transparent = false);
     void render();
 
     // Appelé en début de frame par Engine::beginFrame : fence du slot +
     // NewFrame ImGui (imgui_impl_vulkan + backend plateforme).
-    void beginImGuiFrame();
+    void beginFrame();
 
     void resize(uint32_t w, uint32_t h);
     void flush();
@@ -53,10 +52,10 @@ struct Renderer
                                              uint32_t height)>;
     void setSceneRecord(SceneRecordFn fn);
 
-    ResourceManager* _resourceManager = nullptr;
-    uint32_t _width = 0;
-    uint32_t _height = 0;
-    uint8_t _frameIndex = 0;
+    ResourceManager* resourceManager_ = nullptr;
+    uint32_t width_ = 0;
+    uint32_t height_ = 0;
+    uint8_t frameIndex_ = 0;
 
     VulkanContext ctx_;
     VulkanSwapchain swapchain_;
@@ -77,7 +76,6 @@ struct Renderer
 
     std::vector<ResizeCallback> resizeCallbacks_;
     bool frameBegun_ = false;
-    bool initialized_ = false;
     bool transparent_ = false;  // clear à alpha 0 (cf. WindowDesc::transparent)
 
     void initImGui();

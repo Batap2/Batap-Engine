@@ -56,7 +56,7 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world)
         if (t.meta.customEditor)  // drawn by its own panel above
             continue;
 
-        void* c = t.tryGet(*ent._reg, ent._entity);
+        void* c = t.tryGet(*ent.reg_, ent.entity_);
         if (!c)
             continue;
 
@@ -100,7 +100,7 @@ void InspectorPanel::drawTransform(EntityHandle ent, World& world)
                       {
                           ImGui::SetNextItemWidth(-1.0f);
                           if (ImGui::DragFloat3("##pos", pos.data(), 0.05f))
-                              world.systems_->_transforms->setLocalPosition(ent, pos);
+                              world.systems_->transforms_->setLocalPosition(ent, pos);
                       });
 
             constexpr float kRadToDeg = 180.0f / std::numbers::pi_v<float>;
@@ -134,7 +134,7 @@ void InspectorPanel::drawTransform(EntityHandle ent, World& world)
                                              angleaxisf(eulerRad.z(), v3f::UnitZ());
                               newRot.normalize();
                               rotationEditSourceQuat_ = newRot;
-                              world.systems_->_transforms->setLocalRotation(ent, newRot);
+                              world.systems_->transforms_->setLocalRotation(ent, newRot);
                           }
                       });
         }
@@ -158,10 +158,10 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
                 [&]
                 {
                     std::string meshLabel;
-                    if (meshC->_mesh)
-                        if (auto* p = app.ctx_->_assetManager->getPath(meshC->_mesh))
+                    if (meshC->mesh_)
+                        if (auto* p = app.ctx_->assetManager_->getPath(meshC->mesh_))
                             meshLabel = std::filesystem::path(*p).stem().string();
-                    if (AssetHolder({.size_ = v2f(40, 40), ._thumbnail = meshC->_mesh ? 1ull : 0, .label_ = meshLabel}))
+                    if (AssetHolder({.size_ = v2f(40, 40), .thumbnail_ = meshC->mesh_ ? 1ull : 0, .label_ = meshLabel}))
                     {
                         assetPicker_.open(ent, AssetType::Mesh, app.projectDir_);
                     }
@@ -210,10 +210,10 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                               {
                                   std::string matLabel;
                                   if (mc->slots[i])
-                                      if (auto* p = app.ctx_->_assetManager->getPath(mc->slots[i]))
+                                      if (auto* p = app.ctx_->assetManager_->getPath(mc->slots[i]))
                                           matLabel = std::filesystem::path(*p).stem().string();
                                   if (AssetHolder({.size_      = v2f(40, 40),
-                                                   ._thumbnail = mc->slots[i] ? 1ull : 0,
+                                                   .thumbnail_ = mc->slots[i] ? 1ull : 0,
                                                    .label_     = matLabel}))
                                       assetPicker_.open(ent, AssetType::Material,
                                                         app.projectDir_, i);
@@ -223,7 +223,7 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                     const MaterialHandle handle = mc->slots[i];
                     if (handle)
                     {
-                        auto* mat = app.ctx_->_assetManager->get<Material>(handle);
+                        auto* mat = app.ctx_->assetManager_->get<Material>(handle);
                         if (mat)
                         {
                             Material copy = *mat;
@@ -244,7 +244,7 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                                                           0.01f, 0.f, 1.f);
 
                             if (changed)
-                                app.ctx_->_assetManager->update(handle, copy);
+                                app.ctx_->assetManager_->update(handle, copy);
 
                             static constexpr std::array<const char*, 4> kTexLabels = {
                                 "Albedo Tex", "Normal Tex", "Roughness Tex", "Metallic Tex"};
@@ -257,9 +257,9 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                                           [&, ch]
                                           {
                                               std::string lbl = texLabelFromHeapIdx(
-                                                  app.ctx_->_assetManager.get(), matTexIdx[ch]);
+                                                  app.ctx_->assetManager_.get(), matTexIdx[ch]);
                                               if (AssetHolder({.size_      = v2f(40, 40),
-                                                               ._thumbnail = 0,
+                                                               .thumbnail_ = 0,
                                                                .label_     = lbl.empty() ? "None" : lbl}))
                                                   assetPicker_.open(handle, ch, app.projectDir_);
                                               return true;
@@ -309,10 +309,10 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
                           {
                               std::string label;
                               if (sky->hdri_)
-                                  if (auto* p = app.ctx_->_assetManager->getPath(sky->hdri_))
+                                  if (auto* p = app.ctx_->assetManager_->getPath(sky->hdri_))
                                       label = std::filesystem::path(*p).stem().string();
                               if (AssetHolder({.size_      = v2f(40, 40),
-                                               ._thumbnail = sky->hdri_ ? 1ull : 0,
+                                               .thumbnail_ = sky->hdri_ ? 1ull : 0,
                                                .label_     = label.empty() ? "None" : label}))
                                   assetPicker_.openHdri(ent, app.projectDir_);
                               assetPicker_.draw(app);

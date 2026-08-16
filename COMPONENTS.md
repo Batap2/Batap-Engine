@@ -245,7 +245,7 @@ l'importeur dans un monde temporaire — un autre chantier, pas un oubli.
 
 Ce que la migration a ajouté au passage :
 
-- `fieldName` retire aussi un `_` **en tête** (`_znear` → `"znear"`), la
+- `fieldName` retire aussi un `_` **en tête** (`znear_` → `"znear"`), la
   convention du projet étant mixte. Les clés json sur disque sont inchangées,
   et des `static_assert` dans `Camera_C.h` le figent.
 - Les **enums** n'ont rien à enregistrer : `fieldTypeFor<M>()` leur rend le slot

@@ -19,7 +19,7 @@ struct SceneRenderArgs
 
 struct SceneRenderer
 {
-    SceneRenderer(Engine& ctx) : _ctx(ctx) {}
+    SceneRenderer(Engine& ctx) : ctx_(ctx) {}
 
     void setScene(SceneRenderArgs args) { args_ = args; }
 
@@ -27,7 +27,7 @@ struct SceneRenderer
     void uploadDirty();
 
    private:
-    Engine& _ctx;
+    Engine& ctx_;
     SceneRenderArgs args_;
 };
 }  // namespace batap

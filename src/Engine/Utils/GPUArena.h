@@ -34,8 +34,8 @@ struct GPUArena
 
     ~GPUArena()
     {
-        if (rm_ && srvHandle_.valid())
-            rm_->requestDestroy(srvHandle_, true);
+        if (rm_ && resourceHandle_.valid())
+            rm_->requestDestroy(resourceHandle_);
     }
 
     GPUArena(const GPUArena&) = delete;
@@ -49,7 +49,6 @@ struct GPUArena
           rm_(o.rm_),
           name_(std::move(o.name_)),
           resourceHandle_(o.resourceHandle_),
-          srvHandle_(o.srvHandle_),
           gpuCapacity_(o.gpuCapacity_)
     {
         o.rm_ = nullptr;
@@ -59,8 +58,8 @@ struct GPUArena
     {
         if (this != &o)
         {
-            if (rm_ && srvHandle_.valid())
-                rm_->requestDestroy(srvHandle_, true);
+            if (rm_ && resourceHandle_.valid())
+                rm_->requestDestroy(resourceHandle_);
             data_ = std::move(o.data_);
             generations_ = std::move(o.generations_);
             alive_ = std::move(o.alive_);
@@ -68,7 +67,6 @@ struct GPUArena
             rm_ = o.rm_;
             name_ = std::move(o.name_);
             resourceHandle_ = o.resourceHandle_;
-            srvHandle_ = o.srvHandle_;
             gpuCapacity_ = o.gpuCapacity_;
             o.rm_ = nullptr;
         }
@@ -142,7 +140,7 @@ struct GPUArena
 
     bool contains(TKey k) const { return isValid(k); }
 
-    GPUViewHandle srvHandle() const { return srvHandle_; }
+    GPUResourceHandle bufferHandle() const { return resourceHandle_; }
 
     size_t capacity() const { return data_.size(); }
 
@@ -163,17 +161,15 @@ struct GPUArena
 
     void grow(size_t newCapacity)
     {
-        const GPUViewHandle oldSrv = srvHandle_;
+        const GPUResourceHandle old = resourceHandle_;
         createGpuResources(newCapacity);
-        rm_->requestDestroy(oldSrv, true);
+        rm_->requestDestroy(old);
     }
 
     void createGpuResources(size_t capacity)
     {
-        auto structured =
+        resourceHandle_ =
             rm_->createStaticStructuredBuffer(capacity, static_cast<uint32_t>(sizeof(T)), name_);
-        resourceHandle_ = structured.resource;
-        srvHandle_ = structured.srv;
         gpuCapacity_ = capacity;
     }
 
@@ -186,7 +182,6 @@ struct GPUArena
     std::string name_;
 
     GPUResourceHandle resourceHandle_;
-    GPUViewHandle srvHandle_;
     size_t gpuCapacity_ = 1;
 };
 

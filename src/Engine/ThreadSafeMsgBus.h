@@ -16,24 +16,24 @@ struct TSMsgBus
     void post(Message msg)
     {
         {
-            std::lock_guard<std::mutex> lock(_mtx);
-            _q.push(std::move(msg));
-            _has.store(true, std::memory_order_relaxed);
+            std::lock_guard<std::mutex> lock(mtx_);
+            q_.push(std::move(msg));
+            has_.store(true, std::memory_order_relaxed);
         }
     }
 
     template <typename Fn>
     void pump(Fn&& handle)
     {
-        if (!_has.load(std::memory_order_relaxed))
+        if (!has_.load(std::memory_order_relaxed))
             return;
 
         std::queue<Message> local;
         {
-            std::lock_guard<std::mutex> lock(_mtx);
-            std::swap(local, _q);
-            if (_q.empty())
-                _has.store(false, std::memory_order_release);
+            std::lock_guard<std::mutex> lock(mtx_);
+            std::swap(local, q_);
+            if (q_.empty())
+                has_.store(false, std::memory_order_release);
         }
 
         while (!local.empty())
@@ -55,9 +55,9 @@ struct TSMsgBus
     }
 
    private:
-    std::mutex _mtx;
-    std::queue<Message> _q;
-    std::atomic<bool> _has{false};
+    std::mutex mtx_;
+    std::queue<Message> q_;
+    std::atomic<bool> has_{false};
 };
 
 }  // namespace batap

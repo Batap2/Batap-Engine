@@ -41,7 +41,7 @@ void ScenePanel::drawEntityNode(entt::registry& reg, entt::entity e,
     if (selected)
         flags |= ImGuiTreeNodeFlags_Selected;
 
-    std::string label = std::string(icon) + " " + reg.get<Name_C>(e)._name;
+    std::string label = std::string(icon) + " " + reg.get<Name_C>(e).name_;
 
     void* nodeId = reinterpret_cast<void*>(static_cast<uintptr_t>(entt::to_integral(e)));
 
@@ -63,7 +63,7 @@ void ScenePanel::drawEntityNode(entt::registry& reg, entt::entity e,
     if (ImGui::BeginDragDropSource())
     {
         ImGui::SetDragDropPayload("ENTITY", &e, sizeof(entt::entity));
-        ImGui::TextUnformatted(reg.get<Name_C>(e)._name.c_str());
+        ImGui::TextUnformatted(reg.get<Name_C>(e).name_.c_str());
         ImGui::EndDragDropSource();
     }
 
@@ -95,7 +95,7 @@ void ScenePanel::drawEntityNode(entt::registry& reg, entt::entity e,
 
 void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
 {
-    auto& reg = world.scene_->_registry;
+    auto& reg = world.scene_->registry_;
 
     if (ImGui::Button(ICON_MD_ADD))
         ImGui::OpenPopup("AddEntityPopup");
@@ -103,10 +103,10 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
     if (ImGui::BeginPopup("AddEntityPopup"))
     {
         if (ImGui::MenuItem(ICON_MD_HVAC " Static Mesh"))
-            world.entityFactory_->createStaticMesh(world.scene_->_registry);
+            world.entityFactory_->createStaticMesh(world.scene_->registry_);
 
         if (ImGui::MenuItem(ICON_MD_LIGHTBULB " Point Light"))
-            world.entityFactory_->createPointLight(world.scene_->_registry);
+            world.entityFactory_->createPointLight(world.scene_->registry_);
 
         if (ImGui::MenuItem(ICON_MD_VIDEOCAM " Camera"))
         {
@@ -114,7 +114,7 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
         }
 
         if (ImGui::MenuItem(ICON_MD_PANORAMA " Skybox"))
-            world.entityFactory_->createSkybox(world.scene_->_registry);
+            world.entityFactory_->createSkybox(world.scene_->registry_);
 
         ImGui::EndPopup();
     }

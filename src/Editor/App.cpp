@@ -20,7 +20,7 @@ namespace batap
 {
 
 App::App(Engine& engine, World& world)
-    : ctx_(&engine), world_(&world), assetManager_(ctx_->_assetManager.get())
+    : ctx_(&engine), world_(&world), assetManager_(ctx_->assetManager_.get())
 {
     ui::ApplyTheme();
     installFieldUI();
@@ -95,7 +95,7 @@ void App::saveRecentProjects()
 void App::selectProject(const std::string& dir)
 {
     projectDir_ = dir;
-    ctx_->_assetManager->setBaseDir(dir);
+    ctx_->assetManager_->setBaseDir(dir);
     state_ = AppState::Running;
 
     recentProjects_.erase(

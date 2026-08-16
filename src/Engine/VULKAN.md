@@ -157,8 +157,8 @@ jalon 4, c'est le moteur lui-même qui compile et tourne sur mac.
          PixelShader.hlsl pendant que le jeu tournait ;
        - **présentation sans vsync** (IMMEDIATE si dispo, sinon MAILBOX,
          sinon FIFO) — le FIFO du bring-up plafonnait à 60 fps ;
-       - fix synchro frames-in-flight : `_frameIndex` publié dans
-         beginImGuiFrame (le dirty tracking visait le slot de la frame
+       - fix synchro frames-in-flight : `frameIndex_` publié dans
+         beginFrame (le dirty tracking visait le slot de la frame
          précédente → une frame sur deux noire) ;
        - CMake : tri plateforme dans `src/Engine/CmakeLists.txt`, preset
          `macos-debug` ; F5 VS Code : configs `TestGame/Editor (macos-debug)`.

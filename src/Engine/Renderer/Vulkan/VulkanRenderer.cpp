@@ -31,13 +31,11 @@ namespace
 constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
 }
 
-Renderer::Renderer() = default;
-
-void Renderer::init(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeight,
-                    bool transparent)
+Renderer::Renderer(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeight,
+                   bool transparent)
 {
-    _width = clientWidth;
-    _height = clientHeight;
+    width_ = clientWidth;
+    height_ = clientHeight;
     transparent_ = transparent;
 
     ctx_.init();
@@ -45,15 +43,15 @@ void Renderer::init(void* nativeWindow, uint32_t clientWidth, uint32_t clientHei
                     static_cast<uint32_t>(FramesInFlight), transparent);
     // La taille de rendu est celle de la swapchain, en pixels physiques —
     // pas la taille client demandée (qui est en points sur un écran retina).
-    _width = swapchain_.extent_.width;
-    _height = swapchain_.extent_.height;
+    width_ = swapchain_.extent_.width;
+    height_ = swapchain_.extent_.height;
     createDepthBuffer();
 
     // Le renderer possède le ResourceManager ; l'Engine en distribue le
     // pointeur (AssetManager, InstanceManager) — même schéma que le DX12.
     resources_ = std::make_unique<ResourceManager>();
     resources_->init(ctx_, static_cast<uint32_t>(FramesInFlight));
-    _resourceManager = resources_.get();
+    resourceManager_ = resources_.get();
 
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -71,13 +69,21 @@ void Renderer::init(void* nativeWindow, uint32_t clientWidth, uint32_t clientHei
     if (vkAllocateCommandBuffers(ctx_.device_, &cmdInfo, commandBuffers_.data()) != VK_SUCCESS)
         throw std::runtime_error("Renderer(vk) : command buffers");
 
+#if defined(_WIN32)
+    char* dumpEnv = nullptr;
+    size_t dumpEnvLen = 0;
+    _dupenv_s(&dumpEnv, &dumpEnvLen, "BATAP_DUMP_FRAME");
+    if (dumpEnv)
+        dumpAtFrame_ = std::atoll(dumpEnv);
+    free(dumpEnv);
+#else
     if (const char* dumpEnv = std::getenv("BATAP_DUMP_FRAME"))
         dumpAtFrame_ = std::atoll(dumpEnv);
+#endif
 
     window_ = nativeWindow;
     initImGui();
 
-    initialized_ = true;
     std::cout << "[Vulkan] Renderer prêt — swapchain " << swapchain_.extent_.width << "x"
               << swapchain_.extent_.height << std::endl;
 }
@@ -115,8 +121,11 @@ void Renderer::writeDump()
 
     auto* px = static_cast<uint8_t*>(dumpMapped_);
     const uint64_t count = uint64_t(swapchain_.extent_.width) * swapchain_.extent_.height;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
     for (uint64_t i = 0; i < count; ++i)  // swapchain BGRA -> RGBA
         std::swap(px[i * 4 + 0], px[i * 4 + 2]);
+#pragma clang diagnostic pop
     stbi_write_png("frame_dump.png", int(swapchain_.extent_.width),
                    int(swapchain_.extent_.height), 4, px, int(swapchain_.extent_.width * 4));
     std::cout << "[Vulkan] frame_dump.png écrite (frame " << frameCounter_ << ")" << std::endl;
@@ -209,15 +218,11 @@ void Renderer::setSceneRecord(SceneRecordFn fn)
     sceneRecord_ = std::move(fn);
 }
 
-void Renderer::beginImGuiFrame()
+void Renderer::beginFrame()
 {
-    // Attendre la fence du slot AVANT que la frame CPU n'écrive ses uploads :
-    // le staging ring et les destructions différées du slot deviennent sûrs.
     swapchain_.waitFrame();
     resources_->beginFrame(swapchain_.frameIndex());
-    // Publié ici et pas dans render() : la frame CPU (dirty tracking de
-    // l'InstanceManager) doit voir le slot qu'elle est en train de produire.
-    _frameIndex = static_cast<uint8_t>(swapchain_.frameIndex());
+    frameIndex_ = static_cast<uint8_t>(swapchain_.frameIndex());
     frameBegun_ = true;
 
     if (!imguiFrameOpen_)
@@ -232,7 +237,7 @@ void Renderer::beginImGuiFrame()
 void Renderer::render()
 {
     if (!frameBegun_)
-        beginImGuiFrame();
+        beginFrame();
     frameBegun_ = false;
 
     const uint32_t imageIndex = swapchain_.acquire();
@@ -379,9 +384,7 @@ void Renderer::render()
 
 void Renderer::resize(uint32_t w, uint32_t h)
 {
-    if (!initialized_)
-        return;
-    if (w == _width && h == _height)
+    if (w == width_ && h == height_)
         return;
 
     swapchain_.recreate();  // attend l'idle GPU, suit la taille de la surface
@@ -391,11 +394,11 @@ void Renderer::resize(uint32_t w, uint32_t h)
     createDepthBuffer();
 
     // La swapchain fait foi (la surface peut clamper la taille demandée)
-    _width = swapchain_.extent_.width;
-    _height = swapchain_.extent_.height;
+    width_ = swapchain_.extent_.width;
+    height_ = swapchain_.extent_.height;
 
     for (auto& cb : resizeCallbacks_)
-        cb(_width, _height);
+        cb(width_, height_);
 }
 
 void Renderer::onResize(ResizeCallback cb)
@@ -405,14 +408,11 @@ void Renderer::onResize(ResizeCallback cb)
 
 void Renderer::flush()
 {
-    if (initialized_)
-        vkDeviceWaitIdle(ctx_.device_);
+    vkDeviceWaitIdle(ctx_.device_);
 }
 
 Renderer::~Renderer()
 {
-    if (!initialized_)
-        return;
     vkDeviceWaitIdle(ctx_.device_);
     ImGui_ImplVulkan_Shutdown();
     platformImGuiShutdown();

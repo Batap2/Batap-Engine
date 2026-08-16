@@ -40,8 +40,6 @@ void installFieldUI()
     {
         auto* v = static_cast<v3f*>(p);
         ImGui::SetNextItemWidth(-1.0f);
-        if (f.meta.widget == Widget::Color)
-            return ImGui::ColorEdit3("##v", v->data());
         return ImGui::DragFloat3("##v", v->data(), f.meta.speed);
     };
 

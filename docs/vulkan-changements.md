@@ -44,7 +44,7 @@ Ce qui reste dans `Renderer/` à la racine :
 
 **Pièges corrigés en route, à connaître pour la relecture :**
 
-- `_frameIndex` est publié dans `beginImGuiFrame()` (début de frame CPU), pas
+- `frameIndex_` est publié dans `beginFrame()` (début de frame CPU), pas
   dans `render()` : le dirty tracking par frame-in-flight doit voir le slot en
   cours de production. L'avoir en fin de frame donnait UNE FRAME SUR DEUX NOIRE.
 - FIFO (vsync) plafonnait à 60 fps → IMMEDIATE quand dispo.
@@ -85,7 +85,7 @@ Ce qui reste dans `Renderer/` à la racine :
   non-opaque + POST_MULTIPLIED (testé, M3). Windows : BLACK_BRUSH +
   `DwmEnableBlurBehindWindow` + PRE_MULTIPLIED — remplace le DirectComposition
   du DX12, écrit non compilé. Le clear passe à alpha 0 quand le flag est mis.
-- `Engine.cpp` — `_renderer->init(window_, …)` sans cast HWND, passe
+- `Engine.cpp` — `renderer_->init(window_, …)` sans cast HWND, passe
   `desc.transparent`.
 - `DebugUtils.cpp` — portable (`windows.h`/`OutputDebugString`/`__debugbreak`
   sous `#ifdef`, `FAILED(hr)` → `hr < 0`).
@@ -103,9 +103,9 @@ Il reste 4 shaders (les ComputeShader*.hlsl du DX12, orphelins, sont supprimés)
 - chaque ressource porte `[[vk::binding(n, set)]]` — le contrat avec l'enum
   `FrameSetBinding` de VulkanScenePasses ;
 - root constants → `[[vk::push_constant]] struct DrawPush
-  {_cameraIndex,_instanceIndex,_submeshIndex,_pointLightCount}` partagé VS/PS ;
+  {cameraIndex_,instanceIndex_,submeshIndex_,pointLightCount_}` partagé VS/PS ;
 - `PixelShader.hlsl` : une seule sortie SV_Target (le normalRT, écrit-jamais-lu,
-  a disparu) ; matériau via `_materialIndices[_submeshIndex]` (plus de
+  a disparu) ; matériau via `materialIndices_[submeshIndex_]` (plus de
   SV_PrimitiveID — capability Geometry absente sur Metal) ;
 - `SkyPS.hlsl` : lit `SkyboxBuffer[0]` au lieu de 16 root constants dédiés.
 

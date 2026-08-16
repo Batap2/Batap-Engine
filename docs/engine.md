@@ -39,7 +39,7 @@ The game loop is `while (Frame frame = engine.nextFrame()) { ...; world.update()
 ```mermaid
 flowchart TD
     NF["Engine::nextFrame()"] --> PM["platformPumpMessages()<br/>OS events → input queue, resize"]
-    PM --> BIF["Renderer::beginImGuiFrame()<br/>wait frame fence · ResourceManager::beginFrame()<br/>ImGui::NewFrame()"]
+    PM --> BIF["Renderer::beginFrame()<br/>wait frame fence · ResourceManager::beginFrame()<br/>ImGui::NewFrame()"]
     BIF --> DE["InputManager::DispatchEvents()"]
     DE --> GAME["Game / editor code<br/>game logic, ImGui UI<br/>editor: pump async messages (file dialog → asset import)"]
     GAME --> WU

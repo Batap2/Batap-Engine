@@ -23,10 +23,10 @@ entre modules. Chaque phase tient en une session de lecture.
 
 Lire le *pourquoi* avant le *comment*. Ces docs existent déjà dans le commit :
 
-- [ ] `src/Engine/VULKAN.md` — ton plan de migration : ce qui est fait, les jalons, et
+- [X] `src/Engine/VULKAN.md` — ton plan de migration : ce qui est fait, les jalons, et
       surtout la section **« Décisions actées »** (volk, vk-bootstrap, VMA…)
-- [ ] `docs/vulkan.md` + `docs/vulkan-changements.md` — la version doc publique
-- [ ] Lancer `git diff --stat main...vulkan -- src/` et survoler 2 min : repérer les trois
+- [~] `docs/vulkan.md` + `docs/vulkan-changements.md` — la version doc publique
+- [X] Lancer `git diff --stat main...vulkan -- src/` et survoler 2 min : repérer les trois
       familles — **nouveau** (`Renderer/Vulkan/`, `Platform/MacOS/`), **vidé** (l'ancien
       `Renderer/` DX12), **retouché** (le reste)
 
@@ -37,11 +37,11 @@ les modules Z n'ont pas bougé ».
 
 Vérifier que la façade publique est stable — c'est ce qui rend tout le reste lisible.
 
-- [ ] `src/Engine/Engine.h` — les 4 membres (`_renderer`, `_inputManager`,
-      `_sceneRenderer`, `_assetManager`) et le pattern `Frame` RAII
-- [ ] `git diff main...vulkan -- src/Engine/Engine.cpp` — ce qui a changé dans
+- [X] `src/Engine/Engine.h` — les 4 membres (`renderer_`, `inputManager_`,
+      `sceneRenderer_`, `assetManager_`) et le pattern `Frame` RAII
+- [X] `git diff main...vulkan -- src/Engine/Engine.cpp` — ce qui a changé dans
       l'orchestration (création fenêtre, beginFrame/endFrame)
-- [ ] `git diff main...vulkan -- src/Editor/main.cpp` — le point d'entrée, 27 lignes
+- [X] `git diff main...vulkan -- src/Editor/main.cpp` — le point d'entrée, 27 lignes
 
 ## Phase 2 — Le nouveau backend, de bas en haut (le gros morceau, ~2200 lignes)
 
@@ -49,8 +49,8 @@ Ordre des dépendances : chaque fichier n'utilise que des types déjà lus. Pour
 module : lire le `.h` en entier, puis le `.cpp` en DFS interne. Les tailles te donnent
 le budget d'effort.
 
-- [ ] 1. `VulkanContext.h/.cpp` (30+123) — instance, device, queues via vk-bootstrap
-- [ ] 2. `VulkanMemory.h` (17) + `VulkanFormats.h` (62) — vocabulaire, lecture rapide
+- [X] 1. `VulkanContext.h/.cpp` (30+123) — instance, device, queues via vk-bootstrap
+- [X] 2. `VulkanMemory.h` (17) + `VulkanFormats.h` (62) — vocabulaire, lecture rapide
 - [ ] 3. `VulkanResources.h/.cpp` (206+618) — **le cœur** : buffers, images, descriptors.
       Prends ton temps ici, tout le reste s'appuie dessus
 - [ ] 4. `VulkanSwapchain.h/.cpp` (77+278) — acquire/present, resize

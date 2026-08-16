@@ -158,7 +158,6 @@ void ResourceManager::shutdown()
         destroyNow(ring.buffer);
     staging_.clear();
     meshViews_.clear();
-    viewToResource_.clear();
 
     if (bindlessPool_)
         vkDestroyDescriptorPool(ctx_->device_, bindlessPool_, nullptr);
@@ -204,33 +203,26 @@ GPUResourceHandle ResourceManager::createStaticBuffer(uint64_t sizeBytes,
     return handle;
 }
 
-ResourceManager::StructuredBuffer
+GPUResourceHandle
 ResourceManager::createStaticStructuredBuffer(uint64_t elementCount, uint32_t elementStride,
                                               std::optional<std::string_view> name)
 {
-    StructuredBuffer out;
-    out.resource = createStaticBuffer(elementCount * elementStride, name);
-    out.srv = GPUViewHandle(GPUViewType::StaticView);
-    viewToResource_.emplace(out.srv, out.resource);
-    return out;
+    return createStaticBuffer(elementCount * elementStride, name);
 }
 
-ResourceManager::StructuredBuffer
+GPUResourceHandle
 ResourceManager::createFrameStructuredBuffer(uint64_t elementCount, uint32_t elementStride,
                                              std::optional<std::string_view> name)
 {
-    StructuredBuffer out;
-    out.resource = name ? GPUResourceHandle(GPUResourceType::FrameResource, *name)
-                        : GPUResourceHandle(GPUResourceType::FrameResource);
+    GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::FrameResource, *name)
+                                    : GPUResourceHandle(GPUResourceType::FrameResource);
 
-    auto& buffers = frameBuffers_[out.resource];
+    auto& buffers = frameBuffers_[handle];
     buffers.reserve(framesInFlight_);
     for (uint32_t i = 0; i < framesInFlight_; ++i)
         buffers.push_back(createBufferInternal(elementCount * elementStride));
 
-    out.srv = GPUViewHandle(GPUViewType::FrameView);
-    viewToResource_.emplace(out.srv, out.resource);
-    return out;
+    return handle;
 }
 
 ResourceManager::Texture2D ResourceManager::createTexture2D(uint32_t width, uint32_t height,
@@ -294,8 +286,6 @@ ResourceManager::Texture2D ResourceManager::createTexture2D(uint32_t width, uint
     vkUpdateDescriptorSets(ctx_->device_, 1, &write, 0, nullptr);
 
     out.bindlessIndex = image.bindlessIndex;
-    out.srv = GPUViewHandle(GPUViewType::StaticView);
-    viewToResource_.emplace(out.srv, out.resource);
     images_.emplace(out.resource, image);
     return out;
 }
@@ -338,14 +328,18 @@ GPUMeshViewHandle ResourceManager::createStaticVBV(GPUResourceHandle resource,
     return handle;
 }
 
-uint32_t ResourceManager::bindlessIndex(GPUViewHandle view)
+uint32_t ResourceManager::bindlessIndex(GPUResourceHandle texture)
 {
-    auto it = viewToResource_.find(view);
-    assert(it != viewToResource_.end() && "bindlessIndex : view inconnue");
-    auto imageIt = images_.find(it->second);
-    assert(imageIt != images_.end() && "bindlessIndex : pas une texture");
-    return imageIt->second.bindlessIndex;
+    auto it = images_.find(texture);
+    assert(it != images_.end() && "bindlessIndex: not a texture");
+    return it->second.bindlessIndex;
 }
+
+// Le ring de staging distribue des pointeurs dans une plage mappée par VMA :
+// les bornes ne sont pas exprimables dans le modèle de clang.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage-in-container"
 
 std::byte* ResourceManager::stagingAlloc(uint64_t size, uint64_t alignment, uint64_t& outOffset)
 {
@@ -377,18 +371,6 @@ std::span<std::byte> ResourceManager::requestUploadOwned(GPUResourceHandle dest,
     return {ptr, dataSize};
 }
 
-std::span<std::byte> ResourceManager::requestUploadOwned(GPUViewHandle dest, uint64_t dataSize,
-                                                         uint32_t alignment,
-                                                         uint64_t destinationOffset,
-                                                         uint64_t subRegionOffset,
-                                                         uint64_t subRegionSize)
-{
-    auto it = viewToResource_.find(dest);
-    assert(it != viewToResource_.end() && "requestUploadOwned : view inconnue");
-    return requestUploadOwned(it->second, dataSize, alignment, destinationOffset, subRegionOffset,
-                              subRegionSize);
-}
-
 std::span<std::byte> ResourceManager::requestTextureUploadOwned(GPUResourceHandle dest,
                                                                 uint32_t width, uint32_t height,
                                                                 ResourceFormat format,
@@ -411,6 +393,8 @@ std::span<std::byte> ResourceManager::requestTextureUploadOwned(GPUResourceHandl
     return {ptr, size};
 }
 
+#pragma clang diagnostic pop
+
 void ResourceManager::flushUploads(VkCommandBuffer cmd, uint32_t frameIndex)
 {
     if (uploadRequests_.empty())
@@ -425,7 +409,7 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd, uint32_t frameIndex)
                 target = it->second.buffer;
             else if (auto fit = frameBuffers_.find(req.dest); fit != frameBuffers_.end())
                 target = fit->second[frameIndex].buffer;
-            assert(target && "flushUploads : buffer inconnu");
+            assert(target && "flushUploads: unknown buffer");
 
             VkBufferCopy region{};
             region.srcOffset = req.srcOffset;
@@ -436,7 +420,7 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd, uint32_t frameIndex)
         }
 
         auto it = images_.find(req.dest);
-        assert(it != images_.end() && "flushUploads : image inconnue");
+        assert(it != images_.end() && "flushUploads: unknown image");
         Image& image = it->second;
 
         VkImageMemoryBarrier2 toDst{};
@@ -535,16 +519,6 @@ void ResourceManager::requestDestroy(GPUResourceHandle handle)
     }
 }
 
-void ResourceManager::requestDestroy(GPUViewHandle handle, bool destroyAssociatedResources)
-{
-    if (auto it = viewToResource_.find(handle); it != viewToResource_.end())
-    {
-        if (destroyAssociatedResources)
-            requestDestroy(it->second);
-        viewToResource_.erase(it);
-    }
-}
-
 ResourceManager::Buffer* ResourceManager::getBuffer(GPUResourceHandle handle)
 {
     auto it = buffers_.find(handle);
@@ -569,15 +543,13 @@ ResourceManager::MeshView* ResourceManager::getMeshView(GPUMeshViewHandle handle
     return it != meshViews_.end() ? &it->second : nullptr;
 }
 
-VkBuffer ResourceManager::bufferForView(GPUViewHandle view, uint32_t frame)
+VkBuffer ResourceManager::bufferFor(GPUResourceHandle handle, uint32_t frame)
 {
-    auto it = viewToResource_.find(view);
-    assert(it != viewToResource_.end() && "bufferForView : view inconnue");
-    if (auto* b = getBuffer(it->second))
+    if (auto* b = getBuffer(handle))
         return b->buffer;
-    if (auto* b = getFrameBuffer(it->second, frame))
+    if (auto* b = getFrameBuffer(handle, frame))
         return b->buffer;
-    assert(false && "bufferForView : pas un buffer");
+    assert(false && "bufferFor: not a buffer");
     return VK_NULL_HANDLE;
 }
 
@@ -594,7 +566,7 @@ uint32_t ResourceManager::allocBindlessIndex()
         bindlessFree_.pop_back();
         return idx;
     }
-    assert(bindlessNext_ < bindlessCapacity_ && "bindless plein");
+    assert(bindlessNext_ < bindlessCapacity_ && "bindless table full");
     return bindlessNext_++;
 }
 

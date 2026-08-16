@@ -12,7 +12,7 @@
 namespace batap
 {
 GPUInstanceManager::GPUInstanceManager(Engine& ctx)
-    : _resourceManager(*ctx._renderer->_resourceManager) {};
+    : resourceManager_(*ctx.renderer_->resourceManager_) {};
 
 void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
 {
@@ -29,7 +29,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
             const EntityHandle& entityHandle = it->first;
             FrameDirtyFlag& frameDirtyFlag = it->second;
             uint32_t dirtyComponentsFlag =
-                static_cast<uint32_t>(frameDirtyFlag._dirtyComponentsByFrame[frameIndex]);
+                static_cast<uint32_t>(frameDirtyFlag.dirtyComponentsByFrame_[frameIndex]);
             if (dirtyComponentsFlag == 0)
             {
                 ++it;
@@ -53,16 +53,16 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
                 for (const PatchDesc& p : patchRange.patches)
                 {
                     const uint32_t stride = sizeof(typename InstanceT::GPUData);
-                    const uint32_t byteOffset = id * stride + p._offset;
+                    const uint32_t byteOffset = id * stride + p.offset_;
 
-                    auto span = _resourceManager.requestUploadOwned(
-                        frameInstancePool._instancePoolViewHandle, stride, 4, byteOffset, p._offset,
-                        p._size);
+                    auto span = resourceManager_.requestUploadOwned(
+                        frameInstancePool.instancePoolHandle_, stride, 4, byteOffset, p.offset_,
+                        p.size_);
 
-                    p.fill(ctx, *entityHandle._reg, entityHandle._entity, span.data());
+                    p.fill(ctx, *entityHandle.reg_, entityHandle.entity_, span.data());
                 }
             }
-            frameDirtyFlag._dirtyComponentsByFrame[frameIndex] = ComponentFlag::None;
+            frameDirtyFlag.dirtyComponentsByFrame_[frameIndex] = ComponentFlag::None;
 
             if (frameDirtyFlag.none())
             {
@@ -85,7 +85,7 @@ void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag com
     if (!any(componentFlag))
         return;
 
-    auto* k = handle._reg->try_get<Kind_C>(handle._entity);
+    auto* k = handle.reg_->try_get<Kind_C>(handle.entity_);
     if (!k)
         return;
 

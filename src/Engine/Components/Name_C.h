@@ -6,6 +6,6 @@ namespace batap
 {
 struct Name_C
 {
-    std::string _name;
+    std::string name_;
 };
 }  // namespace batap

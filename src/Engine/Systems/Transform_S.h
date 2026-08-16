@@ -44,12 +44,12 @@ struct Transform_S
    private:
     static entt::entity to_entity(const EntityHandle& h)
     {
-        return h.valid() ? h._entity : entt::null;
+        return h.valid() ? h.entity_ : entt::null;
     }
 
     static bool has_transform(const EntityHandle& h)
     {
-        return h.valid() && h._reg->any_of<Transform_C>(h._entity);
+        return h.valid() && h.reg_->any_of<Transform_C>(h.entity_);
     }
 
     static void ensure_chain_up_to_date(EntityHandle e, GPUInstanceManager& instanceManager);

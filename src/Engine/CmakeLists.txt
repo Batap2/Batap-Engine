@@ -114,39 +114,27 @@ target_include_directories(Batap_Engine SYSTEM PUBLIC
 # Shaders HLSL -> SPIR-V (dxc du SDK Vulkan LunarG), déposés à côté des
 # exécutables. resolveEngineFile("shaders", ...) les trouve via platformExeDir().
 # ------------------------------------------------------------------------------
-if(WIN32)
-  set(_dxc_names dxc.exe)
-  file(GLOB _sdk_dxc "C:/VulkanSDK/*/Bin/dxc.exe")
-else()
-  set(_dxc_names dxc)
-  file(GLOB _sdk_dxc "$ENV{HOME}/VulkanSDK/*/macOS/bin/dxc")
-endif()
-if(DEFINED ENV{VULKAN_SDK})
-  find_program(DXC_EXE NAMES ${_dxc_names} PATHS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin"
-               NO_DEFAULT_PATH)
-endif()
+# dxc est dans le SDK localisé par find_package(Vulkan) (CMakeLists racine) :
+# <sdk>/Bin sous Windows, <sdk>/bin sous macOS.
+get_filename_component(_vulkan_sdk_root "${Vulkan_INCLUDE_DIR}" DIRECTORY)
+find_program(DXC_EXE NAMES dxc
+             HINTS "${_vulkan_sdk_root}"
+             PATH_SUFFIXES Bin bin
+             NO_DEFAULT_PATH)
 if(NOT DXC_EXE)
-  list(SORT _sdk_dxc COMPARE NATURAL)
-  list(POP_BACK _sdk_dxc DXC_EXE)
-endif()
-if(NOT DXC_EXE)
-  message(FATAL_ERROR "dxc introuvable — installer le SDK Vulkan LunarG")
+  message(FATAL_ERROR "dxc not found in ${_vulkan_sdk_root}")
 endif()
 
 # Le même SDK fournit l'API runtime (hot reload) : headers dxc/dxcapi.h
 # (VulkanShaderCompiler) et libdxcompiler (chargée à l'exécution ;
 # BATAP_DXC_LIB_DIR sert de chemin de secours quand DYLD/PATH ne la couvre pas).
 get_filename_component(_dxc_bin_dir "${DXC_EXE}" DIRECTORY)
-get_filename_component(_dxc_sdk_root "${_dxc_bin_dir}" DIRECTORY)
-if(EXISTS "${_dxc_sdk_root}/include")
-  target_include_directories(Batap_Engine SYSTEM PRIVATE "${_dxc_sdk_root}/include")
-else()
-  target_include_directories(Batap_Engine SYSTEM PRIVATE "${_dxc_sdk_root}/Include")
-endif()
-if(EXISTS "${_dxc_sdk_root}/lib")
-  target_compile_definitions(Batap_Engine PRIVATE BATAP_DXC_LIB_DIR="${_dxc_sdk_root}/lib")
-else()
+target_include_directories(Batap_Engine SYSTEM PRIVATE "${Vulkan_INCLUDE_DIR}")
+if(WIN32)
+  # la DLL vit dans Bin/, pas dans Lib/ (qui n'a que l'import lib)
   target_compile_definitions(Batap_Engine PRIVATE BATAP_DXC_LIB_DIR="${_dxc_bin_dir}")
+else()
+  target_compile_definitions(Batap_Engine PRIVATE BATAP_DXC_LIB_DIR="${_vulkan_sdk_root}/lib")
 endif()
 
 set(engine_shader_out "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")

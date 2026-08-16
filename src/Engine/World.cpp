@@ -25,12 +25,12 @@ World::World(Engine& ctx) : ctx_(&ctx)
     scene_ = std::make_unique<Scene>(*instanceManager_);
 
     // refresh camera ratio on window resize
-    ctx._renderer->onResize(
+    ctx.renderer_->onResize(
         [this](uint32_t, uint32_t)
         {
             if (!scene_)
                 return;
-            auto& reg = scene_->_registry;
+            auto& reg = scene_->registry_;
             reg.view<Camera_C>().each(
                 [&](entt::entity e, Camera_C& c)
                 { instanceManager_->markDirty({&reg, e}, ComponentFlag::Camera); });
@@ -41,10 +41,10 @@ World::~World() = default;
 
 void World::update()
 {
-    scene_->update(ctx_->_deltaTime, *ctx_, *this);
-    systems_->update(ctx_->_deltaTime, *ctx_, *this);
-    ctx_->_sceneRenderer->setScene({&scene_->_registry, instanceManager_.get()});
-    ctx_->_sceneRenderer->uploadDirty();
+    scene_->update(ctx_->deltaTime_, *ctx_, *this);
+    systems_->update(ctx_->deltaTime_, *ctx_, *this);
+    ctx_->sceneRenderer_->setScene({&scene_->registry_, instanceManager_.get()});
+    ctx_->sceneRenderer_->uploadDirty();
 }
 
 bool World::loadScene(const std::string& path)
@@ -54,7 +54,7 @@ bool World::loadScene(const std::string& path)
     // Asset paths inside a .btpl are relative to the project dir; guessing a
     // base from the scene file's location resolves them wrong as soon as the
     // scene lives in a subfolder.
-    const std::string& base = ctx_->_assetManager->baseDir();
+    const std::string& base = ctx_->assetManager_->baseDir();
     if (base.empty())
     {
         std::cerr << "[World] loadScene: call Engine::setProjectDir() first.\n";

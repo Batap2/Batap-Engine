@@ -53,7 +53,6 @@
       "args": ["--project", "${workspaceFolder}/GameExemple"],
       "cwd": "${workspaceFolder}",
       "env": {
-        // le loader Vulkan (brew) vit hors des chemins dlopen par défaut
         "DYLD_LIBRARY_PATH": "/opt/homebrew/lib"
       },
       "preLaunchTask": "Build (macos-debug)"

@@ -21,36 +21,36 @@ struct Transform_C
     // dirty list so the local and world matrices get rebuilt.
     static void afterDeserialize(EntityHandle h, World& world);
 
-    const transform& local() const { return _local; }
-    const transform& world() const { return _world; }
-    m4f worldMatrix() const { return _world.matrix(); }
-    m4f localMatrix() const { return _local.matrix(); }
+    const transform& local() const { return local_; }
+    const transform& world() const { return world_; }
+    m4f worldMatrix() const { return world_.matrix(); }
+    m4f localMatrix() const { return local_.matrix(); }
 
-    const v3f&   pos()   const { return _localPosition; }
-    const quatf& rot()   const { return _localRotation; }
-    const v3f&   scale() const { return _localScale; }
+    const v3f&   pos()   const { return localPosition_; }
+    const quatf& rot()   const { return localRotation_; }
+    const v3f&   scale() const { return localScale_; }
 
     // No constructor for entt
     static Transform_C fromPosRotScale(v3f pos, quatf rot, v3f scale)
     {
         Transform_C t;
-        t._localPosition = pos;
-        t._localRotation = rot;
-        t._localScale    = scale;
+        t.localPosition_ = pos;
+        t.localRotation_ = rot;
+        t.localScale_    = scale;
         return t;
     }
 
    private:
     friend struct Transform_S;
 
-    v3f _localPosition{0.f, 0.f, 0.f};
-    quatf _localRotation = quatf::Identity();
-    v3f _localScale{1.f, 1.f, 1.f};
+    v3f localPosition_{0.f, 0.f, 0.f};
+    quatf localRotation_ = quatf::Identity();
+    v3f localScale_{1.f, 1.f, 1.f};
 
-    uint32_t _dirtyStamp = 0;
-    bool _localDirty = true;
-    transform _local = transform::Identity();
-    transform _world = transform::Identity();
+    uint32_t dirtyStamp_ = 0;
+    bool localDirty_ = true;
+    transform local_ = transform::Identity();
+    transform world_ = transform::Identity();
 
     void setLocalFromTransform(const transform& t);
     static quatf extractWorldRotation(const transform& t);

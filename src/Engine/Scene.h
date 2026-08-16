@@ -19,7 +19,7 @@ struct Scene
 
     virtual void update(float deltaTime, Engine& ctx, World& world) {}
 
-    entt::registry _registry;
+    entt::registry registry_;
 
     template <class T>
     struct WriteProxy
@@ -97,11 +97,11 @@ struct Scene
     template <class T>
     WriteProxy<T> write(const EntityHandle& handle)
     {
-        auto& reg = *handle._reg;
+        auto& reg = *handle.reg_;
 
-        if (auto* ptr = reg.try_get<T>(handle._entity))
+        if (auto* ptr = reg.try_get<T>(handle.entity_))
         {
-            return WriteProxy<T>{&reg, handle._entity, &instanceManager_, ptr};
+            return WriteProxy<T>{&reg, handle.entity_, &instanceManager_, ptr};
         }
 
         return {};

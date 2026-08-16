@@ -7,20 +7,20 @@
 
 struct CameraData
 {
-    float4x4 _view;
-    float4x4 _proj;
-    float3 _pos;   float _znear;
-    float3 _right; float _zfar;
-    float3 _up;    float _fov;
-    float3 _fwd;   float _pad;
+    float4x4 view_;
+    float4x4 proj_;
+    float3 pos_;   float znear_;
+    float3 right_; float zfar_;
+    float3 up_;    float fov_;
+    float3 fwd_;   float pad_;
 };
 
 [[vk::binding(0, 1)]] StructuredBuffer<CameraData> CameraInstancebuffer : register(t0);
 
 struct InstanceData
 {
-    float4x4 _world;              // 64 bytes
-    uint     _materialIndices[8]; // 32 bytes
+    float4x4 world_;              // 64 bytes
+    uint     materialIndices_[8]; // 32 bytes
 };
 [[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
 
@@ -45,26 +45,26 @@ struct MaterialData
     uint   normalTexIdx;
     uint   roughnessTexIdx;
     uint   metallicTexIdx;
-    uint   _pad;
+    uint   pad_;
 };
 [[vk::binding(3, 1)]] StructuredBuffer<MaterialData> MaterialBuffer : register(t3);
 
 struct DrawPush
 {
-    uint _cameraIndex;
-    uint _instanceIndex;
-    uint _submeshIndex;
-    uint _pointLightCount;
+    uint cameraIndex_;
+    uint instanceIndex_;
+    uint submeshIndex_;
+    uint pointLightCount_;
 };
 [[vk::push_constant]] DrawPush g_draw;
 
 struct VS_OUTPUT
 {
-    float4 _position : SV_POSITION; // clip space
-    float3 _posWS    : TEXCOORD0;   // world position
-    float3 _nrmWS    : TEXCOORD1;   // world normal
-    float2 _uv       : TEXCOORD2;
-    float4 _tanWS    : TEXCOORD3;   // xyz = world tangent, w = handedness
+    float4 position_ : SV_POSITION; // clip space
+    float3 posWS_    : TEXCOORD0;   // world position
+    float3 nrmWS_    : TEXCOORD1;   // world normal
+    float2 uv_       : TEXCOORD2;
+    float4 tanWS_    : TEXCOORD3;   // xyz = world tangent, w = handedness
 };
 
 struct SkyboxGPUData
@@ -78,7 +78,7 @@ struct SkyboxGPUData
     float4 color2;
     float4 color3;
     float  horizonWidth;
-    float3 _pad;
+    float3 pad_;
 };
 [[vk::binding(4, 1)]] StructuredBuffer<SkyboxGPUData> SkyboxBuffer : register(t0, space1);
 
@@ -160,44 +160,44 @@ float3 F_Schlick(float HdotV, float3 F0)
 
 float4 main(VS_OUTPUT i) : SV_Target
 {
-    CameraData cam = CameraInstancebuffer[g_draw._cameraIndex];
+    CameraData cam = CameraInstancebuffer[g_draw.cameraIndex_];
 
     // --------- matériau ----------
     // Un draw par submesh, l'index arrive en push constant : SV_PrimitiveID
     // déclarerait la capability Geometry, absente sur Metal/MoltenVK.
-    InstanceData inst = StaticMeshInstancebuffer[g_draw._instanceIndex];
+    InstanceData inst = StaticMeshInstancebuffer[g_draw.instanceIndex_];
 
     // matIdx 0xFFFFFFFF → slot 0 = default material (created at engine init)
-    uint matIdx    = inst._materialIndices[g_draw._submeshIndex];
+    uint matIdx    = inst.materialIndices_[g_draw.submeshIndex_];
     uint safeIdx   = (matIdx != 0xFFFFFFFFu) ? matIdx : 0u;
     MaterialData mat = MaterialBuffer[safeIdx];
 
     // Texture channels always valid: unassigned → white/flat-normal texture (neutral multiplier)
-    float3 albedo    = mat.albedo.rgb    * g_textures[mat.albedoTexIdx].Sample(g_sampler, i._uv).rgb;
-    float  roughness = clamp(mat.roughness * g_textures[mat.roughnessTexIdx].Sample(g_sampler, i._uv).r, 0.05f, 1.0f);
-    float  metallic  = saturate(mat.metallic * g_textures[mat.metallicTexIdx].Sample(g_sampler, i._uv).r);
+    float3 albedo    = mat.albedo.rgb    * g_textures[mat.albedoTexIdx].Sample(g_sampler, i.uv_).rgb;
+    float  roughness = clamp(mat.roughness * g_textures[mat.roughnessTexIdx].Sample(g_sampler, i.uv_).r, 0.05f, 1.0f);
+    float  metallic  = saturate(mat.metallic * g_textures[mat.metallicTexIdx].Sample(g_sampler, i.uv_).r);
 
     // F0 : diélectrique = 0.04, métal = albedo
     float3 F0 = lerp(float3(0.04f, 0.04f, 0.04f), albedo, metallic);
 
-    float3 Ngeom = normalize(i._nrmWS);
+    float3 Ngeom = normalize(i.nrmWS_);
     float3 N;
     if (mat.normalTexIdx != 0xFFFFFFFFu)
     {
-        float3 normalSample = g_textures[mat.normalTexIdx].Sample(g_sampler, i._uv).rgb;
+        float3 normalSample = g_textures[mat.normalTexIdx].Sample(g_sampler, i.uv_).rgb;
         normalSample = normalSample * 2.0f - 1.0f;
         normalSample.z = sqrt(saturate(1.0f - dot(normalSample.xy, normalSample.xy)));
 
-        float3 T = normalize(i._tanWS.xyz);
+        float3 T = normalize(i.tanWS_.xyz);
         T = normalize(T - dot(T, Ngeom) * Ngeom);
-        float3 B = cross(Ngeom, T) * i._tanWS.w;
+        float3 B = cross(Ngeom, T) * i.tanWS_.w;
         N = normalize(normalSample.x * T + normalSample.y * B + normalSample.z * Ngeom);
     }
     else
     {
         N = Ngeom;
     }
-    float3 V = normalize(cam._pos - i._posWS);
+    float3 V = normalize(cam.pos_ - i.posWS_);
     float  NdotV = saturate(dot(N, V));
 
     // IBL diffuse (SH L2) + spéculaire (env sampling)
@@ -211,11 +211,11 @@ float4 main(VS_OUTPUT i) : SV_Target
     float3 color = kD * EvalSH9(N) * albedo + specIBL;
 
     [loop]
-    for (uint lightIndex = 0; lightIndex < g_draw._pointLightCount; ++lightIndex)
+    for (uint lightIndex = 0; lightIndex < g_draw.pointLightCount_; ++lightIndex)
     {
         PointLight light = PointLightBuffer[lightIndex];
 
-        float3 toLight = light.pos_ - i._posWS;
+        float3 toLight = light.pos_ - i.posWS_;
         float  dist    = length(toLight);
 
         if (dist > light.radius_ || dist <= 0.0001f)

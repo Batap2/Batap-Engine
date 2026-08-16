@@ -236,7 +236,10 @@ void decodeRawInput(InputManager& input, LPARAM lParam)
     ::GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, staticBuffer.data(),
                       &bufferSize, sizeof(RAWINPUTHEADER));
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
     const RAWINPUT* raw = reinterpret_cast<const RAWINPUT*>(staticBuffer.data());
+#pragma clang diagnostic pop
     if (raw->header.dwType != RIM_TYPEMOUSE)
         return;
 
@@ -258,12 +261,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     if (ImGui_ImplWin32_WndProcHandler(hwnd, message, wParam, lParam))
         return 1;
 
-    decodeEvent(*ctx->_inputManager, message, wParam, lParam);
+    decodeEvent(*ctx->inputManager_, message, wParam, lParam);
 
     switch (message)
     {
         case WM_INPUT:
-            decodeRawInput(*ctx->_inputManager, lParam);
+            decodeRawInput(*ctx->inputManager_, lParam);
             break;
 
         // The default handler plays a notification sound on Alt+Enter.
@@ -273,7 +276,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         case WM_SIZE: {
             RECT client{};
             ::GetClientRect(hwnd, &client);
-            ctx->_renderer->resize(static_cast<uint32_t>(client.right - client.left),
+            ctx->renderer_->resize(static_cast<uint32_t>(client.right - client.left),
                                    static_cast<uint32_t>(client.bottom - client.top));
         }
         break;

@@ -32,7 +32,7 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
                         if (!paths.empty())
                         {
                             app.projectDir_ = std::move(paths[0]);
-                            app.ctx_->_assetManager->setBaseDir(app.projectDir_);
+                            app.ctx_->assetManager_->setBaseDir(app.projectDir_);
                         }
                     });
 
@@ -43,7 +43,7 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
                 if (!path.empty())
                 {
                     EntitySerializer::save(world, *app.ctx_, path);
-                    app.ctx_->_assetManager->saveAllAssets();
+                    app.ctx_->assetManager_->saveAllAssets();
                 }
             }
             ImGui::EndMenu();

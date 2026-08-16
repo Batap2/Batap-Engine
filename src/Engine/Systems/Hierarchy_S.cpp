@@ -6,7 +6,7 @@ namespace batap
 
 static bool sameRegistry(EntityHandle a, EntityHandle b)
 {
-    return a._reg != nullptr && a._reg == b._reg;
+    return a.reg_ != nullptr && a.reg_ == b.reg_;
 }
 
 static Hierarchy_C& getOrCreateHierarchy(EntityHandle e)
@@ -19,14 +19,14 @@ static Hierarchy_C& getOrCreateHierarchy(EntityHandle e)
 
 static void unlinkFromParentAndSiblings(EntityHandle child, Hierarchy_C& childH)
 {
-    auto* reg = child._reg;
+    auto* reg = child.reg_;
     if (!reg)
         return;
 
     if (childH.parent != entt::null)
     {
         auto* parentH = reg->try_get<Hierarchy_C>(childH.parent);
-        if (parentH && parentH->firstChild == child._entity)
+        if (parentH && parentH->firstChild == child.entity_)
             parentH->firstChild = childH.nextSibling;
     }
 
@@ -87,11 +87,11 @@ bool Hierarchy_S::isDescendantOf(EntityHandle e, EntityHandle ancestor)
         return false;
 
     entt::entity current = getParent(e);
-    auto* reg = e._reg;
+    auto* reg = e.reg_;
 
     while (current != entt::null)
     {
-        if (current == ancestor._entity)
+        if (current == ancestor.entity_)
             return true;
 
         auto* h = reg->try_get<Hierarchy_C>(current);
@@ -124,7 +124,7 @@ void Hierarchy_S::attach(EntityHandle parent, EntityHandle child)
     if (!sameRegistry(parent, child))
         return;
 
-    if (parent._entity == child._entity)
+    if (parent.entity_ == child.entity_)
         return;
 
     if (isDescendantOf(parent, child))
@@ -132,25 +132,25 @@ void Hierarchy_S::attach(EntityHandle parent, EntityHandle child)
 
     auto& childH = getOrCreateHierarchy(child);
 
-    if (childH.parent == parent._entity)
+    if (childH.parent == parent.entity_)
         return;
 
     unlinkFromParentAndSiblings(child, childH);
 
     auto& parentH = getOrCreateHierarchy(parent);
 
-    childH.parent = parent._entity;
+    childH.parent = parent.entity_;
     childH.prevSibling = entt::null;
     childH.nextSibling = parentH.firstChild;
 
     if (parentH.firstChild != entt::null)
     {
-        auto* firstChildH = parent._reg->try_get<Hierarchy_C>(parentH.firstChild);
+        auto* firstChildH = parent.reg_->try_get<Hierarchy_C>(parentH.firstChild);
         if (firstChildH)
-            firstChildH->prevSibling = child._entity;
+            firstChildH->prevSibling = child.entity_;
     }
 
-    parentH.firstChild = child._entity;
+    parentH.firstChild = child.entity_;
 }
 
 void Hierarchy_S::setParent(EntityHandle child, EntityHandle newParent)
@@ -170,9 +170,9 @@ void Hierarchy_S::setParent(EntityHandle child, EntityHandle newParent)
 ChildRange Hierarchy_S::children(EntityHandle parent)
 {
     if (!parent.valid())
-        return {parent._reg, entt::null};
+        return {parent.reg_, entt::null};
     auto& h = getOrCreateHierarchy(parent);
-    return {parent._reg, h.firstChild};
+    return {parent.reg_, h.firstChild};
 }
 
 }  // namespace batap

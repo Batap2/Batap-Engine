@@ -5,9 +5,10 @@
 #include "InputManager.h"
 #include "Platform/PlatformWindow.h"
 #include "Reflection/ComponentRegistry.h"
-#include "Serialization/AssetFieldTypes.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneRenderer.h"
+#include "Serialization/AssetFieldTypes.h"
+
 
 #include <filesystem>
 #include <stdexcept>
@@ -24,12 +25,12 @@ Frame::~Frame()
 
 InputManager& Frame::input() const
 {
-    return *engine_->_inputManager;
+    return *engine_->inputManager_;
 }
 
 float Frame::dt() const
 {
-    return engine_->_deltaTime;
+    return engine_->deltaTime_;
 }
 
 Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fpsInTitle)
@@ -47,23 +48,20 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
     if (!window_)
         throw std::runtime_error("Engine: failed to create the window");
 
-    _renderer = std::make_unique<Renderer>();
-    _inputManager = std::make_unique<InputManager>();
-    _lastTime = std::chrono::high_resolution_clock::now();
+    inputManager_ = std::make_unique<InputManager>();
+    lastTime_ = std::chrono::high_resolution_clock::now();
 
-    // Order matters: Renderer::init creates the ResourceManager the
-    // AssetManager needs.
-    _renderer->init(window_, desc.width, desc.height, desc.transparent);
-    _assetManager = std::make_unique<AssetManager>(_renderer->_resourceManager);
+    renderer_ = std::make_unique<Renderer>(window_, desc.width, desc.height, desc.transparent);
+    assetManager_ = std::make_unique<AssetManager>(renderer_->resourceManager_);
     createDefaultAssets(*this);
-    _sceneRenderer = std::make_unique<SceneRenderer>(*this);
-    _sceneRenderer->initRenderPasses();
+    sceneRenderer_ = std::make_unique<SceneRenderer>(*this);
+    sceneRenderer_->initRenderPasses();
 
     // `--project <dir>` is how dev launch configs point a build-tree exe at
     // its assets; without it, assets are expected next to the executable
     // (shipped layout). setProjectDir() can still override later.
     std::string projectDir = platformExeDir();
-    const auto  args       = platformCommandLineArgs();
+    const auto args = platformCommandLineArgs();
     for (size_t i = 0; i + 1 < args.size(); ++i)
     {
         if (args[i] == "--project")
@@ -84,8 +82,8 @@ Engine::~Engine()
 {
     if (window_)
         platformBindContext(window_, nullptr);
-    if (_renderer)
-        _renderer->flush();
+    if (renderer_)
+        renderer_->flush();
 }
 
 Frame Engine::nextFrame()
@@ -103,24 +101,24 @@ Frame Engine::nextFrame()
 
 void Engine::beginFrame()
 {
-    std::chrono::duration<float> dt = std::chrono::high_resolution_clock::now() - _lastTime;
-    _lastTime = std::chrono::high_resolution_clock::now();
-    _deltaTime = dt.count();
+    std::chrono::duration<float> dt = std::chrono::high_resolution_clock::now() - lastTime_;
+    lastTime_ = std::chrono::high_resolution_clock::now();
+    deltaTime_ = dt.count();
 
-    _renderer->beginImGuiFrame();
-    _inputManager->DispatchEvents();
+    renderer_->beginFrame();
+    inputManager_->DispatchEvents();
 }
 
 void Engine::endFrame()
 {
-    _inputManager->ClearFrameState();
-    _renderer->render();
+    inputManager_->ClearFrameState();
+    renderer_->render();
 }
 
 void Engine::updateFpsTitle()
 {
     ++frameCount_;
-    fpsElapsed_ += _deltaTime;
+    fpsElapsed_ += deltaTime_;
 
     if (fpsElapsed_ < 1.f)
         return;
@@ -132,16 +130,16 @@ void Engine::updateFpsTitle()
 
 void Engine::setProjectDir(const std::string& dir)
 {
-    _assetManager->setBaseDir(std::filesystem::absolute(dir).string());
+    assetManager_->setBaseDir(std::filesystem::absolute(dir).string());
 }
 
 v2i Engine::getFrameSize()
 {
-    return {_renderer->_width, _renderer->_height};
+    return {renderer_->width_, renderer_->height_};
 }
 
 uint8_t Engine::getFrameindex()
 {
-    return _renderer->_frameIndex;
+    return renderer_->frameIndex_;
 }
 }  // namespace batap

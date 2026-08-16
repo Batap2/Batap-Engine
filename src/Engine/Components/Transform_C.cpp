@@ -9,11 +9,11 @@ namespace batap {
 
     void Transform_C::afterDeserialize(EntityHandle h, World& world)
     {
-        auto* tc = h._reg->try_get<Transform_C>(h._entity);
+        auto* tc = h.reg_->try_get<Transform_C>(h.entity_);
         if (!tc)
             return;
-        tc->_localDirty = true;
-        world.systems_->_transforms->markDirty(h);
+        tc->localDirty_ = true;
+        world.systems_->transforms_->markDirty(h);
     }
 
     void Transform_C::registerReflection()
@@ -24,9 +24,9 @@ namespace batap {
             ComponentMeta{.flag = ComponentFlag::Transform,
                           .onDeserialized = &Transform_C::afterDeserialize,
                           .customEditor = true},
-            {field<&Transform_C::_localPosition>("pos"),
-             field<&Transform_C::_localRotation>("rot"),
-             field<&Transform_C::_localScale>("scale")});
+            {field<&Transform_C::localPosition_>("pos"),
+             field<&Transform_C::localRotation_>("rot"),
+             field<&Transform_C::localScale_>("scale")});
     }
 
     namespace
@@ -41,7 +41,7 @@ namespace batap {
 
     void Transform_C::setLocalFromTransform(const transform& t)
     {
-        _localPosition = t.translation();
+        localPosition_ = t.translation();
 
         const m3f A = t.linear();
         float sx = A.col(0).norm();
@@ -54,14 +54,14 @@ namespace batap {
         if (sz == 0.f)
             sz = 1.f;
 
-        _localScale = {sx, sy, sz};
+        localScale_ = {sx, sy, sz};
 
         m3f R;
         R.col(0) = A.col(0) / sx;
         R.col(1) = A.col(1) / sy;
         R.col(2) = A.col(2) / sz;
 
-        _localRotation = quatf(R).normalized();
+        localRotation_ = quatf(R).normalized();
     }
 
     quatf Transform_C::extractWorldRotation(const transform& t)

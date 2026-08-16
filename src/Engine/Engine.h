@@ -21,16 +21,9 @@ struct WindowDesc
     uint32_t    width  = 1280;
     uint32_t    height = 720;
     bool        fpsInTitle = false;
-
-    // Fenêtre composée avec alpha par pixel (le bureau se voit là où la frame
-    // a un alpha < 1 — clear compris). Pour les outils/overlays uniquement :
-    // une fenêtre transparente ne peut jamais obtenir le scanout direct, le
-    // compositeur de l'OS reste dans la boucle à chaque frame.
     bool        transparent = false;
 };
 
-// The destructor ends the frame (input clear + present). Simulation stays in
-// the loop body: skipping world.update() is how you pause.
 struct Frame
 {
     Frame(const Frame&)            = delete;
@@ -39,7 +32,6 @@ struct Frame
     Frame& operator=(Frame&&)      = delete;
     ~Frame();
 
-    // False once the window asked to close.
     explicit operator bool() const { return alive_; }
 
     InputManager& input() const;
@@ -68,21 +60,21 @@ struct Engine
     v2i getFrameSize();
     uint8_t getFrameindex();
 
-    std::unique_ptr<Renderer> _renderer;
-    std::unique_ptr<InputManager> _inputManager;
-    std::unique_ptr<SceneRenderer> _sceneRenderer;
-    std::unique_ptr<AssetManager> _assetManager;
+    std::unique_ptr<Renderer> renderer_;
+    std::unique_ptr<InputManager> inputManager_;
+    std::unique_ptr<SceneRenderer> sceneRenderer_;
+    std::unique_ptr<AssetManager> assetManager_;
 
-    float _deltaTime = 0;
+    float deltaTime_ = 0;
 
    private:
-    friend struct Frame;  // ~Frame ends the frame
+    friend struct Frame;  // ~Frame calls endFrame()
 
     void beginFrame();
     void endFrame();
     void updateFpsTitle();
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> _lastTime;
+    std::chrono::time_point<std::chrono::high_resolution_clock> lastTime_;
 
     void* window_ = nullptr;
     std::string title_;

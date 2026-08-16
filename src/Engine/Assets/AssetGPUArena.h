@@ -52,7 +52,7 @@ struct AssetGPUArena
     bool          update(Key k, T v)       { return arena_.update(k, std::move(v)); }
     const T*      get(Key k) const         { return arena_.get(k); }
     bool          contains(Key k) const    { return arena_.contains(k); }
-    GPUViewHandle srvHandle() const        { return arena_.srvHandle(); }
+    GPUResourceHandle bufferHandle() const { return arena_.bufferHandle(); }
 
     std::optional<Key> getKey(const std::string& path) const
     {

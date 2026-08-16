@@ -1,8 +1,6 @@
 // windows.h AVANT volk.h : volk saute alors ses propres typedefs Win32
 // minimaux, et vulkan_win32.h a les vrais types
 #if defined(_WIN32)
-  #define WIN32_LEAN_AND_MEAN
-  #define NOMINMAX
   #include <windows.h>
 #endif
 

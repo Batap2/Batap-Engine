@@ -5,12 +5,12 @@
 
 struct CameraData
 {
-    float4x4 _view;
-    float4x4 _proj;
-    float3   _pos;   float _znear;
-    float3   _right; float _zfar;
-    float3   _up;    float _fov;
-    float3   _fwd;   float _pad;
+    float4x4 view_;
+    float4x4 proj_;
+    float3   pos_;   float znear_;
+    float3   right_; float zfar_;
+    float3   up_;    float fov_;
+    float3   fwd_;   float pad_;
 };
 [[vk::binding(0, 1)]] StructuredBuffer<CameraData> CameraBuffer : register(t0);
 
@@ -25,16 +25,16 @@ struct SkyboxGPUData
     float4 color2;         // horizon
     float4 color3;         // nadir
     float  horizonWidth;   // gradient : largeur de la bande horizon
-    float3 _pad;
+    float3 pad_;
 };
 [[vk::binding(4, 1)]] StructuredBuffer<SkyboxGPUData> SkyboxBuffer : register(t1);
 
 struct DrawPush
 {
-    uint _cameraIndex;
-    uint _instanceIndex;    // inutilisé ici — layout partagé avec la geometry
-    uint _submeshIndex;     // idem
-    uint _pointLightCount;  // idem
+    uint cameraIndex_;
+    uint instanceIndex_;    // inutilisé ici — layout partagé avec la geometry
+    uint submeshIndex_;     // idem
+    uint pointLightCount_;  // idem
 };
 [[vk::push_constant]] DrawPush g_draw;
 
@@ -45,13 +45,13 @@ static const float PI = 3.14159265358979f;
 
 float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
 {
-    CameraData cam = CameraBuffer[g_draw._cameraIndex];
+    CameraData cam = CameraBuffer[g_draw.cameraIndex_];
     SkyboxGPUData sky = SkyboxBuffer[0];
 
     float3 dir = normalize(
-        (ndc.x / cam._proj[0][0]) * cam._right +
-        (ndc.y / cam._proj[1][1]) * cam._up    +
-        cam._fwd);
+        (ndc.x / cam.proj_[0][0]) * cam.right_ +
+        (ndc.y / cam.proj_[1][1]) * cam.up_    +
+        cam.fwd_);
 
     float3 color;
 

@@ -312,7 +312,7 @@ bool decodeEvent(batap::InputManager& input, NSEvent* event)
     // La layer d'abord, le renderer ensuite : la recréation de swapchain lit
     // la taille de surface, qui suit drawableSize (MoltenVK).
     if (self.engine)
-        self.engine->_renderer->resize(static_cast<uint32_t>(layer.drawableSize.width),
+        self.engine->renderer_->resize(static_cast<uint32_t>(layer.drawableSize.width),
                                        static_cast<uint32_t>(layer.drawableSize.height));
 }
 
@@ -444,7 +444,7 @@ bool platformPumpMessages()
                                               inMode:NSDefaultRunLoopMode
                                              dequeue:YES]))
         {
-            if (g_engine && decodeEvent(*g_engine->_inputManager, event))
+            if (g_engine && decodeEvent(*g_engine->inputManager_, event))
                 continue;
             [NSApp sendEvent:event];
         }
