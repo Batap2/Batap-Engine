@@ -8,6 +8,8 @@
 
 #include "VulkanContext.h"
 
+#include "Renderer/EngineConfig.h"
+
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -15,11 +17,9 @@
 namespace batap
 {
 
-void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, uint32_t framesInFlight,
-                           bool transparent)
+void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, bool transparent)
 {
     ctx_ = &ctx;
-    framesInFlight_ = framesInFlight;
     transparent_ = transparent;
 
 #if defined(VK_USE_PLATFORM_METAL_EXT)
@@ -46,8 +46,8 @@ void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, uint32_t frame
     if (!presentSupported)
         throw std::runtime_error("VulkanSwapchain : la queue graphics ne sait pas présenter");
 
-    acquireSemaphores_.resize(framesInFlight_);
-    frameFences_.resize(framesInFlight_);
+    acquireSemaphores_.resize(FramesInFlight);
+    frameFences_.resize(FramesInFlight);
 
     VkSemaphoreCreateInfo semInfo{};
     semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -215,8 +215,8 @@ void VulkanSwapchain::waitFrame()
 {
     if (frameWaited_)
         return;
-    vkWaitForFences(ctx_->device_, 1, &frameFences_[frameIndex_], VK_TRUE, UINT64_MAX);
-    vkResetFences(ctx_->device_, 1, &frameFences_[frameIndex_]);
+    vkWaitForFences(ctx_->device_, 1, &frameFences_[ctx_->frameIndex_], VK_TRUE, UINT64_MAX);
+    vkResetFences(ctx_->device_, 1, &frameFences_[ctx_->frameIndex_]);
     frameWaited_ = true;
 }
 
@@ -227,7 +227,7 @@ uint32_t VulkanSwapchain::acquire()
     uint32_t imageIndex = 0;
     const VkResult result =
         vkAcquireNextImageKHR(ctx_->device_, swapchain_, UINT64_MAX,
-                              acquireSemaphores_[frameIndex_], VK_NULL_HANDLE, &imageIndex);
+                              acquireSemaphores_[ctx_->frameIndex_], VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
         return OutOfDate;
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -244,13 +244,13 @@ void VulkanSwapchain::submit(VkCommandBuffer cmd, VkQueue queue)
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &acquireSemaphores_[frameIndex_];
+    submitInfo.pWaitSemaphores = &acquireSemaphores_[ctx_->frameIndex_];
     submitInfo.pWaitDstStageMask = &waitStage;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &renderSemaphores_[lastAcquired_];
-    if (vkQueueSubmit(queue, 1, &submitInfo, frameFences_[frameIndex_]) != VK_SUCCESS)
+    if (vkQueueSubmit(queue, 1, &submitInfo, frameFences_[ctx_->frameIndex_]) != VK_SUCCESS)
         throw std::runtime_error("VulkanSwapchain : vkQueueSubmit");
 }
 
@@ -269,7 +269,7 @@ void VulkanSwapchain::present(VkQueue queue, uint32_t imageIndex)
         result != VK_ERROR_OUT_OF_DATE_KHR)
         throw std::runtime_error("VulkanSwapchain : vkQueuePresentKHR");
 
-    frameIndex_ = (frameIndex_ + 1) % framesInFlight_;
+    ctx_->frameIndex_ = (ctx_->frameIndex_ + 1) % FramesInFlight;
     frameWaited_ = false;
 }
 

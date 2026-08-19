@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <random>
 #include <string>
-#include <variant>
 
 #include "magic_enum/magic_enum.hpp"
 
@@ -69,15 +68,6 @@ enum class GPUResourceType : uint8_t
 };
 using GPUResourceHandle = Handle<GPUResourceType>;
 
-enum class GPUMeshViewType : uint8_t
-{
-    Unknown,
-    StaticMeshView,
-    FrameMeshView
-};
-using GPUMeshViewHandle = Handle<GPUMeshViewType>;
-
-using GPUHandle = std::variant<GPUResourceHandle, GPUMeshViewHandle>;
 }  // namespace batap
 
 namespace std

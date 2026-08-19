@@ -29,7 +29,7 @@ enum class TextureWrap : uint8_t
 
 struct Texture
 {
-    uint32_t heapIdx_;
+    uint32_t bindlessIndex_;
     SH9 irradianceSH_;  // SH L2 irradiance, calculé au chargement pour les textures HDR
     ResourceFormat format_;
     uint32_t sizeX_;

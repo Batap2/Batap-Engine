@@ -24,8 +24,8 @@ struct ResourceManager;
 // Un seul pipeline layout pour les deux passes.
 struct ScenePasses
 {
-    void init(VulkanContext& ctx, ResourceManager& resources, uint32_t framesInFlight,
-              VkFormat colorFormat, VkFormat depthFormat);
+    void init(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
+              VkFormat depthFormat);
     void shutdown(VkDevice device);
 
     // À appeler entre vkCmdBeginRendering / EndRendering

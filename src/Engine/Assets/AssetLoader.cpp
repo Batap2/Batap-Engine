@@ -52,49 +52,66 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
 
     auto* mesh = assetManager.get(handle);
     auto* rm = assetManager.resourceManager_;
-    const std::string prefix = key + "_" + std::to_string(next_uid64());
 
-    auto rname = [&](const char* suffix) { return prefix + suffix; };
+    // All the streams of a mesh share one buffer, each at its own offset.
+    // 16 bytes covers the index-buffer offset requirement (a multiple of the
+    // index size) and every attribute format.
+    const size_t vcount = data->vertices.size();
 
-    {
-        const auto bufSize = sizeof(uint32_t) * data->indices.size();
-        const auto guid = rm->createStaticBuffer(bufSize, rname("_i"));
-        mesh->indexBuffer_ =
-            rm->createStaticIBV(guid, ResourceFormat::R32_UINT, rname("_iv"), 0, bufSize);
-        auto span = rm->requestUploadOwned(guid, bufSize, 4);
-        std::memcpy(span.data(), data->indices.data(), bufSize);
-        mesh->indexCount_ = static_cast<uint32_t>(data->indices.size());
-    }
-    {
-        const auto bufSize = sizeof(v3f) * data->vertices.size();
-        const auto guid = rm->createStaticBuffer(bufSize, rname("_v"));
-        mesh->vertexBuffer_ = rm->createStaticVBV(guid, sizeof(v3f), rname("_vv"), 0, bufSize);
-        auto span = rm->requestUploadOwned(guid, bufSize, 0);
-        std::memcpy(span.data(), data->vertices.data(), bufSize);
-        mesh->vertexCount_ = static_cast<uint32_t>(data->vertices.size());
-    }
-    if (!data->normals.empty())
-    {
-        const auto bufSize = sizeof(v3f) * data->normals.size();
-        const auto guid = rm->createStaticBuffer(bufSize, rname("_n"));
-        mesh->normalBuffer_ = rm->createStaticVBV(guid, sizeof(v3f), rname("_nv"), 0, bufSize);
-        auto span = rm->requestUploadOwned(guid, bufSize, 0);
-        std::memcpy(span.data(), data->normals.data(), bufSize);
-    }
-    if (!data->uvs.empty())
-    {
-        const auto bufSize = sizeof(v2f) * data->uvs.size();
-        const auto guid = rm->createStaticBuffer(bufSize, rname("uv_"));
-        mesh->uv0Buffer_ = rm->createStaticVBV(guid, sizeof(v2f), rname("_uvv"), 0, bufSize);
-        auto span = rm->requestUploadOwned(guid, bufSize, 0);
-        std::memcpy(span.data(), data->uvs.data(), bufSize);
-    }
+    const bool sourceHasNormals = !data->normals.empty();
+    const bool sourceHasUVs = !data->uvs.empty();
+    if (!sourceHasNormals)
+        data->normals.assign(vcount, v3f::UnitY());
+    if (!sourceHasUVs)
+        data->uvs.assign(vcount, v2f::Zero());
 
-    // Compute tangents if normals and UVs are present.
+    uint64_t cursor = 0;
+    auto place = [&cursor](size_t bytes)
+    {
+        const uint64_t offset = (cursor + 15) & ~uint64_t(15);
+        cursor = offset + bytes;
+        return offset;
+    };
+
+    const size_t indexBytes = sizeof(uint32_t) * data->indices.size();
+    const size_t vertexBytes = sizeof(v3f) * vcount;
+    const size_t normalBytes = sizeof(v3f) * vcount;
+    const size_t uvBytes = sizeof(v2f) * vcount;
+    const size_t tangentBytes = sizeof(v4f) * vcount;
+
+    const uint64_t indexOffset = place(indexBytes);
+    const uint64_t vertexOffset = place(vertexBytes);
+    const uint64_t normalOffset = place(normalBytes);
+    const uint64_t uvOffset = place(uvBytes);
+    const uint64_t tangentOffset = place(tangentBytes);
+
+    const auto guid =
+        rm->createStaticBuffer(cursor, key + "_" + std::to_string(next_uid64()) + "_mesh");
+
+    mesh->buffer_ = guid;
+    mesh->streamOffsets_[Mesh::Index] = indexOffset;
+    mesh->indexCount_ = static_cast<uint32_t>(data->indices.size());
+    std::memcpy(rm->requestUpload(guid, indexBytes, indexOffset).data(), data->indices.data(),
+                indexBytes);
+
+    mesh->streamOffsets_[Mesh::Position] = vertexOffset;
+    mesh->vertexCount_ = static_cast<uint32_t>(vcount);
+    std::memcpy(rm->requestUpload(guid, vertexBytes, vertexOffset).data(), data->vertices.data(),
+                vertexBytes);
+
+    mesh->streamOffsets_[Mesh::Normal] = normalOffset;
+    std::memcpy(rm->requestUpload(guid, normalBytes, normalOffset).data(), data->normals.data(),
+                normalBytes);
+
+    mesh->streamOffsets_[Mesh::UV0] = uvOffset;
+    std::memcpy(rm->requestUpload(guid, uvBytes, uvOffset).data(), data->uvs.data(), uvBytes);
+
+    // Tangents need real UVs to mean anything; without them the value is unused
+    // (no UVs means no normal map) and only has to stay well-formed.
     // Stored as float4: xyz = tangent direction (world-space ready), w = handedness (±1).
-    if (!data->normals.empty() && !data->uvs.empty())
+    std::vector<v4f> tangents(vcount, v4f(1.f, 0.f, 0.f, 1.f));
+    if (sourceHasNormals && sourceHasUVs)
     {
-        const size_t vcount = data->vertices.size();
         std::vector<v3f> tanSum(vcount, v3f::Zero());
         std::vector<v3f> biSum(vcount, v3f::Zero());
 
@@ -120,7 +137,6 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
             biSum[i0]  += B; biSum[i1]  += B; biSum[i2]  += B;
         }
 
-        std::vector<v4f> tangents(vcount);
         for (size_t i = 0; i < vcount; ++i)
         {
             const v3f N = data->normals[i].normalized();
@@ -132,13 +148,11 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
             const float w = (N.cross(T).dot(biSum[i]) < 0.0f) ? -1.0f : 1.0f;
             tangents[i] = v4f(T.x(), T.y(), T.z(), w);
         }
-
-        const auto bufSize = sizeof(v4f) * vcount;
-        const auto guid = rm->createStaticBuffer(bufSize, rname("_tan"));
-        mesh->tangeantBuffer_ = rm->createStaticVBV(guid, sizeof(v4f), rname("_tanv"), 0, bufSize);
-        auto span = rm->requestUploadOwned(guid, bufSize, 0);
-        std::memcpy(span.data(), tangents.data(), bufSize);
     }
+
+    mesh->streamOffsets_[Mesh::Tangent] = tangentOffset;
+    std::memcpy(rm->requestUpload(guid, tangentBytes, tangentOffset).data(), tangents.data(),
+                tangentBytes);
 
     mesh->indexFormat_ = ResourceFormat::R32_UINT;
     mesh->subMeshCount = static_cast<uint8_t>(std::min(data->subMeshes.size(), size_t(8)));
@@ -204,20 +218,15 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     const std::string prefix = key + "_" + std::to_string(next_uid64());
 
     // GPU resource + SRV (slot bindless)
-    const auto gpuTex = rm->createTexture2D(static_cast<uint32_t>(w), static_cast<uint32_t>(h),
+    const auto gpuTex = rm->createImage2D(static_cast<uint32_t>(w), static_cast<uint32_t>(h),
                                             resFmt, prefix + "_tex");
 
-    // upload rows with pitch alignment
-    uint32_t rowPitch = 0;
-    auto span = rm->requestTextureUploadOwned(gpuTex.resource, static_cast<uint32_t>(w),
-                                              static_cast<uint32_t>(h), resFmt, rowPitch);
-    const uint32_t srcRowPitch = static_cast<uint32_t>(w) * bytesPerPixel;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-    const uint8_t* srcBytes = isHdr ? reinterpret_cast<const uint8_t*>(hdrPixels) : ldrPixels;
-    for (uint32_t y = 0; y < static_cast<uint32_t>(h); ++y)
-        std::memcpy(span.data() + y * rowPitch, srcBytes + y * srcRowPitch, srcRowPitch);
-#pragma clang diagnostic pop
+    // The staging span is tightly packed, same layout as the decoded pixels
+    auto span = rm->requestTextureUpload(gpuTex, static_cast<uint32_t>(w),
+                                              static_cast<uint32_t>(h), resFmt);
+    const void* srcBytes = isHdr ? static_cast<const void*>(hdrPixels)
+                                 : static_cast<const void*>(ldrPixels);
+    std::memcpy(span.data(), srcBytes, span.size());
 
     // Projection SH pour les textures HDR (avant libération des pixels CPU)
     SH9 hdriSH;
@@ -228,7 +237,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
 
     // build runtime Texture
     Texture tex{};
-    tex.heapIdx_    = gpuTex.bindlessIndex;
+    tex.bindlessIndex_    = rm->textureIndex(gpuTex);
     tex.format_     = resFmt;
     tex.colorSpace_    = isHdr ? TextureColorSpace::Linear : TextureColorSpace::SRGB;
     tex.sizeX_         = static_cast<uint32_t>(w);
@@ -255,17 +264,17 @@ static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, cons
 
     Material mat = data->mat;
 
-    // Resolve texture paths → bindless heapIdx.
+    // Resolve texture paths → bindless index.
     // Falls back to white texture (neutral multiplier) when path is empty or load fails.
     auto resolveTexIdx = [&](const std::string& texPath,
                              const std::string& fallbackKey = "__default_white") -> uint32_t {
         auto* fallbackTex       = assetManager.get<Texture>(fallbackKey);
-        const uint32_t fallback = fallbackTex ? fallbackTex->heapIdx_ : 0xFFFFFFFFu;
+        const uint32_t fallback = fallbackTex ? fallbackTex->bindlessIndex_ : 0xFFFFFFFFu;
         if (texPath.empty()) return fallback;
         const bool isBtex = (extractExtension(texPath) == "btex");
         if (!loadTexture(texPath, ctx, isBtex)) return fallback;
         auto* tex = assetManager.get<Texture>(texPath);
-        return tex ? tex->heapIdx_ : fallback;
+        return tex ? tex->bindlessIndex_ : fallback;
     };
 
     mat.albedoTexIdx_    = resolveTexIdx(data->albedoTexPath);
@@ -289,16 +298,15 @@ void createDefaultAssets(const Engine& ctx)
     const std::string texKey            = "__default_white";
     const std::string prefix            = texKey + "_" + std::to_string(next_uid64());
 
-    const auto whiteGpu = rm->createTexture2D(1, 1, ResourceFormat::R8G8B8A8_UNORM,
+    const auto whiteGpu = rm->createImage2D(1, 1, ResourceFormat::R8G8B8A8_UNORM,
                                               prefix + "_tex");
 
-    uint32_t rowPitch = 0;
-    auto span = rm->requestTextureUploadOwned(whiteGpu.resource, 1, 1,
-                                              ResourceFormat::R8G8B8A8_UNORM, rowPitch);
+    auto span = rm->requestTextureUpload(whiteGpu, 1, 1,
+                                              ResourceFormat::R8G8B8A8_UNORM);
     std::memcpy(span.data(), kWhite, 4);
 
     Texture whiteTex{};
-    whiteTex.heapIdx_    = whiteGpu.bindlessIndex;
+    whiteTex.bindlessIndex_    = rm->textureIndex(whiteGpu);
     whiteTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
     whiteTex.sizeX_      = 1;
     whiteTex.sizeY_      = 1;
@@ -309,16 +317,15 @@ void createDefaultAssets(const Engine& ctx)
     const std::string flatNrmKey    = "__default_flat_normal";
     const std::string flatNrmPrefix = flatNrmKey + "_" + std::to_string(next_uid64());
 
-    const auto flatGpu = rm->createTexture2D(1, 1, ResourceFormat::R8G8B8A8_UNORM,
+    const auto flatGpu = rm->createImage2D(1, 1, ResourceFormat::R8G8B8A8_UNORM,
                                              flatNrmPrefix + "_tex");
 
-    uint32_t flatRowPitch = 0;
-    auto flatSpan = rm->requestTextureUploadOwned(flatGpu.resource, 1, 1,
-                                                  ResourceFormat::R8G8B8A8_UNORM, flatRowPitch);
+    auto flatSpan = rm->requestTextureUpload(flatGpu, 1, 1,
+                                                  ResourceFormat::R8G8B8A8_UNORM);
     std::memcpy(flatSpan.data(), kFlatNormal, 4);
 
     Texture flatNrmTex{};
-    flatNrmTex.heapIdx_    = flatGpu.bindlessIndex;
+    flatNrmTex.bindlessIndex_    = rm->textureIndex(flatGpu);
     flatNrmTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
     flatNrmTex.sizeX_      = 1;
     flatNrmTex.sizeY_      = 1;
@@ -327,8 +334,8 @@ void createDefaultAssets(const Engine& ctx)
     // ---- Default material — slot 0 in the GPU arena ----
     // Albedo/roughness/metallic → white (neutral ×1.0 multiplier).
     // Normal → flat normal (0,0,1 in tangent space = vertex normal passthrough).
-    const uint32_t whiteIdx   = whiteTex.heapIdx_;
-    const uint32_t flatNrmIdx = flatNrmTex.heapIdx_;
+    const uint32_t whiteIdx   = whiteTex.bindlessIndex_;
+    const uint32_t flatNrmIdx = flatNrmTex.bindlessIndex_;
     Material defMat{};
     defMat.albedo[0]        = 0.9f;
     defMat.albedo[1]        = 0.9f;

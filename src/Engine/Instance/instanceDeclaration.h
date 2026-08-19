@@ -296,7 +296,7 @@ struct SkyboxGPUData
 {
     std::array<std::array<float, 4>, 9> sh;  // SH L2 irradiance — 9 × float4 = 144 bytes
     uint32_t                 mode;           // 0=HDRI, 1=FlatColor, 2=Gradient
-    uint32_t                 heapIdx;        // bindless HDRI index (0xFFFFFFFF si absent)
+    uint32_t                 bindlessIndex;        // bindless HDRI index (0xFFFFFFFF if absent)
     uint32_t                 mipCount;       // nb mips de la texture HDRI
     float                    intensity;      // multiplicateur spéculaire
     std::array<float, 4>     color1;         // zenith  (xyz=RGB, w=0)
@@ -348,13 +348,13 @@ struct InstancePatches<SkyboxInstance>
         out->color2       = {sky->color2_.x(), sky->color2_.y(), sky->color2_.z(), 0.0f};
         out->color3       = {sky->color3_.x(), sky->color3_.y(), sky->color3_.z(), 0.0f};
         out->horizonWidth = sky->horizonWidth_;
-        out->heapIdx      = 0xFFFFFFFFu;
+        out->bindlessIndex      = 0xFFFFFFFFu;
         out->mipCount     = 1u;
         out->pad          = {};
         if (sky->mode_ == Skybox_C::Mode::HDRI && sky->hdri_)
             if (auto* tex = ctx.assetManager_->get<Texture>(sky->hdri_))
             {
-                out->heapIdx  = tex->heapIdx_;
+                out->bindlessIndex  = tex->bindlessIndex_;
                 out->mipCount = tex->mipLevels_;
             }
     }

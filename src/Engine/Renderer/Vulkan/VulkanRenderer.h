@@ -16,7 +16,7 @@ struct ScenePasses;
 // Backend Vulkan du Renderer — même nom de classe que la version DX12, même
 // surface publique consommée par Engine.cpp / World.cpp (render,
 // beginFrame, flush, resize, onResize, resourceManager_, width_/height_,
-// frameIndex_). Le header Renderer/Renderer.h sélectionne le backend par
+// frameIndex). Le header Renderer/Renderer.h sélectionne le backend par
 // plateforme.
 //
 // Architecture de frame (docs/vulkan.md §10) :
@@ -55,7 +55,8 @@ struct Renderer
     ResourceManager* resourceManager_ = nullptr;
     uint32_t width_ = 0;
     uint32_t height_ = 0;
-    uint8_t frameIndex_ = 0;
+
+    uint32_t frameIndex() const { return ctx_.frameIndex_; }
 
     VulkanContext ctx_;
     VulkanSwapchain swapchain_;

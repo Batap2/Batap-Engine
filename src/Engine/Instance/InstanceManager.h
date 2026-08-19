@@ -196,8 +196,8 @@ struct FrameInstancePool
             resourceManager_.requestDestroy(instancePoolHandle_);
         }
 
-        instancePoolHandle_ = resourceManager_.createFrameStructuredBuffer(
-            gpuPoolCapacity_, static_cast<uint32_t>(sizeof(typename type::GPUData)), name_);
+        instancePoolHandle_ = resourceManager_.createPerFrameBuffer(
+            gpuPoolCapacity_ * sizeof(typename type::GPUData), name_);
     }
 
     void markAllinstanceDirty()

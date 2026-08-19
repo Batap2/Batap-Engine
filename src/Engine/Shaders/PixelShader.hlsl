@@ -2,8 +2,6 @@
 //   set 0 = bindless global (sampler s0, textures t4[])
 //   set 1 = données de frame (storage buffers)
 //   push constants = indices du draw courant
-// Changement vs DX12 : une seule sortie couleur — le normalRT (SV_Target1)
-// était écrit mais jamais lu par aucune passe.
 
 struct CameraData
 {
@@ -15,14 +13,14 @@ struct CameraData
     float3 fwd_;   float pad_;
 };
 
-[[vk::binding(0, 1)]] StructuredBuffer<CameraData> CameraInstancebuffer : register(t0);
+[[vk::binding(0, 1)]] StructuredBuffer<CameraData> CameraInstancebuffer;
 
 struct InstanceData
 {
     float4x4 world_;              // 64 bytes
     uint     materialIndices_[8]; // 32 bytes
 };
-[[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
+[[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer;
 
 struct PointLight
 {
@@ -33,7 +31,7 @@ struct PointLight
     float falloff_;
     bool castShadows_;
 };
-[[vk::binding(2, 1)]] StructuredBuffer<PointLight> PointLightBuffer : register(t2);
+[[vk::binding(2, 1)]] StructuredBuffer<PointLight> PointLightBuffer;
 
 struct MaterialData
 {
@@ -47,7 +45,7 @@ struct MaterialData
     uint   metallicTexIdx;
     uint   pad_;
 };
-[[vk::binding(3, 1)]] StructuredBuffer<MaterialData> MaterialBuffer : register(t3);
+[[vk::binding(3, 1)]] StructuredBuffer<MaterialData> MaterialBuffer;
 
 struct DrawPush
 {
@@ -71,7 +69,7 @@ struct SkyboxGPUData
 {
     float4 sh[9];
     uint   mode;
-    uint   heapIdx;
+    uint   bindlessIndex;
     uint   mipCount;
     float  intensity;
     float4 color1;
@@ -80,10 +78,10 @@ struct SkyboxGPUData
     float  horizonWidth;
     float3 pad_;
 };
-[[vk::binding(4, 1)]] StructuredBuffer<SkyboxGPUData> SkyboxBuffer : register(t0, space1);
+[[vk::binding(4, 1)]] StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
 
-[[vk::binding(0, 0)]] SamplerState      g_sampler    : register(s0);
-[[vk::binding(1, 0)]] Texture2D<float4> g_textures[] : register(t4);
+[[vk::binding(0, 0)]] SamplerState      g_sampler;
+[[vk::binding(1, 0)]] Texture2D<float4> g_textures[];
 
 static const float PI = 3.14159265358979f;
 
@@ -106,12 +104,12 @@ float3 SampleSky(float3 dir, float mipLevel)
 {
     SkyboxGPUData sky = SkyboxBuffer[0];
     float3 result;
-    if (sky.mode == 0u && sky.heapIdx != 0xFFFFFFFFu)
+    if (sky.mode == 0u && sky.bindlessIndex != 0xFFFFFFFFu)
     {
         float  phi   = atan2(dir.z, dir.x);
         float  theta = asin(clamp(dir.y, -1.0f, 1.0f));
         float2 uv    = float2((phi + PI) / (2.0f * PI), 0.5f - theta / PI);
-        result = g_textures[sky.heapIdx].SampleLevel(g_sampler, uv, mipLevel).rgb;
+        result = g_textures[sky.bindlessIndex].SampleLevel(g_sampler, uv, mipLevel).rgb;
     }
     else if (sky.mode == 1u)
     {

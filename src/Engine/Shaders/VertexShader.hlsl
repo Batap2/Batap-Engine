@@ -2,8 +2,6 @@
 //   set 0 = bindless global (sampler, textures) — pas utilisé ici
 //   set 1 = données de frame (storage buffers : caméras, instances, …)
 //   push constants = indices du draw courant
-// Les register() DX12 sont conservés à titre documentaire ; ils sont ignorés
-// dès qu'un [[vk::binding]] est présent.
 
 struct CameraData
 {
@@ -21,8 +19,8 @@ struct InstanceData
     uint     materialIndices_[8]; // 32 bytes
 };
 
-[[vk::binding(0, 1)]] StructuredBuffer<CameraData>   CameraInstancebuffer     : register(t0);
-[[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer : register(t1);
+[[vk::binding(0, 1)]] StructuredBuffer<CameraData>   CameraInstancebuffer;
+[[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer;
 
 struct DrawPush
 {

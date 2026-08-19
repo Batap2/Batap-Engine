@@ -95,13 +95,13 @@ struct GPUArena
         {
             grow(std::max(gpuCapacity_ * 2, data_.size()));
             auto span =
-                rm_->requestUploadOwned(resourceHandle_, data_.size() * sizeof(T), sizeof(T));
+                rm_->requestUpload(resourceHandle_, data_.size() * sizeof(T));
             memcpy(span.data(), data_.data(), data_.size() * sizeof(T));
         }
         else
         {
-            auto span = rm_->requestUploadOwned(resourceHandle_, sizeof(T), sizeof(T),
-                                                static_cast<size_t>(idx) * sizeof(T));
+            auto span = rm_->requestUpload(resourceHandle_, sizeof(T),
+                                           static_cast<size_t>(idx) * sizeof(T));
             memcpy(span.data(), &data_[idx], sizeof(T));
         }
 
@@ -132,8 +132,8 @@ struct GPUArena
             return false;
 
         data_[k.index] = value;
-        auto span = rm_->requestUploadOwned(resourceHandle_, sizeof(T), sizeof(T),
-                                            static_cast<size_t>(k.index) * sizeof(T));
+        auto span = rm_->requestUpload(resourceHandle_, sizeof(T),
+                                       static_cast<size_t>(k.index) * sizeof(T));
         memcpy(span.data(), &data_[k.index], sizeof(T));
         return true;
     }
@@ -168,8 +168,7 @@ struct GPUArena
 
     void createGpuResources(size_t capacity)
     {
-        resourceHandle_ =
-            rm_->createStaticStructuredBuffer(capacity, static_cast<uint32_t>(sizeof(T)), name_);
+        resourceHandle_ = rm_->createStaticBuffer(capacity * sizeof(T), name_);
         gpuCapacity_ = capacity;
     }
 

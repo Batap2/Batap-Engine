@@ -28,8 +28,7 @@ struct VulkanSwapchain
 
     // transparent : demande une composition avec alpha (POST/PRE_MULTIPLIED
     // selon ce que le driver expose) ; retombe sur OPAQUE s'il n'offre rien.
-    void init(VulkanContext& ctx, void* nativeLayer, uint32_t framesInFlight,
-              bool transparent = false);
+    void init(VulkanContext& ctx, void* nativeLayer, bool transparent = false);
     void shutdown();
 
     // Recrée la swapchain à la taille courante de la surface (attend que le
@@ -43,8 +42,6 @@ struct VulkanSwapchain
     uint32_t acquire();
     void submit(VkCommandBuffer cmd, VkQueue queue);
     void present(VkQueue queue, uint32_t imageIndex);
-
-    uint32_t frameIndex() const { return frameIndex_; }
 
     VkFormat format_ = VK_FORMAT_UNDEFINED;
     VkExtent2D extent_{};
@@ -61,8 +58,6 @@ struct VulkanSwapchain
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
 
-    uint32_t framesInFlight_ = 0;
-    uint32_t frameIndex_ = 0;
     uint32_t lastAcquired_ = 0;
     bool frameWaited_ = false;
     bool transparent_ = false;

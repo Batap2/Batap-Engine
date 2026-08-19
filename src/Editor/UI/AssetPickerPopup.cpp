@@ -107,7 +107,7 @@ void AssetPickerPopup::open(MaterialHandle mat, uint8_t channel, const std::stri
     pendingOpen_ = true;
 }
 
-static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, uint32_t heapIdx)
+static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, uint32_t bindlessIndex)
 {
     auto* mat = app.ctx_->assetManager_->get<Material>(matHandle);
     if (!mat)
@@ -116,16 +116,16 @@ static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, ui
     switch (channel)
     {
         case 0:
-            copy.albedoTexIdx_ = heapIdx;
+            copy.albedoTexIdx_ = bindlessIndex;
             break;
         case 1:
-            copy.normalTexIdx_ = heapIdx;
+            copy.normalTexIdx_ = bindlessIndex;
             break;
         case 2:
-            copy.roughnessTexIdx_ = heapIdx;
+            copy.roughnessTexIdx_ = bindlessIndex;
             break;
         case 3:
-            copy.metallicTexIdx_ = heapIdx;
+            copy.metallicTexIdx_ = bindlessIndex;
             break;
     }
     app.ctx_->assetManager_->update(matHandle, copy);
@@ -182,7 +182,7 @@ void AssetPickerPopup::draw(App& app)
                 if (type_ == AssetType::Texture && matHandle_)
                     if (auto* th = std::get_if<TextureHandle>(&*handle))
                         if (auto* tex = app.ctx_->assetManager_->get<Texture>(*th))
-                            applyTexture(app, matHandle_, texChannel_, tex->heapIdx_);
+                            applyTexture(app, matHandle_, texChannel_, tex->bindlessIndex_);
 
                 if (isHdriPick_)
                     if (auto* sky = ent_.try_get<Skybox_C>())
@@ -216,7 +216,7 @@ void AssetPickerPopup::draw(App& app)
             const std::string defaultKey = (texChannel_ == 1) ? "__default_flat_normal"
                                                               : "__default_white";
             if (auto* def = app.ctx_->assetManager_->get<Texture>(defaultKey))
-                applyTexture(app, matHandle_, texChannel_, def->heapIdx_);
+                applyTexture(app, matHandle_, texChannel_, def->bindlessIndex_);
         }
 
         if (isHdriPick_)

@@ -39,8 +39,7 @@ Renderer::Renderer(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeig
     transparent_ = transparent;
 
     ctx_.init();
-    swapchain_.init(ctx_, platformSurfaceHandle(nativeWindow),
-                    static_cast<uint32_t>(FramesInFlight), transparent);
+    swapchain_.init(ctx_, platformSurfaceHandle(nativeWindow), transparent);
     // La taille de rendu est celle de la swapchain, en pixels physiques —
     // pas la taille client demandée (qui est en points sur un écran retina).
     width_ = swapchain_.extent_.width;
@@ -50,7 +49,7 @@ Renderer::Renderer(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeig
     // Le renderer possède le ResourceManager ; l'Engine en distribue le
     // pointeur (AssetManager, InstanceManager) — même schéma que le DX12.
     resources_ = std::make_unique<ResourceManager>();
-    resources_->init(ctx_, static_cast<uint32_t>(FramesInFlight));
+    resources_->init(ctx_);
     resourceManager_ = resources_.get();
 
     VkCommandPoolCreateInfo poolInfo{};
@@ -65,7 +64,7 @@ Renderer::Renderer(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeig
     cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cmdInfo.commandPool = commandPool_;
     cmdInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmdInfo.commandBufferCount = static_cast<uint32_t>(FramesInFlight);
+    cmdInfo.commandBufferCount = FramesInFlight;
     if (vkAllocateCommandBuffers(ctx_.device_, &cmdInfo, commandBuffers_.data()) != VK_SUCCESS)
         throw std::runtime_error("Renderer(vk) : command buffers");
 
@@ -207,8 +206,7 @@ ScenePasses* Renderer::scenePasses()
     if (!scenePasses_)
     {
         scenePasses_ = std::make_unique<ScenePasses>();
-        scenePasses_->init(ctx_, *resources_, static_cast<uint32_t>(FramesInFlight),
-                           swapchain_.format_, DepthFormat);
+        scenePasses_->init(ctx_, *resources_, swapchain_.format_, DepthFormat);
     }
     return scenePasses_.get();
 }
@@ -221,8 +219,7 @@ void Renderer::setSceneRecord(SceneRecordFn fn)
 void Renderer::beginFrame()
 {
     swapchain_.waitFrame();
-    resources_->beginFrame(swapchain_.frameIndex());
-    frameIndex_ = static_cast<uint8_t>(swapchain_.frameIndex());
+    resources_->beginFrame();
     frameBegun_ = true;
 
     if (!imguiFrameOpen_)
@@ -248,7 +245,7 @@ void Renderer::render()
         resize(0, 0);
         return;
     }
-    const uint32_t frame = swapchain_.frameIndex();
+    const uint32_t frame = ctx_.frameIndex_;
 
     // Hot reload shaders : vérification espacée (stat de 4 fichiers), et
     // surtout hors enregistrement — la reconstruction attend l'idle GPU.
@@ -264,7 +261,7 @@ void Renderer::render()
     vkBeginCommandBuffer(cmd, &beginInfo);
 
     // Les uploads demandés pendant la frame CPU (assets, instances, arenas)
-    resources_->flushUploads(cmd, frame);
+    resources_->flushUploads(cmd);
 
     // Swapchain -> color attachment, depth -> depth attachment (contenus
     // précédents jetés : loadOp CLEAR des deux côtés)

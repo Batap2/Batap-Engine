@@ -22,5 +22,7 @@ struct VulkanContext
     uint32_t graphicsQueueFamily_ = 0;
 
     VmaAllocator allocator_ = nullptr;
+
+    uint32_t frameIndex_ = 0;
 };
 }  // namespace batap

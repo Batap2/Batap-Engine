@@ -1,6 +1,7 @@
 #include "VulkanScenePasses.h"
 
 #include "VulkanContext.h"
+#include "VulkanFormats.h"
 #include "VulkanPipelines.h"
 #include "VulkanResources.h"
 
@@ -45,8 +46,8 @@ struct DrawPush
 };
 }  // namespace
 
-void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, uint32_t framesInFlight,
-                       VkFormat colorFormat, VkFormat depthFormat)
+void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
+                       VkFormat depthFormat)
 {
     resources_ = &resources;
     colorFormat_ = colorFormat;
@@ -71,21 +72,21 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, uint32_t 
         throw std::runtime_error("ScenePasses : frame set layout");
 
     VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                  FrameSetBindingCount * framesInFlight};
+                                  FrameSetBindingCount * FramesInFlight};
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.maxSets = framesInFlight;
+    poolInfo.maxSets = FramesInFlight;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
     if (vkCreateDescriptorPool(ctx.device_, &poolInfo, nullptr, &framePool_) != VK_SUCCESS)
         throw std::runtime_error("ScenePasses : frame pool");
 
-    frameSets_.resize(framesInFlight);
-    std::vector<VkDescriptorSetLayout> layouts(framesInFlight, frameSetLayout_);
+    frameSets_.resize(FramesInFlight);
+    std::vector<VkDescriptorSetLayout> layouts(FramesInFlight, frameSetLayout_);
     VkDescriptorSetAllocateInfo setInfo{};
     setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     setInfo.descriptorPool = framePool_;
-    setInfo.descriptorSetCount = framesInFlight;
+    setInfo.descriptorSetCount = FramesInFlight;
     setInfo.pSetLayouts = layouts.data();
     if (vkAllocateDescriptorSets(ctx.device_, &setInfo, frameSets_.data()) != VK_SUCCESS)
         throw std::runtime_error("ScenePasses : frame sets");
@@ -95,7 +96,7 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, uint32_t 
     pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushRange.size = sizeof(DrawPush);
 
-    const VkDescriptorSetLayout setLayouts[2] = {resources.bindlessLayout_, frameSetLayout_};
+    const VkDescriptorSetLayout setLayouts[2] = {resources.textureSetLayout(), frameSetLayout_};
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 2;
@@ -125,10 +126,12 @@ void ScenePasses::buildPipelines(VkDevice device, VkShaderModule vs, VkShaderMod
 
     geometryPipeline_ = GraphicsPipelineBuilder()
                             .shaders(vs, ps)
-                            .vertexAttribute(0, VK_FORMAT_R32G32B32_SFLOAT, 12)     // position
-                            .vertexAttribute(1, VK_FORMAT_R32G32B32_SFLOAT, 12)     // normal
-                            .vertexAttribute(2, VK_FORMAT_R32G32_SFLOAT, 8)         // uv
-                            .vertexAttribute(3, VK_FORMAT_R32G32B32A32_SFLOAT, 16)  // tangent
+                            // Locations follow Mesh::Stream — changing one means
+                            // changing the other.
+                            .vertexAttribute(Mesh::Position, VK_FORMAT_R32G32B32_SFLOAT, 12)
+                            .vertexAttribute(Mesh::Normal, VK_FORMAT_R32G32B32_SFLOAT, 12)
+                            .vertexAttribute(Mesh::UV0, VK_FORMAT_R32G32_SFLOAT, 8)
+                            .vertexAttribute(Mesh::Tangent, VK_FORMAT_R32G32B32A32_SFLOAT, 16)
                             .colorFormat(colorFormat_)
                             .depth(depthFormat_, true, VK_COMPARE_OP_LESS)
                             .cullBack()
@@ -216,15 +219,11 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     auto* instanceM = args.instanceManager_;
 
     const std::array<VkBuffer, FrameSetBindingCount> buffers = {
-        resources_->bufferFor(instanceM->pool<CameraInstance>().instancePoolHandle_,
-                                  frame),
-        resources_->bufferFor(instanceM->pool<StaticMeshInstance>().instancePoolHandle_,
-                                  frame),
-        resources_->bufferFor(instanceM->pool<PointLightInstance>().instancePoolHandle_,
-                                  frame),
-        resources_->bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle(), frame),
-        resources_->bufferFor(instanceM->pool<SkyboxInstance>().instancePoolHandle_,
-                                  frame),
+        resources_->bufferFor(instanceM->pool<CameraInstance>().instancePoolHandle_),
+        resources_->bufferFor(instanceM->pool<StaticMeshInstance>().instancePoolHandle_),
+        resources_->bufferFor(instanceM->pool<PointLightInstance>().instancePoolHandle_),
+        resources_->bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle()),
+        resources_->bufferFor(instanceM->pool<SkyboxInstance>().instancePoolHandle_),
     };
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
@@ -270,7 +269,7 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
 
     setViewportYUp(cmd, width, height);
 
-    const VkDescriptorSet sets[2] = {resources_->bindlessSet_, frameSets_[frame]};
+    const VkDescriptorSet sets[2] = {resources_->textureSet(), frameSets_[frame]};
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 2, sets, 0,
                             nullptr);
 
@@ -292,24 +291,20 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
             if (!id.valid())
                 return;
 
-            auto* ib = resources_->getMeshView(mesh->indexBuffer_);
-            auto* vb = resources_->getMeshView(mesh->vertexBuffer_);
-            auto* nb = resources_->getMeshView(mesh->normalBuffer_);
-            auto* uvb = resources_->getMeshView(mesh->uv0Buffer_);
-            auto* tb = resources_->getMeshView(mesh->tangeantBuffer_);
-            if (!ib || !vb || !nb || !uvb || !tb)
+            if (!mesh->isRenderable())
                 return;  // mesh incomplet (pas de normales/uv/tangentes)
 
-            const VkBuffer vertexBuffers[4] = {
-                resources_->getBuffer(vb->resource)->buffer,
-                resources_->getBuffer(nb->resource)->buffer,
-                resources_->getBuffer(uvb->resource)->buffer,
-                resources_->getBuffer(tb->resource)->buffer,
-            };
-            const VkDeviceSize offsets[4] = {vb->offset, nb->offset, uvb->offset, tb->offset};
-            vkCmdBindVertexBuffers(cmd, 0, 4, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(cmd, resources_->getBuffer(ib->resource)->buffer, ib->offset,
-                                 ib->indexType);
+            // One resolution for the whole mesh: every stream is in the same
+            // buffer, only the offsets differ — and they are already stored in
+            // binding order.
+            const VkBuffer meshBuffer = resources_->bufferFor(mesh->buffer_);
+            const std::array<VkBuffer, Mesh::VertexStreams> vertexBuffers{
+                meshBuffer, meshBuffer, meshBuffer, meshBuffer};
+
+            vkCmdBindVertexBuffers(cmd, 0, Mesh::VertexStreams, vertexBuffers.data(),
+                                   mesh->streamOffsets_.data());
+            vkCmdBindIndexBuffer(cmd, meshBuffer, mesh->streamOffsets_[Mesh::Index],
+                                 toVkIndexType(mesh->indexFormat_));
 
             // Un draw par submesh, l'index de submesh en push constant (le PS
             // y lit le matériau — pas de SV_PrimitiveID sur Metal)

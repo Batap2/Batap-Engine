@@ -62,10 +62,14 @@ void VulkanContext::init()
     features12.descriptorBindingVariableDescriptorCount = VK_TRUE;
     features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
 
+    VkPhysicalDeviceFeatures features10{};
+    features10.samplerAnisotropy = VK_TRUE;
+
     auto selection = vkb::PhysicalDeviceSelector(vkbInstance)
                          .set_minimum_version(1, 3)
                          .set_required_features_13(features13)
                          .set_required_features_12(features12)
+                         .set_required_features(features10)
                          .require_present(false)
                          .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
                          .select();

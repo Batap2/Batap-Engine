@@ -55,8 +55,8 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
                     const uint32_t stride = sizeof(typename InstanceT::GPUData);
                     const uint32_t byteOffset = id * stride + p.offset_;
 
-                    auto span = resourceManager_.requestUploadOwned(
-                        frameInstancePool.instancePoolHandle_, stride, 4, byteOffset, p.offset_,
+                    auto span = resourceManager_.requestPartialUpload(
+                        frameInstancePool.instancePoolHandle_, stride, byteOffset, p.offset_,
                         p.size_);
 
                     p.fill(ctx, *entityHandle.reg_, entityHandle.entity_, span.data());

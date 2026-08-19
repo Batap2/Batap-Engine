@@ -138,8 +138,8 @@ v2i Engine::getFrameSize()
     return {renderer_->width_, renderer_->height_};
 }
 
-uint8_t Engine::getFrameindex()
+uint32_t Engine::getFrameindex()
 {
-    return renderer_->frameIndex_;
+    return renderer_->frameIndex();
 }
 }  // namespace batap

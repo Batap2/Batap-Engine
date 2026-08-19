@@ -58,7 +58,7 @@ struct Engine
     void setProjectDir(const std::string& dir);
 
     v2i getFrameSize();
-    uint8_t getFrameindex();
+    uint32_t getFrameindex();
 
     std::unique_ptr<Renderer> renderer_;
     std::unique_ptr<InputManager> inputManager_;

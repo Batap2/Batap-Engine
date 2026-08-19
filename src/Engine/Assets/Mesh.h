@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include "Handles.h"
 #include "Renderer/ResourceFormat.h"
@@ -17,11 +16,22 @@ struct SubMesh
 
 struct Mesh
 {
-    GPUMeshViewHandle indexBuffer_;
-    GPUMeshViewHandle vertexBuffer_;
-    GPUMeshViewHandle normalBuffer_;
-    GPUMeshViewHandle tangeantBuffer_;
-    GPUMeshViewHandle uv0Buffer_;
+    // Order is the vertex binding order of the geometry pipeline, so the first
+    // VertexStreams offsets go straight to vkCmdBindVertexBuffers. Index is
+    // last for that reason.
+    enum Stream : uint8_t
+    {
+        Position,
+        Normal,
+        UV0,
+        Tangent,
+        Index,
+        StreamCount
+    };
+    static constexpr uint32_t VertexStreams = Index;
+
+    GPUResourceHandle buffer_;
+    std::array<uint64_t, StreamCount> streamOffsets_{};
 
     ResourceFormat indexFormat_ = ResourceFormat::R32_UINT;
 
@@ -30,6 +40,8 @@ struct Mesh
 
     std::array<SubMesh, 8> subMeshes{};
     uint8_t                subMeshCount = 0;
+
+    bool isRenderable() const { return buffer_.valid(); }
 };
 
 }  // namespace batap

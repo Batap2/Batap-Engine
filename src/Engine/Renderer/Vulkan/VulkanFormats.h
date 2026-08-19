@@ -29,9 +29,22 @@ inline VkFormat toVkFormat(ResourceFormat format)
         case ResourceFormat::D32_FLOAT:            return VK_FORMAT_D32_SFLOAT;
         case ResourceFormat::D16_UNORM:            return VK_FORMAT_D16_UNORM;
         case ResourceFormat::D24_UNORM_S8_UINT:    return VK_FORMAT_D32_SFLOAT_S8_UINT;
+    }
+    // No default case on purpose: adding a ResourceFormat must break the build
+    // here rather than assert at runtime.
+    assert(false && "toVkFormat: format outside the enum");
+    return VK_FORMAT_UNDEFINED;
+}
+
+inline VkIndexType toVkIndexType(ResourceFormat format)
+{
+    switch (format)
+    {
+        case ResourceFormat::R16_UINT: return VK_INDEX_TYPE_UINT16;
+        case ResourceFormat::R32_UINT: return VK_INDEX_TYPE_UINT32;
         default:
-            assert(false && "toVkFormat: unmapped format — add it if the usage is legitimate");
-            return VK_FORMAT_UNDEFINED;
+            assert(false && "toVkIndexType: not an index format");
+            return VK_INDEX_TYPE_UINT32;
     }
 }
 

@@ -175,16 +175,16 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
 
 // -----------------------------------------------------------------------------
 
-static std::string texLabelFromHeapIdx(AssetManager* am, uint32_t heapIdx)
+static std::string texLabelFromBindlessIndex(AssetManager* am, uint32_t bindlessIndex)
 {
     auto* white = am->get<Texture>(std::string("__default_white"));
-    if (white && heapIdx == white->heapIdx_)
+    if (white && bindlessIndex == white->bindlessIndex_)
         return {};
     std::string result;
     am->getSlotMap<Texture>()->for_each(
         [&](TextureHandle, const AssetSlotMap<Texture>::Asset& a)
         {
-            if (result.empty() && a.value_.heapIdx_ == heapIdx)
+            if (result.empty() && a.value_.bindlessIndex_ == bindlessIndex)
                 result = std::filesystem::path(a.path_).stem().string();
         });
     return result;
@@ -256,7 +256,7 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                                 ui::Field(kTexLabels[ch],
                                           [&, ch]
                                           {
-                                              std::string lbl = texLabelFromHeapIdx(
+                                              std::string lbl = texLabelFromBindlessIndex(
                                                   app.ctx_->assetManager_.get(), matTexIdx[ch]);
                                               if (AssetHolder({.size_      = v2f(40, 40),
                                                                .thumbnail_ = 0,
