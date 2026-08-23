@@ -1,5 +1,6 @@
 #include "VulkanResources.h"
 
+#include "VulkanBarrier.h"
 #include "VulkanContext.h"
 #include "VulkanFormats.h"
 #include "VulkanMemory.h"
@@ -372,22 +373,16 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
         assert(it != images_.end() && "flushUploads: unknown image");
         Image& image = it->second;
 
-        // Whole mip chain → TRANSFER_DST (mip 0 gets the copy, the rest the blits)
-        VkImageMemoryBarrier2 toDst{};
-        toDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-        toDst.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-        toDst.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
-        toDst.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        toDst.oldLayout = image.layout;
-        toDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        toDst.image = image.image;
-        toDst.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, image.mipLevels, 0, 1};
-
-        VkDependencyInfo depDst{};
-        depDst.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-        depDst.imageMemoryBarrierCount = 1;
-        depDst.pImageMemoryBarriers = &toDst;
-        vkCmdPipelineBarrier2(cmd, &depDst);
+        // Whole mip chain → TRANSFER_DST (mip 0 gets the copy, the rest the
+        // blits). Discard because every level is rewritten below — but a
+        // re-upload still has to wait for the shader reads in flight on the
+        // contents it drops.
+        const Usage before =
+            image.layout == VK_IMAGE_LAYOUT_UNDEFINED ? Usage::None : Usage::ShaderRead;
+        BarrierBatch{}
+            .image(image.image, before, Usage::TransferDst, colorRange(0, image.mipLevels),
+                   Discard::Yes)
+            .flush(cmd);
 
         VkBufferImageCopy region{};
         region.bufferOffset = req.srcOffset;
@@ -401,20 +396,10 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
         // reads it and writes mip N. Levels end up SRC except the last (DST).
         for (uint32_t mip = 1; mip < image.mipLevels; ++mip)
         {
-            VkImageMemoryBarrier2 srcReady = toDst;
-            srcReady.srcStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
-            srcReady.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-            srcReady.dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
-            srcReady.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-            srcReady.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            srcReady.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            srcReady.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, mip - 1, 1, 0, 1};
-
-            VkDependencyInfo depSrc{};
-            depSrc.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-            depSrc.imageMemoryBarrierCount = 1;
-            depSrc.pImageMemoryBarriers = &srcReady;
-            vkCmdPipelineBarrier2(cmd, &depSrc);
+            BarrierBatch{}
+                .image(image.image, Usage::TransferDst, Usage::TransferSrc,
+                       colorRange(mip - 1, 1))
+                .flush(cmd);
 
             const auto mipDim = [](uint32_t base, uint32_t level)
             { return static_cast<int32_t>(std::max(base >> level, 1u)); };
@@ -438,44 +423,23 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
             vkCmdBlitImage2(cmd, &blitInfo);
         }
 
-        // Everything → SHADER_READ_ONLY : mips [0, N-1) come from TRANSFER_SRC,
-        // the last one from TRANSFER_DST.
-        VkImageMemoryBarrier2 toRead[2]{};
-        toRead[0] = toDst;
-        toRead[0].srcStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
-        toRead[0].srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        toRead[0].dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-        toRead[0].dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-        toRead[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        toRead[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        toRead[0].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, image.mipLevels - 1, 1, 0, 1};
-
-        toRead[1] = toRead[0];
-        toRead[1].srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-        toRead[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        toRead[1].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, image.mipLevels - 1, 0, 1};
-
-        VkDependencyInfo depRead{};
-        depRead.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-        depRead.imageMemoryBarrierCount = image.mipLevels > 1 ? 2u : 1u;
-        depRead.pImageMemoryBarriers = toRead;
-        vkCmdPipelineBarrier2(cmd, &depRead);
+        // Everything → SHADER_READ_ONLY, in one barrier. Two provenances: the
+        // last mip is still TRANSFER_DST (nothing ever read it), the others were
+        // flipped to TRANSFER_SRC to feed the next level.
+        BarrierBatch toRead;
+        toRead.image(image.image, Usage::TransferDst, Usage::ShaderRead,
+                     colorRange(image.mipLevels - 1, 1));
+        if (image.mipLevels > 1)
+            toRead.image(image.image, Usage::TransferSrc, Usage::ShaderRead,
+                         colorRange(0, image.mipLevels - 1));
+        toRead.flush(cmd);
 
         image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
-    VkMemoryBarrier2 memBarrier{};
-    memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
-    memBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-    memBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-    memBarrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-    memBarrier.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT;
-
-    VkDependencyInfo dep{};
-    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    dep.memoryBarrierCount = 1;
-    dep.pMemoryBarriers = &memBarrier;
-    vkCmdPipelineBarrier2(cmd, &dep);
+    // Buffer copies of this flush: one global dependency covers them all — no
+    // layouts to transition, and cache flushes are not per-range anyway.
+    BarrierBatch{}.memory(Usage::TransferDst, Usage::AnyRead).flush(cmd);
 
     uploadRequests_.clear();
 }

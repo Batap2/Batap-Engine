@@ -1,5 +1,6 @@
 #include "VulkanRenderer.h"
 
+#include "VulkanBarrier.h"
 #include "VulkanMemory.h"
 #include "VulkanScenePasses.h"
 
@@ -265,31 +266,18 @@ void Renderer::render()
 
     // Swapchain -> color attachment, depth -> depth attachment (contenus
     // précédents jetés : loadOp CLEAR des deux côtés)
-    VkImageMemoryBarrier2 barriers[2]{};
-    barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-    barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-    barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-    barriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-    barriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    barriers[0].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barriers[0].image = swapchain_.images_[imageIndex];
-    barriers[0].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-
-    barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-    barriers[1].srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-    barriers[1].srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    barriers[1].dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
-    barriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    barriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    barriers[1].image = depthImage_;
-    barriers[1].subresourceRange = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
-
-    VkDependencyInfo dep{};
-    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    dep.imageMemoryBarrierCount = 2;
-    dep.pImageMemoryBarriers = barriers;
-    vkCmdPipelineBarrier2(cmd, &dep);
+    // Swapchain : from = ColorAttachment (pas None) pour que la transition
+    // s'accroche au stage où le sémaphore d'acquire est attendu
+    // (COLOR_ATTACHMENT_OUTPUT) — depuis TOP_OF_PIPE, sync validation signale
+    // un WRITE_AFTER_READ contre vkAcquireNextImageKHR.
+    // Le depth est partagé entre frames-in-flight : Discard jette son contenu
+    // mais on attend quand même les tests de profondeur de la frame d'avant.
+    BarrierBatch{}
+        .image(swapchain_.images_[imageIndex], Usage::ColorAttachment, Usage::ColorAttachment,
+               colorRange(), Discard::Yes)
+        .image(depthImage_, Usage::DepthAttachment, Usage::DepthAttachment, depthRange(),
+               Discard::Yes)
+        .flush(cmd);
 
     VkRenderingAttachmentInfo color{};
     color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -327,47 +315,22 @@ void Renderer::render()
     }
     vkCmdEndRendering(cmd);
 
-    auto swapchainBarrier = [&](VkImageLayout oldLayout, VkImageLayout newLayout,
-                                VkPipelineStageFlags2 srcStage, VkAccessFlags2 srcAccess,
-                                VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess)
+    auto swapchainBarrier = [&](Usage from, Usage to)
     {
-        VkImageMemoryBarrier2 b{};
-        b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-        b.srcStageMask = srcStage;
-        b.srcAccessMask = srcAccess;
-        b.dstStageMask = dstStage;
-        b.dstAccessMask = dstAccess;
-        b.oldLayout = oldLayout;
-        b.newLayout = newLayout;
-        b.image = swapchain_.images_[imageIndex];
-        b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-        VkDependencyInfo di{};
-        di.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-        di.imageMemoryBarrierCount = 1;
-        di.pImageMemoryBarriers = &b;
-        vkCmdPipelineBarrier2(cmd, &di);
+        BarrierBatch{}.image(swapchain_.images_[imageIndex], from, to, colorRange()).flush(cmd);
     };
 
     const bool dumpThisFrame =
         dumpAtFrame_ >= 0 && frameCounter_ == static_cast<uint64_t>(dumpAtFrame_);
     if (dumpThisFrame)
     {
-        swapchainBarrier(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_COPY_BIT,
-                         VK_ACCESS_2_TRANSFER_READ_BIT);
+        swapchainBarrier(Usage::ColorAttachment, Usage::TransferSrc);
         recordDumpCopy(cmd, imageIndex);
-        swapchainBarrier(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                         VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_READ_BIT,
-                         VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, 0);
+        swapchainBarrier(Usage::TransferSrc, Usage::Present);
     }
     else
     {
-        swapchainBarrier(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                         VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, 0);
+        swapchainBarrier(Usage::ColorAttachment, Usage::Present);
     }
 
     vkEndCommandBuffer(cmd);
