@@ -1,22 +1,22 @@
 #include "VulkanShaderCompiler.h"
 
 #if defined(_WIN32)
-  #include <windows.h>  // avant dxcapi.h (HRESULT)
-  // WIN32_LEAN_AND_MEAN (global, cf. CMakeLists) exclut COM de windows.h :
-  // dxcapi.h a besoin de IUnknown et IStream
-  #include <objidl.h>
-  #include <unknwn.h>
+#include <windows.h>  // before dxcapi.h (HRESULT)
+// WIN32_LEAN_AND_MEAN (global, see CMakeLists) strips COM from windows.h:
+// dxcapi.h needs IUnknown and IStream
+#include <objidl.h>
+#include <unknwn.h>
 #else
-  #include <dlfcn.h>
+#include <dlfcn.h>
 #endif
 
 #if defined(__clang__)
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Weverything"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 #endif
 #include <dxc/dxcapi.h>
 #if defined(__clang__)
-  #pragma clang diagnostic pop
+#pragma clang diagnostic pop
 #endif
 
 #include <fstream>
@@ -29,11 +29,11 @@ namespace
 {
 std::wstring widen(const std::string& s)
 {
-    return {s.begin(), s.end()};  // les chemins/targets sont ASCII
+    return {s.begin(), s.end()};
 }
 
-// RAII COM minimal, portable Windows/mac (CComPtr n'existe que dans le
-// WinAdapter non-Windows du SDK, et ATL n'est pas une dépendance du moteur)
+// Minimal RAII COM, portable Windows/mac (CComPtr only exists in the SDK's
+// non-Windows WinAdapter, and ATL is not an engine dependency)
 template <typename T>
 struct ComPtr
 {
@@ -51,19 +51,19 @@ struct ComPtr
     explicit operator bool() const { return p != nullptr; }
 };
 
-// Le nom natif de la lib DXC, et son chargement dynamique par OS
+// Native DXC library name and per-OS dynamic loading
 #if defined(_WIN32)
 void* loadDxcLibrary()
 {
-    // 1. à côté de l'exe (copiée par CMake) ou dans le PATH
+    // 1. next to the exe or in the PATH
     if (HMODULE lib = ::LoadLibraryA("dxcompiler.dll"))
         return lib;
-    // 2. le SDK Vulkan repéré au configure
-  #if defined(BATAP_DXC_LIB_DIR)
+    // 2. the Vulkan SDK found at configure time
+#if defined(BATAP_DXC_LIB_DIR)
     return ::LoadLibraryA(BATAP_DXC_LIB_DIR "/dxcompiler.dll");
-  #else
+#else
     return nullptr;
-  #endif
+#endif
 }
 void* loadDxcSymbol(void* lib)
 {
@@ -77,15 +77,15 @@ void closeDxcLibrary(void* lib)
 #else
 void* loadDxcLibrary()
 {
-    // 1. les chemins dlopen standards (DYLD_LIBRARY_PATH couvre le cas brew)
+    // 1. standard dlopen paths (DYLD_LIBRARY_PATH covers the brew case)
     if (void* lib = dlopen("libdxcompiler.dylib", RTLD_NOW | RTLD_LOCAL))
         return lib;
-    // 2. le SDK LunarG repéré au configure (le même qui fournit dxc au build)
-  #if defined(BATAP_DXC_LIB_DIR)
+    // 2. the LunarG SDK found at configure time (the same one providing dxc at build)
+#if defined(BATAP_DXC_LIB_DIR)
     return dlopen(BATAP_DXC_LIB_DIR "/libdxcompiler.dylib", RTLD_NOW | RTLD_LOCAL);
-  #else
+#else
     return nullptr;
-  #endif
+#endif
 }
 void* loadDxcSymbol(void* lib)
 {
@@ -117,7 +117,7 @@ bool ShaderCompiler::ensureLoaded()
 
     if (!createInstance_)
     {
-        std::cerr << "[ShaderCompiler] dxcompiler introuvable — hot reload désactivé\n";
+        std::cerr << "[ShaderCompiler] dxcompiler unfindable\n";
         loadFailed_ = true;
         return false;
     }
@@ -132,7 +132,7 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
     std::ifstream file(hlslPath, std::ios::binary);
     if (!file)
     {
-        std::cerr << "[ShaderCompiler] source introuvable : " << hlslPath << "\n";
+        std::cerr << "[ShaderCompiler] source unfindable : " << hlslPath << "\n";
         return {};
     }
     const std::string source{std::istreambuf_iterator<char>(file),
@@ -143,7 +143,7 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
     ComPtr<IDxcCompiler3> compiler;
     if (FAILED(create(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler))))
     {
-        std::cerr << "[ShaderCompiler] DxcCreateInstance a échoué\n";
+        std::cerr << "[ShaderCompiler] DxcCreateInstance failed\n";
         return {};
     }
 
@@ -155,11 +155,13 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
     const std::wstring wPath = widen(hlslPath);
     const std::wstring wTarget = widen(target);
 
-    // Les mêmes flags que la compilation hors-ligne (CMake)
+    // Same flags as the offline compilation (CMake)
     LPCWSTR args[] = {
         wPath.c_str(),
-        L"-E", L"main",
-        L"-T", wTarget.c_str(),
+        L"-E",
+        L"main",
+        L"-T",
+        wTarget.c_str(),
         L"-spirv",
         L"-fspv-target-env=vulkan1.3",
     };
@@ -173,11 +175,11 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
     if (FAILED(compiler->Compile(&buffer, args, static_cast<UINT32>(std::size(args)),
                                  includeHandler.p, IID_PPV_ARGS(&result))))
     {
-        std::cerr << "[ShaderCompiler] Compile() a échoué : " << hlslPath << "\n";
+        std::cerr << "[ShaderCompiler] Compile() failed : " << hlslPath << "\n";
         return {};
     }
 
-    // Erreurs et warnings, même quand la compilation réussit
+    // Errors and warnings, even when compilation succeeds
     ComPtr<IDxcBlobUtf8> errors;
     result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr);
     if (errors && errors->GetStringLength() > 0)
@@ -193,7 +195,7 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
         return {};
 
     const auto* data = static_cast<const uint8_t*>(object->GetBufferPointer());
-    // le blob dxc n'expose que pointeur + taille
+    // the dxc blob only exposes pointer + size
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
     return {data, data + object->GetBufferSize()};

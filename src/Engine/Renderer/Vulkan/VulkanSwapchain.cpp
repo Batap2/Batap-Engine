@@ -37,14 +37,14 @@ void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, bool transpare
         throw std::runtime_error("VulkanSwapchain : vkCreateWin32SurfaceKHR");
 #else
     (void)nativeLayer;
-    throw std::runtime_error("VulkanSwapchain : plateforme sans implémentation de surface");
+    throw std::runtime_error("VulkanSwapchain : plateforme without surface implementation");
 #endif
 
     VkBool32 presentSupported = VK_FALSE;
     vkGetPhysicalDeviceSurfaceSupportKHR(ctx.physicalDevice_, ctx.graphicsQueueFamily_, surface_,
                                          &presentSupported);
     if (!presentSupported)
-        throw std::runtime_error("VulkanSwapchain : la queue graphics ne sait pas présenter");
+        throw std::runtime_error("VulkanSwapchain : graphics queue cannot present");
 
     acquireSemaphores_.resize(FramesInFlight);
     frameFences_.resize(FramesInFlight);
@@ -53,7 +53,7 @@ void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, bool transpare
     semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;  // 1re frame : rien à attendre
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // first frame don't wait
 
     for (auto& s : acquireSemaphores_)
         vkCreateSemaphore(ctx.device_, &semInfo, nullptr, &s);
@@ -61,7 +61,7 @@ void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, bool transpare
         vkCreateFence(ctx.device_, &fenceInfo, nullptr, &f);
 
     if (!createSwapchain())
-        throw std::runtime_error("VulkanSwapchain : surface de taille nulle à l'init");
+        throw std::runtime_error("VulkanSwapchain : null surface size");
 }
 
 bool VulkanSwapchain::createSwapchain()
@@ -69,7 +69,7 @@ bool VulkanSwapchain::createSwapchain()
     VkSurfaceCapabilitiesKHR caps{};
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx_->physicalDevice_, surface_, &caps);
     if (caps.currentExtent.width == 0 || caps.currentExtent.height == 0)
-        return false;  // minimisée : rien à créer, on garde l'ancienne
+        return false;  // minimised : keep old swapchain
     extent_ = caps.currentExtent;
 
     uint32_t formatCount = 0;
@@ -89,8 +89,6 @@ bool VulkanSwapchain::createSwapchain()
     if (caps.maxImageCount > 0)
         imageCount = std::min(imageCount, caps.maxImageCount);
 
-    // Sans vsync (comme le renderer DX12) : IMMEDIATE si dispo (MoltenVK le
-    // supporte), sinon MAILBOX, sinon FIFO — le seul garanti par la spec.
     uint32_t presentModeCount = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(ctx_->physicalDevice_, surface_, &presentModeCount,
                                               nullptr);
@@ -117,8 +115,7 @@ bool VulkanSwapchain::createSwapchain()
         else if (caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
             compositeAlpha = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
         else
-            std::cerr << "[Vulkan] transparence demandée mais non supportée par le driver — "
-                         "fenêtre opaque\n";
+            std::cerr << "[Vulkan] driver doesn't support transparence\n";
     }
 
     const VkSwapchainKHR oldSwapchain = swapchain_;

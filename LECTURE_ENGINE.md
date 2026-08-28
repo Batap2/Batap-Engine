@@ -51,11 +51,11 @@ le budget d'effort.
 
 - [X] 1. `VulkanContext.h/.cpp` (30+123) — instance, device, queues via vk-bootstrap
 - [X] 2. `VulkanMemory.h` (17) + `VulkanFormats.h` (62) — vocabulaire, lecture rapide
-- [ ] 3. `VulkanResources.h/.cpp` (206+618) — **le cœur** : buffers, images, descriptors.
+- [X] 3. `VulkanResources.h/.cpp` (206+618) — **le cœur** : buffers, images, descriptors.
       Prends ton temps ici, tout le reste s'appuie dessus
-- [ ] 4. `VulkanSwapchain.h/.cpp` (77+278) — acquire/present, resize
-- [ ] 5. `VulkanShaderCompiler.h/.cpp` (32+197) — HLSL → SPIR-V
-- [ ] 6. `VulkanPipelines.h/.cpp` (46+187) — assemblage shaders + états
+- [X] 4. `VulkanSwapchain.h/.cpp` (77+278) — acquire/present, resize
+- [X] 5. `VulkanShaderCompiler.h/.cpp` (32+197) — HLSL → SPIR-V
+- [X] 6. `VulkanPipelines.h/.cpp` (46+187) — assemblage shaders + états
 - [ ] 7. `VulkanRenderer.h/.cpp` (99+430) — le chef d'orchestre qui tient 1→6
 - [ ] 8. `VulkanScenePasses.h/.cpp` (62+350) + `VulkanSceneRenderer.cpp` (27) — les passes
       de rendu de la scène

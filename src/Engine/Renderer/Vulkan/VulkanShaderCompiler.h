@@ -6,20 +6,13 @@
 
 namespace batap
 {
-// HLSL -> SPIR-V à l'exécution, via libdxcompiler.dylib — la même API
-// IDxcCompiler3 que le chemin DXIL Windows, un flag -spirv en plus.
-// Sert au hot reload ; le build normal compile hors-ligne (dxc via CMake).
-//
-// La lib est chargée en dlopen au premier compile() : son absence n'empêche
-// pas le moteur de tourner, elle désactive juste le hot reload.
+// Runtime HLSL -> SPIR-V for hot reload; normal builds compile offline (dxc via CMake).
+// libdxcompiler is dlopen'd on first compile(): if missing, hot reload is disabled
+// but the engine still runs.
 struct ShaderCompiler
 {
     ~ShaderCompiler();
 
-    // target : "vs_6_6" / "ps_6_6" / ... ; entry point "main".
-    // Rend un bytecode vide en cas d'échec (lib absente, erreur HLSL) —
-    // le message d'erreur DXC part sur stderr, l'appelant garde ses
-    // pipelines courantes.
     std::vector<uint8_t> compile(const std::string& hlslPath, const char* target);
 
    private:

@@ -40,7 +40,8 @@ struct ScenePasses
 
    private:
     void writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engine& ctx);
-    // Construit (ou reconstruit) les deux pipelines et détruit les modules.
+    // Construit (ou reconstruit) les deux pipelines. Les modules restent la
+    // propriété de l'appelant : build() ne fait que les lire.
     void buildPipelines(VkDevice device, VkShaderModule vs, VkShaderModule ps,
                         VkShaderModule skyVS, VkShaderModule skyPS);
 

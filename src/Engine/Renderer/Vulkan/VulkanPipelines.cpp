@@ -7,30 +7,39 @@
 namespace batap
 {
 
-VkShaderModule createShaderModule(VkDevice device, const void* spirv, size_t sizeBytes)
+ShaderModule::ShaderModule(VkDevice device, const void* spirv, size_t sizeBytes) : device_(device)
+{
+    create(spirv, sizeBytes);
+}
+
+ShaderModule::ShaderModule(VkDevice device, const std::string& spvPath) : device_(device)
+{
+    std::ifstream file(spvPath, std::ios::binary | std::ios::ate);
+    if (!file)
+        throw std::runtime_error("ShaderModule : unfindable " + spvPath);
+
+    std::vector<char> spirv(static_cast<size_t>(file.tellg()));
+    file.seekg(0);
+    file.read(spirv.data(), static_cast<std::streamsize>(spirv.size()));
+
+    create(spirv.data(), spirv.size());
+}
+
+void ShaderModule::create(const void* spirv, size_t sizeBytes)
 {
     VkShaderModuleCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     info.codeSize = sizeBytes;
     info.pCode = static_cast<const uint32_t*>(spirv);
 
-    VkShaderModule module = VK_NULL_HANDLE;
-    if (vkCreateShaderModule(device, &info, nullptr, &module) != VK_SUCCESS)
-        throw std::runtime_error("createShaderModule : SPIR-V invalide");
-    return module;
+    if (vkCreateShaderModule(device_, &info, nullptr, &module_) != VK_SUCCESS)
+        throw std::runtime_error("ShaderModule : non valid SPIR-V");
 }
 
-VkShaderModule loadShaderModule(VkDevice device, const std::string& spvPath)
+ShaderModule::~ShaderModule()
 {
-    std::ifstream file(spvPath, std::ios::binary | std::ios::ate);
-    if (!file)
-        throw std::runtime_error("loadShaderModule : introuvable — " + spvPath);
-
-    std::vector<char> spirv(static_cast<size_t>(file.tellg()));
-    file.seekg(0);
-    file.read(spirv.data(), static_cast<std::streamsize>(spirv.size()));
-
-    return createShaderModule(device, spirv.data(), spirv.size());
+    if (module_)
+        vkDestroyShaderModule(device_, module_, nullptr);
 }
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::shaders(VkShaderModule vs, VkShaderModule ps)
@@ -111,8 +120,6 @@ VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layo
     raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     raster.polygonMode = VK_POLYGON_MODE_FILL;
     raster.cullMode = cullMode_;
-    // Avec le viewport à hauteur négative, le winding à l'écran est le même
-    // qu'en DX12 (FrontCounterClockwise=TRUE là-bas)
     raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     raster.lineWidth = 1.0f;
 

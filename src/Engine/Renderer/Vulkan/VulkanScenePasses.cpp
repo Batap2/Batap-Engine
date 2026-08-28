@@ -109,11 +109,11 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, VkFormat 
 
     // ---- Pipelines (SPIR-V compilé au build, à côté de l'exe) ----
     const std::string shaderDir = resolveEngineFile("shaders", "shaders");
-    buildPipelines(ctx.device_,
-                   loadShaderModule(ctx.device_, shaderDir + "/VertexShader.spv"),
-                   loadShaderModule(ctx.device_, shaderDir + "/PixelShader.spv"),
-                   loadShaderModule(ctx.device_, shaderDir + "/SkyVS.spv"),
-                   loadShaderModule(ctx.device_, shaderDir + "/SkyPS.spv"));
+    const ShaderModule vs{ctx.device_, shaderDir + "/VertexShader.spv"};
+    const ShaderModule ps{ctx.device_, shaderDir + "/PixelShader.spv"};
+    const ShaderModule skyVS{ctx.device_, shaderDir + "/SkyVS.spv"};
+    const ShaderModule skyPS{ctx.device_, shaderDir + "/SkyPS.spv"};
+    buildPipelines(ctx.device_, vs, ps, skyVS, skyPS);
 }
 
 void ScenePasses::buildPipelines(VkDevice device, VkShaderModule vs, VkShaderModule ps,
@@ -136,8 +136,6 @@ void ScenePasses::buildPipelines(VkDevice device, VkShaderModule vs, VkShaderMod
                             .depth(depthFormat_, true, VK_COMPARE_OP_LESS)
                             .cullBack()
                             .build(device, pipelineLayout_);
-    vkDestroyShaderModule(device, vs, nullptr);
-    vkDestroyShaderModule(device, ps, nullptr);
 
     // Le sky se dessine après la geometry, derrière elle (LESS_EQUAL sur la
     // depth à 1.0, sans écriture) — même logique que le PSO sky DX12
@@ -146,8 +144,6 @@ void ScenePasses::buildPipelines(VkDevice device, VkShaderModule vs, VkShaderMod
                        .colorFormat(colorFormat_)
                        .depth(depthFormat_, false, VK_COMPARE_OP_LESS_OR_EQUAL)
                        .build(device, pipelineLayout_);
-    vkDestroyShaderModule(device, skyVS, nullptr);
-    vkDestroyShaderModule(device, skyPS, nullptr);
 }
 
 void ScenePasses::checkHotReload(VkDevice device)
@@ -198,10 +194,11 @@ void ScenePasses::checkHotReload(VkDevice device)
     }
 
     vkDeviceWaitIdle(device);
-    buildPipelines(device, createShaderModule(device, spirv[0].data(), spirv[0].size()),
-                   createShaderModule(device, spirv[1].data(), spirv[1].size()),
-                   createShaderModule(device, spirv[2].data(), spirv[2].size()),
-                   createShaderModule(device, spirv[3].data(), spirv[3].size()));
+    const ShaderModule vs{device, spirv[0].data(), spirv[0].size()};
+    const ShaderModule ps{device, spirv[1].data(), spirv[1].size()};
+    const ShaderModule skyVS{device, spirv[2].data(), spirv[2].size()};
+    const ShaderModule skyPS{device, spirv[3].data(), spirv[3].size()};
+    buildPipelines(device, vs, ps, skyVS, skyPS);
     std::cout << "[ShaderCompiler] shaders rechargés" << std::endl;
 }
 

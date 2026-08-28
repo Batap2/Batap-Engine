@@ -12,8 +12,6 @@
 // Widening a barrier is always correct — it waits for more and blocks more — and
 // these all sit on per-frame or upload paths where the lost overlap is noise.
 // Narrowing would be the dangerous direction, so the table never does it.
-//
-// See SYNC.md for the underlying model.
 
 #include <volk.h>
 
@@ -85,12 +83,14 @@ inline UsageInfo usageInfo(Usage usage)
         case Usage::AnyRead:
             return {VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT,
                     VK_IMAGE_LAYOUT_UNDEFINED};
-        default:
-            assert(false && "usageInfo: unmapped usage");
-            return {VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                    VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-                    VK_IMAGE_LAYOUT_GENERAL};
     }
+
+    // Fallback outside the switch: no default label, so adding a Usage without
+    // mapping it here is a compile error rather than a silent runtime guess.
+    assert(false && "usageInfo: unmapped usage");
+    return {VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+            VK_IMAGE_LAYOUT_GENERAL};
 }
 
 inline VkImageSubresourceRange colorRange(uint32_t baseMip = 0, uint32_t mipCount = 1,

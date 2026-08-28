@@ -8,20 +8,27 @@
 
 namespace batap
 {
-// Chargement SPIR-V + construction de pipelines graphiques.
-// Conventions du moteur, appliquées par le builder :
-//  - dynamic rendering (les formats d'attachments remplacent le VkRenderPass) ;
-//  - viewport/scissor dynamiques, posés au record avec un viewport à hauteur
-//    NÉGATIVE → repère Y-up identique à DX12, shaders et matrices inchangés.
+struct ShaderModule
+{
+    ShaderModule(VkDevice device, const std::string& spvPath);
+    ShaderModule(VkDevice device, const void* spirv, size_t sizeBytes);
+    ~ShaderModule();
 
-VkShaderModule loadShaderModule(VkDevice device, const std::string& spvPath);
-VkShaderModule createShaderModule(VkDevice device, const void* spirv, size_t sizeBytes);
+    ShaderModule(const ShaderModule&) = delete;
+    ShaderModule& operator=(const ShaderModule&) = delete;
+
+    operator VkShaderModule() const { return module_; }
+
+   private:
+    void create(const void* spirv, size_t sizeBytes);
+
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkShaderModule module_ = VK_NULL_HANDLE;
+};
 
 struct GraphicsPipelineBuilder
 {
     GraphicsPipelineBuilder& shaders(VkShaderModule vs, VkShaderModule ps);
-    // Un binding de vertex buffer par attribut (le layout des meshes du
-    // moteur : position, normal, uv, tangent dans des buffers séparés)
     GraphicsPipelineBuilder& vertexAttribute(uint32_t location, VkFormat format, uint32_t stride);
     GraphicsPipelineBuilder& colorFormat(VkFormat format);
     GraphicsPipelineBuilder& depth(VkFormat format, bool write, VkCompareOp compare);
@@ -41,6 +48,5 @@ struct GraphicsPipelineBuilder
     VkCullModeFlags cullMode_ = VK_CULL_MODE_NONE;
 };
 
-// Viewport Y-up (hauteur négative) + scissor, pour les états dynamiques
 void setViewportYUp(VkCommandBuffer cmd, uint32_t width, uint32_t height);
 }  // namespace batap
