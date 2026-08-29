@@ -29,10 +29,9 @@ uint64_t alignUp(uint64_t v, uint64_t a)
 }
 }  // namespace
 
-void ResourceManager::init(VulkanContext& ctx, uint64_t stagingBytesPerFrame)
+ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFrame)
+    : ctx_(ctx), allocator_(ctx.allocator_)
 {
-    ctx_ = &ctx;
-    allocator_ = ctx.allocator_;
     destroyQueues_.resize(FramesInFlight);
 
     // ---- Staging rings, mappés en permanence ----
@@ -70,7 +69,7 @@ void ResourceManager::init(VulkanContext& ctx, uint64_t stagingBytesPerFrame)
     // turns grazing angles blurry.
     samplerInfo.anisotropyEnable = VK_TRUE;
     samplerInfo.maxAnisotropy = 16.0f;
-    if (vkCreateSampler(ctx_->device_, &samplerInfo, nullptr, &textureSampler_) != VK_SUCCESS)
+    if (vkCreateSampler(ctx_.device_, &samplerInfo, nullptr, &textureSampler_) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : sampler");
 
     textureCapacity_ = BindlessTextureCapacity;
@@ -105,7 +104,7 @@ void ResourceManager::init(VulkanContext& ctx, uint64_t stagingBytesPerFrame)
     layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     layoutInfo.bindingCount = 2;
     layoutInfo.pBindings = bindings;
-    if (vkCreateDescriptorSetLayout(ctx_->device_, &layoutInfo, nullptr, &textureSetLayout_) !=
+    if (vkCreateDescriptorSetLayout(ctx_.device_, &layoutInfo, nullptr, &textureSetLayout_) !=
         VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : bindless layout");
 
@@ -119,7 +118,7 @@ void ResourceManager::init(VulkanContext& ctx, uint64_t stagingBytesPerFrame)
     poolInfo.maxSets = 1;
     poolInfo.poolSizeCount = 2;
     poolInfo.pPoolSizes = poolSizes;
-    if (vkCreateDescriptorPool(ctx_->device_, &poolInfo, nullptr, &texturePool_) != VK_SUCCESS)
+    if (vkCreateDescriptorPool(ctx_.device_, &poolInfo, nullptr, &texturePool_) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : bindless pool");
 
     VkDescriptorSetVariableDescriptorCountAllocateInfo variableInfo{};
@@ -133,11 +132,11 @@ void ResourceManager::init(VulkanContext& ctx, uint64_t stagingBytesPerFrame)
     setInfo.descriptorPool = texturePool_;
     setInfo.descriptorSetCount = 1;
     setInfo.pSetLayouts = &textureSetLayout_;
-    if (vkAllocateDescriptorSets(ctx_->device_, &setInfo, &textureSet_) != VK_SUCCESS)
+    if (vkAllocateDescriptorSets(ctx_.device_, &setInfo, &textureSet_) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : bindless set");
 }
 
-void ResourceManager::shutdown()
+ResourceManager::~ResourceManager()
 {
     for (auto& [handle, buffer] : buffers_)
         destroyNow(buffer);
@@ -162,15 +161,11 @@ void ResourceManager::shutdown()
     staging_.clear();
 
     if (texturePool_)
-        vkDestroyDescriptorPool(ctx_->device_, texturePool_, nullptr);
+        vkDestroyDescriptorPool(ctx_.device_, texturePool_, nullptr);
     if (textureSetLayout_)
-        vkDestroyDescriptorSetLayout(ctx_->device_, textureSetLayout_, nullptr);
+        vkDestroyDescriptorSetLayout(ctx_.device_, textureSetLayout_, nullptr);
     if (textureSampler_)
-        vkDestroySampler(ctx_->device_, textureSampler_, nullptr);
-    texturePool_ = VK_NULL_HANDLE;
-    textureSetLayout_ = VK_NULL_HANDLE;
-    textureSet_ = VK_NULL_HANDLE;
-    textureSampler_ = VK_NULL_HANDLE;
+        vkDestroySampler(ctx_.device_, textureSampler_, nullptr);
 }
 
 ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes)
@@ -257,7 +252,7 @@ GPUResourceHandle ResourceManager::createImage2D(uint32_t width, uint32_t height
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = image.format;
     viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, image.mipLevels, 0, 1};
-    if (vkCreateImageView(ctx_->device_, &viewInfo, nullptr, &image.view) != VK_SUCCESS)
+    if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &image.view) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : image view");
 
     image.textureIndex = allocTextureIndex();
@@ -274,7 +269,7 @@ GPUResourceHandle ResourceManager::createImage2D(uint32_t width, uint32_t height
     write.descriptorCount = 1;
     write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     write.pImageInfo = &descriptor;
-    vkUpdateDescriptorSets(ctx_->device_, 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
 
     images_.emplace(handle, image);
     return handle;
@@ -513,12 +508,12 @@ VkBuffer ResourceManager::bufferFor(GPUResourceHandle handle)
 
 VkDevice ResourceManager::device() const
 {
-    return ctx_->device_;
+    return ctx_.device_;
 }
 
 uint32_t ResourceManager::currentFrame() const
 {
-    return ctx_->frameIndex_;
+    return ctx_.frameIndex_;
 }
 
 uint32_t ResourceManager::allocTextureIndex()
@@ -543,7 +538,7 @@ void ResourceManager::destroyNow(Buffer& b)
 void ResourceManager::destroyNow(Image& i)
 {
     if (i.view)
-        vkDestroyImageView(ctx_->device_, i.view, nullptr);
+        vkDestroyImageView(ctx_.device_, i.view, nullptr);
     if (i.image)
         vmaDestroyImage(allocator_, i.image, i.allocation);
     i.view = VK_NULL_HANDLE;

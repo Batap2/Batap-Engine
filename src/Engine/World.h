@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include "Renderer/SceneBinding.h"
 #include "Scene.h"
 
 namespace batap
@@ -19,6 +20,7 @@ struct World
     ~World();
 
     void update();
+    SceneRenderArgs renderArgs();
     bool loadScene(const std::string& path);
 
     std::unique_ptr<Scene> scene_;

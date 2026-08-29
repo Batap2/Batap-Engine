@@ -2,7 +2,7 @@
 
 #include <volk.h>
 
-#include "Renderer/SceneRenderer.h"  // SceneRenderArgs
+#include "Renderer/SceneBinding.h"  // SceneRenderArgs
 #include "Renderer/Vulkan/VulkanShaderCompiler.h"
 
 #include <cstdint>
@@ -24,9 +24,12 @@ struct ResourceManager;
 // Un seul pipeline layout pour les deux passes.
 struct ScenePasses
 {
-    void init(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
-              VkFormat depthFormat);
-    void shutdown(VkDevice device);
+    ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
+                VkFormat depthFormat);
+    ~ScenePasses();
+
+    ScenePasses(const ScenePasses&) = delete;
+    ScenePasses& operator=(const ScenePasses&) = delete;
 
     // À appeler entre vkCmdBeginRendering / EndRendering
     void record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, uint32_t height,
@@ -36,16 +39,17 @@ struct ScenePasses
     // libdxcompiler et reconstruit les pipelines (attend l'idle GPU).
     // En cas d'erreur HLSL, log et garde les pipelines courantes.
     // À appeler hors enregistrement de command buffer.
-    void checkHotReload(VkDevice device);
+    void checkHotReload();
 
    private:
     void writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engine& ctx);
     // Construit (ou reconstruit) les deux pipelines. Les modules restent la
     // propriété de l'appelant : build() ne fait que les lire.
-    void buildPipelines(VkDevice device, VkShaderModule vs, VkShaderModule ps,
-                        VkShaderModule skyVS, VkShaderModule skyPS);
+    void buildPipelines(VkShaderModule vs, VkShaderModule ps, VkShaderModule skyVS,
+                        VkShaderModule skyPS);
 
-    ResourceManager* resources_ = nullptr;
+    VulkanContext& ctx_;
+    ResourceManager& resources_;
     VkFormat colorFormat_ = VK_FORMAT_UNDEFINED;
     VkFormat depthFormat_ = VK_FORMAT_UNDEFINED;
 

@@ -9,7 +9,7 @@
 #include "Instance/EntityFactory.h"
 #include "Instance/InstanceManager.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/SceneRenderer.h"
+#include "Renderer/SceneBinding.h"
 #include "Serialization/EntitySerializer.h"
 #include "Systems/Systems.h"
 
@@ -35,16 +35,22 @@ World::World(Engine& ctx) : ctx_(&ctx)
                 [&](entt::entity e, Camera_C& c)
                 { instanceManager_->markDirty({&reg, e}, ComponentFlag::Camera); });
         });
+
+    bindScene(ctx, *this);
 }
 
 World::~World() = default;
+
+SceneRenderArgs World::renderArgs()
+{
+    return {&scene_->registry_, instanceManager_.get()};
+}
 
 void World::update()
 {
     scene_->update(ctx_->deltaTime_, *ctx_, *this);
     systems_->update(ctx_->deltaTime_, *ctx_, *this);
-    ctx_->sceneRenderer_->setScene({&scene_->registry_, instanceManager_.get()});
-    ctx_->sceneRenderer_->uploadDirty();
+    instanceManager_->uploadRemainingFrameDirty(*ctx_);
 }
 
 bool World::loadScene(const std::string& path)

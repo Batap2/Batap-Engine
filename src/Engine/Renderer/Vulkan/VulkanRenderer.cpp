@@ -2,23 +2,17 @@
 
 #include "VulkanBarrier.h"
 #include "VulkanMemory.h"
+#include "VulkanResources.h"
 #include "VulkanScenePasses.h"
 
 #include "Platform/PlatformWindow.h"
 #include "Renderer/EngineConfig.h"
 
-#include <imgui.h>
 #include <backends/imgui_impl_vulkan.h>
+#include <imgui.h>
 
-#if defined(__clang__)
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Weverything"
-#endif
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
-#if defined(__clang__)
-  #pragma clang diagnostic pop
-#endif
 
 #include <cstdlib>
 #include <iostream>
@@ -32,25 +26,18 @@ namespace
 constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
 }
 
-Renderer::Renderer(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeight,
-                   bool transparent)
+Renderer::Renderer(void* nativeWindow, bool transparent)
+    : swapchain_(ctx_, platformSurfaceHandle(nativeWindow), transparent)
 {
-    width_ = clientWidth;
-    height_ = clientHeight;
     transparent_ = transparent;
 
-    ctx_.init();
-    swapchain_.init(ctx_, platformSurfaceHandle(nativeWindow), transparent);
-    // La taille de rendu est celle de la swapchain, en pixels physiques —
-    // pas la taille client demandée (qui est en points sur un écran retina).
+    // Render size is the swapchain extent, in physical pixels — the requested
+    // client size is in points on a retina screen.
     width_ = swapchain_.extent_.width;
     height_ = swapchain_.extent_.height;
     createDepthBuffer();
 
-    // Le renderer possède le ResourceManager ; l'Engine en distribue le
-    // pointeur (AssetManager, InstanceManager) — même schéma que le DX12.
-    resources_ = std::make_unique<ResourceManager>();
-    resources_->init(ctx_);
+    resources_ = std::make_unique<ResourceManager>(ctx_);
     resourceManager_ = resources_.get();
 
     VkCommandPoolCreateInfo poolInfo{};
@@ -84,12 +71,11 @@ Renderer::Renderer(void* nativeWindow, uint32_t clientWidth, uint32_t clientHeig
     window_ = nativeWindow;
     initImGui();
 
-    std::cout << "[Vulkan] Renderer prêt — swapchain " << swapchain_.extent_.width << "x"
+    std::cout << "[Vulkan] Renderer ready — swapchain " << swapchain_.extent_.width << "x"
               << swapchain_.extent_.height << std::endl;
 }
 
-// Enregistre la copie swapchain -> buffer de readback (l'image doit être en
-// TRANSFER_SRC au moment de la copie)
+// The swapchain image must already be in TRANSFER_SRC when this runs.
 void Renderer::recordDumpCopy(VkCommandBuffer cmd, uint32_t imageIndex)
 {
     VkBufferCreateInfo bufferInfo{};
@@ -98,8 +84,8 @@ void Renderer::recordDumpCopy(VkCommandBuffer cmd, uint32_t imageIndex)
     bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocInfo.flags =
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT |
+                      VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VmaAllocationInfo mapped{};
     if (vmaCreateBuffer(ctx_.allocator_, &bufferInfo, &allocInfo, &dumpBuffer_, &dumpAllocation_,
@@ -126,8 +112,8 @@ void Renderer::writeDump()
     for (uint64_t i = 0; i < count; ++i)  // swapchain BGRA -> RGBA
         std::swap(px[i * 4 + 0], px[i * 4 + 2]);
 #pragma clang diagnostic pop
-    stbi_write_png("frame_dump.png", int(swapchain_.extent_.width),
-                   int(swapchain_.extent_.height), 4, px, int(swapchain_.extent_.width * 4));
+    stbi_write_png("frame_dump.png", int(swapchain_.extent_.width), int(swapchain_.extent_.height),
+                   4, px, int(swapchain_.extent_.width * 4));
     std::cout << "[Vulkan] frame_dump.png écrite (frame " << frameCounter_ << ")" << std::endl;
 
     vmaDestroyBuffer(ctx_.allocator_, dumpBuffer_, dumpAllocation_);
@@ -177,8 +163,8 @@ void Renderer::initImGui()
 
     platformImGuiInit(window_);
 
-    // Le backend dessine dans le rendering scope de la frame : sa pipeline
-    // doit déclarer les mêmes attachements (couleur swapchain + depth).
+    // The backend draws inside the frame's rendering scope: its pipeline must
+    // declare the same attachments (swapchain color + depth).
     ImGui_ImplVulkan_InitInfo info{};
     info.ApiVersion = VK_API_VERSION_1_3;
     info.Instance = ctx_.instance_;
@@ -186,7 +172,7 @@ void Renderer::initImGui()
     info.Device = ctx_.device_;
     info.QueueFamily = ctx_.graphicsQueueFamily_;
     info.Queue = ctx_.graphicsQueue_;
-    info.DescriptorPoolSize = 64;  // pool interne (fontes + textures ImGui)
+    info.DescriptorPoolSize = 64;
     info.MinImageCount = 2;
     info.ImageCount = static_cast<uint32_t>(swapchain_.images_.size());
     info.UseDynamicRendering = true;
@@ -194,7 +180,7 @@ void Renderer::initImGui()
     VkPipelineRenderingCreateInfo rendering{};
     rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering.colorAttachmentCount = 1;
-    rendering.pColorAttachmentFormats = &swapchain_.format_;  // deep-copié par le backend
+    rendering.pColorAttachmentFormats = &swapchain_.format_;  // deep-copied by the backend
     rendering.depthAttachmentFormat = DepthFormat;
     info.PipelineInfoMain.PipelineRenderingCreateInfo = rendering;
 
@@ -206,8 +192,8 @@ ScenePasses* Renderer::scenePasses()
 {
     if (!scenePasses_)
     {
-        scenePasses_ = std::make_unique<ScenePasses>();
-        scenePasses_->init(ctx_, *resources_, swapchain_.format_, DepthFormat);
+        scenePasses_ =
+            std::make_unique<ScenePasses>(ctx_, *resources_, swapchain_.format_, DepthFormat);
     }
     return scenePasses_.get();
 }
@@ -221,7 +207,6 @@ void Renderer::beginFrame()
 {
     swapchain_.waitFrame();
     resources_->beginFrame();
-    frameBegun_ = true;
 
     if (!imguiFrameOpen_)
     {
@@ -234,24 +219,17 @@ void Renderer::beginFrame()
 
 void Renderer::render()
 {
-    if (!frameBegun_)
-        beginFrame();
-    frameBegun_ = false;
-
     const uint32_t imageIndex = swapchain_.acquire();
     if (imageIndex == VulkanSwapchain::OutOfDate)
     {
-        // Swapchain périmée entre deux événements de resize : on recrée et on
-        // saute la frame (les uploads en attente partiront à la suivante).
         resize(0, 0);
         return;
     }
     const uint32_t frame = ctx_.frameIndex_;
 
-    // Hot reload shaders : vérification espacée (stat de 4 fichiers), et
-    // surtout hors enregistrement — la reconstruction attend l'idle GPU.
+    // Shader hot reload, outside command recording: a rebuild waits for GPU idle.
     if (scenePasses_ && frameCounter_ % 30 == 0)
-        scenePasses_->checkHotReload(ctx_.device_);
+        scenePasses_->checkHotReload();
 
     VkCommandBuffer cmd = commandBuffers_[frame];
     vkResetCommandBuffer(cmd, 0);
@@ -261,17 +239,15 @@ void Renderer::render()
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &beginInfo);
 
-    // Les uploads demandés pendant la frame CPU (assets, instances, arenas)
     resources_->flushUploads(cmd);
 
-    // Swapchain -> color attachment, depth -> depth attachment (contenus
-    // précédents jetés : loadOp CLEAR des deux côtés)
-    // Swapchain : from = ColorAttachment (pas None) pour que la transition
-    // s'accroche au stage où le sémaphore d'acquire est attendu
-    // (COLOR_ATTACHMENT_OUTPUT) — depuis TOP_OF_PIPE, sync validation signale
-    // un WRITE_AFTER_READ contre vkAcquireNextImageKHR.
-    // Le depth est partagé entre frames-in-flight : Discard jette son contenu
-    // mais on attend quand même les tests de profondeur de la frame d'avant.
+    // Discard already drops the contents, so `from` here only says what must
+    // finish before the transition — hence a real usage rather than None:
+    //   swapchain: None means TOP_OF_PIPE, earlier than the stage where the
+    //     acquire semaphore is waited (COLOR_ATTACHMENT_OUTPUT), so the
+    //     transition could overwrite an image the compositor is still reading.
+    //   depth: one image for all frames in flight — wait on the depth tests of
+    //     the previous frame before reusing it.
     BarrierBatch{}
         .image(swapchain_.images_[imageIndex], Usage::ColorAttachment, Usage::ColorAttachment,
                colorRange(), Discard::Yes)
@@ -285,7 +261,7 @@ void Renderer::render()
     color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    // Alpha 0 en transparent : le bureau se voit là où rien n'est dessiné
+    // Alpha 0 when transparent: the desktop shows through where nothing is drawn
     color.clearValue.color = {{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
 
     VkRenderingAttachmentInfo depth{};
@@ -316,12 +292,10 @@ void Renderer::render()
     vkCmdEndRendering(cmd);
 
     auto swapchainBarrier = [&](Usage from, Usage to)
-    {
-        BarrierBatch{}.image(swapchain_.images_[imageIndex], from, to, colorRange()).flush(cmd);
-    };
+    { BarrierBatch{}.image(swapchain_.images_[imageIndex], from, to, colorRange()).flush(cmd); };
 
-    const bool dumpThisFrame =
-        dumpAtFrame_ >= 0 && frameCounter_ == static_cast<uint64_t>(dumpAtFrame_);
+    const bool dumpThisFrame = dumpAtFrame_ >= 0 &&
+                               frameCounter_ == static_cast<uint64_t>(dumpAtFrame_);
     if (dumpThisFrame)
     {
         swapchainBarrier(Usage::ColorAttachment, Usage::TransferSrc);
@@ -347,13 +321,12 @@ void Renderer::resize(uint32_t w, uint32_t h)
     if (w == width_ && h == height_)
         return;
 
-    swapchain_.recreate();  // attend l'idle GPU, suit la taille de la surface
+    swapchain_.recreate();  // waits for GPU idle, follows the surface size
 
     vkDestroyImageView(ctx_.device_, depthView_, nullptr);
     vmaDestroyImage(ctx_.allocator_, depthImage_, depthAllocation_);
     createDepthBuffer();
 
-    // La swapchain fait foi (la surface peut clamper la taille demandée)
     width_ = swapchain_.extent_.width;
     height_ = swapchain_.extent_.height;
 
@@ -377,14 +350,9 @@ Renderer::~Renderer()
     ImGui_ImplVulkan_Shutdown();
     platformImGuiShutdown();
     ImGui::DestroyContext();
-    if (scenePasses_)
-        scenePasses_->shutdown(ctx_.device_);
     vkDestroyImageView(ctx_.device_, depthView_, nullptr);
     vmaDestroyImage(ctx_.allocator_, depthImage_, depthAllocation_);
     vkDestroyCommandPool(ctx_.device_, commandPool_, nullptr);
-    resources_->shutdown();
-    swapchain_.shutdown();
-    ctx_.shutdown();
 }
 
 }  // namespace batap

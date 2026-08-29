@@ -26,8 +26,12 @@ struct VulkanContext;
 // flushUploads, destroys happen a full frame cycle later.
 struct ResourceManager
 {
-    void init(VulkanContext& ctx, uint64_t stagingBytesPerFrame = StagingBytesPerFrame);
-    void shutdown();
+    explicit ResourceManager(VulkanContext& ctx,
+                             uint64_t stagingBytesPerFrame = StagingBytesPerFrame);
+    ~ResourceManager();
+
+    ResourceManager(const ResourceManager&) = delete;
+    ResourceManager& operator=(const ResourceManager&) = delete;
 
     GPUResourceHandle createStaticBuffer(uint64_t sizeBytes,
                                          std::optional<std::string_view> name = std::nullopt);
@@ -116,7 +120,7 @@ struct ResourceManager
     Buffer* getFrameBuffer(GPUResourceHandle handle, uint32_t frame);
     Image* getImage(GPUResourceHandle handle);
 
-    VulkanContext* ctx_ = nullptr;
+    VulkanContext& ctx_;
     VmaAllocator allocator_ = nullptr;
 
     // A handle lives in exactly one of these.

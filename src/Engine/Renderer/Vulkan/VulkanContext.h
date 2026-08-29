@@ -10,8 +10,11 @@ namespace batap
 {
 struct VulkanContext
 {
-    void init();
-    void shutdown();
+    VulkanContext();
+    ~VulkanContext();
+
+    VulkanContext(const VulkanContext&) = delete;
+    VulkanContext& operator=(const VulkanContext&) = delete;
 
     VkInstance instance_ = VK_NULL_HANDLE;
     VkDebugUtilsMessengerEXT debugMessenger_ = VK_NULL_HANDLE;

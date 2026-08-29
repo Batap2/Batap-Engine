@@ -6,7 +6,6 @@
 #include "Platform/PlatformWindow.h"
 #include "Reflection/ComponentRegistry.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/SceneRenderer.h"
 #include "Serialization/AssetFieldTypes.h"
 
 
@@ -51,11 +50,9 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
     inputManager_ = std::make_unique<InputManager>();
     lastTime_ = std::chrono::high_resolution_clock::now();
 
-    renderer_ = std::make_unique<Renderer>(window_, desc.width, desc.height, desc.transparent);
+    renderer_ = std::make_unique<Renderer>(window_, desc.transparent);
     assetManager_ = std::make_unique<AssetManager>(renderer_->resourceManager_);
     createDefaultAssets(*this);
-    sceneRenderer_ = std::make_unique<SceneRenderer>(*this);
-    sceneRenderer_->initRenderPasses();
 
     // `--project <dir>` is how dev launch configs point a build-tree exe at
     // its assets; without it, assets are expected next to the executable

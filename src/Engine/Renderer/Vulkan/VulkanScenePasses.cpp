@@ -46,13 +46,10 @@ struct DrawPush
 };
 }  // namespace
 
-void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
-                       VkFormat depthFormat)
+ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
+                         VkFormat depthFormat)
+    : ctx_(ctx), resources_(resources), colorFormat_(colorFormat), depthFormat_(depthFormat)
 {
-    resources_ = &resources;
-    colorFormat_ = colorFormat;
-    depthFormat_ = depthFormat;
-
     // ---- Set 1 : 5 storage buffers, visibles VS+PS ----
     std::array<VkDescriptorSetLayoutBinding, FrameSetBindingCount> bindings{};
     for (uint32_t i = 0; i < FrameSetBindingCount; ++i)
@@ -67,7 +64,7 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, VkFormat 
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = FrameSetBindingCount;
     layoutInfo.pBindings = bindings.data();
-    if (vkCreateDescriptorSetLayout(ctx.device_, &layoutInfo, nullptr, &frameSetLayout_) !=
+    if (vkCreateDescriptorSetLayout(ctx_.device_, &layoutInfo, nullptr, &frameSetLayout_) !=
         VK_SUCCESS)
         throw std::runtime_error("ScenePasses : frame set layout");
 
@@ -78,7 +75,7 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, VkFormat 
     poolInfo.maxSets = FramesInFlight;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
-    if (vkCreateDescriptorPool(ctx.device_, &poolInfo, nullptr, &framePool_) != VK_SUCCESS)
+    if (vkCreateDescriptorPool(ctx_.device_, &poolInfo, nullptr, &framePool_) != VK_SUCCESS)
         throw std::runtime_error("ScenePasses : frame pool");
 
     frameSets_.resize(FramesInFlight);
@@ -88,7 +85,7 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, VkFormat 
     setInfo.descriptorPool = framePool_;
     setInfo.descriptorSetCount = FramesInFlight;
     setInfo.pSetLayouts = layouts.data();
-    if (vkAllocateDescriptorSets(ctx.device_, &setInfo, frameSets_.data()) != VK_SUCCESS)
+    if (vkAllocateDescriptorSets(ctx_.device_, &setInfo, frameSets_.data()) != VK_SUCCESS)
         throw std::runtime_error("ScenePasses : frame sets");
 
     // ---- Pipeline layout partagé (set 0 bindless + set 1 + push) ----
@@ -96,33 +93,33 @@ void ScenePasses::init(VulkanContext& ctx, ResourceManager& resources, VkFormat 
     pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushRange.size = sizeof(DrawPush);
 
-    const VkDescriptorSetLayout setLayouts[2] = {resources.textureSetLayout(), frameSetLayout_};
+    const VkDescriptorSetLayout setLayouts[2] = {resources_.textureSetLayout(), frameSetLayout_};
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 2;
     pipelineLayoutInfo.pSetLayouts = setLayouts;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushRange;
-    if (vkCreatePipelineLayout(ctx.device_, &pipelineLayoutInfo, nullptr, &pipelineLayout_) !=
+    if (vkCreatePipelineLayout(ctx_.device_, &pipelineLayoutInfo, nullptr, &pipelineLayout_) !=
         VK_SUCCESS)
         throw std::runtime_error("ScenePasses : pipeline layout");
 
     // ---- Pipelines (SPIR-V compilé au build, à côté de l'exe) ----
     const std::string shaderDir = resolveEngineFile("shaders", "shaders");
-    const ShaderModule vs{ctx.device_, shaderDir + "/VertexShader.spv"};
-    const ShaderModule ps{ctx.device_, shaderDir + "/PixelShader.spv"};
-    const ShaderModule skyVS{ctx.device_, shaderDir + "/SkyVS.spv"};
-    const ShaderModule skyPS{ctx.device_, shaderDir + "/SkyPS.spv"};
-    buildPipelines(ctx.device_, vs, ps, skyVS, skyPS);
+    const ShaderModule vs{ctx_.device_, shaderDir + "/VertexShader.spv"};
+    const ShaderModule ps{ctx_.device_, shaderDir + "/PixelShader.spv"};
+    const ShaderModule skyVS{ctx_.device_, shaderDir + "/SkyVS.spv"};
+    const ShaderModule skyPS{ctx_.device_, shaderDir + "/SkyPS.spv"};
+    buildPipelines(vs, ps, skyVS, skyPS);
 }
 
-void ScenePasses::buildPipelines(VkDevice device, VkShaderModule vs, VkShaderModule ps,
-                                 VkShaderModule skyVS, VkShaderModule skyPS)
+void ScenePasses::buildPipelines(VkShaderModule vs, VkShaderModule ps, VkShaderModule skyVS,
+                                 VkShaderModule skyPS)
 {
     if (geometryPipeline_)
-        vkDestroyPipeline(device, geometryPipeline_, nullptr);
+        vkDestroyPipeline(ctx_.device_, geometryPipeline_, nullptr);
     if (skyPipeline_)
-        vkDestroyPipeline(device, skyPipeline_, nullptr);
+        vkDestroyPipeline(ctx_.device_, skyPipeline_, nullptr);
 
     geometryPipeline_ = GraphicsPipelineBuilder()
                             .shaders(vs, ps)
@@ -135,7 +132,7 @@ void ScenePasses::buildPipelines(VkDevice device, VkShaderModule vs, VkShaderMod
                             .colorFormat(colorFormat_)
                             .depth(depthFormat_, true, VK_COMPARE_OP_LESS)
                             .cullBack()
-                            .build(device, pipelineLayout_);
+                            .build(ctx_.device_, pipelineLayout_);
 
     // Le sky se dessine après la geometry, derrière elle (LESS_EQUAL sur la
     // depth à 1.0, sans écriture) — même logique que le PSO sky DX12
@@ -143,10 +140,10 @@ void ScenePasses::buildPipelines(VkDevice device, VkShaderModule vs, VkShaderMod
                        .shaders(skyVS, skyPS)
                        .colorFormat(colorFormat_)
                        .depth(depthFormat_, false, VK_COMPARE_OP_LESS_OR_EQUAL)
-                       .build(device, pipelineLayout_);
+                       .build(ctx_.device_, pipelineLayout_);
 }
 
-void ScenePasses::checkHotReload(VkDevice device)
+void ScenePasses::checkHotReload()
 {
     namespace fs = std::filesystem;
 
@@ -193,22 +190,22 @@ void ScenePasses::checkHotReload(VkDevice device)
         }
     }
 
-    vkDeviceWaitIdle(device);
-    const ShaderModule vs{device, spirv[0].data(), spirv[0].size()};
-    const ShaderModule ps{device, spirv[1].data(), spirv[1].size()};
-    const ShaderModule skyVS{device, spirv[2].data(), spirv[2].size()};
-    const ShaderModule skyPS{device, spirv[3].data(), spirv[3].size()};
-    buildPipelines(device, vs, ps, skyVS, skyPS);
+    vkDeviceWaitIdle(ctx_.device_);
+    const ShaderModule vs{ctx_.device_, spirv[0].data(), spirv[0].size()};
+    const ShaderModule ps{ctx_.device_, spirv[1].data(), spirv[1].size()};
+    const ShaderModule skyVS{ctx_.device_, spirv[2].data(), spirv[2].size()};
+    const ShaderModule skyPS{ctx_.device_, spirv[3].data(), spirv[3].size()};
+    buildPipelines(vs, ps, skyVS, skyPS);
     std::cout << "[ShaderCompiler] shaders rechargés" << std::endl;
 }
 
-void ScenePasses::shutdown(VkDevice device)
+ScenePasses::~ScenePasses()
 {
-    vkDestroyPipeline(device, geometryPipeline_, nullptr);
-    vkDestroyPipeline(device, skyPipeline_, nullptr);
-    vkDestroyPipelineLayout(device, pipelineLayout_, nullptr);
-    vkDestroyDescriptorPool(device, framePool_, nullptr);
-    vkDestroyDescriptorSetLayout(device, frameSetLayout_, nullptr);
+    vkDestroyPipeline(ctx_.device_, geometryPipeline_, nullptr);
+    vkDestroyPipeline(ctx_.device_, skyPipeline_, nullptr);
+    vkDestroyPipelineLayout(ctx_.device_, pipelineLayout_, nullptr);
+    vkDestroyDescriptorPool(ctx_.device_, framePool_, nullptr);
+    vkDestroyDescriptorSetLayout(ctx_.device_, frameSetLayout_, nullptr);
 }
 
 void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engine& ctx)
@@ -216,11 +213,11 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     auto* instanceM = args.instanceManager_;
 
     const std::array<VkBuffer, FrameSetBindingCount> buffers = {
-        resources_->bufferFor(instanceM->pool<CameraInstance>().instancePoolHandle_),
-        resources_->bufferFor(instanceM->pool<StaticMeshInstance>().instancePoolHandle_),
-        resources_->bufferFor(instanceM->pool<PointLightInstance>().instancePoolHandle_),
-        resources_->bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle()),
-        resources_->bufferFor(instanceM->pool<SkyboxInstance>().instancePoolHandle_),
+        resources_.bufferFor(instanceM->pool<CameraInstance>().instancePoolHandle_),
+        resources_.bufferFor(instanceM->pool<StaticMeshInstance>().instancePoolHandle_),
+        resources_.bufferFor(instanceM->pool<PointLightInstance>().instancePoolHandle_),
+        resources_.bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle()),
+        resources_.bufferFor(instanceM->pool<SkyboxInstance>().instancePoolHandle_),
     };
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
@@ -237,7 +234,7 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
         writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writes[i].pBufferInfo = &bufferInfos[i];
     }
-    vkUpdateDescriptorSets(resources_->device(), FrameSetBindingCount, writes.data(), 0, nullptr);
+    vkUpdateDescriptorSets(ctx_.device_, FrameSetBindingCount, writes.data(), 0, nullptr);
 }
 
 void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, uint32_t height,
@@ -266,7 +263,7 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
 
     setViewportYUp(cmd, width, height);
 
-    const VkDescriptorSet sets[2] = {resources_->textureSet(), frameSets_[frame]};
+    const VkDescriptorSet sets[2] = {resources_.textureSet(), frameSets_[frame]};
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 2, sets, 0,
                             nullptr);
 
@@ -294,7 +291,7 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
             // One resolution for the whole mesh: every stream is in the same
             // buffer, only the offsets differ — and they are already stored in
             // binding order.
-            const VkBuffer meshBuffer = resources_->bufferFor(mesh->buffer_);
+            const VkBuffer meshBuffer = resources_.bufferFor(mesh->buffer_);
             const std::array<VkBuffer, Mesh::VertexStreams> vertexBuffers{
                 meshBuffer, meshBuffer, meshBuffer, meshBuffer};
 

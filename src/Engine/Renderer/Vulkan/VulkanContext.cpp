@@ -27,7 +27,7 @@ constexpr bool UseValidation = false;
 #endif
 }  // namespace
 
-void VulkanContext::init()
+VulkanContext::VulkanContext()
 {
     if (volkInitialize() != VK_SUCCESS)
         throw std::runtime_error("Unable to find Vulkan loader (volkInitialize)");
@@ -107,7 +107,7 @@ void VulkanContext::init()
         throw std::runtime_error("vmaCreateAllocator");
 }
 
-void VulkanContext::shutdown()
+VulkanContext::~VulkanContext()
 {
     if (allocator_)
     {

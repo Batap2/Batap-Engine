@@ -11,7 +11,6 @@ namespace batap
 {
 struct Renderer;
 struct InputManager;
-struct SceneRenderer;
 struct AssetManager;
 struct Engine;
 
@@ -62,7 +61,6 @@ struct Engine
 
     std::unique_ptr<Renderer> renderer_;
     std::unique_ptr<InputManager> inputManager_;
-    std::unique_ptr<SceneRenderer> sceneRenderer_;
     std::unique_ptr<AssetManager> assetManager_;
 
     float deltaTime_ = 0;

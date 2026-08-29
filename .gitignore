@@ -4,3 +4,4 @@ build
 GameExemple/scenes/sponza
 compile_commands.json
 CMakeCache.txt
+frame_dump.png

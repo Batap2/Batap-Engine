@@ -9,35 +9,26 @@ namespace batap
 {
 struct VulkanContext;
 
-// Surface + swapchain + synchro de présentation.
-// L'équivalent de : IDXGISwapChain4 + waitable object + les fences de frame.
-//
-// nativeLayer : sur mac, un CAMetalLayer* (posé par la couche fenêtre —
-// PlatformWindow) ; sur Windows ce sera le HWND via VK_KHR_win32_surface.
-//
-// Boucle type :
-//   uint32_t imageIndex = sc.acquire();          // bloque sur la fence de frame
-//   ... enregistrer cmd sur l'image imageIndex ...
-//   sc.submit(cmd, queue);                        // wait acquire, signal render
-//   sc.present(queue, imageIndex);                // wait render
 struct VulkanSwapchain
 {
-    // acquire() rend cette valeur quand la swapchain est périmée (resize) :
-    // l'appelant recrée et saute la frame.
+    // Returned by acquire() once the swapchain is out of date (resize): the
+    // caller recreates it and skips the frame.
     static constexpr uint32_t OutOfDate = UINT32_MAX;
 
-    // transparent : demande une composition avec alpha (POST/PRE_MULTIPLIED
-    // selon ce que le driver expose) ; retombe sur OPAQUE s'il n'offre rien.
-    void init(VulkanContext& ctx, void* nativeLayer, bool transparent = false);
-    void shutdown();
+    // nativeLayer: a CAMetalLayer* on mac, the HWND on Windows.
+    // transparent: alpha composition when the driver exposes it, OPAQUE otherwise.
+    VulkanSwapchain(VulkanContext& ctx, void* nativeLayer, bool transparent = false);
+    ~VulkanSwapchain();
 
-    // Recrée la swapchain à la taille courante de la surface (attend que le
-    // GPU soit idle). No-op si la surface a une dimension nulle (minimisée).
+    VulkanSwapchain(const VulkanSwapchain&) = delete;
+    VulkanSwapchain& operator=(const VulkanSwapchain&) = delete;
+
+    // Waits for the GPU to go idle. No-op when the surface has a null extent
+    // (minimised).
     void recreate();
 
-    // Attend (et reset) la fence CPU du slot de frame courant — séparé
-    // d'acquire() pour pouvoir recycler staging/destructions en début de
-    // frame CPU, avant que les uploads ne soient écrits. Idempotent.
+    // Split out of acquire() so staging and pending destroys can be recycled at
+    // the start of the CPU frame, before the uploads are written. Idempotent.
     void waitFrame();
     uint32_t acquire();
     void submit(VkCommandBuffer cmd, VkQueue queue);
@@ -49,12 +40,10 @@ struct VulkanSwapchain
     std::vector<VkImageView> views_;
 
    private:
-    // Crée (ou recrée, via oldSwapchain) la swapchain + images/views/sémaphores
-    // de rendu à la taille courante de la surface.
     bool createSwapchain();
     void destroyImageResources();
 
-    VulkanContext* ctx_ = nullptr;
+    VulkanContext& ctx_;
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
 
@@ -62,9 +51,8 @@ struct VulkanSwapchain
     bool frameWaited_ = false;
     bool transparent_ = false;
 
-    // Par frame en vol : sémaphore d'acquire + fence CPU.
-    // Par image de swapchain : sémaphore de fin de rendu (exigence de la spec :
-    // present peut attendre un sémaphore encore associé à l'image).
+    // Acquire is per frame in flight; render is per image, because present may
+    // wait on a semaphore still tied to that image (spec requirement).
     std::vector<VkSemaphore> acquireSemaphores_;
     std::vector<VkSemaphore> renderSemaphores_;
     std::vector<VkFence> frameFences_;

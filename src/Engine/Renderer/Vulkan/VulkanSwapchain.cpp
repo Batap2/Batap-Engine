@@ -17,23 +17,21 @@
 namespace batap
 {
 
-void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, bool transparent)
+VulkanSwapchain::VulkanSwapchain(VulkanContext& ctx, void* nativeLayer, bool transparent)
+    : ctx_(ctx), transparent_(transparent)
 {
-    ctx_ = &ctx;
-    transparent_ = transparent;
-
 #if defined(VK_USE_PLATFORM_METAL_EXT)
     VkMetalSurfaceCreateInfoEXT surfaceInfo{};
     surfaceInfo.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
     surfaceInfo.pLayer = static_cast<const CAMetalLayer*>(nativeLayer);
-    if (vkCreateMetalSurfaceEXT(ctx.instance_, &surfaceInfo, nullptr, &surface_) != VK_SUCCESS)
+    if (vkCreateMetalSurfaceEXT(ctx_.instance_, &surfaceInfo, nullptr, &surface_) != VK_SUCCESS)
         throw std::runtime_error("VulkanSwapchain : vkCreateMetalSurfaceEXT");
 #elif defined(VK_USE_PLATFORM_WIN32_KHR)
     VkWin32SurfaceCreateInfoKHR surfaceInfo{};
     surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     surfaceInfo.hinstance = ::GetModuleHandleW(nullptr);
     surfaceInfo.hwnd = static_cast<HWND>(nativeLayer);  // platformSurfaceHandle = le HWND
-    if (vkCreateWin32SurfaceKHR(ctx.instance_, &surfaceInfo, nullptr, &surface_) != VK_SUCCESS)
+    if (vkCreateWin32SurfaceKHR(ctx_.instance_, &surfaceInfo, nullptr, &surface_) != VK_SUCCESS)
         throw std::runtime_error("VulkanSwapchain : vkCreateWin32SurfaceKHR");
 #else
     (void)nativeLayer;
@@ -41,7 +39,7 @@ void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, bool transpare
 #endif
 
     VkBool32 presentSupported = VK_FALSE;
-    vkGetPhysicalDeviceSurfaceSupportKHR(ctx.physicalDevice_, ctx.graphicsQueueFamily_, surface_,
+    vkGetPhysicalDeviceSurfaceSupportKHR(ctx_.physicalDevice_, ctx_.graphicsQueueFamily_, surface_,
                                          &presentSupported);
     if (!presentSupported)
         throw std::runtime_error("VulkanSwapchain : graphics queue cannot present");
@@ -56,9 +54,9 @@ void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, bool transpare
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // first frame don't wait
 
     for (auto& s : acquireSemaphores_)
-        vkCreateSemaphore(ctx.device_, &semInfo, nullptr, &s);
+        vkCreateSemaphore(ctx_.device_, &semInfo, nullptr, &s);
     for (auto& f : frameFences_)
-        vkCreateFence(ctx.device_, &fenceInfo, nullptr, &f);
+        vkCreateFence(ctx_.device_, &fenceInfo, nullptr, &f);
 
     if (!createSwapchain())
         throw std::runtime_error("VulkanSwapchain : null surface size");
@@ -67,15 +65,15 @@ void VulkanSwapchain::init(VulkanContext& ctx, void* nativeLayer, bool transpare
 bool VulkanSwapchain::createSwapchain()
 {
     VkSurfaceCapabilitiesKHR caps{};
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx_->physicalDevice_, surface_, &caps);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx_.physicalDevice_, surface_, &caps);
     if (caps.currentExtent.width == 0 || caps.currentExtent.height == 0)
         return false;  // minimised : keep old swapchain
     extent_ = caps.currentExtent;
 
     uint32_t formatCount = 0;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(ctx_->physicalDevice_, surface_, &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(ctx_.physicalDevice_, surface_, &formatCount, nullptr);
     std::vector<VkSurfaceFormatKHR> formats(formatCount);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(ctx_->physicalDevice_, surface_, &formatCount,
+    vkGetPhysicalDeviceSurfaceFormatsKHR(ctx_.physicalDevice_, surface_, &formatCount,
                                          formats.data());
 
     VkSurfaceFormatKHR chosen = formats[0];
@@ -90,10 +88,10 @@ bool VulkanSwapchain::createSwapchain()
         imageCount = std::min(imageCount, caps.maxImageCount);
 
     uint32_t presentModeCount = 0;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(ctx_->physicalDevice_, surface_, &presentModeCount,
+    vkGetPhysicalDeviceSurfacePresentModesKHR(ctx_.physicalDevice_, surface_, &presentModeCount,
                                               nullptr);
     std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(ctx_->physicalDevice_, surface_, &presentModeCount,
+    vkGetPhysicalDeviceSurfacePresentModesKHR(ctx_.physicalDevice_, surface_, &presentModeCount,
                                               presentModes.data());
 
     auto hasMode = [&](VkPresentModeKHR m)
@@ -136,17 +134,17 @@ bool VulkanSwapchain::createSwapchain()
     swapchainInfo.presentMode = presentMode;
     swapchainInfo.clipped = VK_TRUE;
     swapchainInfo.oldSwapchain = oldSwapchain;
-    if (vkCreateSwapchainKHR(ctx_->device_, &swapchainInfo, nullptr, &swapchain_) != VK_SUCCESS)
+    if (vkCreateSwapchainKHR(ctx_.device_, &swapchainInfo, nullptr, &swapchain_) != VK_SUCCESS)
         throw std::runtime_error("VulkanSwapchain : vkCreateSwapchainKHR");
 
     destroyImageResources();
     if (oldSwapchain)
-        vkDestroySwapchainKHR(ctx_->device_, oldSwapchain, nullptr);
+        vkDestroySwapchainKHR(ctx_.device_, oldSwapchain, nullptr);
 
     uint32_t count = 0;
-    vkGetSwapchainImagesKHR(ctx_->device_, swapchain_, &count, nullptr);
+    vkGetSwapchainImagesKHR(ctx_.device_, swapchain_, &count, nullptr);
     images_.resize(count);
-    vkGetSwapchainImagesKHR(ctx_->device_, swapchain_, &count, images_.data());
+    vkGetSwapchainImagesKHR(ctx_.device_, swapchain_, &count, images_.data());
 
     views_.resize(count);
     for (uint32_t i = 0; i < count; ++i)
@@ -157,7 +155,7 @@ bool VulkanSwapchain::createSwapchain()
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = format_;
         viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-        if (vkCreateImageView(ctx_->device_, &viewInfo, nullptr, &views_[i]) != VK_SUCCESS)
+        if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &views_[i]) != VK_SUCCESS)
             throw std::runtime_error("VulkanSwapchain : image view");
     }
 
@@ -165,55 +163,51 @@ bool VulkanSwapchain::createSwapchain()
     semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     renderSemaphores_.resize(count);
     for (auto& s : renderSemaphores_)
-        vkCreateSemaphore(ctx_->device_, &semInfo, nullptr, &s);
+        vkCreateSemaphore(ctx_.device_, &semInfo, nullptr, &s);
 
     return true;
 }
 
 // Détruit ce qui dépend des images de la swapchain (views + sémaphores de
-// rendu) — appelé avant recréation et au shutdown.
+// rendu) — appelé avant recréation et au destructeur.
 void VulkanSwapchain::destroyImageResources()
 {
     for (auto s : renderSemaphores_)
-        vkDestroySemaphore(ctx_->device_, s, nullptr);
+        vkDestroySemaphore(ctx_.device_, s, nullptr);
     renderSemaphores_.clear();
     for (auto v : views_)
-        vkDestroyImageView(ctx_->device_, v, nullptr);
+        vkDestroyImageView(ctx_.device_, v, nullptr);
     views_.clear();
     images_.clear();
 }
 
 void VulkanSwapchain::recreate()
 {
-    vkDeviceWaitIdle(ctx_->device_);
+    vkDeviceWaitIdle(ctx_.device_);
     createSwapchain();
 }
 
-void VulkanSwapchain::shutdown()
+VulkanSwapchain::~VulkanSwapchain()
 {
     for (auto s : acquireSemaphores_)
-        vkDestroySemaphore(ctx_->device_, s, nullptr);
+        vkDestroySemaphore(ctx_.device_, s, nullptr);
     for (auto f : frameFences_)
-        vkDestroyFence(ctx_->device_, f, nullptr);
-    acquireSemaphores_.clear();
-    frameFences_.clear();
+        vkDestroyFence(ctx_.device_, f, nullptr);
 
     destroyImageResources();
 
     if (swapchain_)
-        vkDestroySwapchainKHR(ctx_->device_, swapchain_, nullptr);
+        vkDestroySwapchainKHR(ctx_.device_, swapchain_, nullptr);
     if (surface_)
-        vkDestroySurfaceKHR(ctx_->instance_, surface_, nullptr);
-    swapchain_ = VK_NULL_HANDLE;
-    surface_ = VK_NULL_HANDLE;
+        vkDestroySurfaceKHR(ctx_.instance_, surface_, nullptr);
 }
 
 void VulkanSwapchain::waitFrame()
 {
     if (frameWaited_)
         return;
-    vkWaitForFences(ctx_->device_, 1, &frameFences_[ctx_->frameIndex_], VK_TRUE, UINT64_MAX);
-    vkResetFences(ctx_->device_, 1, &frameFences_[ctx_->frameIndex_]);
+    vkWaitForFences(ctx_.device_, 1, &frameFences_[ctx_.frameIndex_], VK_TRUE, UINT64_MAX);
+    vkResetFences(ctx_.device_, 1, &frameFences_[ctx_.frameIndex_]);
     frameWaited_ = true;
 }
 
@@ -223,8 +217,8 @@ uint32_t VulkanSwapchain::acquire()
 
     uint32_t imageIndex = 0;
     const VkResult result =
-        vkAcquireNextImageKHR(ctx_->device_, swapchain_, UINT64_MAX,
-                              acquireSemaphores_[ctx_->frameIndex_], VK_NULL_HANDLE, &imageIndex);
+        vkAcquireNextImageKHR(ctx_.device_, swapchain_, UINT64_MAX,
+                              acquireSemaphores_[ctx_.frameIndex_], VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
         return OutOfDate;
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -241,13 +235,13 @@ void VulkanSwapchain::submit(VkCommandBuffer cmd, VkQueue queue)
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &acquireSemaphores_[ctx_->frameIndex_];
+    submitInfo.pWaitSemaphores = &acquireSemaphores_[ctx_.frameIndex_];
     submitInfo.pWaitDstStageMask = &waitStage;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &renderSemaphores_[lastAcquired_];
-    if (vkQueueSubmit(queue, 1, &submitInfo, frameFences_[ctx_->frameIndex_]) != VK_SUCCESS)
+    if (vkQueueSubmit(queue, 1, &submitInfo, frameFences_[ctx_.frameIndex_]) != VK_SUCCESS)
         throw std::runtime_error("VulkanSwapchain : vkQueueSubmit");
 }
 
@@ -266,7 +260,7 @@ void VulkanSwapchain::present(VkQueue queue, uint32_t imageIndex)
         result != VK_ERROR_OUT_OF_DATE_KHR)
         throw std::runtime_error("VulkanSwapchain : vkQueuePresentKHR");
 
-    ctx_->frameIndex_ = (ctx_->frameIndex_ + 1) % FramesInFlight;
+    ctx_.frameIndex_ = (ctx_.frameIndex_ + 1) % FramesInFlight;
     frameWaited_ = false;
 }
 
