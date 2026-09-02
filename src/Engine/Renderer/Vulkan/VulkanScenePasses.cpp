@@ -134,8 +134,7 @@ void ScenePasses::buildPipelines(VkShaderModule vs, VkShaderModule ps, VkShaderM
                             .cullBack()
                             .build(ctx_.device_, pipelineLayout_);
 
-    // Le sky se dessine après la geometry, derrière elle (LESS_EQUAL sur la
-    // depth à 1.0, sans écriture) — même logique que le PSO sky DX12
+
     skyPipeline_ = GraphicsPipelineBuilder()
                        .shaders(skyVS, skyPS)
                        .colorFormat(colorFormat_)
@@ -180,8 +179,8 @@ void ScenePasses::checkHotReload()
     std::array<std::vector<uint8_t>, 4> spirv;
     for (size_t i = 0; i < stages.size(); ++i)
     {
-        spirv[i] = shaderCompiler_.compile((sourceDir / stages[i].file).string(),
-                                           stages[i].target);
+        spirv[i] = ctx_.shaderCompiler_.compile((sourceDir / stages[i].file).string(),
+                                                stages[i].target);
         if (spirv[i].empty())
         {
             std::cerr << "[ShaderCompiler] " << stages[i].file
@@ -196,7 +195,7 @@ void ScenePasses::checkHotReload()
     const ShaderModule skyVS{ctx_.device_, spirv[2].data(), spirv[2].size()};
     const ShaderModule skyPS{ctx_.device_, spirv[3].data(), spirv[3].size()};
     buildPipelines(vs, ps, skyVS, skyPS);
-    std::cout << "[ShaderCompiler] shaders rechargés" << std::endl;
+    std::cout << "[ShaderCompiler] shaders reloaded" << std::endl;
 }
 
 ScenePasses::~ScenePasses()
@@ -245,7 +244,6 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
     if (!reg)
         return;
 
-    // Caméra active — sans elle, rien à dessiner (comme la passe DX12)
     EntityHandle cam;
     reg->view<Camera_C, Transform_C>().each(
         [&](entt::entity e, Camera_C& c, Transform_C&)

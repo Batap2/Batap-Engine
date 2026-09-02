@@ -57,7 +57,7 @@ le budget d'effort.
 - [X] 5. `VulkanShaderCompiler.h/.cpp` (32+197) — HLSL → SPIR-V
 - [X] 6. `VulkanPipelines.h/.cpp` (46+187) — assemblage shaders + états
 - [X] 7. `VulkanRenderer.h/.cpp` (99+430) — le chef d'orchestre qui tient 1→6
-- [ ] 8. `VulkanScenePasses.h/.cpp` (62+350) + `VulkanSceneRenderer.cpp` (27) — les passes
+- [X] 8. `VulkanScenePasses.h/.cpp` (62+350) + `VulkanSceneRenderer.cpp` (27) — les passes
       de rendu de la scène
 
 ## Phase 3 — Tracer une frame (c'est ici que les *liens* se comprennent)
@@ -75,6 +75,8 @@ d'appels sur papier :
 - [ ] Le resize de fenêtre : qui détecte, qui recrée quoi
 
 Test de sortie : tu dois pouvoir dessiner le graphe d'appels d'une frame sans ouvrir les fichiers.
+
+réponse : nextframe() -> flush uploads -> acquire -> binds -> shader -> present (j'ai tout lu mais c'est hardcore)
 
 ## Phase 4 — Les fichiers retouchés, en diff uniquement (`git diff main...vulkan -- <fichier>`)
 
@@ -110,32 +112,66 @@ Si tu sais répondre à tout ça sans ouvrir le code, c'est gagné. Coche par bl
 ### Architecture & décisions
 
 - [ ] 1. Pourquoi volk, vk-bootstrap et VMA plutôt que du Vulkan brut ? Que fait chacun exactement ?
+C'est des wrappers pour vulkan, ça facilite le dev.
+volk ça implémente les fonctions vkxxx
+vk bootstrap c'est des helpers pour aider a construire les objets vulkan, comme dxx
+vma c'est pour gérer la mémoire, les pool allocattion etc
+
 - [ ] 2. Pourquoi avoir gardé les shaders en HLSL au lieu de passer à GLSL ? Quel outil fait HLSL → SPIR-V, et à quel moment (build ? runtime ?) ?
+parce que hlsl est globalement mieux, template, fonction membre etc et j'avais déjà les shader en hlsl
 - [ ] 3. Pourquoi `ResourceDescriptorHeap` (le bindless SM 6.6 de DX12) n'était pas utilisable, et par quoi est-il remplacé ?
+je ne sais pas pourquoi il n'était pas utilisable ? il me semblait que je faisais déjà du bindless en dx12. aujourd'hui on utilise un descriptorpool et des flag pour dire qu'il est editable au runtime
 - [ ] 4. Qu'est-ce que « l'étape A — frontière scellée » a changé concrètement ? Cite deux fonctions de l'API neutre du `ResourceManager`.
+
+on a isoler tout les appel a l'api vulkan, et du coup on a une api moteur neutre de vulkan. genre requestUpload et createImage
+
 - [ ] 5. Pourquoi `ResourceFormat` garde-t-il ses valeurs DXGI alors que DX12 est mort ? Comment la traduction vers Vulkan est-elle faite ?
+
+bah j'en sais rien, c'est des types qui sont fonctionnels et voila
+
 - [ ] 6. Quelle version minimum de Vulkan est requise, et quelle feature de cette version supprime le besoin de render passes ?
+
+1.3, le dynamic rendering enlever le besoin de render pass fixe a la compilation
 
 ### Contexte & initialisation
 
 - [ ] 7. Dans quel ordre le contexte s'initialise-t-il (instance, surface, device, queues, allocateur) et qui crée quoi ?
+
+surface : créé par win32 ou cocoa
+decide -> allocateurs -> queues
+
 - [ ] 8. Où les validation layers sont-elles activées, et dans quels builds ?
+
+en debug; a la creation du device avec un flag set par le build
+
 - [ ] 9. `Renderer::init` prend un `void*` — c'est quoi, et pourquoi ce type ?
+
+le pointeur vers la surface, void* pour acceuillir HWND ou un CAMlayer de macos
 
 ### Ressources & bindless
 
 - [ ] 10. Pourquoi les buffers n'ont-ils pas d'objets « view » dans le design Vulkan, alors que DX12 en avait ?
+
+jsp
+
 - [ ] 11. Décris le set bindless : combien de sets, quel type de descripteurs, quels flags le rendent « partially bound » et « update-after-bind » ?
 - [ ] 12. Comment une texture obtient-elle son `bindlessIndex`, et comment un shader s'en sert-il (par quel canal l'index arrive-t-il au shader) ?
 - [ ] 13. C'est quoi le staging ring ? Pourquoi « mappé zéro-copie » est-il mieux que ce que faisait la version DX12 ?
+c'est un gros buffer en bump allocation qui est host visible, on écrit les data qu'on veut transmettre aux buffers gpu la dedans et apres au debut de la frame on fait des dma de toutes zones du staging vers le buffers. je sais pas pourquoi c'est opti
 - [ ] 14. Comment marche la destruction différée ? Pourquoi ne peut-on pas détruire un buffer immédiatement, et qu'est-ce qui décide qu'un slot est libérable ?
-- [ ] 15. Quelle est la différence entre `createStaticBuffer` et `createFrameStructuredBuffer` ? Lequel est multiplié par le nombre de frames in-flight, et pourquoi ?
+detruire a la fin de la frame, la frame utilile les buffer donc faut pas les suppr quand ils sont use
+- [ ] 15. Quelle est la différence entre `createStaticBuffer` et `createFrameStructuredBuffer` ?
+static c'est un biffer uniquae, frame c'est une duplication un par frame in flight, opti pour le frame in flight, c'est tout le principe, ne pas attendnre que les ressources soient libre pour commencer la prochaine frame
+
 - [ ] 16. Quel trajet fait une texture du PNG sur disque jusqu'à être samplée dans un shader ? (fichiers + fonctions traversés)
+png -> btex -> createImage2D -> miss dans le tableau bindless de texture, -> bind index au shader
 
 ### Swapchain & synchronisation
 
 - [ ] 17. Combien d'images dans la swapchain, quel mode de présentation, et pourquoi ce choix ?
+3, direct, parce que j'avais envie
 - [ ] 18. Sémaphores par image mais fences par frame : pourquoi cette asymétrie ? Que protège chacun ?
+les semaphores 
 - [ ] 19. Que se passe-t-il exactement quand la fenêtre est redimensionnée ? Qui détecte, qu'est-ce qui est recréé, qu'est-ce qui survit ?
 - [ ] 20. Où vivent les frames in-flight, combien y en a-t-il, et quelles données sont dupliquées par frame ?
 - [ ] 21. Pourquoi le viewport est-il à hauteur négative ? Quelle convention ça préserve ?

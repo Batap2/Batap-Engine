@@ -2,6 +2,8 @@
 
 #include <volk.h>
 
+#include "Renderer/Vulkan/VulkanShaderCompiler.h"
+
 #include <cstdint>
 
 VK_DEFINE_HANDLE(VmaAllocator)
@@ -23,6 +25,8 @@ struct VulkanContext
 
     VkQueue graphicsQueue_ = VK_NULL_HANDLE;
     uint32_t graphicsQueueFamily_ = 0;
+
+    ShaderCompiler shaderCompiler_;
 
     VmaAllocator allocator_ = nullptr;
 
