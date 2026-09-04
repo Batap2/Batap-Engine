@@ -21,6 +21,7 @@
 #pragma clang diagnostic pop
 #endif
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 
@@ -156,6 +157,10 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
 
     const std::wstring wPath = widen(hlslPath);
     const std::wstring wTarget = widen(target);
+    // The default include handler resolves against the working directory, so
+    // without -I an include next to the source is not found.
+    const std::wstring wIncludeDir =
+        widen(std::filesystem::path(hlslPath).parent_path().string());
 
     // Same flags as the offline compilation (CMake)
     LPCWSTR args[] = {
@@ -166,6 +171,8 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
         wTarget.c_str(),
         L"-spirv",
         L"-fspv-target-env=vulkan1.3",
+        L"-I",
+        wIncludeDir.c_str(),
     };
 
     DxcBuffer buffer{};

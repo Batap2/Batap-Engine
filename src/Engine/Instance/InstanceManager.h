@@ -54,31 +54,19 @@ namespace batap
 
 struct FrameDirtyFlag
 {
-    std::array<ComponentFlag, FramesInFlight> dirtyComponentsByFrame_ {};
+    std::array<bool, FramesInFlight> dirtyByFrame_ {};
 
-    void assignAll(ComponentFlag flag)
+    void setAll() { dirtyByFrame_.fill(true); }
+
+    void clear(size_t frame) { dirtyByFrame_[frame] = false; }
+
+    bool dirty(size_t frame) const { return dirtyByFrame_[frame]; }
+
+    bool none() const
     {
-        for (auto& f : dirtyComponentsByFrame_)
+        for (bool f : dirtyByFrame_)
         {
-            f = flag;
-        }
-    }
-
-    void clear(size_t frame) { dirtyComponentsByFrame_[frame] = ComponentFlag::None; }
-
-    void setAll(ComponentFlag flag)
-    {
-        for (auto& f : dirtyComponentsByFrame_)
-        {
-            f |= flag;
-        }
-    }
-
-    bool none()
-    {
-        for (auto& f : dirtyComponentsByFrame_)
-        {
-            if (f != ComponentFlag::None)
+            if (f)
             {
                 return false;
             }
@@ -99,9 +87,6 @@ struct FrameInstancePool
     static_assert(HasUsedComponents<type>);
     using InstanceType = type;
 
-    // Size and name come from the instance type, so a pool carries no
-    // configuration of its own and can be built from the resource manager
-    // alone — which is what lets the whole set live in a tuple.
     explicit FrameInstancePool(ResourceManager& rm) : resourceManager_(rm)
     {
         gpuPoolCapacity_ = type::InitialCapacity;
@@ -114,7 +99,7 @@ struct FrameInstancePool
 
     emhash8::HashMap<EntityHandle, GPUInstanceID> entityToId_;
     emhash8::HashMap<GPUInstanceID, EntityHandle> idToEntity_;
-    emhash8::HashMap<EntityHandle, FrameDirtyFlag> dirtyComponents_;
+    emhash8::HashMap<EntityHandle, FrameDirtyFlag> dirtyInstances_;
 
     static constexpr ComponentFlag instanceUsedComponentFlag_ = type::UsedComposents;
 
@@ -128,8 +113,8 @@ struct FrameInstancePool
         GPUInstanceID id = static_cast<uint32_t>(size());
 
         FrameDirtyFlag dirtyf;
-        dirtyf.setAll(instanceUsedComponentFlag_);
-        dirtyComponents_.emplace(e, dirtyf);
+        dirtyf.setAll();
+        dirtyInstances_.emplace(e, dirtyf);
 
         idToEntity_.emplace(id, e);
         entityToId_.emplace(e, id);
@@ -161,14 +146,14 @@ struct FrameInstancePool
                 idToEntity_[removedId] = movedEntity;
 
                 FrameDirtyFlag dirtyf;
-                dirtyf.setAll(instanceUsedComponentFlag_);
-                dirtyComponents_[movedEntity] = dirtyf;
+                dirtyf.setAll();
+                dirtyInstances_[movedEntity] = dirtyf;
             }
         }
 
         entityToId_.erase(e);
         idToEntity_.erase(lastId);
-        dirtyComponents_.erase(e);
+        dirtyInstances_.erase(e);
         gpuPoolSize_--;
     }
 
@@ -202,11 +187,10 @@ struct FrameInstancePool
 
     void markAllinstanceDirty()
     {
-        dirtyComponents_.clear();
+        dirtyInstances_.clear();
         for (auto&& [handle, _] : entityToId_)
         {
-            auto& flags = dirtyComponents_[handle] = FrameDirtyFlag();
-            flags.setAll(instanceUsedComponentFlag_);
+            dirtyInstances_[handle].setAll();
         }
     }
 
@@ -224,17 +208,14 @@ struct FrameInstancePool
 };
 
 // One pool per entry of GPUKinds, addressed by instance type rather than by
-// member name. Everything generic — uploading, dirty routing, teardown — goes
-// through forEach/visit, so a kind added to GPUKinds is picked up by all three
-// without a line to write here.
+// member name: generic code goes through forEach/visit and never names a pool.
 template <class KindList>
 struct InstancePools;
 
 template <class... Ks>
 struct InstancePools<TypeList<Ks...>>
 {
-    // Repeats rm once per kind so the tuple builds each pool in place — no
-    // move, and no arity to keep in sync by hand.
+    // Repeats rm once per kind so the tuple builds each pool in place.
     template <class>
     static ResourceManager& sameRm(ResourceManager& rm)
     {
@@ -257,9 +238,8 @@ struct InstancePools<TypeList<Ks...>>
         std::apply([&](auto&... p) { (f(p), ...); }, pools_);
     }
 
-    // Runs f on the pool backing `kind`. A kind with no GPU instance —
-    // EntityKind::Empty — matches nothing and the call is a no-op, which is
-    // why callers need neither a switch nor a default case.
+    // A kind with no GPU instance matches nothing, so callers need neither a
+    // switch nor a default case.
     template <class F>
     void visit(EntityKind kind, F&& f)
     {
@@ -268,10 +248,9 @@ struct InstancePools<TypeList<Ks...>>
     }
 };
 
-// Current design assumes one rendering aspect (InstanceKind) per entity.
-// If one day we need true multi-aspect rendering (e.g. Mesh + Light on the same entity),
-// we can switch to a per-component GPU pool model.
-// That approach would remove InstanceKind routing and simplify upload logic.
+// Assumes one rendering aspect per entity. True multi-aspect (Mesh + Light on
+// the same entity) would mean a per-component pool model instead, dropping the
+// kind routing.
 struct GPUInstanceManager
 {
     GPUInstanceManager(Engine& ctx);
@@ -279,8 +258,6 @@ struct GPUInstanceManager
     void uploadRemainingFrameDirty(Engine& ctx);
     void markDirty(const EntityHandle& handle, ComponentFlag componentFlag);
 
-    // Named access when you know the instance type; kind-driven access when
-    // you only have a Kind_C. Neither one names a pool member.
     template <class Instance>
     FrameInstancePool<Instance>& pool()
     {

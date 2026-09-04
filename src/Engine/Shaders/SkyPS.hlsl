@@ -1,50 +1,23 @@
 // Modèle de binding Vulkan (docs/vulkan.md §10).
 // Les paramètres du ciel viennent du SkyboxBuffer partagé avec le PixelShader
 // (IBL) : une seule source de vérité.
+#include "ShaderInterop.h"
 
-struct CameraData
-{
-    float4x4 view_;
-    float4x4 proj_;
-    float3   pos_;   float znear_;
-    float3   right_; float zfar_;
-    float3   up_;    float fov_;
-    float3   fwd_;   float pad_;
-};
-[[vk::binding(0, 1)]] StructuredBuffer<CameraData> CameraBuffer;
+[[vk::binding(CamerasBinding, FrameSet)]]
+StructuredBuffer<CameraGPUData> CameraBuffer;
+[[vk::binding(SkyboxBinding, FrameSet)]]
+StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
 
-struct SkyboxGPUData
-{
-    float4 sh[9];
-    uint   mode;           // 0=HDRI  1=FlatColor  2=Gradient
-    uint   bindlessIndex;        // bindless HDRI (0xFFFFFFFF = absent)
-    uint   mipCount;
-    float  intensity;
-    float4 color1;         // zenith ; flat : couleur unique
-    float4 color2;         // horizon
-    float4 color3;         // nadir
-    float  horizonWidth;   // gradient : largeur de la bande horizon
-    float3 pad_;
-};
-[[vk::binding(4, 1)]] StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
+[[vk::binding(SamplerBinding, BindlessSet)]]  SamplerState      g_sampler;
+[[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
 
-struct DrawPush
-{
-    uint cameraIndex_;
-    uint instanceIndex_;    // inutilisé ici — layout partagé avec la geometry
-    uint submeshIndex_;     // idem
-    uint pointLightCount_;  // idem
-};
 [[vk::push_constant]] DrawPush g_draw;
-
-[[vk::binding(0, 0)]] SamplerState      g_sampler;
-[[vk::binding(1, 0)]] Texture2D<float4> g_textures[];
 
 static const float PI = 3.14159265358979f;
 
 float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
 {
-    CameraData cam = CameraBuffer[g_draw.cameraIndex_];
+    CameraGPUData cam = CameraBuffer[g_draw.cameraIndex_];
     SkyboxGPUData sky = SkyboxBuffer[0];
 
     float3 dir = normalize(
@@ -54,7 +27,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
 
     float3 color;
 
-    if (sky.mode == 0u && sky.bindlessIndex != 0xFFFFFFFFu)  // HDRI
+    if (sky.mode == 0u && sky.bindlessIndex != InvalidGPUIndex)  // HDRI
     {
         float phi   = atan2(dir.z, dir.x);
         float theta = asin(clamp(dir.y, -1.0f, 1.0f));

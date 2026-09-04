@@ -3,7 +3,7 @@
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
-#include "Assets/Material.h"
+#include "Shaders/ShaderInterop.h"
 #include "Assets/Mesh.h"
 #include "Assets/Texture.h"
 #include "Engine.h"

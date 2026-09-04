@@ -1,59 +1,23 @@
 // Modèle de binding Vulkan (docs/vulkan.md §10) :
-//   set 0 = bindless global (sampler s0, textures t4[])
+//   set 0 = bindless global (sampler s0, textures t1[])
 //   set 1 = données de frame (storage buffers)
 //   push constants = indices du draw courant
+#include "ShaderInterop.h"
 
-struct CameraData
-{
-    float4x4 view_;
-    float4x4 proj_;
-    float3 pos_;   float znear_;
-    float3 right_; float zfar_;
-    float3 up_;    float fov_;
-    float3 fwd_;   float pad_;
-};
+[[vk::binding(CamerasBinding, FrameSet)]]
+StructuredBuffer<CameraGPUData> CameraInstancebuffer;
+[[vk::binding(InstancesBinding, FrameSet)]]
+StructuredBuffer<StaticMeshGPUData> StaticMeshInstancebuffer;
+[[vk::binding(PointLightsBinding, FrameSet)]]
+StructuredBuffer<PointLightGPUData> PointLightBuffer;
+[[vk::binding(MaterialsBinding, FrameSet)]]
+StructuredBuffer<Material> MaterialBuffer;
+[[vk::binding(SkyboxBinding, FrameSet)]]
+StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
 
-[[vk::binding(0, 1)]] StructuredBuffer<CameraData> CameraInstancebuffer;
+[[vk::binding(SamplerBinding, BindlessSet)]]  SamplerState      g_sampler;
+[[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
 
-struct InstanceData
-{
-    float4x4 world_;              // 64 bytes
-    uint     materialIndices_[8]; // 32 bytes
-};
-[[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer;
-
-struct PointLight
-{
-    float3 pos_;
-    float intensity_;
-    float3 color_;
-    float radius_;
-    float falloff_;
-    bool castShadows_;
-};
-[[vk::binding(2, 1)]] StructuredBuffer<PointLight> PointLightBuffer;
-
-struct MaterialData
-{
-    float4 albedo;
-    float  roughness;
-    float  metallic;
-    float  reflectivity;      // 0 = pas de reflet env, 1 = reflet complet
-    uint   albedoTexIdx;      // 0xFFFFFFFF = no texture
-    uint   normalTexIdx;
-    uint   roughnessTexIdx;
-    uint   metallicTexIdx;
-    uint   pad_;
-};
-[[vk::binding(3, 1)]] StructuredBuffer<MaterialData> MaterialBuffer;
-
-struct DrawPush
-{
-    uint cameraIndex_;
-    uint instanceIndex_;
-    uint submeshIndex_;
-    uint pointLightCount_;
-};
 [[vk::push_constant]] DrawPush g_draw;
 
 struct VS_OUTPUT
@@ -64,24 +28,6 @@ struct VS_OUTPUT
     float2 uv_       : TEXCOORD2;
     float4 tanWS_    : TEXCOORD3;   // xyz = world tangent, w = handedness
 };
-
-struct SkyboxGPUData
-{
-    float4 sh[9];
-    uint   mode;
-    uint   bindlessIndex;
-    uint   mipCount;
-    float  intensity;
-    float4 color1;
-    float4 color2;
-    float4 color3;
-    float  horizonWidth;
-    float3 pad_;
-};
-[[vk::binding(4, 1)]] StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
-
-[[vk::binding(0, 0)]] SamplerState      g_sampler;
-[[vk::binding(1, 0)]] Texture2D<float4> g_textures[];
 
 static const float PI = 3.14159265358979f;
 
@@ -104,7 +50,7 @@ float3 SampleSky(float3 dir, float mipLevel)
 {
     SkyboxGPUData sky = SkyboxBuffer[0];
     float3 result;
-    if (sky.mode == 0u && sky.bindlessIndex != 0xFFFFFFFFu)
+    if (sky.mode == 0u && sky.bindlessIndex != InvalidGPUIndex)
     {
         float  phi   = atan2(dir.z, dir.x);
         float  theta = asin(clamp(dir.y, -1.0f, 1.0f));
@@ -158,31 +104,31 @@ float3 F_Schlick(float HdotV, float3 F0)
 
 float4 main(VS_OUTPUT i) : SV_Target
 {
-    CameraData cam = CameraInstancebuffer[g_draw.cameraIndex_];
+    CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
 
     // --------- matériau ----------
     // Un draw par submesh, l'index arrive en push constant : SV_PrimitiveID
     // déclarerait la capability Geometry, absente sur Metal/MoltenVK.
-    InstanceData inst = StaticMeshInstancebuffer[g_draw.instanceIndex_];
+    StaticMeshGPUData inst = StaticMeshInstancebuffer[g_draw.instanceIndex_];
 
     // matIdx 0xFFFFFFFF → slot 0 = default material (created at engine init)
     uint matIdx    = inst.materialIndices_[g_draw.submeshIndex_];
-    uint safeIdx   = (matIdx != 0xFFFFFFFFu) ? matIdx : 0u;
-    MaterialData mat = MaterialBuffer[safeIdx];
+    uint safeIdx   = (matIdx != InvalidGPUIndex) ? matIdx : 0u;
+    Material mat = MaterialBuffer[safeIdx];
 
     // Texture channels always valid: unassigned → white/flat-normal texture (neutral multiplier)
-    float3 albedo    = mat.albedo.rgb    * g_textures[mat.albedoTexIdx].Sample(g_sampler, i.uv_).rgb;
-    float  roughness = clamp(mat.roughness * g_textures[mat.roughnessTexIdx].Sample(g_sampler, i.uv_).r, 0.05f, 1.0f);
-    float  metallic  = saturate(mat.metallic * g_textures[mat.metallicTexIdx].Sample(g_sampler, i.uv_).r);
+    float3 albedo    = mat.albedo.rgb    * g_textures[mat.albedoTexIdx_].Sample(g_sampler, i.uv_).rgb;
+    float  roughness = clamp(mat.roughness * g_textures[mat.roughnessTexIdx_].Sample(g_sampler, i.uv_).r, 0.05f, 1.0f);
+    float  metallic  = saturate(mat.metallic * g_textures[mat.metallicTexIdx_].Sample(g_sampler, i.uv_).r);
 
     // F0 : diélectrique = 0.04, métal = albedo
     float3 F0 = lerp(float3(0.04f, 0.04f, 0.04f), albedo, metallic);
 
     float3 Ngeom = normalize(i.nrmWS_);
     float3 N;
-    if (mat.normalTexIdx != 0xFFFFFFFFu)
+    if (mat.normalTexIdx_ != InvalidGPUIndex)
     {
-        float3 normalSample = g_textures[mat.normalTexIdx].Sample(g_sampler, i.uv_).rgb;
+        float3 normalSample = g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).rgb;
         normalSample = normalSample * 2.0f - 1.0f;
         normalSample.z = sqrt(saturate(1.0f - dot(normalSample.xy, normalSample.xy)));
 
@@ -211,7 +157,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     [loop]
     for (uint lightIndex = 0; lightIndex < g_draw.pointLightCount_; ++lightIndex)
     {
-        PointLight light = PointLightBuffer[lightIndex];
+        PointLightGPUData light = PointLightBuffer[lightIndex];
 
         float3 toLight = light.pos_ - i.posWS_;
         float  dist    = length(toLight);

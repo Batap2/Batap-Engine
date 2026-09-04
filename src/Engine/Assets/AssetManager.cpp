@@ -1,6 +1,6 @@
 #include "AssetManager.h"
 
-#include "Material.h"
+#include "Shaders/ShaderInterop.h"
 #include "Mesh.h"
 #include "Texture.h"
 

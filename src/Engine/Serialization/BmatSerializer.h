@@ -3,7 +3,7 @@
 #include <optional>
 #include <string>
 
-#include "Assets/Material.h"
+#include "Shaders/ShaderInterop.h"
 
 namespace batap
 {

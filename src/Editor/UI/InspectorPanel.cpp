@@ -6,7 +6,7 @@
 #include "App.h"
 #include "Assets/AssetManager.h"
 #include "Assets/AssetSlotMap.h"
-#include "Assets/Material.h"
+#include "Shaders/ShaderInterop.h"
 #include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"

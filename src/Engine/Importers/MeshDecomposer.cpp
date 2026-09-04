@@ -5,7 +5,7 @@
 
 #include "MeshDecomposer.h"
 
-#include "Assets/Material.h"
+#include "Shaders/ShaderInterop.h"
 #include "Assets/Texture.h"
 #include "Serialization/BmatSerializer.h"
 #include "Serialization/BmeshSerializer.h"

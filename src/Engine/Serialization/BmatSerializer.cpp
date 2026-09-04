@@ -1,6 +1,6 @@
 #include "BmatSerializer.h"
 
-#include "Assets/Material.h"
+#include "Shaders/ShaderInterop.h"
 
 #include <fstream>
 #include <iostream>

@@ -6,7 +6,6 @@
 #include "VulkanResources.h"
 
 #include "Assets/AssetManager.h"
-#include "Assets/Material.h"
 #include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
 #include "Components/Mesh_C.h"
@@ -14,7 +13,7 @@
 #include "Components/Transform_C.h"
 #include "Instance/InstanceManager.h"
 #include "Paths.h"
-
+#include "Shaders/ShaderInterop.h"
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -23,28 +22,6 @@
 
 namespace batap
 {
-
-namespace
-{
-// set 1 : l'ordre des bindings est le contrat avec les shaders ([[vk::binding(N, 1)]])
-enum FrameSetBinding : uint32_t
-{
-    Cameras = 0,
-    Instances = 1,
-    PointLights = 2,
-    Materials = 3,
-    Skybox = 4,
-    FrameSetBindingCount
-};
-
-struct DrawPush
-{
-    uint32_t cameraIndex;
-    uint32_t instanceIndex;
-    uint32_t submeshIndex;
-    uint32_t pointLightCount;
-};
-}  // namespace
 
 ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
                          VkFormat depthFormat)
@@ -161,10 +138,12 @@ void ScenePasses::checkHotReload()
         {"SkyPS.hlsl", "ps_6_6"},
     }};
 
+    // Tout le dossier : un header partagé déclenche le reload comme une source.
     fs::file_time_type latest{};
     std::error_code ec;
-    for (const Stage& s : stages)
-        latest = std::max(latest, fs::last_write_time(sourceDir / s.file, ec));
+    for (const fs::directory_entry& entry : fs::directory_iterator(sourceDir, ec))
+        if (entry.is_regular_file(ec))
+            latest = std::max(latest, entry.last_write_time(ec));
 
     if (shadersMtime_ == fs::file_time_type{})
     {
@@ -211,13 +190,17 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
 {
     auto* instanceM = args.instanceManager_;
 
-    const std::array<VkBuffer, FrameSetBindingCount> buffers = {
-        resources_.bufferFor(instanceM->pool<CameraInstance>().instancePoolHandle_),
-        resources_.bufferFor(instanceM->pool<StaticMeshInstance>().instancePoolHandle_),
-        resources_.bufferFor(instanceM->pool<PointLightInstance>().instancePoolHandle_),
-        resources_.bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle()),
-        resources_.bufferFor(instanceM->pool<SkyboxInstance>().instancePoolHandle_),
-    };
+    std::array<VkBuffer, FrameSetBindingCount> buffers{};
+    buffers[CamerasBinding] =
+        resources_.bufferFor(instanceM->pool<CameraInstance>().instancePoolHandle_);
+    buffers[InstancesBinding] =
+        resources_.bufferFor(instanceM->pool<StaticMeshInstance>().instancePoolHandle_);
+    buffers[PointLightsBinding] =
+        resources_.bufferFor(instanceM->pool<PointLightInstance>().instancePoolHandle_);
+    buffers[MaterialsBinding] =
+        resources_.bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle());
+    buffers[SkyboxBinding] =
+        resources_.bufferFor(instanceM->pool<SkyboxInstance>().instancePoolHandle_);
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
     std::array<VkWriteDescriptorSet, FrameSetBindingCount> writes{};
@@ -266,8 +249,8 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
                             nullptr);
 
     DrawPush push{};
-    push.cameraIndex = camID;
-    push.pointLightCount = static_cast<uint32_t>(instanceM->pool<PointLightInstance>().size());
+    push.cameraIndex_ = camID;
+    push.pointLightCount_ = static_cast<uint32_t>(instanceM->pool<PointLightInstance>().size());
 
     // ---- Geometry ----
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, geometryPipeline_);
@@ -300,10 +283,10 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
 
             // Un draw par submesh, l'index de submesh en push constant (le PS
             // y lit le matériau — pas de SV_PrimitiveID sur Metal)
-            push.instanceIndex = id;
+            push.instanceIndex_ = id;
             if (mesh->subMeshCount == 0)
             {
-                push.submeshIndex = 0;
+                push.submeshIndex_ = 0;
                 vkCmdPushConstants(cmd, pipelineLayout_,
                                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                    sizeof(push), &push);
@@ -312,7 +295,7 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
             }
             for (uint8_t sub = 0; sub < mesh->subMeshCount; ++sub)
             {
-                push.submeshIndex = sub;
+                push.submeshIndex_ = sub;
                 vkCmdPushConstants(cmd, pipelineLayout_,
                                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                    sizeof(push), &push);
@@ -328,7 +311,7 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
         return;
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, skyPipeline_);
-    push.instanceIndex = 0;
+    push.instanceIndex_ = 0;
     vkCmdPushConstants(cmd, pipelineLayout_,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push),
                        &push);

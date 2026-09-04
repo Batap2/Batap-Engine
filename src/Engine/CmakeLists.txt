@@ -140,14 +140,18 @@ endif()
 set(engine_shader_out "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
 file(MAKE_DIRECTORY "${engine_shader_out}")
 
+# Sans ça, un champ ajouté au header partagé ne recompile que le C++.
+set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h")
+
 function(batap_compile_shader src out target)
   add_custom_command(
     OUTPUT "${engine_shader_out}/${out}"
     COMMAND "${DXC_EXE}" -T ${target} -E main
             -spirv -fspv-target-env=vulkan1.3
+            -I "${CMAKE_CURRENT_SOURCE_DIR}/Shaders"
             "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/${src}"
             -Fo "${engine_shader_out}/${out}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/${src}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/${src}" "${engine_shader_interop}"
     COMMENT "dxc ${src} -> ${out}"
   )
 endfunction()

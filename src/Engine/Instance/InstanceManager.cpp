@@ -1,6 +1,6 @@
 #include "InstanceManager.h"
-#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include "Components/ComponentFlag.h"
 #include "Components/EntityHandle.h"
 #include "Components/Kind_C.h"
@@ -21,16 +21,14 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
     {
         using PoolT = std::remove_reference_t<decltype(frameInstancePool)>;
         using InstanceT = typename PoolT::InstanceType;
+        using GPUData = typename InstanceT::GPUData;
 
-        TempBytes<256> tmp;
-        auto& map = frameInstancePool.dirtyComponents_;
+        auto& map = frameInstancePool.dirtyInstances_;
         for (auto it = map.begin(); it != map.end();)
         {
             const EntityHandle& entityHandle = it->first;
             FrameDirtyFlag& frameDirtyFlag = it->second;
-            uint32_t dirtyComponentsFlag =
-                static_cast<uint32_t>(frameDirtyFlag.dirtyComponentsByFrame_[frameIndex]);
-            if (dirtyComponentsFlag == 0)
+            if (!frameDirtyFlag.dirty(frameIndex))
             {
                 ++it;
                 continue;
@@ -43,26 +41,15 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
                 continue;
             }
 
-            while (dirtyComponentsFlag)
-            {
-                size_t bitIndex = static_cast<size_t>(std::countr_zero(dirtyComponentsFlag));
-                dirtyComponentsFlag &= (dirtyComponentsFlag - 1u);  // set lsb 1 to 0
+            // Built on the stack so staging is only ever written linearly.
+            GPUData data{};
+            InstanceFill<InstanceT>::fill(ctx, *entityHandle.reg_, entityHandle.entity_, data);
 
-                auto patchRange = InstancePatches<InstanceT>::byBit[bitIndex];
+            auto span = resourceManager_.requestUpload(frameInstancePool.instancePoolHandle_,
+                                                       sizeof(GPUData), id * sizeof(GPUData));
+            std::memcpy(span.data(), &data, sizeof(GPUData));
 
-                for (const PatchDesc& p : patchRange.patches)
-                {
-                    const uint32_t stride = sizeof(typename InstanceT::GPUData);
-                    const uint32_t byteOffset = id * stride + p.offset_;
-
-                    auto span = resourceManager_.requestPartialUpload(
-                        frameInstancePool.instancePoolHandle_, stride, byteOffset, p.offset_,
-                        p.size_);
-
-                    p.fill(ctx, *entityHandle.reg_, entityHandle.entity_, span.data());
-                }
-            }
-            frameDirtyFlag.dirtyComponentsByFrame_[frameIndex] = ComponentFlag::None;
+            frameDirtyFlag.clear(frameIndex);
 
             if (frameDirtyFlag.none())
             {
@@ -78,10 +65,8 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
 
 void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag componentFlag)
 {
-    // A CPU-only component has no GPU mirror to invalidate. Bailing out here
-    // rather than at each call site is what lets generic code — the field
-    // loops, Scene::write<T> — mark anything without knowing whether it is
-    // mirrored, and avoids allocating a dirty entry for nothing.
+    // Bailing out here rather than at each call site lets generic code —
+    // the field loops, Scene::write<T> — mark anything unconditionally.
     if (!any(componentFlag))
         return;
 
@@ -89,6 +74,13 @@ void GPUInstanceManager::markDirty(const EntityHandle& handle, ComponentFlag com
     if (!k)
         return;
 
-    visitPool(k->value, [&](auto& pool) { pool.dirtyComponents_[handle].setAll(componentFlag); });
+    visitPool(k->value,
+              [&](auto& pool)
+              {
+                  if (!any(componentFlag & pool.instanceUsedComponentFlag_))
+                      return;
+
+                  pool.dirtyInstances_[handle].setAll();
+              });
 }
 }  // namespace batap

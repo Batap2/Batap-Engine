@@ -5,6 +5,8 @@
 #include "VulkanFormats.h"
 #include "VulkanMemory.h"
 
+#include "Shaders/ShaderInterop.h"
+
 #include <algorithm>
 #include <bit>
 #include <cassert>
@@ -16,9 +18,6 @@ namespace batap
 
 namespace
 {
-constexpr uint32_t SamplerBinding = 0;
-constexpr uint32_t TexturesBinding = 1;
-
 // Every staging allocation is aligned to this — see stagingAlloc.
 constexpr uint64_t StagingAlignment = 16;
 

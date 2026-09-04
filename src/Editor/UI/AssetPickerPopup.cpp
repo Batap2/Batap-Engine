@@ -4,7 +4,7 @@
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
-#include "Assets/Material.h"
+#include "Shaders/ShaderInterop.h"
 #include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"

@@ -2,33 +2,13 @@
 //   set 0 = bindless global (sampler, textures) — pas utilisé ici
 //   set 1 = données de frame (storage buffers : caméras, instances, …)
 //   push constants = indices du draw courant
+#include "ShaderInterop.h"
 
-struct CameraData
-{
-    float4x4 view_;
-    float4x4 proj_;
-    float3 pos_;   float znear_;
-    float3 right_; float zfar_;
-    float3 up_;    float fov_;
-    float3 fwd_;   float pad_;
-};
+[[vk::binding(CamerasBinding, FrameSet)]]
+StructuredBuffer<CameraGPUData> CameraInstancebuffer;
+[[vk::binding(InstancesBinding, FrameSet)]]
+StructuredBuffer<StaticMeshGPUData> StaticMeshInstancebuffer;
 
-struct InstanceData
-{
-    float4x4 world_;              // 64 bytes
-    uint     materialIndices_[8]; // 32 bytes
-};
-
-[[vk::binding(0, 1)]] StructuredBuffer<CameraData>   CameraInstancebuffer;
-[[vk::binding(1, 1)]] StructuredBuffer<InstanceData> StaticMeshInstancebuffer;
-
-struct DrawPush
-{
-    uint cameraIndex_;
-    uint instanceIndex_;
-    uint submeshIndex_;
-    uint pointLightCount_;
-};
 [[vk::push_constant]] DrawPush g_draw;
 
 struct VS_INPUT
@@ -52,8 +32,8 @@ VS_OUTPUT main(VS_INPUT input)
 {
     VS_OUTPUT o;
 
-    CameraData cam   = CameraInstancebuffer[g_draw.cameraIndex_];
-    InstanceData inst = StaticMeshInstancebuffer[g_draw.instanceIndex_];
+    CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
+    StaticMeshGPUData inst = StaticMeshInstancebuffer[g_draw.instanceIndex_];
 
     // World position
     float4 posWS4 = mul(inst.world_, float4(input.position_, 1.0f));
