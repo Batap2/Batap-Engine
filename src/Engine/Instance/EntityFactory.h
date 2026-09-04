@@ -1,10 +1,9 @@
 #pragma once
 
 #include "Components/EntityHandle.h"
-#include "Assets/AssetHandle.h"
+#include "Instance/Spawnable.h"
 
 #include <entt/entt.hpp>
-#include <optional>
 
 namespace batap
 {
@@ -16,11 +15,7 @@ struct EntityFactory
     GPUInstanceManager& instanceManager_;
 
     EntityFactory(GPUInstanceManager& instanceManager);
-    EntityHandle createEmpty(entt::registry& reg);
-    EntityHandle createStaticMesh(entt::registry& reg, std::optional<MeshHandle> handle = std::nullopt);
-    EntityHandle createCamera(entt::registry& reg);
-    EntityHandle createPointLight(entt::registry& reg);
-    EntityHandle createSkybox(entt::registry& reg);
+    EntityHandle create(entt::registry& reg, const Spawnable& spawnable);
     void destroy(EntityHandle h);
 };
 }  // namespace batap

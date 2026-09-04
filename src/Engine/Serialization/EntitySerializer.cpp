@@ -52,24 +52,6 @@ static nlohmann::json reflectedComponents(EntityHandle h, const Engine& ctx)
     return arr;
 }
 
-static const char* kindName(EntityKind k)
-{
-    switch (k)
-    {
-        case EntityKind::Empty:
-            return "empty";
-        case EntityKind::StaticMesh:
-            return "mesh";
-        case EntityKind::Camera:
-            return "camera";
-        case EntityKind::PointLight:
-            return "pointLight";
-        case EntityKind::Skybox:
-            return "skybox";
-    }
-    return "empty";
-}
-
 // Written for forward compatibility; nothing reads it back yet — a migration
 // would branch on it in the field loop of populateWorld().
 static void writeFile(nlohmann::json& root, const std::unordered_set<std::string>& usedTypes,
@@ -111,7 +93,7 @@ void EntitySerializer::save(World& world, const Engine& ctx, const std::string& 
         ej["name"] = nc ? nc->name_ : std::string{};
 
         auto* k = reg.try_get<Kind_C>(e);
-        ej["kind"] = k ? kindName(k->value) : "empty";
+        ej["kind"] = spawnableFor(k ? k->value : EntityKind::Empty).id;
 
         ej["parent"] = nlohmann::json(nullptr);
         if (auto* hc = reg.try_get<Hierarchy_C>(e); hc && hc->parent != entt::null)
@@ -184,17 +166,7 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
 
         const std::string kind = ej.value("kind", "empty");
 
-        EntityHandle h;
-        if (kind == "mesh")
-            h = factory.createStaticMesh(reg);
-        else if (kind == "pointLight")
-            h = factory.createPointLight(reg);
-        else if (kind == "camera")
-            h = factory.createCamera(reg);
-        else if (kind == "skybox")
-            h = factory.createSkybox(reg);
-        else
-            h = factory.createEmpty(reg);
+        EntityHandle h = factory.create(reg, spawnableFor(kind));
 
         if (auto* nc = reg.try_get<Name_C>(h.entity_))
             nc->name_ = ej.value("name", "");

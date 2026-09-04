@@ -270,6 +270,12 @@ struct GPUInstanceManager
         pools_.visit(kind, std::forward<F>(f));
     }
 
+    template <class F>
+    void forEachPool(F&& f)
+    {
+        pools_.forEach(std::forward<F>(f));
+    }
+
     ResourceManager& resourceManager_;
     InstancePools<GPUKinds> pools_{resourceManager_};
 };

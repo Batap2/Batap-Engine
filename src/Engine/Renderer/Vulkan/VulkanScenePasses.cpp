@@ -5,6 +5,11 @@
 #include "VulkanPipelines.h"
 #include "VulkanResources.h"
 
+#include <algorithm>
+#include <array>
+#include <filesystem>
+#include <iostream>
+#include <stdexcept>
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
@@ -14,11 +19,6 @@
 #include "Instance/InstanceManager.h"
 #include "Paths.h"
 #include "Shaders/ShaderInterop.h"
-#include <algorithm>
-#include <array>
-#include <filesystem>
-#include <iostream>
-#include <stdexcept>
 
 namespace batap
 {
@@ -111,7 +111,6 @@ void ScenePasses::buildPipelines(VkShaderModule vs, VkShaderModule ps, VkShaderM
                             .cullBack()
                             .build(ctx_.device_, pipelineLayout_);
 
-
     skyPipeline_ = GraphicsPipelineBuilder()
                        .shaders(skyVS, skyPS)
                        .colorFormat(colorFormat_)
@@ -158,8 +157,8 @@ void ScenePasses::checkHotReload()
     std::array<std::vector<uint8_t>, 4> spirv;
     for (size_t i = 0; i < stages.size(); ++i)
     {
-        spirv[i] = ctx_.shaderCompiler_.compile((sourceDir / stages[i].file).string(),
-                                                stages[i].target);
+        spirv[i] =
+            ctx_.shaderCompiler_.compile((sourceDir / stages[i].file).string(), stages[i].target);
         if (spirv[i].empty())
         {
             std::cerr << "[ShaderCompiler] " << stages[i].file
@@ -191,16 +190,14 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     auto* instanceM = args.instanceManager_;
 
     std::array<VkBuffer, FrameSetBindingCount> buffers{};
-    buffers[CamerasBinding] =
-        resources_.bufferFor(instanceM->pool<CameraInstance>().instancePoolHandle_);
-    buffers[InstancesBinding] =
-        resources_.bufferFor(instanceM->pool<StaticMeshInstance>().instancePoolHandle_);
-    buffers[PointLightsBinding] =
-        resources_.bufferFor(instanceM->pool<PointLightInstance>().instancePoolHandle_);
+    instanceM->forEachPool(
+        [&](auto& pool)
+        {
+            using InstanceT = typename std::remove_reference_t<decltype(pool)>::InstanceType;
+            buffers[InstanceT::Binding] = resources_.bufferFor(pool.instancePoolHandle_);
+        });
     buffers[MaterialsBinding] =
         resources_.bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle());
-    buffers[SkyboxBinding] =
-        resources_.bufferFor(instanceM->pool<SkyboxInstance>().instancePoolHandle_);
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
     std::array<VkWriteDescriptorSet, FrameSetBindingCount> writes{};
@@ -250,7 +247,13 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
 
     DrawPush push{};
     push.cameraIndex_ = camID;
-    push.pointLightCount_ = static_cast<uint32_t>(instanceM->pool<PointLightInstance>().size());
+    instanceM->forEachPool(
+        [&](auto& pool)
+        {
+            using InstanceT = typename std::remove_reference_t<decltype(pool)>::InstanceType;
+            if constexpr (requires { InstanceT::CountField; })
+                push.*InstanceT::CountField = static_cast<uint32_t>(pool.size());
+        });
 
     // ---- Geometry ----
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, geometryPipeline_);
@@ -273,8 +276,8 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
             // buffer, only the offsets differ — and they are already stored in
             // binding order.
             const VkBuffer meshBuffer = resources_.bufferFor(mesh->buffer_);
-            const std::array<VkBuffer, Mesh::VertexStreams> vertexBuffers{
-                meshBuffer, meshBuffer, meshBuffer, meshBuffer};
+            const std::array<VkBuffer, Mesh::VertexStreams> vertexBuffers{meshBuffer, meshBuffer,
+                                                                          meshBuffer, meshBuffer};
 
             vkCmdBindVertexBuffers(cmd, 0, Mesh::VertexStreams, vertexBuffers.data(),
                                    mesh->streamOffsets_.data());

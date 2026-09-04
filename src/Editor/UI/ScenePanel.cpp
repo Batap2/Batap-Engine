@@ -1,11 +1,8 @@
 #include "ScenePanel.h"
 
-#include "Components/Camera_C.h"
 #include "Components/Hierarchy_C.h"
-#include "Components/Mesh_C.h"
+#include "Components/Kind_C.h"
 #include "Components/Name_C.h"
-#include "Components/PointLight_C.h"
-#include "Components/Skybox_C.h"
 #include "Instance/EntityFactory.h"
 #include "Scene.h"
 #include "Systems/Hierarchy_S.h"
@@ -22,15 +19,8 @@ void ScenePanel::drawEntityNode(entt::registry& reg, entt::entity e,
 {
     EntityHandle h = {&reg, e};
 
-    const char* icon = ICON_MD_CATEGORY;
-    if (reg.all_of<Camera_C>(e))
-        icon = ICON_MD_VIDEOCAM;
-    else if (reg.all_of<Mesh_C>(e))
-        icon = ICON_MD_HVAC;
-    else if (reg.all_of<PointLight_C>(e))
-        icon = ICON_MD_LIGHTBULB;
-    else if (reg.all_of<Skybox_C>(e))
-        icon = ICON_MD_PANORAMA;
+    auto* kindC = reg.try_get<Kind_C>(e);
+    const char* icon = spawnableFor(kindC ? kindC->value : EntityKind::Empty).icon;
 
     auto* hc = reg.try_get<Hierarchy_C>(e);
     bool hasChildren = hc && hc->firstChild != entt::null;
@@ -102,19 +92,12 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
 
     if (ImGui::BeginPopup("AddEntityPopup"))
     {
-        if (ImGui::MenuItem(ICON_MD_HVAC " Static Mesh"))
-            world.entityFactory_->createStaticMesh(world.scene_->registry_);
-
-        if (ImGui::MenuItem(ICON_MD_LIGHTBULB " Point Light"))
-            world.entityFactory_->createPointLight(world.scene_->registry_);
-
-        if (ImGui::MenuItem(ICON_MD_VIDEOCAM " Camera"))
+        for (const Spawnable& s : Spawnables)
         {
-            // action
+            const std::string label = std::string(s.icon) + " " + s.label;
+            if (ImGui::MenuItem(label.c_str()))
+                world.entityFactory_->create(world.scene_->registry_, s);
         }
-
-        if (ImGui::MenuItem(ICON_MD_PANORAMA " Skybox"))
-            world.entityFactory_->createSkybox(world.scene_->registry_);
 
         ImGui::EndPopup();
     }

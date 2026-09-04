@@ -10,8 +10,8 @@
 #include "Components/PointLight_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
-#include "Engine.h"
 #include "EigenTypes.h"
+#include "Engine.h"
 #include "Handles.h"
 #include "Instance/EntityKind.h"
 #include "Renderer/SkyIrradiance.h"
@@ -20,6 +20,7 @@
 #include "entt/entt.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <span>
@@ -29,8 +30,7 @@ namespace batap
 
 template <class... Ts>
 struct TypeList
-{
-};
+{};
 
 inline void storeRGB(float4& dst, const v3f& rgb)
 {
@@ -46,7 +46,8 @@ struct InstanceFill;
 // ----------- Instances :
 
 // Derived rather than aliased so an instance can override InitialCapacity and
-// PoolName.
+// PoolName. It must also declare `Binding`, its frame-set slot, and may declare
+// `CountField` to have its size pushed to the shaders.
 template <class GPUDataT, ComponentFlag UsedFlags>
 struct GPUInstanceBase
 {
@@ -66,6 +67,7 @@ struct StaticMeshInstance
 {
     static constexpr size_t InitialCapacity = 256;
     static constexpr const char* PoolName = "StaticMeshInstancePool";
+    static constexpr uint32_t Binding = InstancesBinding;
 };
 
 struct CameraInstance
@@ -73,6 +75,7 @@ struct CameraInstance
 {
     static constexpr size_t InitialCapacity = 1;
     static constexpr const char* PoolName = "CameraInstancePool";
+    static constexpr uint32_t Binding = CamerasBinding;
 };
 
 struct PointLightInstance
@@ -80,12 +83,15 @@ struct PointLightInstance
 {
     static constexpr size_t InitialCapacity = 32;
     static constexpr const char* PoolName = "pointLightInstancePool";
+    static constexpr uint32_t Binding = PointLightsBinding;
+    static constexpr uint32_t DrawPush::* CountField = &DrawPush::pointLightCount_;
 };
 
 struct SkyboxInstance : GPUInstanceBase<SkyboxGPUData, ComponentFlag::Skybox>
 {
     static constexpr size_t InitialCapacity = 1;
     static constexpr const char* PoolName = "SkyboxInstancePool";
+    static constexpr uint32_t Binding = SkyboxBinding;
 };
 
 // ----------- InstanceFill : how one instance is built from its components
@@ -139,15 +145,15 @@ struct InstanceFill<CameraInstance>
         auto proj = camC->make_proj(aspect);
         std::memcpy(out.proj_, proj.data(), sizeof(out.proj_));
 
-        v3f pos   = worldM.translation();
+        v3f pos = worldM.translation();
         v3f right = worldM.linear().col(0).normalized();
-        v3f up    = worldM.linear().col(1).normalized();
-        v3f fwd   = -worldM.linear().col(2).normalized();
+        v3f up = worldM.linear().col(1).normalized();
+        v3f fwd = -worldM.linear().col(2).normalized();
 
-        std::memcpy(out.pos_,   pos.data(),   sizeof(out.pos_));
+        std::memcpy(out.pos_, pos.data(), sizeof(out.pos_));
         std::memcpy(out.right_, right.data(), sizeof(out.right_));
-        std::memcpy(out.up_,    up.data(),    sizeof(out.up_));
-        std::memcpy(out.fwd_,   fwd.data(),   sizeof(out.fwd_));
+        std::memcpy(out.up_, up.data(), sizeof(out.up_));
+        std::memcpy(out.fwd_, fwd.data(), sizeof(out.fwd_));
     }
 };
 
@@ -208,8 +214,8 @@ struct InstanceFill<SkyboxInstance>
             out.sh[i][3] = 0.0f;
         }
 
-        out.mode         = static_cast<uint32_t>(sky->mode_);
-        out.intensity    = sky->intensity_;
+        out.mode = static_cast<uint32_t>(sky->mode_);
+        out.intensity = sky->intensity_;
         storeRGB(out.color1, sky->color1_);
         storeRGB(out.color2, sky->color2_);
         storeRGB(out.color3, sky->color3_);
@@ -233,5 +239,24 @@ using GPUKinds = TypeList<GPUKind<EntityKind::StaticMesh, StaticMeshInstance>,
                           GPUKind<EntityKind::Camera, CameraInstance>,
                           GPUKind<EntityKind::PointLight, PointLightInstance>,
                           GPUKind<EntityKind::Skybox, SkyboxInstance>>;
+
+// A binding nobody writes leaves the shader reading a null buffer, which no
+// driver reports: turn both omission and collision into a build error.
+template <class KindList>
+struct FrameSetBindings;
+
+template <class... Ks>
+struct FrameSetBindings<TypeList<Ks...>>
+{
+    static constexpr uint32_t claimed = ((1u << Ks::InstanceType::Binding) | ...) |
+                                        (1u << MaterialsBinding);
+
+    static_assert(std::popcount(claimed) == sizeof...(Ks) + 1,
+                  "two instances claim the same frame set binding");
+    static_assert(claimed == (1u << FrameSetBindingCount) - 1u,
+                  "a frame set binding has no instance pool behind it");
+};
+
+inline constexpr FrameSetBindings<GPUKinds> frameSetBindings_{};
 
 }  // namespace batap
