@@ -37,7 +37,7 @@ nlohmann::json toJson(const MaterialsDesc& d)
     nlohmann::json arr = nlohmann::json::array();
     for (const auto& p : d.paths)
         arr.push_back(p.empty() ? nlohmann::json(nullptr) : nlohmann::json(p));
-    return {{"slots", std::move(arr)}, {"count", d.count}};
+    return {{"slots", std::move(arr)}};
 }
 
 std::string_view componentTypeName(const ComponentDesc& d)

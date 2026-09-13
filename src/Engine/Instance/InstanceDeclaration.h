@@ -138,7 +138,7 @@ struct StaticMeshInstance
         auto* mats = in.get<Materials_C>();
         if (!mats)
             return;
-        for (uint8_t i = 0; i < mats->count && i < indices.size(); ++i)
+        for (size_t i = 0; i < indices.size() && i < mats->slots.size(); ++i)
             if (mats->slots[i])
                 indices[i] = mats->slots[i].index;
     }
@@ -202,6 +202,7 @@ struct SkyboxInstance
     using GPUData = SkyboxGPUData;
     using Uses = TypeList<Skybox_C>;
     static constexpr uint32_t Binding = SkyboxBinding;
+    static constexpr uint32_t DrawPush::* CountField = &DrawPush::skyboxCount_;
 
     static void fill(AccessOf<Uses> in, GPUData& out)
     {

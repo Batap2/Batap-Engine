@@ -255,7 +255,7 @@ bool AssetPickerPopup::draw(App& app)
 
                 if (type_ == AssetType::Material)
                     if (auto* mc = ent_.try_get<Materials_C>())
-                        if (slotIndex_ < mc->count)
+                        if (slotIndex_ < mc->slots.size())
                         {
                             mc->slots[slotIndex_] = std::get<MaterialHandle>(*handle);
                             app.world_->instances().markDirty<Materials_C>(ent_);
@@ -293,7 +293,7 @@ bool AssetPickerPopup::draw(App& app)
 
         if (!isFieldPick_ && type_ == AssetType::Material)
             if (auto* mc = ent_.try_get<Materials_C>())
-                if (slotIndex_ < mc->count)
+                if (slotIndex_ < mc->slots.size())
                     mc->slots[slotIndex_] = MaterialHandle::null();
 
         if (type_ == AssetType::Texture && matHandle_)

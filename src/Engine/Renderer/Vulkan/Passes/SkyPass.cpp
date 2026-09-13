@@ -1,6 +1,5 @@
 #include "Renderer/Vulkan/Passes/SkyPass.h"
 
-#include "Components/Skybox_C.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 
@@ -25,9 +24,7 @@ void SkyPass::buildPipelines(const ShaderModules& modules)
 
 void SkyPass::record(const PassContext& pass)
 {
-    bool hasSkybox = false;
-    pass.reg_->view<Skybox_C>().each([&](entt::entity, Skybox_C&) { hasSkybox = true; });
-    if (!hasSkybox)
+    if (pass.push_.skyboxCount_ == 0)
         return;
 
     vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);

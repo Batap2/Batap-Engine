@@ -221,8 +221,8 @@ static void processNode(const aiNode* node, const aiScene* scene, const fs::path
         desc.components.push_back(MeshDesc{fs::relative(bmeshPath, baseDir).generic_string()});
 
         MaterialsDesc matDesc;
-        matDesc.count = static_cast<uint8_t>(std::min(node->mNumMeshes, 8u));
-        for (uint8_t i = 0; i < matDesc.count; ++i)
+        const uint32_t matCount = std::min(node->mNumMeshes, 8u);
+        for (uint32_t i = 0; i < matCount; ++i)
         {
             const aiMesh* m = scene->mMeshes[node->mMeshes[i]];
             matDesc.paths[i] =

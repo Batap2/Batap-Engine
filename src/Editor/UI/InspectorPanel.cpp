@@ -2,12 +2,14 @@
 
 #include "UI/FieldUI.h"
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 
 #include "App.h"
 #include "Assets/AssetManager.h"
 #include "Assets/AssetSlotMap.h"
+#include "Assets/Mesh.h"
 #include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
@@ -277,11 +279,25 @@ static std::string texLabelFromBindlessIndex(AssetManager* am, uint32_t bindless
     return result;
 }
 
+// One slot per submesh, and a mesh with no submesh still draws one.
+static uint8_t materialSlotCount(EntityHandle ent, App& app)
+{
+    auto* meshC = ent.try_get<Mesh_C>();
+    if (!meshC || !meshC->mesh_)
+        return 1;
+    auto* mesh = app.ctx_->assetManager_->get(meshC->mesh_);
+    if (!mesh)
+        return 1;
+    return std::max<uint8_t>(mesh->subMeshCount, 1);
+}
+
 void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
 {
     auto* mc = ent.try_get<Materials_C>();
-    if (!mc || mc->count == 0)
+    if (!mc)
         return;
+
+    const uint8_t slotCount = materialSlotCount(ent, app);
 
     bool removed = false;
     {
@@ -289,7 +305,7 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
         removed = removeComponentMenu("materials");
         if (g && !removed)
         {
-            for (uint8_t i = 0; i < mc->count; ++i)
+            for (uint8_t i = 0; i < slotCount; ++i)
             {
                 const std::string slotLabel = "Slot " + std::to_string(i);
                 if (auto sg = ui::CollapsingGroup(slotLabel.c_str()))

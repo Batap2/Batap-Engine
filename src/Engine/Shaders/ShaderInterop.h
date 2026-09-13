@@ -76,6 +76,7 @@ struct PointLightGPUData
     float3 color_; float radius_;
     float falloff_;
     uint castShadows_;
+    float pad_[2];
 };
 
 // Also the material asset: it is uploaded to its arena as-is.
@@ -140,19 +141,31 @@ struct DrawPush
     uint instanceIndex_;
     uint submeshIndex_;
     uint pointLightCount_;
+    uint skyboxCount_;
 };
 
 #ifdef __cplusplus
 
 static_assert(sizeof(CameraGPUData) == 192);
 static_assert(sizeof(StaticMeshGPUData) == 96);
-static_assert(sizeof(PointLightGPUData) == 40);
+static_assert(sizeof(PointLightGPUData) == 48);
 static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
-static_assert(sizeof(DrawPush) == 16);
+static_assert(sizeof(DrawPush) == 20);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);
+
+// dxc lays a structured buffer out as std430: the array stride is the struct
+// size rounded up to 16. A C++ struct that is not a multiple of 16 therefore
+// writes at a smaller stride than the shader reads, and every element past the
+// first lands on garbage.
+template <class T>
+inline constexpr bool gpuStrideOk = sizeof(T) % 16 == 0;
+static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
+              gpuStrideOk<PointLightGPUData> && gpuStrideOk<Material> &&
+              gpuStrideOk<SkyboxGPUData> && gpuStrideOk<DebugVertexGPUData> &&
+              gpuStrideOk<DebugShapeGPUData> && gpuStrideOk<BillboardGPUData>);
 
 static_assert(offsetof(CameraGPUData, pos_) == 128 && offsetof(CameraGPUData, znear_) == 140);
 static_assert(offsetof(SkyboxGPUData, color1) == 160);

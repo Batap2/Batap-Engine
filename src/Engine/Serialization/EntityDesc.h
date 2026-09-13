@@ -34,7 +34,6 @@ struct MeshDesc
 struct MaterialsDesc
 {
     std::array<std::string, 8> paths{};
-    uint8_t count = 0;
 };
 
 using ComponentDesc = std::variant<Transform_C, MeshDesc, MaterialsDesc>;
