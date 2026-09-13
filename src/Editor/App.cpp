@@ -47,6 +47,16 @@ App::App(Engine& engine, World& world)
     loadRecentProjects();
 }
 
+// The World outlives the App, so its registry would otherwise be destroyed
+// after gameModule_ has unloaded the DLL — and an entt pool created by DLL
+// code destroys itself through DLL code.
+App::~App()
+{
+    game_.reset();
+    if (world_)
+        world_->resetScene();
+}
+
 void App::update()
 {
     pumpMsgFileDialog();

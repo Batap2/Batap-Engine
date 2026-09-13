@@ -22,6 +22,7 @@ enum class AppState { SelectProject, Running };
 struct App
 {
     App(Engine& engine, World& world);
+    ~App();
 
     void update();
 

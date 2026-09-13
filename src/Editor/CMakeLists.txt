@@ -3,11 +3,9 @@ file(GLOB_RECURSE EDITOR_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
 )
-# main.cpp belongs to the standalone exe; EntryPoint.cpp is compiled into each
-# editor exe by batap_add_editor (an object in a static lib whose symbols
-# nothing references would be dropped by the linker).
+# EntryPoint.cpp goes to the exe, not the lib: an object in a static lib whose
+# symbols nothing references would be dropped by the linker.
 list(REMOVE_ITEM EDITOR_SOURCES
-  "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/EntryPoint.cpp"
 )
 
@@ -26,25 +24,13 @@ target_link_libraries(Batap_EditorLib PUBLIC
   Batap_Engine
 )
 
-# An editor executable: the given sources + EntryPoint.cpp, linked against
-# the editor lib. A game passes an editor_main.cpp that includes its
-# GameComponents.h — that's what puts its components in the editor binary.
-function(batap_add_editor name)
-  set(entry "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/EntryPoint.cpp")
-  if(WIN32)
-    # WIN32 = sous-système fenêtré (wWinMain) ; l'icône vient du .rc
-    add_executable(${name} WIN32
-      ${ARGN}
-      "${entry}"
-      "${PROJECT_SOURCE_DIR}/resources.rc"
-    )
-  else()
-    add_executable(${name}
-      ${ARGN}
-      "${entry}"
-    )
-  endif()
-  target_link_libraries(${name} PRIVATE Batap_EditorLib)
-endfunction()
+if(WIN32)
+  add_executable(Batap_Editor WIN32
+    "${CMAKE_CURRENT_SOURCE_DIR}/EntryPoint.cpp"
+    "${PROJECT_SOURCE_DIR}/resources.rc"
+  )
+else()
+  add_executable(Batap_Editor "${CMAKE_CURRENT_SOURCE_DIR}/EntryPoint.cpp")
+endif()
 
-batap_add_editor(Batap_Editor "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+target_link_libraries(Batap_Editor PRIVATE Batap_EditorLib)

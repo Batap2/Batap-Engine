@@ -1,5 +1,6 @@
 #include "FieldUI.h"
 
+#include "Components/RigidBody_C.h"
 #include "EigenTypes.h"
 #include "Reflection/ComponentRegistry.h"
 #include "UI/Field.h"
@@ -8,6 +9,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace batap
 {
@@ -23,6 +25,20 @@ std::unordered_map<std::string, DrawFn>& drawUIByName()
     static std::unordered_map<std::string, DrawFn> map;
 #pragma clang diagnostic pop
     return map;
+}
+
+const char* kindName(Shape::Kind k)
+{
+    switch (k)
+    {
+        case Shape::Kind::Sphere:
+            return "Sphere";
+        case Shape::Kind::Capsule:
+            return "Capsule";
+        case Shape::Kind::Box:
+            break;
+    }
+    return "Box";
 }
 
 template <class M>
@@ -86,6 +102,81 @@ void installFieldUI()
         {
             ImGui::SetNextItemWidth(-1.0f);
             return ImGui::ColorEdit3("##v", static_cast<col3*>(p)->data());
+        });
+
+    set<std::vector<Shape>>(
+        [](void* p, const Field&)
+        {
+            auto& shapes = *static_cast<std::vector<Shape>*>(p);
+            bool changed = false;
+
+            if (ImGui::SmallButton("Add"))
+            {
+                shapes.push_back(Shape{});
+                changed = true;
+            }
+
+            auto removed = shapes.end();
+            int id = 0;
+            for (auto it = shapes.begin(); it != shapes.end(); ++it, ++id)
+            {
+                Shape& s = *it;
+                ImGui::PushID(id);
+                struct Guard
+                {
+                    ~Guard() { ImGui::PopID(); }
+                } guard;
+
+                const bool open = ImGui::TreeNodeEx("##shape", ImGuiTreeNodeFlags_DefaultOpen, "%s",
+                                                    kindName(s.kind_));
+                if (shapes.size() > 1)
+                {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        removed = it;
+                }
+                if (!open)
+                    continue;
+
+                int kind = static_cast<int>(s.kind_);
+                ImGui::SetNextItemWidth(-1.0f);
+                if (ImGui::Combo("##kind", &kind, "Box\0Sphere\0Capsule\0"))
+                {
+                    s.kind_ = static_cast<Shape::Kind>(kind);
+                    changed = true;
+                }
+
+                switch (s.kind_)
+                {
+                    case Shape::Kind::Box:
+                        changed |= ImGui::DragFloat3("Half extents", s.halfExtents_.data(), 0.01f,
+                                                     0.001f, 10000.f);
+                        break;
+                    case Shape::Kind::Sphere:
+                        changed |=
+                            ImGui::DragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
+                        break;
+                    case Shape::Kind::Capsule:
+                        changed |=
+                            ImGui::DragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
+                        changed |= ImGui::DragFloat("Half height", &s.halfHeight_, 0.01f, 0.001f,
+                                                    10000.f);
+                        break;
+                }
+
+                changed |= ImGui::DragFloat3("Offset", s.localPos_.data(), 0.01f);
+                changed |= ImGui::DragFloat3("Rotation", s.localRotDeg_.data(), 0.5f);
+                ui::WrapDragMouse();
+
+                ImGui::TreePop();
+            }
+
+            if (removed != shapes.end())
+            {
+                shapes.erase(removed);
+                changed = true;
+            }
+            return changed;
         });
 }
 

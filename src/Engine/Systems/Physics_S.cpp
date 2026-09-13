@@ -3,10 +3,13 @@
 #include "Physics/PhysicsWorld.h"
 
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/ScaledShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
 
 #include "Components/RigidBody_C.h"
 #include "Components/Transform_C.h"
@@ -17,6 +20,7 @@
 #include "World.h"
 
 #include <algorithm>
+#include <numbers>
 
 namespace batap
 {
@@ -50,22 +54,56 @@ JPH::EActivation activationOf(RigidBody_C::Motion m)
                                              : JPH::EActivation::DontActivate;
 }
 
-JPH::ShapeRefC makeUnscaledShape(const RigidBody_C& rb)
+quatf localRotOf(const Shape& s)
 {
-    switch (rb.shape_)
+    constexpr float kDegToRad = std::numbers::pi_v<float> / 180.f;
+    const v3f r = s.localRotDeg_ * kDegToRad;
+    return (angleaxisf(r.x(), v3f::UnitX()) * angleaxisf(r.y(), v3f::UnitY()) *
+            angleaxisf(r.z(), v3f::UnitZ()))
+        .normalized();
+}
+
+bool isCentered(const Shape& s)
+{
+    return s.localPos_.isZero() && s.localRotDeg_.isZero();
+}
+
+JPH::ShapeRefC primitiveOf(const Shape& s)
+{
+    switch (s.kind_)
     {
-        case RigidBody_C::Shape::Sphere:
-            return new JPH::SphereShape(rb.radius_);
-        case RigidBody_C::Shape::Capsule:
-            return new JPH::CapsuleShape(rb.halfHeight_, rb.radius_);
-        case RigidBody_C::Shape::Box:
+        case Shape::Kind::Sphere:
+            return new JPH::SphereShape(s.radius_);
+        case Shape::Kind::Capsule:
+            return new JPH::CapsuleShape(s.halfHeight_, s.radius_);
+        case Shape::Kind::Box:
             break;
     }
     // Jolt asserts if the rounding radius eats the box; a thin collider is
     // legitimate here, the editor lets the extents go down to 1 mm.
-    const float smallest = rb.halfExtents_.minCoeff();
-    return new JPH::BoxShape(toJolt(rb.halfExtents_),
+    const float smallest = s.halfExtents_.minCoeff();
+    return new JPH::BoxShape(toJolt(s.halfExtents_),
                              std::min(JPH::cDefaultConvexRadius, smallest * 0.5f));
+}
+
+JPH::ShapeRefC makeUnscaledShape(const RigidBody_C& rb)
+{
+    if (rb.shapes_.size() == 1)
+    {
+        const Shape& s = rb.shapes_.front();
+        if (isCentered(s))
+            return primitiveOf(s);
+        // A StaticCompoundShape needs at least two children, so a lone
+        // offset shape is wrapped instead.
+        return new JPH::RotatedTranslatedShape(toJolt(s.localPos_), toJolt(localRotOf(s)),
+                                               primitiveOf(s));
+    }
+
+    JPH::StaticCompoundShapeSettings settings;
+    for (const Shape& s : rb.shapes_)
+        settings.AddShape(toJolt(s.localPos_), toJolt(localRotOf(s)), primitiveOf(s));
+
+    return settings.Create().Get();
 }
 
 JPH::ShapeRefC makeShape(const RigidBody_C& rb, const v3f& scale)
@@ -75,9 +113,11 @@ JPH::ShapeRefC makeShape(const RigidBody_C& rb, const v3f& scale)
     if (s.IsClose(JPH::Vec3::sOne()))
         return base;
 
-    // A sphere only accepts a uniform scale and a capsule a uniform X/Z one:
-    // MakeScaleValid picks the closest legal scale (and a non-zero one)
-    // instead of letting Jolt assert on whatever the inspector produced.
+    // A sphere only accepts a uniform scale and a capsule a uniform X/Z one,
+    // and a compound rejects any non-uniform scale as soon as one of its
+    // children is rotated: MakeScaleValid picks the closest legal scale (and
+    // a non-zero one) instead of letting Jolt assert on whatever the
+    // inspector produced.
     return new JPH::ScaledShape(base, base->MakeScaleValid(s));
 }
 
@@ -97,6 +137,27 @@ const col3& colorOf(const RigidBody_C& rb)
     return colors::cyan;
 }
 
+// Damping and mass are not on BodyInterface, and SetShape would recompute the
+// mass from the shape's density and drop mass_.
+void applyMotionProperties(PhysicsWorld& physics, JPH::BodyID id, const RigidBody_C& rb,
+                           const JPH::Shape& shape)
+{
+    JPH::BodyLockWrite lock(physics.system().GetBodyLockInterface(), id);
+    if (!lock.Succeeded())
+        return;
+
+    JPH::MotionProperties* mp = lock.GetBody().GetMotionPropertiesUnchecked();
+    if (!mp)
+        return;
+
+    mp->SetLinearDamping(rb.linearDamping_);
+    mp->SetAngularDamping(rb.angularDamping_);
+
+    JPH::MassProperties mass = shape.GetMassProperties();
+    mass.ScaleToMass(rb.mass_);
+    mp->SetMassProperties(mp->GetAllowedDOFs(), mass);
+}
+
 void destroyBody(JPH::BodyInterface& bi, RigidBody_C& rb)
 {
     if (rb.bodyId_ == kInvalidBodyId)
@@ -111,6 +172,7 @@ void destroyBody(JPH::BodyInterface& bi, RigidBody_C& rb)
 void createBody(JPH::BodyInterface& bi, RigidBody_C& rb, const Transform_C& tc)
 {
     rb.shapeScale_ = tc.scale();
+    rb.dirty_ = false;
     JPH::BodyCreationSettings settings(makeShape(rb, rb.shapeScale_), toJolt(tc.pos()),
                                        toJolt(tc.rot()), motionTypeOf(rb.motion_),
                                        layerOf(rb.motion_));
@@ -131,6 +193,12 @@ void createBody(JPH::BodyInterface& bi, RigidBody_C& rb, const Transform_C& tc)
 void Physics_S::connectHooks(entt::registry& reg)
 {
     reg.on_destroy<RigidBody_C>().connect<&Physics_S::onRigidBodyDestroyed>(*this);
+    reg.on_update<RigidBody_C>().connect<&Physics_S::onRigidBodyChanged>(*this);
+}
+
+void Physics_S::onRigidBodyChanged(entt::registry& reg, entt::entity e)
+{
+    reg.get<RigidBody_C>(e).dirty_ = true;
 }
 
 void Physics_S::onRigidBodyDestroyed(entt::registry& reg, entt::entity e)
@@ -150,24 +218,32 @@ void Physics_S::drawColliders(World& world)
     DebugDraw& dbg = world.debugOverlay();
     for (auto [e, rb, tc] : world.registry_.view<RigidBody_C, Transform_C>().each())
     {
-        const transform xform = TRS_Transform(tc.pos(), tc.rot(), v3f::Ones());
+        const transform base = TRS_Transform(tc.pos(), tc.rot(), v3f::Ones());
         const v3f scale = tc.scale().cwiseAbs();
         const col3& color = colorOf(rb);
 
-        switch (rb.shape_)
+        for (const Shape& s : rb.shapes_)
         {
-            case RigidBody_C::Shape::Box:
-                dbg.box(xform, rb.halfExtents_.cwiseProduct(scale), color);
-                break;
-            case RigidBody_C::Shape::Sphere:
-                // Jolt only accepts a uniform scale on a sphere and a uniform
-                // X/Z one on a capsule (MakeScaleValid); the wire reproduces that
-                dbg.sphere(xform, rb.radius_ * scale.sum() / 3.f, color);
-                break;
-            case RigidBody_C::Shape::Capsule:
-                dbg.capsule(xform, rb.halfHeight_ * scale.y(),
-                            rb.radius_ * (scale.x() + scale.z()) * 0.5f, color);
-                break;
+            // The entity scale moves a child's offset as well as its size —
+            // that is what ScaledShape does to the compound.
+            const transform xform =
+                base * TRS_Transform(s.localPos_.cwiseProduct(scale), localRotOf(s), v3f::Ones());
+
+            switch (s.kind_)
+            {
+                case Shape::Kind::Box:
+                    dbg.box(xform, s.halfExtents_.cwiseProduct(scale), color);
+                    break;
+                case Shape::Kind::Sphere:
+                    // Jolt only accepts a uniform scale on a sphere and a uniform
+                    // X/Z one on a capsule (MakeScaleValid); the wire reproduces that
+                    dbg.sphere(xform, s.radius_ * scale.sum() / 3.f, color);
+                    break;
+                case Shape::Kind::Capsule:
+                    dbg.capsule(xform, s.halfHeight_ * scale.y(),
+                                s.radius_ * (scale.x() + scale.z()) * 0.5f, color);
+                    break;
+            }
         }
     }
 }
@@ -184,7 +260,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
     {
         auto& rb = view.get<RigidBody_C>(e);
 
-        if (!rb.active_)
+        if (!rb.active_ || rb.shapes_.empty())
         {
             destroyBody(bi, rb);
             continue;
@@ -199,10 +275,17 @@ void Physics_S::fixedUpdate(World& world, float dt)
 
         const JPH::BodyID id{rb.bodyId_};
 
-        if (!tc.scale().isApprox(rb.shapeScale_))
+        if (rb.dirty_ || !tc.scale().isApprox(rb.shapeScale_))
         {
+            rb.dirty_ = false;
             rb.shapeScale_ = tc.scale();
-            bi.SetShape(id, makeShape(rb, rb.shapeScale_), true, activationOf(rb.motion_));
+
+            JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_);
+            bi.SetShape(id, shape, false, activationOf(rb.motion_));
+            bi.SetFriction(id, rb.friction_);
+            bi.SetRestitution(id, rb.restitution_);
+            bi.SetGravityFactor(id, rb.gravityFactor_);
+            applyMotionProperties(physics, id, rb, *shape);
         }
 
         const JPH::EMotionType wanted = motionTypeOf(rb.motion_);

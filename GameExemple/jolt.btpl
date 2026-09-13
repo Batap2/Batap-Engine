@@ -47,19 +47,33 @@
           "angularDamping": 0.05000000074505806,
           "friction": 0.20000000298023224,
           "gravityFactor": 1.0,
-          "halfExtents": [
-            0.5,
-            0.5,
-            0.5
-          ],
-          "halfHeight": 0.5,
           "linearDamping": 0.05000000074505806,
           "mass": 1.0,
           "motion": 2,
-          "radius": 0.5,
           "restitution": 0.0,
-          "shape": 1,
-          "type": "rigidBody"
+          "type": "rigidBody",
+          "shapes": [
+            {
+              "kind": 1,
+              "halfExtents": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "radius": 0.5,
+              "halfHeight": 0.5,
+              "localPos": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "localRotDeg": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          ]
         },
         {
           "pos": [
@@ -95,19 +109,33 @@
           "angularDamping": 0.05000000074505806,
           "friction": 0.20000000298023224,
           "gravityFactor": 1.0,
-          "halfExtents": [
-            1.0,
-            0.9900000095367432,
-            1.0099999904632568
-          ],
-          "halfHeight": 0.5,
           "linearDamping": 0.05000000074505806,
           "mass": 1.0,
           "motion": 0,
-          "radius": 0.5,
           "restitution": 0.0,
-          "shape": 0,
-          "type": "rigidBody"
+          "type": "rigidBody",
+          "shapes": [
+            {
+              "kind": 0,
+              "halfExtents": [
+                1.0,
+                0.9900000095367432,
+                1.0099999904632568
+              ],
+              "radius": 0.5,
+              "halfHeight": 0.5,
+              "localPos": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "localRotDeg": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          ]
         },
         {
           "pos": [
@@ -143,19 +171,33 @@
           "angularDamping": 0.05000000074505806,
           "friction": 0.20000000298023224,
           "gravityFactor": 1.0,
-          "halfExtents": [
-            1.0,
-            0.9900000095367432,
-            1.0099999904632568
-          ],
-          "halfHeight": 0.5,
           "linearDamping": 0.05000000074505806,
           "mass": 1.0,
           "motion": 0,
-          "radius": 0.5,
           "restitution": 0.0,
-          "shape": 0,
-          "type": "rigidBody"
+          "type": "rigidBody",
+          "shapes": [
+            {
+              "kind": 0,
+              "halfExtents": [
+                1.0,
+                0.9900000095367432,
+                1.0099999904632568
+              ],
+              "radius": 0.5,
+              "halfHeight": 0.5,
+              "localPos": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "localRotDeg": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          ]
         },
         {
           "pos": [

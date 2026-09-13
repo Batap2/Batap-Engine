@@ -9,6 +9,7 @@
 #include "Reflection/ComponentRegistry.h"
 #include "Renderer/Renderer.h"
 #include "Serialization/AssetFieldTypes.h"
+#include "Serialization/PhysicsFieldTypes.h"
 
 
 #include <filesystem>
@@ -31,6 +32,7 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
     // trace still points here rather than at the first load/save.
     registerBuiltinFieldTypes();
     registerAssetFieldTypes();
+    registerPhysicsFieldTypes();
     ComponentRegistry::instance().validate();
 
     platformInit();

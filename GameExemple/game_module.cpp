@@ -3,6 +3,7 @@
 
 #include "GameModule.h"
 #include "Serialization/AssetFieldTypes.h"
+#include "Serialization/PhysicsFieldTypes.h"
 
 extern "C" __declspec(dllexport) void batapGameEntry(batap::GameModuleAPI* out)
 {
@@ -10,6 +11,7 @@ extern "C" __declspec(dllexport) void batapGameEntry(batap::GameModuleAPI* out)
     // them, and the host's slots are separate copies.
     batap::registerBuiltinFieldTypes();
     batap::registerAssetFieldTypes();
+    batap::registerPhysicsFieldTypes();
 
     out->registry_ = &batap::ComponentRegistry::instance();
     out->createGame_ = []() -> batap::Game* { return new batap::MyGame(); };

@@ -89,10 +89,71 @@ Décisions actées :
       kinematic suivi par Jolt à l'identique (3.995 / 3.995), `active_` off→on
       qui détruit puis recrée, Kinematic→Dynamic et Static→Dynamic→Static sans
       crash, `registry.destroy` qui détruit via le hook, `resetScene()` à 0.
+- [x] **5. Formes multiples par corps** — fait : `RigidBody_C` porte un
+      `std::vector<Shape>` à la place de la forme unique. Une `Shape` est
+      plate (kind, dimensions, `localPos_`, `localRotDeg_`), le composant
+      reste une entité = un objet physique.
+      Écarté : des `Collider_C` sur les entités enfants à la Unity — le sens
+      d'une entité se mettrait à dépendre de la présence d'un rigidbody chez
+      un ancêtre. Écarté aussi : un `std::array` fixe façon `Materials_C` —
+      son plafond n'y a de sens que parce qu'un slot matériau est **indexé**
+      face à un sous-mesh, ce qu'une liste de formes n'est pas.
+      Le `static_assert(is_trivially_destructible)` de `addComponentType` a
+      donc sauté. Il venait du commit « game as a dll » et gardait une vraie
+      propriété : `~App` détruisait `gameModule_` (donc `FreeLibrary`) avant
+      que `~World` ne détruise le registry, si bien qu'un destructeur de
+      composant tournait après l'unload. Plutôt que de contourner, l'ordre est
+      réparé — `~App` appelle `resetScene()` — ce qui répare aussi le bug
+      latent des composants **définis dans la DLL** : entt crée leur pool par
+      `allocate_shared` dans le module qui l'instancie en premier, donc
+      vtable et deleter appartenaient à la DLL indépendamment de l'assert.
+      `RigidBody_C` n'était de toute façon pas concerné : `connectHooks` fait
+      `on_destroy<RigidBody_C>()` → `assure<>()` dans le ctor de `World` et
+      après chaque `reg = entt::registry{}`, donc son pool est toujours hôte.
+      Côté Jolt, trois cas et non deux : forme nue si l'unique `Shape` est
+      centrée, `RotatedTranslatedShape` si elle a un offset (un
+      `StaticCompoundShape` exige au moins deux enfants), `StaticCompoundShape`
+      au-delà. `MakeScaleValid` couvre un piège de plus : un compound refuse
+      tout scale non uniforme dès qu'un de ses enfants est tourné.
+      La forme n'est plus refaite sur le seul changement de scale. Première
+      version : un hash des formes comparé à chaque step — ça ne rate jamais,
+      mais ça travaille pour chaque corps à chaque step même quand rien ne
+      bouge. Remplacé par le mécanisme prévu par entt, qui n'existait nulle
+      part dans le moteur : `on_update<T>` + `registry.patch<T>(e)`.
+      `ComponentType` gagne un `patch` type-effacé à côté des quatre autres
+      opérations entt, l'inspecteur l'appelle là où il calculait déjà son
+      `changed` — donc c'est valable pour **tous** les composants, pas que les
+      colliders — et `Physics_S` lève un `dirty_` (fieldSkip) dessus. Coût :
+      un `index()` de sparse set plus un `publish`, par édition et non par
+      step. Contrepartie assumée : du code jeu qui écrit `shapes_` sans
+      `patch` ne déclenche rien — le contrat entt, pas une bizarrerie maison.
+      Le même chemin `dirty_` repousse friction, restitution, gravity factor,
+      damping et masse vers le corps Jolt, ce qui répare deux bugs au
+      passage : les éditer en Play ne faisait rien (ils n'étaient lus que dans
+      `BodyCreationSettings`), et `SetShape(..., true, ...)` recalculait la
+      masse depuis la densité de la forme, écrasant `mass_` à chaque
+      changement de scale. Damping et masse ne sont pas sur `BodyInterface` :
+      ils passent par un `BodyLockWrite` et `MotionProperties`.
+      Le `drawUI` du field type `std::vector<Shape>` suffit à l'inspecteur —
+      pas de `customEditor`, la boucle générique continue de dessiner masse et
+      friction. `registerPhysicsFieldTypes()` est à appeler **dans les deux
+      modules** (`Engine.cpp` et `game_module.cpp`), comme les asset types.
+      Migration : les anciennes clés `shape`/`halfExtents`/`radius`/
+      `halfHeight` sont ignorées au chargement (`cj.contains`) et
+      `componentVersions` n'est jamais relu — `jolt.btpl` a été converti par
+      script.
+      Validé à l'image sur `GameExemple` par un harnais temporaire (retiré) :
+      un compound sphère + boîte tournée ajouté au torus dynamique, corps
+      construit en Play, torus au repos **sur sa boîte**, sphère décollée du
+      plan — Jolt utilise bien le compound, et le fil de debug coïncide avec
+      lui. Puis le chemin `patch` : torus au repos sur sa sphère, jambe
+      ajoutée en cours de simulation via `registry.patch`, corps reconstruit
+      et déséquilibré à l'image suivante. Sortie propre de l'éditeur avec la
+      DLL jeu chargée.
 - [ ] `fixedLateUpdate` seulement si un cas concret le réclame (Unity n'en a
       pas ; les contacts passent par les listeners Jolt).
 
-## 1bis. Debug draw (chantier courant)
+## 1bis. Debug draw
 
 Décision actée : **pas de lib externe**. debug-draw (glampert) couvre les
 bonnes primitives mais aplatit tout en segments côté CPU, à chaque appel et à
@@ -248,6 +309,3 @@ Lumen software, beaucoup plus de code.
   bindless) : la réflexion SPIR-V les rendrait dérivables des shaders, comme
   une UI matériaux auto-générée. Même philosophie que `BATAP_COMPONENT`. À
   faire quand le nombre de bindings fera mal.
-- Le chemin **macOS** (`Platform/MacOS/*.mm`, MoltenVK) est écrit mais n'a
-  jamais été compilé : prévoir une passe de fix, pas une réécriture. MoltenVK
-  ne traduit pas `ray_query`.

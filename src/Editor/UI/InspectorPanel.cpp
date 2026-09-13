@@ -100,7 +100,11 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world)
         if (removed)
             removeComponent(world, ent, t);
         else if (changed)
+        {
+            if (t.patch)
+                t.patch(*ent.reg_, ent.entity_);
             world.instances().markDirty(ent, t.mask());
+        }
     }
 }
 

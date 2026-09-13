@@ -16,13 +16,9 @@ int runEditor(const EditorConfig& cfg)
         Engine engine{cfg.window_};
         World world{engine};
         App app{engine, world};
-        if (cfg.makeGame_)
-            app.game_ = cfg.makeGame_();
-        if (cfg.gameExeName_)
-            app.gameExeName_ = cfg.gameExeName_;
 
         // `--game <dll>` (dev mode): the game is loaded as a module instead of
-        // being compiled in.
+        // coming from the opened project.
         const auto args = platformCommandLineArgs();
         for (size_t i = 0; i + 1 < args.size(); ++i)
             if (args[i] == "--game" && app.gameModule_.load(args[i + 1]))

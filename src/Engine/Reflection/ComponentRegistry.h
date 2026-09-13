@@ -124,6 +124,8 @@ struct ComponentType
     void* (*getOrEmplace)(entt::registry&, entt::entity) = nullptr;
     void (*remove)(entt::registry&, entt::entity) = nullptr;
     void (*copy)(entt::registry&, entt::entity from, entt::entity to) = nullptr;
+    // entt's on_update; undefined behaviour on an entity without the component.
+    void (*patch)(entt::registry&, entt::entity) = nullptr;
 
     // The componentBitSlot<T> this type was registered from. importFrom
     // copies the host's bit through it so componentMask<T> agrees across
@@ -241,9 +243,6 @@ Field field(std::string name, FieldMeta m = {})
 template <class T>
 void addComponentType(std::string_view name, ComponentMeta meta, std::vector<Field> fields)
 {
-    static_assert(std::is_trivially_destructible_v<T>,
-                  "components must be flat values");
-
     ComponentType t;
     t.name = name;
     t.meta = meta;
@@ -255,6 +254,7 @@ void addComponentType(std::string_view name, ComponentMeta meta, std::vector<Fie
     t.remove = [](entt::registry& r, entt::entity e) { r.remove<T>(e); };
     t.copy = [](entt::registry& r, entt::entity from, entt::entity to)
     { r.emplace_or_replace<T>(to, r.get<T>(from)); };
+    t.patch = [](entt::registry& r, entt::entity e) { r.patch<T>(e); };
     t.bitSlot_ = &componentBitSlot<T>();
 
     ComponentRegistry::instance().add(std::move(t));

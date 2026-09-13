@@ -18,5 +18,6 @@ struct Physics_S
 
    private:
     void onRigidBodyDestroyed(entt::registry& reg, entt::entity e);
+    void onRigidBodyChanged(entt::registry& reg, entt::entity e);
 };
 }  // namespace batap
