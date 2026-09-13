@@ -155,6 +155,8 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
                 tangentBytes);
 
     mesh->indexFormat_ = ResourceFormat::R32_UINT;
+    for (const v3f& v : data->vertices)
+        mesh->localBounds_.extend(v);
     mesh->subMeshCount = static_cast<uint8_t>(std::min(data->subMeshes.size(), size_t(8)));
     for (uint8_t i = 0; i < mesh->subMeshCount; ++i)
         mesh->subMeshes[i] = {data->subMeshes[i].indexOffset, data->subMeshes[i].indexCount};

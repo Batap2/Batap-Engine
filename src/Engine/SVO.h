@@ -2,7 +2,7 @@
 
 #include <bitset>
 #include <vector>
-#include "Bbox.hpp"
+#include "Bbox.h"
 #include "VoxelDataStructs.h"
 
 struct SVOHelperNode {

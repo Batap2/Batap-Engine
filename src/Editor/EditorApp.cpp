@@ -2,6 +2,7 @@
 
 #include "App.h"
 #include "Platform/PlatformWindow.h"
+#include "Serialization/EntitySerializer.h"
 #include "World.h"
 
 #include <exception>
@@ -21,8 +22,14 @@ int runEditor(const EditorConfig& cfg)
         // coming from the opened project.
         const auto args = platformCommandLineArgs();
         for (size_t i = 0; i + 1 < args.size(); ++i)
+        {
             if (args[i] == "--game" && app.gameModule_.load(args[i + 1]))
                 app.game_ = app.gameModule_.makeGame();
+            else if (args[i] == "--project")
+                app.selectProject(args[i + 1]);
+            else if (args[i] == "--scene")
+                EntitySerializer::clearSceneAndLoad(world, engine, args[i + 1]);
+        }
 
         while (Frame frame = engine.nextFrame())
             app.update();

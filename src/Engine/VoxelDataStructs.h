@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
-#include "Bbox.hpp"
+#include "Bbox.h"
 
 
 // struct Voxel

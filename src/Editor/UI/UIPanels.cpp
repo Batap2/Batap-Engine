@@ -7,6 +7,7 @@
 #include "Serialization/EntitySerializer.h"
 #include "FileDialog.h"
 #include "UI/IconsMaterialDesign.h"
+#include "Systems/Bounds_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
 #include "World.h"
@@ -101,6 +102,7 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
         if (ImGui::BeginMenu("View"))
         {
             ImGui::MenuItem("Colliders", nullptr, &world.systems().physics_->showColliders_);
+            ImGui::MenuItem("Bounds", nullptr, &world.systems().bounds_->showBounds_);
             ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
             ImGui::EndMenu();
         }

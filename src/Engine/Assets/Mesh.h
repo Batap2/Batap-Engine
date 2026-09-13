@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include "Bbox.h"
 #include "Handles.h"
 #include "Renderer/ResourceFormat.h"
 
@@ -11,7 +12,7 @@ namespace batap
 struct SubMesh
 {
     uint32_t indexOffset = 0;
-    uint32_t indexCount  = 0;
+    uint32_t indexCount = 0;
 };
 
 struct Mesh
@@ -36,10 +37,12 @@ struct Mesh
     ResourceFormat indexFormat_ = ResourceFormat::R32_UINT;
 
     uint32_t vertexCount_ = 0;
-    uint32_t indexCount_  = 0;
+    uint32_t indexCount_ = 0;
 
     std::array<SubMesh, 8> subMeshes{};
-    uint8_t                subMeshCount = 0;
+    uint8_t subMeshCount = 0;
+
+    AABB localBounds_;
 
     bool isRenderable() const { return buffer_.valid(); }
 };

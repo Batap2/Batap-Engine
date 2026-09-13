@@ -268,20 +268,113 @@ devait redessiner ses autres champs pour rien.
       picker à côté de ses autres champs, et le torus garde son panneau Mesh et
       son Rigid Body intacts.
 
-## 2. Structures d'accélération (rendu)
+## 2. Structures d'accélération
 
-Le partage est réglé par le §1 : Jolt possède la seule structure CPU et ne
-voit que les colliders. À nous le côté rendu — trois structures, dans l'ordre.
-Rappel : **le frustum culling ne demande aucune structure** — en GPU-driven,
-un compute teste linéairement les AABB de toutes les instances contre les 6
-plans ; l'octree/BVH de culling est une optimisation CPU d'une autre époque.
-Pas d'étape intermédiaire frustum CPU : elle serait jetée au GPU-driven.
+Le partage est réglé par le §1 : Jolt possède la structure physique et ne voit
+que les colliders — et seulement en Play, puisque les bodies naissent dans
+`Physics_S::fixedUpdate`, que le chemin éditeur de `World::update` n'appelle
+pas. L'éditeur n'a donc aujourd'hui aucun index spatial du tout.
 
-- [ ] **1. Plomberie AABB** — le socle. AABB locale par mesh calculée à
-      l'import (stockée dans le `.bmesh`), AABB monde par instance recalculée
-      quand le transform change (le dirty-marking sait déjà quand).
-      `Bbox.hpp` sort enfin du placard.
-- [ ] **2. GPU-driven culling two-phase Hi-Z** :
+Deux chantiers sortent de là, à ne pas confondre : ils ne répondent pas aux
+mêmes questions et ne partagent que les AABB.
+
+### 2a. Requêtes spatiales — TLAS/BLAS
+
+Acté : un index CPU des entités **de rendu**, le même en édition et en Play,
+en deux niveaux. TLAS sur les AABB monde des instances (« quel objet »), BLAS
+sur les triangles d'un mesh (« quel point, quel triangle, quelle normale »).
+
+Ça ne remplace pas Jolt et ça ne le double pas : les deux répondent à des
+questions différentes et la bonne réponse n'est pas la même. Un arbre à
+collider capsule doit être *touché* sur sa capsule (la physique doit rester
+cohérente avec elle-même) et *cliqué* sur sa branche visible. Jolt garde le
+tir, la ligne de vue, les triggers, le sol ; l'index de rendu prend le picking,
+le drag-to-surface, le snap, la mesure, et tout ce qui n'a pas de collider —
+lumières, billboards, décor. `MeshShape` ne change rien à ce partage : il est
+réservé aux corps statiques, il garde sa propre copie des triangles, et donner
+de l'exact à tout dégraderait la simulation. Il reste le bon outil pour la
+collision du décor statique, c'est le « plus tard » du §1 et c'est indépendant.
+
+**Le `.bmesh` ne bouge pas.** Le BLAS n'est jamais sérialisé : il se construit
+paresseusement, à la première requête sur un mesh, en relisant son `.bmesh` —
+qui contient déjà positions et indices. Conséquence qui vaut la contrainte : le
+BVH n'est plus qu'un détail d'implémentation derrière l'API, donc **lib ou
+maison devient réversible** et n'a pas à être tranché maintenant. Un build SAH
+binné tourne autour de 1-3 M triangles/s, soit ~50 ms pour un mesh de 100k
+triangles, une fois par mesh par session, et seulement pour les meshes
+réellement interrogés (le TLAS a déjà réduit à quelques candidats). Si ça
+hoquette un jour : build sur un thread de travail, précision AABB en attendant.
+Si ça ne suffit toujours pas, la sortie est un cache de données dérivées à côté
+(`<hash mesh + version builder>.bvh`), toujours pas le format d'asset.
+
+Critère pour trancher lib/maison le jour venu : **bake d'éclairage → lib**
+(débit et intersection watertight décident, tinybvh : header unique, MIT ;
+pas Embree, TBB et des DLL de dizaines de Mo) ; **picking/snap/drag seulement →
+BVH4+SIMD maison**, ~500 lignes, de l'ordre de 60-70 % du débit d'une lib.
+
+- [ ] **1. Plomberie AABB** — AABB locale par mesh **dérivée au chargement**
+      (un balayage des positions qu'on lit déjà — le précédent existe, les
+      tangentes ne sont pas stockées non plus), AABB monde par instance
+      recalculée quand le transform change : `Transform_S::flushDirty` est
+      déjà l'endroit exact où `world_` est recalculé. `Bbox.h` sort enfin du
+      placard.
+- [ ] **2. L'API de requête avant la structure** — `raycast(ray)`,
+      `overlap(aabb)`, `overlap(sphere)`, rendant entité + `t` + point +
+      normale. C'est la partie qu'on ne peut plus changer après ; tout le reste
+      se remplace derrière elle sans toucher un appelant.
+- [ ] **3. TLAS maison** — BVH binaire sur les AABB monde, build SAH binné,
+      refit sur le dirty-marking existant, traversée scalaire (à quelques
+      milliers de boîtes le SIMD ne se voit pas). ~250 lignes, aucune
+      sérialisation, aucune dépendance : rien d'irréversible ici, contrairement
+      au BLAS. Découpage simple : statique reconstruit rarement / dynamique
+      refit par frame, ça évite toute insertion incrémentale.
+- [ ] **4. Rayon contre billboards** — pas de mesh, donc pas de BLAS, et c'est
+      précisément le cas qui a motivé le §1ter (une lumière est invisible et
+      impickable). Quad face caméra à position et taille connues :
+      intersection analytique, boucle linéaire, ils sont peu nombreux. La
+      construction du quad doit être lue depuis `Renderer/Billboards.h` pour
+      que le picking et le VS ne divergent pas. Lire l'alpha de la texture à
+      l'UV touché si on veut que le coin transparent d'une icône ne soit pas
+      cliquable.
+- [ ] **5. BLAS** — le jour où la précision triangle manque vraiment (cliquer
+      à travers le trou d'un torus, drag-to-surface exact). Avant ça, une
+      boucle brute sur les triangles des quelques candidats retenus par le
+      TLAS suffit pour un clic.
+- [ ] **Construction paresseuse** — `World::spatialIndex()` qui construit à la
+      première requête. L'éditeur appelle dès l'ouverture d'une scène donc il
+      l'a toujours ; un jeu qui n'interroge que Jolt ne paie rien. Dans un jeu
+      shippé les vrais usages sont : entités sans collider (affiche, écran,
+      interrupteur), impacts précis sur la surface visible, et les outils en
+      jeu (construction, mode photo, modding).
+- [ ] Au besoin : **grille de hash spatiale** pour du kNN sur des entités sans
+      collider. ~100 lignes, le jour venu.
+
+**Abandonné : le picking éditeur par id-buffer GPU.** Il se justifiait par
+« pixel-perfect sur le mesh de rendu, les colliders Jolt sont simplifiés » — un
+BLAS sur la géométrie de rendu retire exactement cette raison. Le rayon fait
+mieux pour moins cher : ni target ni passe en plus, pas de readback GPU→CPU, et
+il rend le point d'impact et la normale dont les autres outils ont besoin de
+toute façon. Les objections habituelles ne mordent pas ici : ni skinning, ni
+animation de sommets, et le seul `discard` du moteur est dans
+`BillboardPS.hlsl`. **À ressortir le jour où il y aura du skinning** : un BLAS
+en pose de repos est faux pour un personnage animé.
+
+### 2b. Rendu — culling et binning
+
+Aucun arbre ici, malgré le nom de la section : la HZB est une pyramide, les
+froxels une grille régulière. Rappel : **le frustum culling ne demande aucune
+structure** — en GPU-driven, un compute teste linéairement les AABB de toutes
+les instances contre les 6 plans ; l'octree/BVH de culling est une optimisation
+CPU d'une autre époque. Pas d'étape intermédiaire frustum CPU : elle serait
+jetée au GPU-driven.
+
+Les deux déclencheurs, pour arbitrer l'ordre le moment venu : le coût CPU des
+draws n'explose vraiment qu'avec les **shadow maps** (chaque cascade re-parcourt
+la scène), tandis que la boucle par pixel de `Lighting.hlsli` est en
+O(pixels × lumières) et devient un mur dès la première scène sérieusement
+éclairée.
+
+- [ ] **1. GPU-driven culling two-phase Hi-Z** :
       1. **arena géométrique** : un draw indirect ne rebinde pas de buffers,
          or chaque mesh a le sien (`createStaticBuffer` par mesh) — tous les
          meshes dans un buffer partagé, offsets par mesh ; le `submeshIndex_`
@@ -293,14 +386,9 @@ Pas d'étape intermédiaire frustum CPU : elle serait jetée au GPU-driven.
          tester le reste → dessiner les faux-culls.
       Prérequis (cf. notes) : slots GPU stables — free-list au lieu de
       swap-remove.
-- [ ] **3. Grille de clusters de lumières** (froxels) — chaque cellule de vue
+- [ ] **2. Grille de clusters de lumières** (froxels) — chaque cellule de vue
       liste ses lumières. Prérequis de tout éclairage à N lumières ; ressert
       pour le brouillard volumétrique.
-- [ ] **Picking éditeur par id-buffer GPU** — les ids d'entité rendus dans une
-      petite target, lecture du pixel sous la souris. Pixel-perfect sur le
-      mesh de rendu (les colliders Jolt sont simplifiés).
-- [ ] Au besoin : **grille de hash spatiale** pour du kNN sur des entités sans
-      collider. ~100 lignes, le jour venu.
 
 ### Décision différée : RT hardware
 
@@ -308,8 +396,10 @@ Le TLAS/BLAS driver (`VK_KHR_acceleration_structure` + `ray_query`)
 débloquerait ombres/AO/réflexions puis DDGI/ReSTIR, chaque étape « un shader
 de plus ». Mais ~1/3 du parc Steam n'a pas de RT (RTX ≈ 60 %, GTX ≈ 12,5 % +
 vieux AMD/iGPU) : les shadow maps devront exister de toute façon, donc le RT
-n'économise rien — il s'ajoute. Décision au chantier éclairage ; les trois
-structures ci-dessus n'engagent rien. Pari actuel : shadow maps universelles,
+n'économise rien — il s'ajoute. Décision au chantier éclairage ; rien du §2
+ne l'engage — au contraire, le TLAS/BLAS software du §2a a exactement la même
+forme à deux niveaux, donc la donnée serait déjà découpée comme le driver
+l'attend. Pari actuel : shadow maps universelles,
 RT en tier optionnel si `ray_query` présent. Alternative sans RT : SDF façon
 Lumen software, beaucoup plus de code.
 
@@ -391,9 +481,10 @@ chaque frame — les trois murs qui comptent pour un usage en jeu.
       l'éditeur sans icône, et un `Billboard_C` vert en taille monde — découpe
       alpha nette sur les rayons du soleil, couleur non assombrie donc unlit
       effectif.
-- [ ] **Reste à faire** : l'id-buffer de picking, qui est la raison d'être de
-      tout ça (cf. §2) — la passe billboard doit y écrire l'`entt::entity`
-      comme la passe géométrie.
+- [ ] **Reste à faire** : rendre les billboards cliquables, qui est la raison
+      d'être de tout ça. Plus d'id-buffer (cf. §2a) : un test rayon/quad
+      analytique, la même construction que le VS, à lire depuis
+      `Renderer/Billboards.h` pour que les deux ne divergent pas.
 
 ## 3. Restes
 
