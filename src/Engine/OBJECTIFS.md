@@ -366,10 +366,23 @@ chaque frame — les trois murs qui comptent pour un usage en jeu.
       Limite assumée : `Billboard_S` refait le travail à chaque frame comme
       `DebugDraw`. Un vrai pool d'instances serait meilleur à des milliers de
       sprites persistants ; il remplira le même buffer, donc rien à jeter.
-- [x] **4. Icônes éditeur** — fait : `Editor/EditorIcons`, taille écran, PNG
-      blancs sur transparent dans `assets/icons/` (chemin absolu via
-      `resolveEngineFile` : le `baseDir` projet de l'AssetManager tombe alors
-      de la jointure). L'icône de lumière est teintée par la couleur de la
+- [x] **4. Icônes éditeur** — fait : `Editor/EditorIcons`, taille écran.
+      Aucun fichier d'icône : les glyphes sont **rasterisés au lancement**
+      depuis `assets/MaterialIcons-Regular.ttf` avec `stb_truetype` (déjà
+      vendoré, `STBTT_STATIC` pour ne pas croiser la copie d'ImGui), aux
+      codepoints d'`IconsMaterialDesign.h`. L'icône du viewport est donc le
+      glyphe que l'arbre de scène affiche déjà pour cette entité, et la police
+      étant déjà livrée, ni dépendance ni obligation nouvelle — une banque
+      d'icônes tierce a été écartée pour ça : attribution visible exigée, et
+      redistribution des fichiers dans un dépôt public non tranchée.
+      Les textures ne passent pas par l'`AssetManager` : ce ne sont pas des
+      assets de projet, juste `createImage2D` + `requestTextureUpload` +
+      `textureIndex`, détruites dans `~EditorIcons` (l'`Engine` qui possède le
+      ResourceManager survit à l'`App`, donc l'ordre tient).
+      Pixels blancs, couverture du glyphe dans l'alpha : une seule texture
+      sert toutes les couleurs de lumière, la teinte est par instance.
+      Ce que ça coûte : on ne peut plus remplacer une icône en déposant un
+      PNG, le jeu d'icônes est celui de la police. L'icône de lumière est teintée par la couleur de la
       lumière. La caméra **active** est sautée : elle est à l'œil, son icône
       remplirait l'écran ou passerait derrière le near plane. Toggle
       **View > Icons**.
