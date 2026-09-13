@@ -9,6 +9,9 @@
 namespace batap
 {
 
+// Unlit variant of the default material, created with it at engine init.
+inline constexpr const char* kUnlitMaterialPath = "__unlit_material";
+
 struct Engine;
 
 // Loads an asset from disk into memory and registers it in the AssetManager.

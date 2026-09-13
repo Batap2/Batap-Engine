@@ -42,7 +42,14 @@ enum FrameSetBinding : uint
     SkyboxBinding = 4,
     DebugShapeVertsBinding = 5,
     DebugShapesBinding = 6,
-    FrameSetBindingCount = 7,
+    BillboardsBinding = 7,
+    FrameSetBindingCount = 8,
+};
+
+enum ShadingModel : uint
+{
+    ShadingLit = 0,
+    ShadingUnlit = 1,
 };
 
 static const uint InvalidGPUIndex = 0xFFFFFFFFu;
@@ -82,7 +89,7 @@ struct Material
     uint normalTexIdx_ BATAP_INIT(InvalidGPUIndex);
     uint roughnessTexIdx_ BATAP_INIT(InvalidGPUIndex);
     uint metallicTexIdx_ BATAP_INIT(InvalidGPUIndex);
-    uint pad_ BATAP_INIT(0u);
+    uint shadingModel_ BATAP_INIT(0u);  // ShadingModel
 };
 
 struct SkyboxGPUData
@@ -112,6 +119,21 @@ struct DebugShapeGPUData
     float4 color_;
 };
 
+struct BillboardGPUData
+{
+    float3 pos_;  float sizeX_;
+    float4 tint_;
+    float4 rot_;  // only read when BillboardFixed
+    float sizeY_;
+    uint materialIdx_;
+    uint textureIdx_;  // overrides the material albedo map when valid
+    uint flags_;  // bit 0: size is a fraction of screen height, bit 1: Y-locked, bit 2: fixed
+};
+
+static const uint BillboardScreenSize = 1u;
+static const uint BillboardCylindrical = 2u;
+static const uint BillboardFixed = 4u;
+
 struct DrawPush
 {
     uint cameraIndex_;
@@ -130,6 +152,7 @@ static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(DrawPush) == 16);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
+static_assert(sizeof(BillboardGPUData) == 64);
 
 static_assert(offsetof(CameraGPUData, pos_) == 128 && offsetof(CameraGPUData, znear_) == 140);
 static_assert(offsetof(SkyboxGPUData, color1) == 160);

@@ -1,12 +1,17 @@
 #include "FieldUI.h"
 
+#include "App.h"
+#include "Assets/AssetHandle.h"
+#include "Assets/AssetManager.h"
 #include "Components/RigidBody_C.h"
 #include "EigenTypes.h"
+#include "UI/AssetPickerPopup.h"
 #include "Reflection/ComponentRegistry.h"
 #include "UI/Field.h"
 
 #include <imgui.h>
 
+#include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -16,7 +21,7 @@ namespace batap
 
 namespace
 {
-using DrawFn = bool (*)(void*, const Field&);
+using DrawFn = bool (*)(void*, const Field&, FieldUIContext&);
 
 std::unordered_map<std::string, DrawFn>& drawUIByName()
 {
@@ -48,6 +53,31 @@ void set(DrawFn fn)
     slot.drawUI = fn;
     drawUIByName()[slot.typeName] = fn;
 }
+
+template <class A, AssetType Type>
+void setAssetHandle()
+{
+    set<AssetHandle<A>>(
+        [](void* p, const Field& f, FieldUIContext& ui)
+        {
+            auto& handle = *static_cast<AssetHandle<A>*>(p);
+            if (!ui.app_ || !ui.picker_ || !ui.component_)
+                return false;
+
+            std::string label = "None";
+            if (handle)
+                if (const std::string* path = ui.app_->ctx_->assetManager_->getPath(handle))
+                    label = std::filesystem::path(*path).stem().string();
+            label += "##v";
+
+            if (ImGui::Button(label.c_str(), ImVec2(-1.f, 0.f)))
+                ui.picker_->openField(ui.ent_, *ui.component_, f, Type, ui.app_->projectDir_);
+
+            // OpenPopup and BeginPopup have to share an ID scope, so the popup
+            // is drawn right here and not once per component.
+            return ui.picker_->draw(*ui.app_);
+        });
+}
 }  // namespace
 
 // Installs the editor half of each field type: how it is drawn. Serialization
@@ -56,7 +86,7 @@ void set(DrawFn fn)
 void installFieldUI()
 {
     set<float>(
-        [](void* p, const Field& f)
+        [](void* p, const Field& f, FieldUIContext&)
         {
             ImGui::SetNextItemWidth(-1.0f);
             const bool changed = ImGui::DragFloat("##v", static_cast<float*>(p), f.meta.speed,
@@ -65,10 +95,10 @@ void installFieldUI()
             return changed;
         });
 
-    set<bool>([](void* p, const Field&) { return ImGui::Checkbox("##v", static_cast<bool*>(p)); });
+    set<bool>([](void* p, const Field&, FieldUIContext&) { return ImGui::Checkbox("##v", static_cast<bool*>(p)); });
 
     set<int32_t>(
-        [](void* p, const Field& f)
+        [](void* p, const Field& f, FieldUIContext&)
         {
             ImGui::SetNextItemWidth(-1.0f);
             const bool changed = ImGui::DragInt("##v", static_cast<int32_t*>(p), f.meta.speed,
@@ -79,7 +109,7 @@ void installFieldUI()
         });
 
     set<uint32_t>(
-        [](void* p, const Field& f)
+        [](void* p, const Field& f, FieldUIContext&)
         {
             ImGui::SetNextItemWidth(-1.0f);
             const bool changed = ImGui::DragScalar("##v", ImGuiDataType_U32, p, f.meta.speed);
@@ -88,7 +118,7 @@ void installFieldUI()
         });
 
     set<v3f>(
-        [](void* p, const Field& f)
+        [](void* p, const Field& f, FieldUIContext&)
         {
             auto* v = static_cast<v3f*>(p);
             ImGui::SetNextItemWidth(-1.0f);
@@ -97,15 +127,19 @@ void installFieldUI()
             return changed;
         });
 
+    setAssetHandle<Mesh, AssetType::Mesh>();
+    setAssetHandle<Texture, AssetType::Texture>();
+    setAssetHandle<Material, AssetType::Material>();
+
     set<col3>(
-        [](void* p, const Field&)
+        [](void* p, const Field&, FieldUIContext&)
         {
             ImGui::SetNextItemWidth(-1.0f);
             return ImGui::ColorEdit3("##v", static_cast<col3*>(p)->data());
         });
 
     set<std::vector<Shape>>(
-        [](void* p, const Field&)
+        [](void* p, const Field&, FieldUIContext&)
         {
             auto& shapes = *static_cast<std::vector<Shape>*>(p);
             bool changed = false;

@@ -44,6 +44,7 @@ namespace batap
 struct Engine;
 struct World;
 struct Field;
+struct FieldUIContext;
 
 struct FieldMeta
 {
@@ -59,7 +60,7 @@ struct FieldType
 {
     void (*toJson)(const void* field, nlohmann::json& out, const Engine&) = nullptr;
     void (*fromJson)(void* field, const nlohmann::json& in, const Engine&) = nullptr;
-    bool (*drawUI)(void* field, const Field& f) = nullptr;
+    bool (*drawUI)(void* field, const Field& f, FieldUIContext& ui) = nullptr;
     const char* typeName = "unregistered";
 };
 

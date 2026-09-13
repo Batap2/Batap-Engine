@@ -217,6 +217,12 @@ void Renderer::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& ov
         scenePasses_->uploadDebugDraw(depthTested, overlay);
 }
 
+void Renderer::uploadBillboards(const Billboards& billboards)
+{
+    if (scenePasses_)
+        scenePasses_->uploadBillboards(billboards);
+}
+
 void Renderer::setSceneRecord(SceneRecordFn fn)
 {
     sceneRecord_ = std::move(fn);

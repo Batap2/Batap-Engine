@@ -13,6 +13,7 @@ struct Renderer;
 struct InputManager;
 struct AssetManager;
 struct DebugDraw;
+struct Billboards;
 struct Engine;
 
 struct WindowDesc
@@ -59,12 +60,14 @@ struct Engine
 
     DebugDraw& debug() { return *debugDraw_; }
     DebugDraw& debugOverlay() { return *debugOverlay_; }
+    Billboards& billboards() { return *billboards_; }
 
     std::unique_ptr<Renderer> renderer_;
     std::unique_ptr<InputManager> inputManager_;
     std::unique_ptr<AssetManager> assetManager_;
     std::unique_ptr<DebugDraw> debugDraw_;
     std::unique_ptr<DebugDraw> debugOverlay_;
+    std::unique_ptr<Billboards> billboards_;
 
     float deltaTime_ = 0;
 

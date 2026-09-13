@@ -69,6 +69,7 @@ void App::update()
     else
     {
         uiPanels_.draw(*world_, *this, *ctx_);
+        editorIcons_.draw(*world_, *ctx_);
         if (playing_ && game_)
             world_->update(*game_);
         else

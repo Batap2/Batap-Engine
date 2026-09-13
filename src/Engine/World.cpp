@@ -90,6 +90,11 @@ DebugDraw& World::debugOverlay()
     return ctx_->debugOverlay();
 }
 
+Billboards& World::billboards()
+{
+    return ctx_->billboards();
+}
+
 void World::resetScene()
 {
     auto& reg = registry_;

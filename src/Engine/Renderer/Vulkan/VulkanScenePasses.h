@@ -3,6 +3,7 @@
 #include <volk.h>
 
 #include "Handles.h"
+#include "Renderer/Billboards.h"
 #include "Renderer/DebugDraw.h"
 #include "Renderer/SceneBinding.h"
 
@@ -32,13 +33,15 @@ struct ScenePasses
     // Staging is filled during the update and copied by flushUploads at the
     // top of the next render — same contract as the instance pools.
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
+    void uploadBillboards(const Billboards& billboards);
 
     void checkHotReload();
 
    private:
     void writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engine& ctx);
     void buildPipelines(VkShaderModule vs, VkShaderModule ps, VkShaderModule skyVS,
-                        VkShaderModule skyPS, VkShaderModule debugVS, VkShaderModule debugPS);
+                        VkShaderModule skyPS, VkShaderModule debugVS, VkShaderModule debugPS,
+                        VkShaderModule billboardVS, VkShaderModule billboardPS);
     void buildDebugGeometry();
     void recordDebug(VkCommandBuffer cmd, DrawPush push);
 
@@ -76,7 +79,11 @@ struct ScenePasses
     VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline geometryPipeline_ = VK_NULL_HANDLE;
     VkPipeline skyPipeline_ = VK_NULL_HANDLE;
+    VkPipeline billboardPipeline_ = VK_NULL_HANDLE;
     std::array<DebugLayer, DebugLayerCount> debugLayers_{};
+
+    GPUResourceHandle billboardBuffer_;
+    uint32_t billboardCount_ = 0;
 
     GPUResourceHandle debugVertsBuffer_;
     GPUResourceHandle debugShapesBuffer_;

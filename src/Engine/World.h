@@ -19,6 +19,7 @@ struct AssetManager;
 struct Spawnable;
 struct Game;
 struct DebugDraw;
+struct Billboards;
 struct InputManager;
 struct PhysicsWorld;
 
@@ -41,6 +42,7 @@ struct World
     InputManager& input();
     DebugDraw& debug();
     DebugDraw& debugOverlay();
+    Billboards& billboards();
     SceneRenderArgs renderArgs();
     bool loadScene(const std::string& path);
 

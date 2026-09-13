@@ -235,6 +235,39 @@ frustum (le cube sous l'inverse de la view-projection).
       correctes, et la boîte scalée (2, 1, 2) visiblement plus large que
       haute.
 
+## 1quater. Handles d'assets dans l'inspecteur générique
+
+Constat parti d'un bug : les champs `MaterialHandle` et `TextureHandle` de
+`Billboard_C` n'apparaissaient pas. Cause : la boucle de l'inspecteur ne
+dessine un champ que si son `FieldType::drawUI` est rempli, et il ne l'était
+pour aucun type de handle. `Mesh_C`, `Materials_C` et `Skybox_C` s'en sortaient
+avec `customEditor = true` et un panneau écrit à la main — mais `customEditor`
+saute le composant **entier**, donc tout nouveau composant portant un handle
+devait redessiner ses autres champs pour rien.
+
+- [x] **Fait** : les handles deviennent un type de champ de première classe.
+      `drawUI` gagne un `FieldUIContext&` (l'`App`, le picker, l'entité et le
+      `ComponentType` courants) — sans lui un widget ne peut ni résoudre un
+      handle en nom, ni lister les assets, ni appeler `loadAsset`.
+      `AssetPickerPopup` arrête de coder en dur sa cible : `openField` retient
+      le **nom du composant et l'offset du champ**, et `applyToField` les
+      résout au moment du clic. Pas de pointeur gardé entre l'ouverture et le
+      choix, donc un hot reload entre les deux ne laisse rien qui pende. La
+      réécriture passe par `ComponentType::patch` puis `markDirty`, donc les
+      systèmes qui écoutent `on_update` voient le changement comme n'importe
+      quelle édition.
+      `AssetPickerPopup::draw` rend désormais un `bool` — vrai la frame où un
+      choix ou un `Clear` a été appliqué — c'est ce que le widget remonte en
+      `changed`.
+      Piège ImGui : `OpenPopup` et `BeginPopup` doivent partager la même pile
+      d'ID, donc le popup est dessiné **dans** le widget du champ et pas une
+      fois par composant.
+      Les trois panneaux sur mesure restent en place et fonctionnent — ils
+      pourront tomber quand l'envie viendra, le chemin générique les couvre.
+      Validé à l'image : `Billboard_C` montre Material et Texture en boutons de
+      picker à côté de ses autres champs, et le torus garde son panneau Mesh et
+      son Rigid Body intacts.
+
 ## 2. Structures d'accélération (rendu)
 
 Le partage est réglé par le §1 : Jolt possède la seule structure CPU et ne
@@ -280,6 +313,75 @@ structures ci-dessus n'engagent rien. Pari actuel : shadow maps universelles,
 RT en tier optionnel si `ray_query` présent. Alternative sans RT : SDF façon
 Lumen software, beaucoup plus de code.
 
+## 1ter. Billboards
+
+Le besoin de départ est le picking éditeur : une lumière n'est pas seulement
+impickable, elle est **invisible**. Et ce qu'on dessine est ce qu'on cliquera.
+ImGui saurait poser une icône à une position projetée, mais il dessine après
+la scène sans profondeur (une icône derrière un mur reste visible),
+interpole ses quads de façon affine, et reconstruit ses sommets sur le CPU à
+chaque frame — les trois murs qui comptent pour un usage en jeu.
+
+- [x] **1. `shadingModel_` sur `Material`** — fait : enum (`Lit`/`Unlit`) et pas
+      un booléen, pour que Subsurface ou Cloth s'ajoutent sans retoucher le
+      layout ni les scènes déjà écrites. **Gratuit** : il prend la place du
+      `pad_` de fin, `sizeof(Material) == 48` ne bouge pas.
+      Occasion prise pour sortir l'éclairage dans `Shaders/Lighting.hlsli` —
+      bindings partagés, helpers PBR et un `ShadeSurface(shadingModel, Surface)`
+      qui porte l'early-out unlit. Les deux pixel shaders l'appellent : une
+      seule définition de l'éclairage, même principe que `ShaderInterop.h` pour
+      les structs.
+- [x] **2. Rendu billboard** — fait : `Renderer/Billboards` (ni Vulkan ni ECS,
+      possédé par `Engine`, atteint par `world.billboards()`), même contrat que
+      `DebugDraw` — collecte immédiate, `requestUpload` dans `endFrame`, purge
+      par durée de vie. Un `BillboardGPUData` de 48 octets par quad, aucun
+      vertex input : six sommets par instance, les coins viennent de
+      `SV_VertexID % 6` et la base caméra du `CameraGPUData`.
+      Deux axes de généralité, parce que ce sont de vrais choix binaires :
+      taille **monde** ou **fraction de hauteur d'écran** (l'icône garde sa
+      taille à toute distance — le VS annule la division perspective avec
+      `dist * tan(fov/2)`), orientation **sphérique** ou **cylindrique**
+      verrouillée sur Y. Écartés tant qu'aucun besoin ne les réclame : atlas,
+      frames d'animation, rotation par billboard.
+      **Alpha-test, pas blending** : pas de tri arrière-vers-avant par frame,
+      la profondeur est écrite comme pour une surface opaque, et le tri ne
+      viendra pas gêner le GPU-driven du §2. Dessinés avant le ciel, dont le
+      test `LESS_OR_EQUAL` laisse alors leurs pixels tranquilles.
+      Le matériau est optionnel : un `textureIdx_` bindless surcharge la carte
+      albedo, donc l'appelant peut dessiner un PNG sans écrire de `.bmat`.
+      Un `__unlit_material` est créé avec le matériau par défaut.
+      Piège rencontré : `FrameSetBindings` vérifie que chaque binding du frame
+      set a un pool derrière lui — un nouveau buffer possédé par `ScenePasses`
+      doit être déclaré dans `nonPool`, sinon le static_assert tombe.
+- [x] **3. Les deux alimentations** — fait, et c'est la décision structurante :
+      **immédiat pour l'éditeur, composant pour le jeu**, un seul buffer et un
+      seul draw derrière.
+      Une icône d'éditeur n'est pas de la donnée de scène : ni sauvée, ni
+      sélectionnable, ni snapshotée au Play, ni hot-reloadée. La mettre dans
+      l'ECS aurait obligé à l'exclure d'`EntitySerializer`, de `ScenePanel`,
+      de l'inspecteur et de `resetScene` — cinq exceptions « sauf celui-là »
+      dans des boucles génériques, le signe que la donnée est au mauvais
+      endroit. Un sprite de jeu, lui, est authoré et sauvé : `Billboard_C` +
+      `Billboard_S` qui le repousse en immédiat chaque frame.
+      Limite assumée : `Billboard_S` refait le travail à chaque frame comme
+      `DebugDraw`. Un vrai pool d'instances serait meilleur à des milliers de
+      sprites persistants ; il remplira le même buffer, donc rien à jeter.
+- [x] **4. Icônes éditeur** — fait : `Editor/EditorIcons`, taille écran, PNG
+      blancs sur transparent dans `assets/icons/` (chemin absolu via
+      `resolveEngineFile` : le `baseDir` projet de l'AssetManager tombe alors
+      de la jointure). L'icône de lumière est teintée par la couleur de la
+      lumière. La caméra **active** est sautée : elle est à l'œil, son icône
+      remplirait l'écran ou passerait derrière le near plane. Toggle
+      **View > Icons**.
+      Validé à l'image sur `GameExemple` par un harnais temporaire (retiré) :
+      icône lumière orange et icône caméra à taille constante, caméra de
+      l'éditeur sans icône, et un `Billboard_C` vert en taille monde — découpe
+      alpha nette sur les rayons du soleil, couleur non assombrie donc unlit
+      effectif.
+- [ ] **Reste à faire** : l'id-buffer de picking, qui est la raison d'être de
+      tout ça (cf. §2) — la passe billboard doit y écrire l'`entt::entity`
+      comme la passe géométrie.
+
 ## 3. Restes
 
 - [ ] **Hot reload : snapshot binaire + hash de layout** (remplace le JSON) —
@@ -303,8 +405,9 @@ Lumen software, beaucoup plus de code.
   persistent des index entre frames → slots stables + free-list (§2.2).
 - Le triple-buffering des instance buffers est assumé (`FramesInFlight = 3`,
   simplicité/sécurité).
-- Composants avec `std::string`/`std::vector` : interdits par design (handles
-  + valeurs plates) — le `static_assert` de l'enregistrement les refuse.
+- Composants avec `std::string`/`std::vector` : permis depuis les formes
+  multiples (§1.5), mais à réserver aux composants froids — les composants
+  lus en boucle par un système ou un pool GPU restent des valeurs plates.
 - **Descriptor layouts câblés à la main** (`FrameSetBindingCount`, set
   bindless) : la réflexion SPIR-V les rendrait dérivables des shaders, comme
   une UI matériaux auto-générée. Même philosophie que `BATAP_COMPONENT`. À

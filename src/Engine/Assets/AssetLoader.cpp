@@ -348,6 +348,13 @@ void createDefaultAssets(const Engine& ctx)
     defMat.roughnessTexIdx_ = whiteIdx;
     defMat.metallicTexIdx_  = whiteIdx;
     assetManager.emplace<Material>("__default_material", "__default_material", defMat);
+
+    Material unlitMat = defMat;
+    unlitMat.albedo[0] = 1.f;
+    unlitMat.albedo[1] = 1.f;
+    unlitMat.albedo[2] = 1.f;
+    unlitMat.shadingModel_ = ShadingUnlit;
+    assetManager.emplace<Material>(kUnlitMaterialPath, kUnlitMaterialPath, unlitMat);
 }
 
 std::optional<AssetHandleAny> loadAsset(std::string_view path, const Engine& ctx)

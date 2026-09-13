@@ -8,6 +8,7 @@
 #include <vector>
 #include "Game.h"
 #include "GameModuleLoader.h"
+#include "EditorIcons.h"
 #include "UI/UIPanels.h"
 #include "FileDialog.h"
 #include "World.h"
@@ -52,6 +53,7 @@ struct App
     AssetManager* assetManager_ = nullptr;
 
     UIPanels uiPanels_;
+    EditorIcons editorIcons_;
 
     AppState             state_ = AppState::SelectProject;
     std::string          projectDir_;

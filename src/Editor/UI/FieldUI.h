@@ -1,8 +1,23 @@
 #pragma once
 
+#include "Components/EntityHandle.h"
+
+#include <string>
+
 namespace batap
 {
 struct FieldType;
+struct ComponentType;
+struct App;
+struct AssetPickerPopup;
+
+struct FieldUIContext
+{
+    App* app_ = nullptr;
+    AssetPickerPopup* picker_ = nullptr;
+    EntityHandle ent_{};
+    const ComponentType* component_ = nullptr;
+};
 
 // Fills FieldType::drawUI for the builtin field types. Call once at App init.
 void installFieldUI();

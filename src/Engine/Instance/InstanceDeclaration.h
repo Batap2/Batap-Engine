@@ -299,8 +299,9 @@ inline ComponentMask markerComponentMask()
     return detail::markerMaskOfList(static_cast<GPUInstances*>(nullptr));
 }
 
-// A binding nobody writes leaves the shader reading a null buffer, which no
-// driver reports: turn both omission and collision into a build error.
+// Bindings the pools claim. The other half of the check — that every binding
+// ends up written by someone, pool or not — lives in ScenePasses::writeFrameSet,
+// the only place that knows the non-pool writers.
 template <class InstanceList>
 struct FrameSetBindings;
 
@@ -308,19 +309,13 @@ template <class... Instances>
 struct FrameSetBindings<TypeList<Instances...>>
 {
     static_assert((GPUInstance<Instances> && ...));
+    static_assert(((Instances::Binding < FrameSetBindingCount) && ...),
+                  "an instance claims a binding outside the frame set");
 
-    // Written outside the pools: the material arena, and the debug draw
-    // buffers that ScenePasses owns.
-    static constexpr uint32_t nonPool = (1u << MaterialsBinding) |
-                                        (1u << DebugShapeVertsBinding) |
-                                        (1u << DebugShapesBinding);
+    static constexpr uint32_t claimed = ((1u << Instances::Binding) | ...);
 
-    static constexpr uint32_t claimed = ((1u << Instances::Binding) | ...) | nonPool;
-
-    static_assert(std::popcount(claimed) == sizeof...(Instances) + std::popcount(nonPool),
+    static_assert(std::popcount(claimed) == sizeof...(Instances),
                   "two instances claim the same frame set binding");
-    static_assert(claimed == (1u << FrameSetBindingCount) - 1u,
-                  "a frame set binding has no instance pool behind it");
 };
 
 inline constexpr FrameSetBindings<GPUInstances> frameSetBindings_{};

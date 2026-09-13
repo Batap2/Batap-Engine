@@ -10,6 +10,7 @@
 #include "Components/Mesh_C.h"
 #include "Components/Skybox_C.h"
 #include "Instance/InstanceManager.h"
+#include "Reflection/ComponentRegistry.h"
 #include "World.h"
 
 #include <imgui.h>
@@ -42,6 +43,7 @@ void AssetPickerPopup::open(EntityHandle ent, AssetType type, const std::string&
     type_ = type;
     slotIndex_ = slotIndex;
     isHdriPick_ = false;
+    isFieldPick_ = false;
     search_.clear();
     entries_.clear();
 
@@ -65,6 +67,7 @@ void AssetPickerPopup::openHdri(EntityHandle ent, const std::string& projectDir)
 {
     ent_ = ent;
     isHdriPick_ = true;
+    isFieldPick_ = false;
     search_.clear();
     entries_.clear();
 
@@ -82,6 +85,35 @@ void AssetPickerPopup::openHdri(EntityHandle ent, const std::string& projectDir)
     pendingOpen_ = true;
 }
 
+void AssetPickerPopup::openField(EntityHandle ent, const ComponentType& component,
+                                 const Field& field, AssetType type,
+                                 const std::string& projectDir)
+{
+    ent_ = ent;
+    type_ = type;
+    matHandle_ = {};
+    isHdriPick_ = false;
+    isFieldPick_ = true;
+    fieldComponent_ = component.name;
+    fieldOffset_ = field.offset;
+    search_.clear();
+    entries_.clear();
+
+    if (projectDir.empty())
+        return;
+
+    const auto ext = extensionFor(type);
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(projectDir))
+    {
+        if (!entry.is_regular_file())
+            continue;
+        if (entry.path().extension() != ext)
+            continue;
+        entries_.push_back({entry.path().stem().string(), entry.path()});
+    }
+    pendingOpen_ = true;
+}
+
 void AssetPickerPopup::open(MaterialHandle mat, uint8_t channel, const std::string& projectDir)
 {
     ent_ = {};
@@ -89,6 +121,7 @@ void AssetPickerPopup::open(MaterialHandle mat, uint8_t channel, const std::stri
     matHandle_ = mat;
     texChannel_ = channel;
     isHdriPick_ = false;
+    isFieldPick_ = false;
     search_.clear();
     entries_.clear();
 
@@ -131,7 +164,51 @@ static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, ui
     app.ctx_->assetManager_->update(matHandle, copy);
 }
 
-void AssetPickerPopup::draw(App& app)
+namespace
+{
+bool applyToField(App& app, EntityHandle ent, const std::string& componentName, size_t offset,
+                  AssetType type, const AssetHandleAny* picked)
+{
+    const ComponentType* ct = ComponentRegistry::instance().find(componentName);
+    if (!ct || !ct->tryGet || !ent.valid())
+        return false;
+
+    void* component = ct->tryGet(*ent.reg_, ent.entity_);
+    if (!component)
+        return false;
+
+    const Field* field = nullptr;
+    for (const Field& f : ct->fields)
+        if (f.offset == offset)
+            field = &f;
+    if (!field)
+        return false;
+
+    void* dst = field->ptrIn(component);
+    switch (type)
+    {
+        case AssetType::Mesh:
+            *static_cast<MeshHandle*>(dst) =
+                picked ? std::get<MeshHandle>(*picked) : MeshHandle::null();
+            break;
+        case AssetType::Texture:
+            *static_cast<TextureHandle*>(dst) =
+                picked ? std::get<TextureHandle>(*picked) : TextureHandle::null();
+            break;
+        case AssetType::Material:
+            *static_cast<MaterialHandle*>(dst) =
+                picked ? std::get<MaterialHandle>(*picked) : MaterialHandle::null();
+            break;
+    }
+
+    if (ct->patch)
+        ct->patch(*ent.reg_, ent.entity_);
+    app.world_->instances().markDirty(ent, ct->mask());
+    return true;
+}
+}  // namespace
+
+bool AssetPickerPopup::draw(App& app)
 {
     if (pendingOpen_)
     {
@@ -141,7 +218,9 @@ void AssetPickerPopup::draw(App& app)
 
     ImGui::SetNextWindowSize(ImVec2(300, 360), ImGuiCond_Appearing);
     if (!ImGui::BeginPopup(kId))
-        return;
+        return false;
+
+    bool applied = false;
 
     const char* title = isHdriPick_                      ? "Select HDRI"
                         : (type_ == AssetType::Mesh)     ? "Select Mesh"
@@ -165,7 +244,10 @@ void AssetPickerPopup::draw(App& app)
         {
             const auto relPath = std::filesystem::relative(e.path, app.projectDir_).string();
             auto handle = loadAsset(relPath, *app.ctx_);
-            if (handle)
+            if (handle && isFieldPick_)
+                applied = applyToField(app, ent_, fieldComponent_, fieldOffset_, type_,
+                                       &*handle);
+            else if (handle)
             {
                 if (type_ == AssetType::Mesh)
                     if (auto* meshC = ent_.try_get<Mesh_C>())
@@ -202,11 +284,14 @@ void AssetPickerPopup::draw(App& app)
     ImGui::Separator();
     if (ImGui::Button("Clear"))
     {
-        if (type_ == AssetType::Mesh)
+        if (isFieldPick_)
+            applied = applyToField(app, ent_, fieldComponent_, fieldOffset_, type_, nullptr);
+
+        if (!isFieldPick_ && type_ == AssetType::Mesh)
             if (auto* meshC = ent_.try_get<Mesh_C>())
                 meshC->mesh_ = MeshHandle::null();
 
-        if (type_ == AssetType::Material)
+        if (!isFieldPick_ && type_ == AssetType::Material)
             if (auto* mc = ent_.try_get<Materials_C>())
                 if (slotIndex_ < mc->count)
                     mc->slots[slotIndex_] = MaterialHandle::null();
@@ -228,6 +313,7 @@ void AssetPickerPopup::draw(App& app)
         ImGui::CloseCurrentPopup();
 
     ImGui::EndPopup();
+    return applied;
 }
 
 }  // namespace batap

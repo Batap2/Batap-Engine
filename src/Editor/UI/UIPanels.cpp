@@ -101,6 +101,7 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
         if (ImGui::BeginMenu("View"))
         {
             ImGui::MenuItem("Colliders", nullptr, &world.systems().physics_->showColliders_);
+            ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
             ImGui::EndMenu();
         }
 

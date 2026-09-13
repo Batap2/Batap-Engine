@@ -1,5 +1,7 @@
 #include "InspectorPanel.h"
 
+#include "UI/FieldUI.h"
+
 #include <array>
 #include <filesystem>
 
@@ -68,8 +70,10 @@ static std::string prettyLabel(const std::string& name)
 
 // Registry-declared components: one collapsing group per component, one row
 // per field — no per-component editor code.
-void InspectorPanel::drawReflected(EntityHandle ent, World& world)
+void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
 {
+    FieldUIContext ui{&app, &assetPicker_, ent, nullptr};
+
     for (const ComponentType& t : ComponentRegistry::instance().all())
     {
         if (t.meta.customEditor)  // drawn by its own panel above
@@ -93,8 +97,11 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world)
                 if (auto _ = ui::BeginFields(t.name.c_str()))
                     for (const Field& f : t.fields)
                         if (f.type->drawUI)
+                        {
+                            ui.component_ = &t;
                             changed |= ui::Field(prettyLabel(f.name).c_str(),
-                                                 [&] { return f.type->drawUI(f.ptrIn(c), f); });
+                                                 [&] { return f.type->drawUI(f.ptrIn(c), f, ui); });
+                        }
         }
 
         if (removed)
@@ -114,7 +121,7 @@ void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
     drawMesh(ent, app);
     drawMaterials(ent, app);
     drawSkybox(ent, app);
-    drawReflected(ent, world);
+    drawReflected(ent, world, app);
     drawAddComponent(ent, world);
 }
 

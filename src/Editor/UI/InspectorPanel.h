@@ -21,7 +21,7 @@ struct InspectorPanel
     void drawMaterials(EntityHandle ent, App& app);
     void drawSkybox(EntityHandle ent, App& app);
     // registry-declared components — generic, no per-component code
-    void drawReflected(EntityHandle ent, World& world);
+    void drawReflected(EntityHandle ent, World& world, App& app);
     // add menu: registry components minus markers and those already present
     void drawAddComponent(EntityHandle ent, World& world);
 

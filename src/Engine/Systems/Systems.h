@@ -13,6 +13,7 @@ struct Transform_S;
 struct World;
 struct FreeCamController_S;
 struct Physics_S;
+struct Billboard_S;
 
 struct Systems
 {
@@ -24,5 +25,6 @@ struct Systems
     std::unique_ptr<FreeCamController_S> freecam_;
     std::unique_ptr<Transform_S> transforms_;
     std::unique_ptr<Physics_S> physics_;
+    std::unique_ptr<Billboard_S> billboards_;
 };
 }  // namespace batap

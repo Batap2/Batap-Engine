@@ -19,8 +19,10 @@
 #include "Components/Mesh_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
+#include "DebugUtils.h"
 #include "Instance/InstanceManager.h"
 #include "Paths.h"
+#include "Renderer/Billboards.h"
 #include "Renderer/DebugDraw.h"
 #include "Shaders/ShaderInterop.h"
 
@@ -30,6 +32,7 @@ namespace
 {
 
 constexpr uint32_t kMaxDebugShapes = 65536;
+constexpr uint32_t kMaxBillboards = 65536;
 
 // Unit wireframes, built once. A box is the [-1, 1] cube, so its matrix
 // carries the half extents.
@@ -163,21 +166,28 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
     const ShaderModule skyPS{ctx_.device_, shaderDir + "/SkyPS.spv"};
     const ShaderModule debugVS{ctx_.device_, shaderDir + "/DebugShapeVS.spv"};
     const ShaderModule debugPS{ctx_.device_, shaderDir + "/DebugPS.spv"};
-    buildPipelines(vs, ps, skyVS, skyPS, debugVS, debugPS);
+    const ShaderModule billboardVS{ctx_.device_, shaderDir + "/BillboardVS.spv"};
+    const ShaderModule billboardPS{ctx_.device_, shaderDir + "/BillboardPS.spv"};
+    buildPipelines(vs, ps, skyVS, skyPS, debugVS, debugPS, billboardVS, billboardPS);
 
     debugShapesBuffer_ = resources_.createPerFrameBuffer(
         sizeof(DebugShapeGPUData) * kMaxDebugShapes, "debugShapes");
+    billboardBuffer_ =
+        resources_.createPerFrameBuffer(sizeof(BillboardGPUData) * kMaxBillboards, "billboards");
     buildDebugGeometry();
 }
 
 void ScenePasses::buildPipelines(VkShaderModule vs, VkShaderModule ps, VkShaderModule skyVS,
                                  VkShaderModule skyPS, VkShaderModule debugVS,
-                                 VkShaderModule debugPS)
+                                 VkShaderModule debugPS, VkShaderModule billboardVS,
+                                 VkShaderModule billboardPS)
 {
     if (geometryPipeline_)
         vkDestroyPipeline(ctx_.device_, geometryPipeline_, nullptr);
     if (skyPipeline_)
         vkDestroyPipeline(ctx_.device_, skyPipeline_, nullptr);
+    if (billboardPipeline_)
+        vkDestroyPipeline(ctx_.device_, billboardPipeline_, nullptr);
     for (DebugLayer& layer : debugLayers_)
         if (layer.pipeline_)
             vkDestroyPipeline(ctx_.device_, layer.pipeline_, nullptr);
@@ -200,6 +210,14 @@ void ScenePasses::buildPipelines(VkShaderModule vs, VkShaderModule ps, VkShaderM
                        .colorFormat(colorFormat_)
                        .depth(depthFormat_, false, VK_COMPARE_OP_LESS_OR_EQUAL)
                        .build(ctx_.device_, pipelineLayout_);
+
+    // Not culled: a Y-locked quad is seen from behind as soon as the camera
+    // passes it.
+    billboardPipeline_ = GraphicsPipelineBuilder()
+                             .shaders(billboardVS, billboardPS)
+                             .colorFormat(colorFormat_)
+                             .depth(depthFormat_, true, VK_COMPARE_OP_LESS)
+                             .build(ctx_.device_, pipelineLayout_);
 
     // No vertex input at all: geometry and instances are read from storage
     // buffers, indexed by SV_VertexID / SV_InstanceID. Depth is never written,
@@ -228,13 +246,15 @@ void ScenePasses::checkHotReload()
         const char* file;
         const char* target;
     };
-    static constexpr std::array<Stage, 6> stages = {{
+    static constexpr std::array<Stage, 8> stages = {{
         {"VertexShader.hlsl", "vs_6_6"},
         {"PixelShader.hlsl", "ps_6_6"},
         {"SkyVS.hlsl", "vs_6_6"},
         {"SkyPS.hlsl", "ps_6_6"},
         {"DebugShapeVS.hlsl", "vs_6_6"},
         {"DebugPS.hlsl", "ps_6_6"},
+        {"BillboardVS.hlsl", "vs_6_6"},
+        {"BillboardPS.hlsl", "ps_6_6"},
     }};
 
     // Tout le dossier : un header partagé déclenche le reload comme une source.
@@ -274,7 +294,9 @@ void ScenePasses::checkHotReload()
     const ShaderModule skyPS{ctx_.device_, spirv[3].data(), spirv[3].size()};
     const ShaderModule debugVS{ctx_.device_, spirv[4].data(), spirv[4].size()};
     const ShaderModule debugPS{ctx_.device_, spirv[5].data(), spirv[5].size()};
-    buildPipelines(vs, ps, skyVS, skyPS, debugVS, debugPS);
+    const ShaderModule billboardVS{ctx_.device_, spirv[6].data(), spirv[6].size()};
+    const ShaderModule billboardPS{ctx_.device_, spirv[7].data(), spirv[7].size()};
+    buildPipelines(vs, ps, skyVS, skyPS, debugVS, debugPS, billboardVS, billboardPS);
     std::cout << "[ShaderCompiler] shaders reloaded" << std::endl;
 }
 
@@ -282,8 +304,10 @@ ScenePasses::~ScenePasses()
 {
     vkDestroyPipeline(ctx_.device_, geometryPipeline_, nullptr);
     vkDestroyPipeline(ctx_.device_, skyPipeline_, nullptr);
+    vkDestroyPipeline(ctx_.device_, billboardPipeline_, nullptr);
     for (DebugLayer& layer : debugLayers_)
         vkDestroyPipeline(ctx_.device_, layer.pipeline_, nullptr);
+    resources_.requestDestroy(billboardBuffer_);
     resources_.requestDestroy(debugVertsBuffer_);
     resources_.requestDestroy(debugShapesBuffer_);
     vkDestroyPipelineLayout(ctx_.device_, pipelineLayout_, nullptr);
@@ -295,22 +319,36 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
 {
     auto* instanceM = args.instanceManager_;
 
+    // Every binding must be claimed exactly once: written twice one of the two
+    // buffers is silently lost, never written the shader reads a null buffer.
+    // No driver reports either, so this is the only place it can be caught.
     std::array<VkBuffer, FrameSetBindingCount> buffers{};
+    auto claim = [&](uint32_t binding, VkBuffer buffer)
+    {
+        if (binding >= FrameSetBindingCount || buffers[binding] != VK_NULL_HANDLE)
+            ThrowRuntime("frame set: two writers claim the same binding");
+        buffers[binding] = buffer;
+    };
+
     instanceM->forEachPool(
         [&](auto& pool)
         {
             using InstanceT = typename std::remove_reference_t<decltype(pool)>::InstanceType;
-            buffers[InstanceT::Binding] = resources_.bufferFor(pool.instancePoolHandle_);
+            claim(InstanceT::Binding, resources_.bufferFor(pool.instancePoolHandle_));
         });
-    buffers[MaterialsBinding] =
-        resources_.bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle());
-    buffers[DebugShapeVertsBinding] = resources_.bufferFor(debugVertsBuffer_);
-    buffers[DebugShapesBinding] = resources_.bufferFor(debugShapesBuffer_);
+    claim(MaterialsBinding,
+          resources_.bufferFor(ctx.assetManager_->getGPUArena<Material>()->bufferHandle()));
+    claim(DebugShapeVertsBinding, resources_.bufferFor(debugVertsBuffer_));
+    claim(DebugShapesBinding, resources_.bufferFor(debugShapesBuffer_));
+    claim(BillboardsBinding, resources_.bufferFor(billboardBuffer_));
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
     std::array<VkWriteDescriptorSet, FrameSetBindingCount> writes{};
     for (uint32_t i = 0; i < FrameSetBindingCount; ++i)
     {
+        if (buffers[i] == VK_NULL_HANDLE)
+            ThrowRuntime("frame set: a binding has no buffer behind it");
+
         bufferInfos[i].buffer = buffers[i];
         bufferInfos[i].range = VK_WHOLE_SIZE;
 
@@ -406,6 +444,40 @@ void ScenePasses::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw&
 
     const uint64_t bytes = sizeof(DebugShapeGPUData) * shapes.size();
     std::memcpy(resources_.requestUpload(debugShapesBuffer_, bytes).data(), shapes.data(), bytes);
+}
+
+void ScenePasses::uploadBillboards(const Billboards& billboards)
+{
+    const auto& records = billboards.records();
+    billboardCount_ = static_cast<uint32_t>(std::min<size_t>(records.size(), kMaxBillboards));
+    if (billboardCount_ == 0)
+        return;
+
+    std::vector<BillboardGPUData> out(billboardCount_);
+    for (uint32_t i = 0; i < billboardCount_; ++i)
+    {
+        const Billboards::Record& r = records[i];
+        BillboardGPUData& g = out[i];
+        g.pos_[0] = r.pos_.x();
+        g.pos_[1] = r.pos_.y();
+        g.pos_[2] = r.pos_.z();
+        g.rot_[0] = r.rot_.x();
+        g.rot_[1] = r.rot_.y();
+        g.rot_[2] = r.rot_.z();
+        g.rot_[3] = r.rot_.w();
+        g.sizeX_ = r.size_.x();
+        g.sizeY_ = r.size_.y();
+        g.tint_[0] = r.tint_.x();
+        g.tint_[1] = r.tint_.y();
+        g.tint_[2] = r.tint_.z();
+        g.tint_[3] = r.alpha_;
+        g.materialIdx_ = r.materialIdx_;
+        g.textureIdx_ = r.textureIdx_;
+        g.flags_ = r.flags_;
+    }
+
+    const uint64_t bytes = sizeof(BillboardGPUData) * out.size();
+    std::memcpy(resources_.requestUpload(billboardBuffer_, bytes).data(), out.data(), bytes);
 }
 
 void ScenePasses::recordDebug(VkCommandBuffer cmd, DrawPush push)
@@ -524,6 +596,19 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
                 vkCmdDrawIndexed(cmd, subMesh.indexCount, 1, subMesh.indexOffset, 0, 0);
             }
         });
+
+    // ---- Billboards ----
+    // Before the sky, like the geometry: they write depth, so the sky's
+    // LESS_OR_EQUAL test then leaves their pixels alone.
+    if (billboardCount_ > 0)
+    {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, billboardPipeline_);
+        push.instanceIndex_ = 0;
+        vkCmdPushConstants(cmd, pipelineLayout_,
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                           sizeof(push), &push);
+        vkCmdDraw(cmd, 6, billboardCount_, 0, 0);
+    }
 
     // ---- Sky (plein écran, derrière la scène) ----
     bool hasSkybox = false;
