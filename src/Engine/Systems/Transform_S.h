@@ -18,7 +18,7 @@ struct Transform_S
     uint32_t flushEpoch_ = 1;
     std::vector<entt::entity> dirty_;
 
-    void update(entt::registry& reg, GPUInstanceManager& instanceManager);
+    bool update(entt::registry& reg, GPUInstanceManager& instanceManager);
 
     void setLocalPosition(EntityHandle e, const v3f& p);
     void setLocalRotation(EntityHandle e, const quatf& q);
@@ -29,7 +29,7 @@ struct Transform_S
     void rotate(EntityHandle e, const v3f& axis, float radians, Space space = Space::Local);
     void scale(EntityHandle e, const v3f& vec);
 
-    void flushDirty(entt::registry& reg, GPUInstanceManager& instanceManager);
+    bool flushDirty(entt::registry& reg, GPUInstanceManager& instanceManager);
     void markDirty(EntityHandle e);
 
    private:

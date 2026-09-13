@@ -312,30 +312,74 @@ Critère pour trancher lib/maison le jour venu : **bake d'éclairage → lib**
 pas Embree, TBB et des DLL de dizaines de Mo) ; **picking/snap/drag seulement →
 BVH4+SIMD maison**, ~500 lignes, de l'ordre de 60-70 % du débit d'une lib.
 
-- [ ] **1. Plomberie AABB** — AABB locale par mesh **dérivée au chargement**
-      (un balayage des positions qu'on lit déjà — le précédent existe, les
-      tangentes ne sont pas stockées non plus), AABB monde par instance
-      recalculée quand le transform change : `Transform_S::flushDirty` est
-      déjà l'endroit exact où `world_` est recalculé. `Bbox.h` sort enfin du
-      placard.
-- [ ] **2. L'API de requête avant la structure** — `raycast(ray)`,
-      `overlap(aabb)`, `overlap(sphere)`, rendant entité + `t` + point +
-      normale. C'est la partie qu'on ne peut plus changer après ; tout le reste
-      se remplace derrière elle sans toucher un appelant.
-- [ ] **3. TLAS maison** — BVH binaire sur les AABB monde, build SAH binné,
-      refit sur le dirty-marking existant, traversée scalaire (à quelques
-      milliers de boîtes le SIMD ne se voit pas). ~250 lignes, aucune
-      sérialisation, aucune dépendance : rien d'irréversible ici, contrairement
-      au BLAS. Découpage simple : statique reconstruit rarement / dynamique
-      refit par frame, ça évite toute insertion incrémentale.
-- [ ] **4. Rayon contre billboards** — pas de mesh, donc pas de BLAS, et c'est
-      précisément le cas qui a motivé le §1ter (une lumière est invisible et
-      impickable). Quad face caméra à position et taille connues :
-      intersection analytique, boucle linéaire, ils sont peu nombreux. La
-      construction du quad doit être lue depuis `Renderer/Billboards.h` pour
-      que le picking et le VS ne divergent pas. Lire l'alpha de la texture à
-      l'UV touché si on veut que le coin transparent d'une icône ne soit pas
-      cliquable.
+- [x] **1. Plomberie AABB** — fait : `Aabb` dans `Bbox.h` (enfin sorti du
+      placard), `Mesh::localBounds_` **dérivée au chargement** — un balayage
+      des positions qu'on lit déjà, et le précédent existe, les tangentes ne
+      sont pas stockées non plus. AABB monde dérivée à la demande
+      (`transformed()`), **pas cachée** : le seul consommateur d'un cache est
+      le TLAS, qui veut aussi la liste de ce qui a bougé pour son refit — les
+      deux vont ensemble, donc c'est l'étape 3. S'en passer d'ici là ne coûte
+      rien, une quinzaine de flops par instance.
+      Validé : boîtes en place sur la scène Cornel (toggle **View > Bounds**),
+      et l'identité `|linear| · halfSize` vérifiée contre la transformation
+      brute des 8 coins sur 2000 matrices avec rotation, échelle négative et
+      cisaillement — écart max 7e-15.
+      Trouvé en chemin : `--project` n'était parsé nulle part dans l'éditeur,
+      seul `--game` l'était, donc la vérification visuelle décrite dans
+      CLAUDE.md ne pouvait pas marcher. Ajouté, avec `--scene`.
+      **Piège pour l'étape 3** : `Transform_S` recalcule `world_` à deux
+      endroits (`ensure_chain_up_to_date` et la boucle de `flushDirty`), et
+      `World::update(Game&)` rappelle `transforms_->update` **après**
+      `systems_->update` pour rattraper `lateUpdate`. Un cache rafraîchi depuis
+      `Systems::update` serait donc en retard d'une frame sur tout ce que
+      `lateUpdate` bouge : le point correct est à côté de
+      `uploadRemainingFrameDirty`.
+- [x] **2. L'API de requête avant la structure** — fait :
+      `Spatial/SpatialIndex.h` expose `raycast(ray)`, `overlap(aabb)` et
+      `overlap(centre, rayon)`, plus `rayFromScreen`. `RayHit` rend entité,
+      `t`, point et normale. `World::spatialIndex()` reconstruit à la première
+      requête après un changement, jamais autrement : invalidé par les hooks
+      entt sur `Mesh_C` et par `Transform_S::update`, qui rend maintenant un
+      `bool` — il savait déjà si quelque chose avait été flushé, il ne le
+      disait pas.
+- [x] **3. TLAS maison** — fait : `Spatial/Bvh.h` + `.cpp`, BVH binaire sur les
+      AABB monde, build SAH binné 12 bins avec repli en feuille quand la coupe
+      ne paie pas, traversée sur pile explicite avec l'enfant lointain empilé
+      en premier pour que le proche puisse resserrer `tMax` avant. Pas de
+      refit : reconstruction complète à l'invalidation — à quelques milliers de
+      boîtes le build est sous la milliseconde, et le découpage
+      statique/dynamique n'a d'intérêt qu'une fois qu'une scène le réclame.
+      Validé contre un balayage brut : 1 à 5000 boîtes aléatoires, 20 000
+      rayons chacun, **0 divergence** (2 égalités à 5000 boîtes — même distance,
+      index différent, légitime).
+      **Convention arrêtée à l'image** : pour une boîte qui contient l'origine
+      du rayon, l'intersection est correcte à `t=0` — mais « la surface la plus
+      proche » est alors sa face de **sortie**, pas son entrée. Sans ce choix
+      l'AABB de la pièce gagne tous les clics faits depuis l'intérieur. L'autre
+      convention possible (ignorer les boîtes contenant la caméra) rendrait la
+      pièce impickable ; la face de sortie la garde sélectionnable en cliquant
+      un mur tout en perdant contre n'importe quel objet devant.
+      Il reste la limite attendue du niveau AABB : on clique la boîte, pas la
+      géométrie — le trou du torus est cliquable. C'est l'étape 5.
+- [x] **4. Rayon contre billboards** — fait, et le §1ter est fermé : une
+      lumière se clique. `billboardQuad()` et `rayQuad()` vivent dans
+      `Renderer/Billboards.h`, à côté du rendu, et reproduisent `BillboardVS`
+      — les deux ne peuvent pas être partagés avec le shader, le `float3` de
+      `ShaderInterop` étant un tableau nu sans arithmétique, donc c'est un
+      miroir à tenir à jour.
+      **Deux familles de billboards, pas une** : ceux qui sont des `Billboard_C`
+      (le `SpatialIndex` les teste après le BVH, en linéaire) et **les icônes
+      d'éditeur, qui n'en sont pas** — `EditorIcons` les pousse directement
+      dans `Billboards` sans composant, donc l'index ne peut pas les voir.
+      `EditorIcons::raycast` s'en charge, et l'éditeur prend le plus proche des
+      deux ; à égalité l'icône gagne, elle est posée sur ce qu'elle marque.
+      Reste non fait : lire l'alpha de la texture à l'UV touché, pour que le
+      coin transparent d'une icône ne soit pas cliquable.
+- [x] **Bbox de la sélection** — l'entité sélectionnée montre ses bornes en
+      orange, `entityBounds()` pour un mesh ou un `Billboard_C`,
+      `EditorIcons::boundsOf()` pour une icône. Validé à l'image : rayon tiré
+      sur la lumière projetée à l'écran, la lumière est sélectionnée et sa
+      boîte est dessinée sur son icône.
 - [ ] **5. BLAS** — le jour où la précision triangle manque vraiment (cliquer
       à travers le trou d'un torus, drag-to-surface exact). Avant ça, une
       boucle brute sur les triangles des quelques candidats retenus par le

@@ -21,6 +21,9 @@ struct UIPanels
     void select(EntityHandle ent) { selectedEntity_ = ent; }
 
    private:
+    void pickOnClick(World& world, App& app, Engine& ctx);
+    void drawSelectionBounds(World& world, App& app, Engine& ctx);
+
     float panelWidth_ = 260.0f;
 
     std::optional<EntityHandle> selectedEntity_;

@@ -189,10 +189,10 @@ void Transform_S::scale(EntityHandle h, const v3f& vec)
     markDirty(h);
 }
 
-void Transform_S::flushDirty(entt::registry& reg, GPUInstanceManager& instanceManager)
+bool Transform_S::flushDirty(entt::registry& reg, GPUInstanceManager& instanceManager)
 {
     if (dirty_.empty())
-        return;
+        return false;
 
     emhash8::HashSet<entt::entity> dirtySet;
     dirtySet.reserve(static_cast<unsigned int>(dirty_.size()) * 2);
@@ -206,7 +206,7 @@ void Transform_S::flushDirty(entt::registry& reg, GPUInstanceManager& instanceMa
     }
     dirty_.clear();
     if (dirtySet.empty())
-        return;
+        return false;
 
     auto has_transform_e = [&](entt::entity e) -> bool
     { return e != entt::null && reg.valid(e) && reg.any_of<Transform_C>(e); };
@@ -292,12 +292,14 @@ void Transform_S::flushDirty(entt::registry& reg, GPUInstanceManager& instanceMa
             }
         }
     }
+
+    return true;
 }
 
-void Transform_S::update(entt::registry& reg, GPUInstanceManager& instanceManager)
+bool Transform_S::update(entt::registry& reg, GPUInstanceManager& instanceManager)
 {
     ++flushEpoch_;
-    flushDirty(reg, instanceManager);
+    return flushDirty(reg, instanceManager);
 }
 
 }  // namespace batap

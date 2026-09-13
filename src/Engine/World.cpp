@@ -15,6 +15,7 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneBinding.h"
 #include "Serialization/EntitySerializer.h"
+#include "Spatial/SpatialIndex.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
@@ -27,10 +28,12 @@ World::World(Engine& ctx) : ctx_(&ctx)
     physics_ = std::make_unique<PhysicsWorld>();
     instanceManager_ = std::make_unique<GPUInstanceManager>(ctx);
     entityFactory_ = std::make_unique<EntityFactory>();
+    spatialIndex_ = std::make_unique<SpatialIndex>();
 
     registry_.ctx().emplace<World*>(this);
     instanceManager_->connectHooks(registry_);
     systems_->physics_->connectHooks(registry_);
+    spatialIndex_->connectHooks(registry_);
 
     // refresh camera ratio on window resize
     ctx.renderer_->onResize(
@@ -45,6 +48,17 @@ World::World(Engine& ctx) : ctx_(&ctx)
 }
 
 World::~World() = default;
+
+void World::markSpatialDirty()
+{
+    spatialIndex_->markDirty();
+}
+
+SpatialIndex& World::spatialIndex()
+{
+    spatialIndex_->refresh(*this, *ctx_);
+    return *spatialIndex_;
+}
 
 SceneRenderArgs World::renderArgs()
 {
@@ -115,6 +129,8 @@ void World::resetScene()
     reg.ctx().emplace<World*>(this);
     instanceManager_->connectHooks(reg);
     systems_->physics_->connectHooks(reg);
+    spatialIndex_->connectHooks(reg);
+    spatialIndex_->markDirty();
 
     physics_->clear();
 }

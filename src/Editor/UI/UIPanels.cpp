@@ -4,7 +4,10 @@
 #include "Assets/AssetManager.h"
 #include "Engine.h"
 #include "Importers/FileImporter.h"
+#include "InputManager.h"
+#include "Renderer/DebugDraw.h"
 #include "Serialization/EntitySerializer.h"
+#include "Spatial/SpatialIndex.h"
 #include "FileDialog.h"
 #include "UI/IconsMaterialDesign.h"
 #include "Systems/Bounds_S.h"
@@ -19,9 +22,49 @@
 namespace batap
 {
 
+void UIPanels::pickOnClick(World& world, App& app, Engine& ctx)
+{
+    if (ImGui::GetIO().WantCaptureMouse)
+        return;
+
+    InputManager& input = *ctx.inputManager_;
+    if (!input.pressed(MouseButton::Left))
+        return;
+
+    const Ray ray = rayFromScreen(world, ctx, input.mousePos());
+    RayHit hit = world.spatialIndex().raycast(ray);
+
+    // Icons sit on top of what they mark, so they win at equal distance.
+    const RayHit icon = app.editorIcons_.raycast(world, ray, hit.hit() ? hit.t_ : ray.tMax_);
+    if (icon.hit())
+        hit = icon;
+
+    if (hit.hit())
+        select(EntityHandle{&world.registry_, hit.entity_});
+    else
+        clearSelection();
+}
+
+void UIPanels::drawSelectionBounds(World& world, App& app, Engine& ctx)
+{
+    if (!selectedEntity_ || !selectedEntity_->valid())
+        return;
+
+    auto bounds = entityBounds(world, ctx, selectedEntity_->entity_);
+    if (!bounds)
+        bounds = app.editorIcons_.boundsOf(world, selectedEntity_->entity_);
+    if (!bounds)
+        return;
+
+    world.debugOverlay().aabb(bounds->min_, bounds->max_, col3{1.f, 0.62f, 0.f});
+}
+
 void UIPanels::draw(World& world, App& app, Engine& ctx)
 {
     ImGuiViewport* vp = ImGui::GetMainViewport();
+
+    pickOnClick(world, app, ctx);
+    drawSelectionBounds(world, app, ctx);
 
     // --- Menu bar ---
     const float menuBarHeight = ImGui::GetFrameHeight();

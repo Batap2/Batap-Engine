@@ -16,6 +16,7 @@ struct Engine;
 struct Systems;
 struct EntityFactory;
 struct AssetManager;
+struct SpatialIndex;
 struct Spawnable;
 struct Game;
 struct DebugDraw;
@@ -57,6 +58,8 @@ struct World
     Systems& systems() { return *systems_; }
     PhysicsWorld& physics() { return *physics_; }
     GPUInstanceManager& instances() { return *instanceManager_; }
+    SpatialIndex& spatialIndex();
+    void markSpatialDirty();
     EntityFactory& factory() { return *entityFactory_; }
 
     entt::registry registry_;
@@ -67,6 +70,7 @@ struct World
     std::unique_ptr<PhysicsWorld> physics_;
     std::unique_ptr<GPUInstanceManager> instanceManager_;
     std::unique_ptr<EntityFactory> entityFactory_;
+    std::unique_ptr<SpatialIndex> spatialIndex_;
 
     Engine* ctx_ = nullptr;
 };

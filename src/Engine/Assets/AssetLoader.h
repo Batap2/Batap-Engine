@@ -3,6 +3,7 @@
 #include "AssetHandle.h"
 
 #include <optional>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -11,6 +12,11 @@ namespace batap
 
 // Unlit variant of the default material, created with it at engine init.
 inline constexpr const char* kUnlitMaterialPath = "__unlit_material";
+
+inline bool isBuiltinAsset(std::string_view path)
+{
+    return path.starts_with("__");
+}
 
 struct Engine;
 

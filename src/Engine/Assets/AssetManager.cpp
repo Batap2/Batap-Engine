@@ -5,6 +5,7 @@
 #include "Texture.h"
 
 #include "AssetGPUArena.h"
+#include "AssetLoader.h"
 #include "AssetSlotMap.h"
 #include "Serialization/BmatSerializer.h"
 
@@ -34,7 +35,7 @@ void AssetManager::saveAllAssets() const
     getGPUArena<Material>()->forEach(
         [&](AssetHandle<Material> key, const std::string& /*name*/, const std::string& relPath)
         {
-            if (relPath.empty()) return;
+            if (relPath.empty() || isBuiltinAsset(relPath)) return;
             const auto* mat = getGPUArena<Material>()->get(key);
             if (!mat) return;
             const std::string absPath = (std::filesystem::path(baseDir_) / relPath).string();

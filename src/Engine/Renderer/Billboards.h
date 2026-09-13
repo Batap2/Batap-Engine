@@ -2,6 +2,7 @@
 
 #include "EigenTypes.h"
 #include "Renderer/DebugDraw.h"
+#include "Spatial/Ray.h"
 
 #include <cstdint>
 #include <vector>
@@ -64,5 +65,43 @@ struct Billboards
     float time_ = 0.f;
     std::vector<Record> records_;
 };
+
+struct CameraBasis
+{
+    v3f pos_ = v3f::Zero();
+    v3f right_ = v3f::UnitX();
+    v3f up_ = v3f::UnitY();
+    float fov_ = 1.f;
+};
+
+struct BillboardQuad
+{
+    v3f center_ = v3f::Zero();
+    v3f right_ = v3f::UnitX();
+    v3f up_ = v3f::UnitY();
+    float halfWidth_ = 0.f;
+    float halfHeight_ = 0.f;
+
+    v3f corner(float u, float v) const
+    {
+        return center_ + right_ * (u * halfWidth_) + up_ * (v * halfHeight_);
+    }
+};
+
+// Mirrors BillboardVS.hlsl, which cannot share it: ShaderInterop's float3 is a
+// bare array. Diverge and a billboard stops being picked where it is drawn.
+BillboardQuad billboardQuad(const v3f& pos, const quatf& rot, const v2f& size,
+                            Billboards::SizeMode sizeMode, Billboards::Orientation orientation,
+                            const CameraBasis& cam);
+
+struct QuadHit
+{
+    float t_ = 0.f;
+    v3f point_ = v3f::Zero();
+    v3f normal_ = v3f::Zero();
+    bool hit_ = false;
+};
+
+QuadHit rayQuad(const Ray& ray, const BillboardQuad& quad, float maxT);
 
 }  // namespace batap

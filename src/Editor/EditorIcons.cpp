@@ -10,6 +10,7 @@
 #include "Renderer/Billboards.h"
 #include "Renderer/ResourceManager.h"
 #include "Shaders/ShaderInterop.h"
+#include "Spatial/SpatialIndex.h"
 #include "UI/IconsMaterialDesign.h"
 #include "World.h"
 
@@ -198,6 +199,74 @@ void EditorIcons::draw(World& world, Engine& ctx)
                  .materialIdx_ = materialIdx,
                  .sizeMode_ = Billboards::SizeMode::Screen});
     }
+}
+
+namespace
+{
+bool hasIcon(entt::registry& reg, entt::entity e)
+{
+    if (reg.all_of<PointLight_C, Transform_C>(e))
+        return true;
+    const auto* cam = reg.try_get<Camera_C>(e);
+    return cam && !cam->active_ && reg.all_of<Transform_C>(e);
+}
+
+BillboardQuad iconQuad(const v3f& pos, const CameraBasis& cam)
+{
+    return billboardQuad(pos, quatf::Identity(), v2f(kIconSize, kIconSize),
+                         Billboards::SizeMode::Screen, Billboards::Orientation::Spherical, cam);
+}
+}  // namespace
+
+std::optional<AABB> EditorIcons::boundsOf(World& world, entt::entity e) const
+{
+    auto& reg = world.registry_;
+    if (!show_ || !reg.valid(e) || !hasIcon(reg, e))
+        return std::nullopt;
+
+    const auto cam = activeCameraBasis(reg);
+    if (!cam)
+        return std::nullopt;
+
+    const BillboardQuad quad = iconQuad(reg.get<Transform_C>(e).world().translation(), *cam);
+    AABB out;
+    for (const float u : {-1.f, 1.f})
+        for (const float v : {-1.f, 1.f})
+            out.extend(quad.corner(u, v));
+    return out;
+}
+
+RayHit EditorIcons::raycast(World& world, const Ray& ray, float maxT) const
+{
+    RayHit best;
+    if (!show_)
+        return best;
+
+    const auto cam = activeCameraBasis(world.registry_);
+    if (!cam)
+        return best;
+
+    const auto test = [&](entt::entity e, const v3f& pos)
+    {
+        const QuadHit hit = rayQuad(ray, iconQuad(pos, *cam), maxT);
+        if (!hit.hit_)
+            return;
+
+        maxT = hit.t_;
+        best.entity_ = e;
+        best.t_ = hit.t_;
+        best.point_ = hit.point_;
+        best.normal_ = hit.normal_;
+    };
+
+    for (auto [e, light, tc] : world.registry_.view<PointLight_C, Transform_C>().each())
+        test(e, tc.world().translation());
+
+    for (auto [e, camC, tc] : world.registry_.view<Camera_C, Transform_C>().each())
+        if (!camC.active_)
+            test(e, tc.world().translation());
+
+    return best;
 }
 
 }  // namespace batap

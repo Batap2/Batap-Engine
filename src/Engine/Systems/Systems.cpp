@@ -18,7 +18,8 @@ Systems::~Systems() = default;
 void Systems::update(float deltaTime, Engine& ctx, World& world)
 {
     freecam_->update(ctx, world, deltaTime);
-    transforms_->update(world.registry_, world.instances());
+    if (transforms_->update(world.registry_, world.instances()))
+        world.markSpatialDirty();
     physics_->drawColliders(world);
     bounds_->drawBounds(world, ctx);
     billboards_->submit(world, ctx);

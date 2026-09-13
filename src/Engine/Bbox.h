@@ -26,6 +26,25 @@ struct AABB
         max_ = max_.cwiseMax(other.max_);
     }
 
+    bool intersects(const AABB& other) const
+    {
+        return (min_.array() <= other.max_.array()).all() &&
+               (other.min_.array() <= max_.array()).all();
+    }
+
+    bool contains(const v3f& p) const
+    {
+        return (min_.array() <= p.array()).all() && (p.array() <= max_.array()).all();
+    }
+
+    float surfaceArea() const
+    {
+        if (!valid())
+            return 0.f;
+        const v3f d = size();
+        return 2.f * (d.x() * d.y() + d.y() * d.z() + d.z() * d.x());
+    }
+
     v3f center() const { return (min_ + max_) * 0.5f; }
     v3f size() const { return max_ - min_; }
     v3f halfSize() const { return size() * 0.5f; }
