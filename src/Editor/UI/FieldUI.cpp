@@ -9,6 +9,9 @@
 #include "Reflection/ComponentRegistry.h"
 #include "UI/Field.h"
 
+#include <array>
+#include <span>
+
 #include <imgui.h>
 
 #include <filesystem>
@@ -88,11 +91,11 @@ void installFieldUI()
     set<float>(
         [](void* p, const Field& f, FieldUIContext&)
         {
-            ImGui::SetNextItemWidth(-1.0f);
-            const bool changed = ImGui::DragFloat("##v", static_cast<float*>(p), f.meta.speed,
-                                                  f.meta.min, f.meta.max);
-            ui::WrapDragMouse();
-            return changed;
+            auto* v = static_cast<float*>(p);
+            if (f.meta.min < f.meta.max)
+                return ui::DragGauge(v, f.meta.min, f.meta.max, f.meta.speed);
+            return ui::DragValue("##v", v, ImGui::GetContentRegionAvail().x, f.meta.speed,
+                                 f.meta.min, f.meta.max);
         });
 
     set<bool>([](void* p, const Field&, FieldUIContext&) { return ImGui::Checkbox("##v", static_cast<bool*>(p)); });
@@ -121,10 +124,11 @@ void installFieldUI()
         [](void* p, const Field& f, FieldUIContext&)
         {
             auto* v = static_cast<v3f*>(p);
-            ImGui::SetNextItemWidth(-1.0f);
-            const bool changed = ImGui::DragFloat3("##v", v->data(), f.meta.speed);
-            ui::WrapDragMouse();
-            return changed;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+            const std::span<float> xyz{v->data(), 3};
+#pragma clang diagnostic pop
+            return ui::DragFloatN(xyz, f.meta.speed);
         });
 
     setAssetHandle<Mesh, AssetType::Mesh>();
@@ -135,7 +139,7 @@ void installFieldUI()
         [](void* p, const Field&, FieldUIContext&)
         {
             ImGui::SetNextItemWidth(-1.0f);
-            return ImGui::ColorEdit3("##v", static_cast<col3*>(p)->data());
+            return ui::ColorFieldRaw("##v", static_cast<col3*>(p)->data(), 3);
         });
 
     set<std::vector<Shape>>(

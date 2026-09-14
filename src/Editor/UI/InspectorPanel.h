@@ -16,6 +16,7 @@ struct InspectorPanel
     void draw(World& world, App& app, EntityHandle ent);
 
   private:
+    void drawHeader(EntityHandle ent);
     void drawTransform(EntityHandle ent, World& world);
     void drawMesh(EntityHandle ent, App& app);
     void drawMaterials(EntityHandle ent, App& app);

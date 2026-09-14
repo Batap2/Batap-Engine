@@ -70,7 +70,8 @@ static_assert(refl::fieldName<RigidBody_C, 6>() == "linearDamping");
 static_assert(refl::fieldName<RigidBody_C, 7>() == "angularDamping");
 static_assert(refl::fieldName<RigidBody_C, 8>() == "gravityFactor");
 
-BATAP_COMPONENT(RigidBody_C, "rigidBody", fieldSkip<&RigidBody_C::bodyId_>(),
+BATAP_COMPONENT(RigidBody_C, "rigidBody", ComponentMeta{.color = ComponentColor::Green},
+                fieldSkip<&RigidBody_C::bodyId_>(),
                 fieldSkip<&RigidBody_C::shapeScale_>(),
                 fieldSkip<&RigidBody_C::dirty_>(),
                 fieldMeta<&RigidBody_C::mass_>({.speed = 0.05f, .min = 0.001f, .max = 10000.f}),

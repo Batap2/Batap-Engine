@@ -56,6 +56,9 @@ struct ResourceManager
     void flushUploads(VkCommandBuffer cmd);
 
     VkBuffer bufferFor(GPUResourceHandle handle);
+
+    VkImageView viewFor(GPUResourceHandle handle);
+    VkSampler textureSampler() const { return textureSampler_; }
     VkDevice device() const;
 
     VkDescriptorSetLayout textureSetLayout() const { return textureSetLayout_; }

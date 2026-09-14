@@ -9,7 +9,7 @@ namespace batap
 {
 struct EditorConfig
 {
-    WindowDesc window_{.title = "Batap Engine", .fpsInTitle = true, .transparent = true};
+    WindowDesc window_{.title = "Batap Engine", .transparent = true};
 };
 
 // Engine + World + App loop, with the top-level try/catch.

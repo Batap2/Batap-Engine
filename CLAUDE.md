@@ -23,7 +23,10 @@ from `<project>/bin/Game.dll` and hot-reloads it when it changes
 (`src/Engine/GameModule.h` documents the whole mechanism).
 
 To visually verify a render change: run the editor with `--project <dir>` and
-env var `BATAP_DUMP_FRAME=N` to dump frame N as an image.
+env var `BATAP_DUMP_FRAME=N` to dump frame N as `frame_dump.png`. Add
+`--scene <file.btpl>` for real content and `--select <entity name>` to make the
+inspector draw — it renders nothing without a selection. A running editor holds
+`Batap_Editor.exe` open, so close it before building.
 
 ## Code conventions
 

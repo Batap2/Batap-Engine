@@ -102,9 +102,24 @@ struct Field
 #pragma clang diagnostic pop
 };
 
+// Names are the palette's; the editor owns the values.
+enum class ComponentColor : uint8_t
+{
+    Neutral,
+    Yellow,
+    Orange,
+    Red,
+    Magenta,
+    Violet,
+    Blue,
+    Cyan,
+    Green,
+};
+
 struct ComponentMeta
 {
     uint32_t version = 1;
+    ComponentColor color = ComponentColor::Neutral;
     // Post-load hook for components whose state isn't just its fields
     // (e.g. Transform must rebuild matrices through Transform_S).
     void (*onDeserialized)(EntityHandle, World&) = nullptr;

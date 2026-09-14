@@ -1,6 +1,10 @@
 #include "App.h"
 
 #include "Engine.h"
+#include "Assets/AssetLoader.h"
+#include "Paths.h"
+#include "Assets/Texture.h"
+#include "Renderer/Renderer.h"
 #include "FileDialog.h"
 #include "Importers/FileImporter.h"
 #include "Platform/PlatformWindow.h"
@@ -34,6 +38,13 @@ App::App(Engine& engine, World& world)
     : ctx_(&engine), world_(&world), assetManager_(ctx_->assetManager_.get())
 {
     ui::ApplyTheme();
+    ui::smallFont = ctx_->renderer_->smallFont();
+    ui::monoFont = ctx_->renderer_->monoFont();
+
+    const std::string logoPath = resolveEngineFile("assets/logo.png", "assets/logo.png");
+    if (auto logo = loadAsset<Texture>(logoPath, *ctx_))
+        if (auto* tex = assetManager_->get<Texture>(logo))
+            uiPanels_.setLogo(ctx_->renderer_->imguiTexture(tex->gpu_));
     installFieldUI();
 
     EntityHandle camera = world.spawn("camera");

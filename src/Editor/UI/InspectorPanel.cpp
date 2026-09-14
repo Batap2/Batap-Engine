@@ -3,21 +3,24 @@
 #include "UI/FieldUI.h"
 
 #include <algorithm>
+#include <array>
 #include <filesystem>
 
 #include "App.h"
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "Components/Materials_C.h"
+#include "Components/Name_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "Instance/InstanceDeclaration.h"
+#include "Instance/Spawnable.h"
 #include "Reflection/ComponentRegistry.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
-#include "UI/AssetHolder.h"
-#include "UI/CollapsingGroup.h"
+#include "UI/IconsMaterialDesign.h"
+#include "UI/ComponentSection.h"
 #include "UI/Field.h"
 #include "World.h"
 
@@ -29,17 +32,6 @@
 
 namespace batap
 {
-
-static bool removeComponentMenu(const char* id)
-{
-    bool removed = false;
-    if (ImGui::BeginPopupContextItem(id))
-    {
-        removed = ImGui::MenuItem("Remove Component");
-        ImGui::EndPopup();
-    }
-    return removed;
-}
 
 static void removeComponent(World& world, EntityHandle ent, const ComponentType& t)
 {
@@ -87,22 +79,18 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
         const bool removable = (t.mask() & markerComponentMask()) == 0;
 
         bool changed = false;
-        bool removed = false;
-        {
-            auto g = ui::CollapsingGroup(prettyLabel(t.name).c_str());
-            removed = removable && removeComponentMenu(t.name.c_str());
-            if (g && !removed)
-                if (auto _ = ui::BeginFields(t.name.c_str()))
-                    for (const Field& f : t.fields)
-                        if (f.type->drawUI)
-                        {
-                            ui.component_ = &t;
-                            changed |= ui::Field(prettyLabel(f.name).c_str(),
-                                                 [&] { return f.type->drawUI(f.ptrIn(c), f, ui); });
-                        }
-        }
+        ui::ComponentSection section(prettyLabel(t.name).c_str(), t.meta.color, removable);
+        if (section)
+            if (auto _ = ui::BeginFields(t.name.c_str()))
+                for (const Field& f : t.fields)
+                    if (f.type->drawUI)
+                    {
+                        ui.component_ = &t;
+                        changed |= ui::Field(prettyLabel(f.name).c_str(),
+                                             [&] { return f.type->drawUI(f.ptrIn(c), f, ui); });
+                    }
 
-        if (removed)
+        if (section.removeClicked())
             removeComponent(world, ent, t);
         else if (changed)
         {
@@ -113,8 +101,33 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
     }
 }
 
+void InspectorPanel::drawHeader(EntityHandle ent)
+{
+    const Spawnable& kind = spawnableFor(*ent.reg_, ent.entity_);
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ui::colorOf(kind.color));
+    ImGui::TextUnformatted(kind.icon);
+    ImGui::PopStyleColor();
+
+    ImGui::SameLine();
+    ImGui::PushStyleColor(ImGuiCol_Text, ui::textBright);
+    ImGui::TextUnformatted(ent.reg_->get<Name_C>(ent.entity_).name_.c_str());
+    ImGui::PopStyleColor();
+
+    const std::string id = "#" + std::to_string(entt::to_integral(ent.entity_));
+    ui::PushSmallFont small;
+    const float w = ImGui::CalcTextSize(id.c_str()).x;
+    ImGui::SameLine(ImGui::GetContentRegionMax().x - w);
+    ImGui::TextDisabled("%s", id.c_str());
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+}
+
 void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
 {
+    drawHeader(ent);
     drawTransform(ent, world);
     drawMesh(ent, app);
     drawMaterials(ent, app);
@@ -126,7 +139,11 @@ void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
 void InspectorPanel::drawAddComponent(EntityHandle ent, World& world)
 {
     ImGui::Spacing();
-    if (ImGui::Button("Add Component", {-FLT_MIN, 0.f}))
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0, 0, 0, 0});
+    ImGui::PushStyleColor(ImGuiCol_Text, ui::textDim);
+    const bool add = ImGui::Button(ICON_MD_ADD "  Add component", {-FLT_MIN, 0.f});
+    ImGui::PopStyleColor(2);
+    if (add)
         ImGui::OpenPopup("##addComponent");
 
     if (ImGui::BeginPopup("##addComponent"))
@@ -163,18 +180,13 @@ void InspectorPanel::drawTransform(EntityHandle ent, World& world)
 
     auto* t = ent.try_get<Transform_C>();
 
-    if (auto g = ui::CollapsingGroup("Transform"))
+    ui::ComponentSection section("Transform", ComponentColor::Blue);
+    if (section)
         if (auto _ = ui::BeginFields("transform"))
         {
             v3f pos = t->pos();
-            ui::Field("Position",
-                      [&]
-                      {
-                          ImGui::SetNextItemWidth(-1.0f);
-                          if (ImGui::DragFloat3("##pos", pos.data(), 0.05f))
-                              ent.setLocalPosition(pos);
-                          ui::WrapDragMouse();
-                      });
+            if (ui::FieldDragFloat3("Position", pos.data(), 0.05f))
+                ent.setLocalPosition(pos);
 
             constexpr float kRadToDeg = 180.0f / std::numbers::pi_v<float>;
             constexpr float kDegToRad = std::numbers::pi_v<float> / 180.0f;
@@ -195,32 +207,20 @@ void InspectorPanel::drawTransform(EntityHandle ent, World& world)
                     rot.toRotationMatrix().canonicalEulerAngles(0, 1, 2) * kRadToDeg;
             }
 
-            ui::Field("Rotation",
-                      [&]
-                      {
-                          ImGui::SetNextItemWidth(-1.0f);
-                          if (ImGui::DragFloat3("##rot", rotationEditEulerDeg_.data(), 0.1f))
-                          {
-                              v3f eulerRad = rotationEditEulerDeg_ * kDegToRad;
-                              quatf newRot = angleaxisf(eulerRad.x(), v3f::UnitX()) *
-                                             angleaxisf(eulerRad.y(), v3f::UnitY()) *
-                                             angleaxisf(eulerRad.z(), v3f::UnitZ());
-                              newRot.normalize();
-                              rotationEditSourceQuat_ = newRot;
-                              ent.setLocalRotation(newRot);
-                          }
-                          ui::WrapDragMouse();
-                      });
+            if (ui::FieldDragFloat3("Rotation", rotationEditEulerDeg_.data(), 0.1f))
+            {
+                v3f eulerRad = rotationEditEulerDeg_ * kDegToRad;
+                quatf newRot = angleaxisf(eulerRad.x(), v3f::UnitX()) *
+                               angleaxisf(eulerRad.y(), v3f::UnitY()) *
+                               angleaxisf(eulerRad.z(), v3f::UnitZ());
+                newRot.normalize();
+                rotationEditSourceQuat_ = newRot;
+                ent.setLocalRotation(newRot);
+            }
 
             v3f scale = t->scale();
-            ui::Field("Scale",
-                      [&]
-                      {
-                          ImGui::SetNextItemWidth(-1.0f);
-                          if (ImGui::DragFloat3("##scale", scale.data(), 0.01f))
-                              ent.setLocalScale(scale);
-                          ui::WrapDragMouse();
-                      });
+            if (ui::FieldDragFloat3("Scale", scale.data(), 0.01f))
+                ent.setLocalScale(scale);
         }
 }
 
@@ -233,23 +233,27 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
 
     auto* meshC = ent.try_get<Mesh_C>();
 
-    if (auto g = ui::CollapsingGroup("Mesh"))
+    std::string meshSummary;
+    if (meshC->mesh_)
+        if (auto* p = app.ctx_->assetManager_->getPath(meshC->mesh_))
+            meshSummary = std::filesystem::path(*p).stem().string();
+
+    ui::ComponentSection section("Mesh", ComponentColor::Violet, false, meshSummary.c_str());
+    if (section)
     {
         if (auto f = ui::BeginFields("mesh"))
         {
-            ui::Field("Mesh",
+            ui::Field("Asset",
                       [&]
                       {
                           std::string meshLabel;
                           if (meshC->mesh_)
                               if (auto* p = app.ctx_->assetManager_->getPath(meshC->mesh_))
                                   meshLabel = std::filesystem::path(*p).stem().string();
-                          if (AssetHolder({.size_ = v2f(40, 40),
-                                           .thumbnail_ = meshC->mesh_ ? 1ull : 0,
-                                           .label_ = meshLabel}))
-                          {
+                          if (ui::AssetField(ICON_MD_VIEW_IN_AR,
+                                             meshLabel.empty() ? "None" : meshLabel.c_str(),
+                                             ui::colorOf(ComponentColor::Violet)))
                               assetPicker_.open(ent, AssetType::Mesh, app.projectDir_);
-                          }
                           assetPicker_.draw(app);
 
                           return true;
@@ -282,9 +286,12 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
 
     bool removed = false;
     {
-        auto g = ui::CollapsingGroup("Materials");
-        removed = removeComponentMenu("materials");
-        if (g && !removed)
+        const std::string slotSummary =
+            std::to_string(slotCount) + (slotCount > 1 ? " slots" : " slot");
+        ui::ComponentSection section("Materials", ComponentColor::Yellow, true,
+                                     slotSummary.c_str());
+        removed = section.removeClicked();
+        if (section && !removed)
         {
             if (auto f = ui::BeginFields("materials"))
             {
@@ -299,9 +306,9 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                             if (mc->slots[i])
                                 if (auto* p = app.ctx_->assetManager_->getPath(mc->slots[i]))
                                     matLabel = std::filesystem::path(*p).stem().string();
-                            if (AssetHolder({.size_ = v2f(40, 40),
-                                             .thumbnail_ = mc->slots[i] ? 1ull : 0,
-                                             .label_ = matLabel.empty() ? "None" : matLabel}))
+                            if (ui::AssetField(ICON_MD_PALETTE,
+                                               matLabel.empty() ? "None" : matLabel.c_str(),
+                                               ui::colorOf(ComponentColor::Yellow)))
                                 assetPicker_.open(ent, AssetType::Material, app.projectDir_, i);
 
                             ImGui::SameLine();
@@ -331,7 +338,8 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
 
     bool changed = false;
 
-    if (auto g = ui::CollapsingGroup("Skybox"))
+    ui::ComponentSection section("Skybox", ComponentColor::Cyan);
+    if (section)
         if (auto f = ui::BeginFields("skybox"))
         {
             // Mode selector
@@ -339,15 +347,13 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
                 ui::Field("Mode",
                           [&]
                           {
-                              static const char* kModes[] = {"HDRI", "Flat Color", "Gradient"};
+                              static constexpr std::array<const char*, 3> kModes = {
+                                  "HDRI", "Flat Color", "Gradient"};
                               int current = static_cast<int>(sky->mode_);
-                              ImGui::SetNextItemWidth(-1.0f);
-                              if (ImGui::Combo("##skymode", &current, kModes, 3))
-                              {
-                                  sky->mode_ = static_cast<Skybox_C::Mode>(current);
-                                  return true;
-                              }
-                              return false;
+                              if (!ui::ComboField("##skymode", &current, kModes))
+                                  return false;
+                              sky->mode_ = static_cast<Skybox_C::Mode>(current);
+                              return true;
                           });
 
             if (sky->mode_ == Skybox_C::Mode::HDRI)
@@ -359,9 +365,9 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
                               if (sky->hdri_)
                                   if (auto* p = app.ctx_->assetManager_->getPath(sky->hdri_))
                                       label = std::filesystem::path(*p).stem().string();
-                              if (AssetHolder({.size_ = v2f(40, 40),
-                                               .thumbnail_ = sky->hdri_ ? 1ull : 0,
-                                               .label_ = label.empty() ? "None" : label}))
+                              if (ui::AssetField(ICON_MD_PANORAMA,
+                                                 label.empty() ? "None" : label.c_str(),
+                                                 ui::colorOf(ComponentColor::Cyan)))
                                   assetPicker_.openHdri(ent, app.projectDir_);
                               assetPicker_.draw(app);
                               return true;
@@ -373,8 +379,7 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
                     ui::Field("Color",
                               [&]
                               {
-                                  ImGui::SetNextItemWidth(-1.0f);
-                                  return ImGui::ColorEdit3("##skycolor", sky->color1_.data());
+                                  return ui::ColorFieldRaw("##skycolor", sky->color1_.data(), 3);
                               });
             }
             else  // Gradient
@@ -383,20 +388,19 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
                                      [&]
                                      {
                                          ImGui::SetNextItemWidth(-1.0f);
-                                         return ImGui::ColorEdit3("##skyciel", sky->color1_.data());
+                                         return ui::ColorFieldRaw("##skyciel", sky->color1_.data(), 3);
                                      });
                 changed |=
                     ui::Field("Horizon",
                               [&]
                               {
-                                  ImGui::SetNextItemWidth(-1.0f);
-                                  return ImGui::ColorEdit3("##skyhorizon", sky->color2_.data());
+                                  return ui::ColorFieldRaw("##skyhorizon", sky->color2_.data(), 3);
                               });
                 changed |= ui::Field("Bas",
                                      [&]
                                      {
                                          ImGui::SetNextItemWidth(-1.0f);
-                                         return ImGui::ColorEdit3("##skybas", sky->color3_.data());
+                                         return ui::ColorFieldRaw("##skybas", sky->color3_.data(), 3);
                                      });
                 changed |= ui::Field("Taille horizon",
                                      [&]

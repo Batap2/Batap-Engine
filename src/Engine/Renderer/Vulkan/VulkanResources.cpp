@@ -505,6 +505,12 @@ VkBuffer ResourceManager::bufferFor(GPUResourceHandle handle)
     return VK_NULL_HANDLE;
 }
 
+VkImageView ResourceManager::viewFor(GPUResourceHandle handle)
+{
+    Image* image = getImage(handle);
+    return image ? image->view : VK_NULL_HANDLE;
+}
+
 VkDevice ResourceManager::device() const
 {
     return ctx_.device_;

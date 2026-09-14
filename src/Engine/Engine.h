@@ -71,6 +71,11 @@ struct Engine
 
     float deltaTime_ = 0;
 
+    // Read by the Win32 hit test to know what drags the window.
+    float titleBarHeight_ = 0.0f;
+
+    void* nativeWindow() const { return window_; }
+
    private:
     friend struct Frame;  // ~Frame calls endFrame()
 
@@ -83,6 +88,7 @@ struct Engine
     void* window_ = nullptr;
     std::string title_;
     bool        fpsInTitle_   = false;
+
     uint32_t    frameCount_   = 0;
     float       fpsElapsed_   = 0.f;
 };

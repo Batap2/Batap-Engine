@@ -4,7 +4,8 @@
 
 #include <windows.h>
 
-#include <dwmapi.h>    // DwmEnableBlurBehindWindow (fenêtre transparente)
+#include <dwmapi.h>
+#include <windowsx.h>  // GET_X_LPARAM    // DwmEnableBlurBehindWindow (fenêtre transparente)
 #include <shellapi.h>  // CommandLineToArgvW
 #include <windowsx.h>  // GET_X_LPARAM
 
@@ -255,6 +256,33 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     // No Engine bound = engine still initialising, ImGui/InputManager don't
     // exist yet.
     auto* ctx = reinterpret_cast<Engine*>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+
+    // Answered before the Engine check: this arrives before anything is bound,
+    // and answering it late leaves the system title bar drawn.
+    if (message == WM_NCCALCSIZE && wParam)
+    {
+        auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
+        const RECT requested = params->rgrc[0];
+        ::DefWindowProcW(hwnd, message, wParam, lParam);
+
+        WINDOWPLACEMENT wp{};
+        wp.length = sizeof(wp);
+        ::GetWindowPlacement(hwnd, &wp);
+        if (wp.showCmd == SW_SHOWMAXIMIZED)
+        {
+            // Nothing to resize when maximised; WM_GETMINMAXINFO already
+            // bounds the window to the work area.
+            params->rgrc[0] = requested;
+            return 0;
+        }
+
+        // The side and bottom insets stay: they are the resize borders
+        // DefWindowProc hit-tests. Only the top one is reclaimed.
+        params->rgrc[0].top -=
+            ::GetSystemMetrics(SM_CYFRAME) + ::GetSystemMetrics(SM_CXPADDEDBORDER);
+        return 0;
+    }
+
     if (!ctx)
         return ::DefWindowProcW(hwnd, message, wParam, lParam);
 
@@ -265,6 +293,48 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
     switch (message)
     {
+        // A WS_POPUP window maximises over the taskbar unless it is told the
+        // monitor's work area.
+        case WM_GETMINMAXINFO: {
+            HMONITOR monitor = ::MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            MONITORINFO mi{};
+            mi.cbSize = sizeof(mi);
+            if (!::GetMonitorInfoW(monitor, &mi))
+                return ::DefWindowProcW(hwnd, message, wParam, lParam);
+
+            auto* mmi = reinterpret_cast<MINMAXINFO*>(lParam);
+            mmi->ptMaxPosition.x = mi.rcWork.left - mi.rcMonitor.left;
+            mmi->ptMaxPosition.y = mi.rcWork.top - mi.rcMonitor.top;
+            mmi->ptMaxSize.x = mi.rcWork.right - mi.rcWork.left;
+            mmi->ptMaxSize.y = mi.rcWork.bottom - mi.rcWork.top;
+            mmi->ptMaxTrackSize = mmi->ptMaxSize;
+            return 0;
+        }
+
+        case WM_NCHITTEST: {
+            const LRESULT hit = ::DefWindowProcW(hwnd, message, wParam, lParam);
+            if (hit != HTCLIENT)
+                return hit;
+
+            POINT pt{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+            ::ScreenToClient(hwnd, &pt);
+
+            const int border = ::GetSystemMetrics(SM_CYFRAME) +
+                               ::GetSystemMetrics(SM_CXPADDEDBORDER);
+            if (pt.y < border)
+                return HTTOP;
+
+            if (pt.y >= static_cast<int>(ctx->titleBarHeight_))
+                return HTCLIENT;
+
+            // WantCaptureMouse is true over the whole strip, being an ImGui
+            // window, so it cannot tell a button from the space beside it. The
+            // hovered item can, one frame late.
+            if (ImGui::IsAnyItemHovered() || ImGui::IsAnyItemActive())
+                return HTCLIENT;
+            return HTCAPTION;
+        }
+
         case WM_INPUT:
             decodeRawInput(*ctx->inputManager_, lParam);
             break;
@@ -367,7 +437,11 @@ void* platformCreateWindow(const WindowDesc& desc)
     registerWindowClass(hInst, className);
 
     RECT windowRect{0, 0, static_cast<LONG>(desc.width), static_cast<LONG>(desc.height)};
-    ::AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
+    // No caption: the editor draws its own bar. WS_THICKFRAME keeps resizing,
+    // snapping and the animations WS_POPUP alone loses.
+    constexpr DWORD kWindowStyle =
+        WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
+    ::AdjustWindowRect(&windowRect, kWindowStyle, FALSE);
 
     const int windowWidth  = windowRect.right - windowRect.left;
     const int windowHeight = windowRect.bottom - windowRect.top;
@@ -379,9 +453,8 @@ void* platformCreateWindow(const WindowDesc& desc)
 
     const std::wstring wtitle(desc.title.begin(), desc.title.end());
 
-    HWND hwnd = ::CreateWindowExW(0, className, wtitle.c_str(), WS_OVERLAPPEDWINDOW, windowX,
-                                  windowY, windowWidth, windowHeight, nullptr, nullptr, hInst,
-                                  nullptr);
+    HWND hwnd = ::CreateWindowExW(0, className, wtitle.c_str(), kWindowStyle, windowX, windowY,
+                                  windowWidth, windowHeight, nullptr, nullptr, hInst, nullptr);
     assert(hwnd && "Failed to create window");
     if (!hwnd)
         return nullptr;
@@ -413,6 +486,30 @@ void* platformCreateWindow(const WindowDesc& desc)
     return hwnd;
 }
 
+void platformMinimizeWindow(void* nativeHandle)
+{
+    ::ShowWindow(static_cast<HWND>(nativeHandle), SW_MINIMIZE);
+}
+
+void platformToggleMaximizeWindow(void* nativeHandle)
+{
+    HWND hwnd = static_cast<HWND>(nativeHandle);
+    ::ShowWindow(hwnd, platformIsWindowMaximized(hwnd) ? SW_RESTORE : SW_MAXIMIZE);
+}
+
+void platformCloseWindow(void* nativeHandle)
+{
+    ::PostMessageW(static_cast<HWND>(nativeHandle), WM_CLOSE, 0, 0);
+}
+
+bool platformIsWindowMaximized(void* nativeHandle)
+{
+    WINDOWPLACEMENT wp{};
+    wp.length = sizeof(wp);
+    ::GetWindowPlacement(static_cast<HWND>(nativeHandle), &wp);
+    return wp.showCmd == SW_SHOWMAXIMIZED;
+}
+
 void platformBindContext(void* nativeHandle, Engine* ctx)
 {
     ::SetWindowLongPtrW(static_cast<HWND>(nativeHandle), GWLP_USERDATA,
@@ -421,7 +518,13 @@ void platformBindContext(void* nativeHandle, Engine* ctx)
 
 void platformShowWindow(void* nativeHandle)
 {
-    ::ShowWindow(static_cast<HWND>(nativeHandle), SW_SHOW);
+    HWND hwnd = static_cast<HWND>(nativeHandle);
+    // The frame was computed before WM_NCCALCSIZE could answer, so ask again:
+    // without this the system title bar stays.
+    ::SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                   SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                       SWP_NOACTIVATE);
+    ::ShowWindow(hwnd, SW_SHOW);
 }
 
 void platformSetWindowTitle(void* nativeHandle, const std::string& title)

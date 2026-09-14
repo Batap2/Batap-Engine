@@ -5,6 +5,7 @@
 #include "Components/PointLight_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
+#include "Reflection/ComponentRegistry.h"
 #include "UI/IconsMaterialDesign.h"
 
 #include <entt/entt.hpp>
@@ -22,6 +23,7 @@ struct Spawnable
     std::string_view id;
     const char* label;
     const char* icon;
+    ComponentColor color;
     bool (*matches)(const entt::registry&, entt::entity);
     void (*emplace)(entt::registry&, entt::entity);
 };
@@ -31,9 +33,10 @@ struct Spawnable
 // the id is spelled out, not derived from Head's type name, so a class rename
 // cannot silently change what spawnableFor("camera") looks up.
 template <class Head, class... Rest>
-constexpr Spawnable spawnable(std::string_view id, const char* label, const char* icon)
+constexpr Spawnable spawnable(std::string_view id, const char* label, const char* icon,
+                              ComponentColor color)
 {
-    return {id, label, icon,
+    return {id, label, icon, color,
             +[](const entt::registry& r, entt::entity e) { return r.all_of<Head>(e); },
             +[](entt::registry& r, entt::entity e)
             {
@@ -43,12 +46,13 @@ constexpr Spawnable spawnable(std::string_view id, const char* label, const char
 }
 
 inline constexpr Spawnable Spawnables[] = {
-    {"empty", "Entity", ICON_MD_CATEGORY, nullptr, nullptr},
+    {"empty", "Entity", ICON_MD_CATEGORY, ComponentColor::Neutral, nullptr, nullptr},
 
-    spawnable<Mesh_C, Transform_C>("mesh", "Static Mesh", ICON_MD_HVAC),
-    spawnable<Camera_C, Transform_C>("camera", "Camera", ICON_MD_VIDEOCAM),
-    spawnable<PointLight_C, Transform_C>("pointLight", "Point Light", ICON_MD_LIGHTBULB),
-    spawnable<Skybox_C>("skybox", "Skybox", ICON_MD_PANORAMA),
+    spawnable<Mesh_C, Transform_C>("mesh", "Static Mesh", ICON_MD_HVAC, ComponentColor::Violet),
+    spawnable<Camera_C, Transform_C>("camera", "Camera", ICON_MD_VIDEOCAM, ComponentColor::Blue),
+    spawnable<PointLight_C, Transform_C>("pointLight", "Point Light", ICON_MD_LIGHTBULB,
+                                         ComponentColor::Orange),
+    spawnable<Skybox_C>("skybox", "Skybox", ICON_MD_PANORAMA, ComponentColor::Cyan),
 };
 
 // Both lookups fall back on the empty entity, which is the one entry every

@@ -15,6 +15,8 @@ struct ScenePanel
     void draw(World& world, std::optional<EntityHandle>& selectedEntity);
 
   private:
+    static constexpr float kRowMargin = 4.0f;
+
     void drawEntityNode(World& world, entt::entity e,
                         std::optional<EntityHandle>& selectedEntity);
 

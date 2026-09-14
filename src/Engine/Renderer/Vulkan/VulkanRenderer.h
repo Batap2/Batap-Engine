@@ -1,11 +1,17 @@
 #pragma once
 
+#include "Handles.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanSwapchain.h"
+
+struct ImFont;
 
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <imgui.h>
+
+#include <unordered_map>
 #include <vector>
 
 VK_DEFINE_HANDLE(VmaAllocation)
@@ -26,6 +32,18 @@ struct Renderer
 {
     Renderer(void* nativeWindow, bool transparent = false);
     ~Renderer();
+
+    // The icon font is merged shifted down by this much so icons sit on the
+    // baseline inside text. Code placing an icon by hand takes it back out.
+    static constexpr float kIconGlyphOffsetY = 2.0f;
+
+    ImFont* smallFont() const { return smallFont_; }
+
+    ImFont* monoFont() const { return monoFont_; }
+
+    // The descriptor is made once per handle and kept: ImGui never says when
+    // it stops using one.
+    ImTextureID imguiTexture(GPUResourceHandle image);
 
     void render();
     void beginFrame();
@@ -70,6 +88,9 @@ struct Renderer
 
     std::vector<ResizeCallback> resizeCallbacks_;
     bool transparent_ = false;
+    ImFont* smallFont_ = nullptr;
+    ImFont* monoFont_ = nullptr;
+    std::unordered_map<GPUResourceHandle, ImTextureID> imguiTextures_;
 
     void initImGui();
     void* window_ = nullptr;

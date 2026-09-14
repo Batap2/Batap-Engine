@@ -18,6 +18,7 @@ struct Materials_C
 // the per-slot asset pickers.
 static_assert(refl::fieldName<Materials_C, 0>() == "slots");
 
-BATAP_COMPONENT(Materials_C, "materials", ComponentMeta{.customEditor = true});
+BATAP_COMPONENT(Materials_C, "materials",
+                ComponentMeta{.color = ComponentColor::Yellow, .customEditor = true});
 
 }  // namespace batap

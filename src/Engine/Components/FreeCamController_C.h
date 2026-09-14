@@ -17,5 +17,6 @@ struct FreeCamController_C
     bool controlled_ = true;
 };
 
-BATAP_COMPONENT(FreeCamController_C, "freeCamController");
+BATAP_COMPONENT(FreeCamController_C, "freeCamController",
+                ComponentMeta{.color = ComponentColor::Cyan});
 }  // namespace batap

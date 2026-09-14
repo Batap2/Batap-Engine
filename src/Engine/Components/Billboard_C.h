@@ -34,7 +34,7 @@ static_assert(refl::fieldName<Billboard_C, 5>() == "alpha");
 static_assert(refl::fieldName<Billboard_C, 6>() == "sizeMode");
 static_assert(refl::fieldName<Billboard_C, 7>() == "orientation");
 
-BATAP_COMPONENT(Billboard_C, "billboard",
+BATAP_COMPONENT(Billboard_C, "billboard", ComponentMeta{.color = ComponentColor::Magenta},
                 fieldMeta<&Billboard_C::width_>({.speed = 0.01f, .min = 0.001f, .max = 1000.f}),
                 fieldMeta<&Billboard_C::height_>({.speed = 0.01f, .min = 0.001f, .max = 1000.f}),
                 fieldMeta<&Billboard_C::alpha_>({.speed = 0.01f, .min = 0.f, .max = 1.f}));

@@ -162,15 +162,24 @@ void Renderer::initImGui()
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     const std::string robotoPath =
-        resolveEngineFile("assets/Roboto-Regular.ttf", "assets/Roboto-Regular.ttf");
-    io.Fonts->AddFontFromFileTTF(robotoPath.c_str(), 16.0f);
+        resolveEngineFile("assets/Roboto-Medium.ttf", "assets/Roboto-Medium.ttf");
+    io.Fonts->AddFontFromFileTTF(robotoPath.c_str(), 15.0f);
 
     ImFontConfig cfg;
     cfg.MergeMode = true;
-    cfg.GlyphOffset = ImVec2(0.0f, 2.0f);
+    cfg.GlyphOffset = ImVec2(0.0f, Renderer::kIconGlyphOffsetY);
     const std::string iconsPath =
         resolveEngineFile("assets/MaterialIcons-Regular.ttf", "assets/MaterialIcons-Regular.ttf");
     io.Fonts->AddFontFromFileTTF(iconsPath.c_str(), 14.0f, &cfg);
+
+    smallFont_ = io.Fonts->AddFontFromFileTTF(robotoPath.c_str(), 14.0f);
+    ImFontConfig smallIcons = cfg;
+    smallIcons.GlyphOffset = ImVec2(0.0f, 1.0f);
+    io.Fonts->AddFontFromFileTTF(iconsPath.c_str(), 12.0f, &smallIcons);
+
+    const std::string monoPath =
+        resolveEngineFile("assets/Cousine-Regular.ttf", "assets/Cousine-Regular.ttf");
+    monoFont_ = io.Fonts->AddFontFromFileTTF(monoPath.c_str(), 14.0f);
 
     ImGui::StyleColorsDark();
 
@@ -367,6 +376,22 @@ void Renderer::onResize(ResizeCallback cb)
 void Renderer::flush()
 {
     vkDeviceWaitIdle(ctx_.device_);
+}
+
+ImTextureID Renderer::imguiTexture(GPUResourceHandle image)
+{
+    if (auto it = imguiTextures_.find(image); it != imguiTextures_.end())
+        return it->second;
+
+    VkImageView view = resourceManager_->viewFor(image);
+    if (view == VK_NULL_HANDLE)
+        return 0;
+
+    VkDescriptorSet set = ImGui_ImplVulkan_AddTexture(resourceManager_->textureSampler(), view,
+                                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    const auto id = reinterpret_cast<ImTextureID>(set);
+    imguiTextures_.emplace(image, id);
+    return id;
 }
 
 Renderer::~Renderer()

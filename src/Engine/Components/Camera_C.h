@@ -24,7 +24,7 @@ static_assert(refl::fieldName<Camera_C, 1>() == "znear");
 static_assert(refl::fieldName<Camera_C, 2>() == "zfar");
 static_assert(refl::fieldName<Camera_C, 3>() == "fov");
 
-BATAP_COMPONENT(Camera_C, "camera",
+BATAP_COMPONENT(Camera_C, "camera", ComponentMeta{.color = ComponentColor::Blue},
                 fieldMeta<&Camera_C::znear_>({.speed = 0.01f, .min = 0.001f, .max = 10.f}),
                 fieldMeta<&Camera_C::fov_>({.speed = 0.01f, .min = 0.01f, .max = 3.14f}));
 }  // namespace batap

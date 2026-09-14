@@ -34,6 +34,11 @@ void platformImGuiInit(void* nativeHandle);
 void platformImGuiNewFrame(void* nativeHandle);
 void platformImGuiShutdown();
 
+void platformMinimizeWindow(void* nativeHandle);
+void platformToggleMaximizeWindow(void* nativeHandle);
+void platformCloseWindow(void* nativeHandle);
+bool platformIsWindowMaximized(void* nativeHandle);
+
 // False once the window asked to close.
 bool platformPumpMessages();
 

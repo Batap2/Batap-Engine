@@ -6,7 +6,7 @@
 #include "Assets/Texture.h"
 #include "Engine.h"
 #include "Shaders/ShaderInterop.h"
-#include "UI/AssetHolder.h"
+#include "UI/IconsMaterialDesign.h"
 #include "UI/Field.h"
 
 #include <imgui.h>
@@ -49,19 +49,18 @@ void drawParameters(App& app, MaterialHandle handle, const Material& mat,
         changed |= ui::Field("Albedo",
                              [&]
                              {
-                                 ImGui::SetNextItemWidth(-1.0f);
-                                 return ImGui::ColorEdit4("##alb", copy.albedo);
+                                 return ui::ColorFieldRaw("##alb", copy.albedo, 4);
                              });
-        changed |= ui::FieldDragFloat("Roughness", &copy.roughness, 0.01f, 0.f, 1.f);
-        changed |= ui::FieldDragFloat("Metallic", &copy.metallic, 0.01f, 0.f, 1.f);
-        changed |= ui::FieldDragFloat("Reflectivity", &copy.reflectivity, 0.01f, 0.f, 1.f);
+        changed |= ui::FieldSlider("Roughness", &copy.roughness, 0.f, 1.f);
+        changed |= ui::FieldSlider("Metallic", &copy.metallic, 0.f, 1.f);
+        changed |= ui::FieldSlider("Reflectivity", &copy.reflectivity, 0.f, 1.f);
         changed |= ui::Field("Shading",
                              [&]
                              {
-                                 static const char* kModels[] = {"Lit", "Unlit"};
+                                 static constexpr std::array<const char*, 2> kModels = {"Lit",
+                                                                                        "Unlit"};
                                  int current = static_cast<int>(copy.shadingModel_);
-                                 ImGui::SetNextItemWidth(-1.0f);
-                                 if (!ImGui::Combo("##shading", &current, kModels, 2))
+                                 if (!ui::ComboField("##shading", &current, kModels))
                                      return false;
                                  copy.shadingModel_ = static_cast<uint32_t>(current);
                                  return true;
@@ -88,9 +87,8 @@ void drawParameters(App& app, MaterialHandle handle, const Material& mat,
                       {
                           std::string lbl =
                               texLabelFromBindlessIndex(*app.ctx_->assetManager_, texIdx[ch]);
-                          if (AssetHolder({.size_ = v2f(40, 40),
-                                           .thumbnail_ = 0,
-                                           .label_ = lbl.empty() ? "None" : lbl}))
+                          if (ui::AssetField(ICON_MD_IMAGE, lbl.empty() ? "None" : lbl.c_str(),
+                                             ui::colorOf(ComponentColor::Magenta)))
                               picker.open(handle, ch, app.projectDir_);
                           return true;
                       });

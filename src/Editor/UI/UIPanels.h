@@ -1,12 +1,16 @@
 #pragma once
 
 #include "Components/EntityHandle.h"
+
+#include <imgui.h>
 #include "UI/InspectorPanel.h"
 #include "UI/MaterialEditorPanel.h"
 #include "UI/ScenePanel.h"
 
 #include <optional>
 #include <string>
+#include <utility>
+#include <string_view>
 
 namespace batap
 {
@@ -21,12 +25,28 @@ struct UIPanels
     void clearSelection() { selectedEntity_.reset(); }
     void select(EntityHandle ent) { selectedEntity_ = ent; }
     void openMaterialEditor(MaterialHandle mat) { materialEditor_.open(mat); }
+    void selectByName(World& world, std::string_view name);
+    void setLogo(ImTextureID logo) { logo_ = logo; }
+    void setScenePath(std::string path) { currentScenePath_ = std::move(path); }
 
    private:
     void pickOnClick(World& world, App& app, Engine& ctx);
     void drawSelectionBounds(World& world, App& app, Engine& ctx);
+    void drawRail(World& world, App& app, Engine& ctx, float top, float height);
+    void drawWindowButtons(Engine& ctx);
+    void drawFileMenu(World& world, App& app);
+    void drawImportMenu(World& world, App& app, Engine& ctx);
+    void drawViewMenu(World& world, App& app);
 
-    float panelWidth_ = 260.0f;
+    static constexpr float kRailWidth = 40.0f;
+    static constexpr float kWindowButtonsWidth = 108.0f;
+    static constexpr float kRailInset = 9.0f;
+    static constexpr float kRailIconSize = kRailWidth - kRailInset * 2.0f;
+
+    float outlinerWidth_ = 230.0f;
+    float inspectorWidth_ = 300.0f;
+    bool railOpen_ = true;
+    ImTextureID logo_ = 0;
 
     std::optional<EntityHandle> selectedEntity_;
     std::string currentScenePath_;

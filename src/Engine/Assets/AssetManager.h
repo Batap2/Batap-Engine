@@ -126,8 +126,6 @@ struct AssetManager
     // Saves all loaded GPU-arena assets (materials, ...) back to disk.
     void saveAllAssets() const;
 
-    // Relative path of the texture sitting at that bindless index, empty when
-    // it is a builtin
     std::string texturePathOf(uint32_t bindlessIndex) const;
 
     // Must be called before any loadAsset call. Asserts if dir is empty.

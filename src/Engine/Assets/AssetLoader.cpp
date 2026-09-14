@@ -240,6 +240,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     // build runtime Texture
     Texture tex{};
     tex.bindlessIndex_    = rm->textureIndex(gpuTex);
+    tex.gpu_              = gpuTex;
     tex.format_     = resFmt;
     tex.colorSpace_    = isHdr ? TextureColorSpace::Linear : TextureColorSpace::SRGB;
     tex.sizeX_         = static_cast<uint32_t>(w);
@@ -309,6 +310,7 @@ void createDefaultAssets(const Engine& ctx)
 
     Texture whiteTex{};
     whiteTex.bindlessIndex_    = rm->textureIndex(whiteGpu);
+    whiteTex.gpu_              = whiteGpu;
     whiteTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
     whiteTex.sizeX_      = 1;
     whiteTex.sizeY_      = 1;
@@ -328,6 +330,7 @@ void createDefaultAssets(const Engine& ctx)
 
     Texture flatNrmTex{};
     flatNrmTex.bindlessIndex_    = rm->textureIndex(flatGpu);
+    flatNrmTex.gpu_              = flatGpu;
     flatNrmTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
     flatNrmTex.sizeX_      = 1;
     flatNrmTex.sizeY_      = 1;
