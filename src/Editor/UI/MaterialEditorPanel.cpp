@@ -6,7 +6,7 @@
 #include "Assets/Texture.h"
 #include "Engine.h"
 #include "Shaders/ShaderInterop.h"
-#include "UI/IconsMaterialDesign.h"
+#include "UI/AssetRow.h"
 #include "UI/Field.h"
 
 #include <imgui.h>
@@ -46,11 +46,7 @@ void drawParameters(App& app, MaterialHandle handle, const Material& mat,
 
     if (auto f = ui::BeginFields("matparams"))
     {
-        changed |= ui::Field("Albedo",
-                             [&]
-                             {
-                                 return ui::ColorFieldRaw("##alb", copy.albedo, 4);
-                             });
+        changed |= ui::Field("Albedo", [&] { return ui::ColorField("##alb", copy.albedo, 4); });
         changed |= ui::FieldSlider("Roughness", &copy.roughness, 0.f, 1.f);
         changed |= ui::FieldSlider("Metallic", &copy.metallic, 0.f, 1.f);
         changed |= ui::FieldSlider("Reflectivity", &copy.reflectivity, 0.f, 1.f);
@@ -85,12 +81,10 @@ void drawParameters(App& app, MaterialHandle handle, const Material& mat,
             ui::Field(kTexLabels[ch],
                       [&, ch]
                       {
-                          std::string lbl =
+                          const std::string name =
                               texLabelFromBindlessIndex(*app.ctx_->assetManager_, texIdx[ch]);
-                          if (ui::AssetField(ICON_MD_IMAGE, lbl.empty() ? "None" : lbl.c_str(),
-                                             ui::colorOf(ComponentColor::Magenta)))
+                          if (ui::AssetRow(AssetType::Texture, name))
                               picker.open(handle, ch, app.projectDir_);
-                          return true;
                       });
         }
     }

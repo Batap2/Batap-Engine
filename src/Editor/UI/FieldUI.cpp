@@ -7,14 +7,12 @@
 #include "EigenTypes.h"
 #include "UI/AssetPickerPopup.h"
 #include "Reflection/ComponentRegistry.h"
+#include "UI/AssetRow.h"
 #include "UI/Field.h"
-
-#include <array>
-#include <span>
+#include "UI/Scoped.h"
 
 #include <imgui.h>
 
-#include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -57,28 +55,24 @@ void set(DrawFn fn)
     drawUIByName()[slot.typeName] = fn;
 }
 
+// The picker applies the pick itself (patch + markDirty), so the row never
+// reports a change of its own.
 template <class A, AssetType Type>
 void setAssetHandle()
 {
     set<AssetHandle<A>>(
-        [](void* p, const Field& f, FieldUIContext& ui)
+        [](void* p, const Field& f, FieldUIContext& fieldCtx)
         {
             auto& handle = *static_cast<AssetHandle<A>*>(p);
-            if (!ui.app_ || !ui.picker_ || !ui.component_)
+            if (!fieldCtx.app_ || !fieldCtx.picker_ || !fieldCtx.component_)
                 return false;
 
-            std::string label = "None";
-            if (handle)
-                if (const std::string* path = ui.app_->ctx_->assetManager_->getPath(handle))
-                    label = std::filesystem::path(*path).stem().string();
-            label += "##v";
-
-            if (ImGui::Button(label.c_str(), ImVec2(-1.f, 0.f)))
-                ui.picker_->openField(ui.ent_, *ui.component_, f, Type, ui.app_->projectDir_);
-
-            // OpenPopup and BeginPopup have to share an ID scope, so the popup
-            // is drawn right here and not once per component.
-            return ui.picker_->draw(*ui.app_);
+            const std::string name =
+                ui::assetName(*fieldCtx.app_->ctx_->assetManager_, handle);
+            if (ui::AssetRow(Type, name))
+                fieldCtx.picker_->openField(fieldCtx.ent_, *fieldCtx.component_, f, Type,
+                                            fieldCtx.app_->projectDir_);
+            return false;
         });
 }
 }  // namespace
@@ -124,11 +118,7 @@ void installFieldUI()
         [](void* p, const Field& f, FieldUIContext&)
         {
             auto* v = static_cast<v3f*>(p);
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-            const std::span<float> xyz{v->data(), 3};
-#pragma clang diagnostic pop
-            return ui::DragFloatN(xyz, f.meta.speed);
+            return ui::DragFloatN(ui::spanOf(v->data(), 3), f.meta.speed);
         });
 
     setAssetHandle<Mesh, AssetType::Mesh>();
@@ -138,8 +128,7 @@ void installFieldUI()
     set<col3>(
         [](void* p, const Field&, FieldUIContext&)
         {
-            ImGui::SetNextItemWidth(-1.0f);
-            return ui::ColorFieldRaw("##v", static_cast<col3*>(p)->data(), 3);
+            return ui::ColorField("##v", static_cast<col3*>(p)->data(), 3);
         });
 
     set<std::vector<Shape>>(
@@ -159,11 +148,7 @@ void installFieldUI()
             for (auto it = shapes.begin(); it != shapes.end(); ++it, ++id)
             {
                 Shape& s = *it;
-                ImGui::PushID(id);
-                struct Guard
-                {
-                    ~Guard() { ImGui::PopID(); }
-                } guard;
+                ui::ScopedID scopedId{id};
 
                 const bool open = ImGui::TreeNodeEx("##shape", ImGuiTreeNodeFlags_DefaultOpen, "%s",
                                                     kindName(s.kind_));

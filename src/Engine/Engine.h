@@ -88,7 +88,6 @@ struct Engine
     void* window_ = nullptr;
     std::string title_;
     bool        fpsInTitle_   = false;
-
     uint32_t    frameCount_   = 0;
     float       fpsElapsed_   = 0.f;
 };

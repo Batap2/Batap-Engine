@@ -17,7 +17,7 @@ struct InspectorPanel
 
   private:
     void drawHeader(EntityHandle ent);
-    void drawTransform(EntityHandle ent, World& world);
+    void drawTransform(EntityHandle ent);
     void drawMesh(EntityHandle ent, App& app);
     void drawMaterials(EntityHandle ent, App& app);
     void drawSkybox(EntityHandle ent, App& app);

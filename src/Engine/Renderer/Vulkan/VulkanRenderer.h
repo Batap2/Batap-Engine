@@ -4,13 +4,11 @@
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanSwapchain.h"
 
-struct ImFont;
+#include <imgui.h>
 
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <imgui.h>
-
 #include <unordered_map>
 #include <vector>
 

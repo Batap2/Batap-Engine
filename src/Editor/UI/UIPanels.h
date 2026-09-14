@@ -9,8 +9,8 @@
 
 #include <optional>
 #include <string>
-#include <utility>
 #include <string_view>
+#include <utility>
 
 namespace batap
 {
@@ -32,13 +32,16 @@ struct UIPanels
    private:
     void pickOnClick(World& world, App& app, Engine& ctx);
     void drawSelectionBounds(World& world, App& app, Engine& ctx);
+    void drawTopBar(App& app, Engine& ctx);
     void drawRail(World& world, App& app, Engine& ctx, float top, float height);
-    void drawWindowButtons(Engine& ctx);
+    void drawWindowButtons(Engine& ctx, float height);
     void drawFileMenu(World& world, App& app);
     void drawImportMenu(World& world, App& app, Engine& ctx);
     void drawViewMenu(World& world, App& app);
 
     static constexpr float kRailWidth = 40.0f;
+    // The bar is as tall as the rail is wide, so the logo squares up with it.
+    static constexpr float kTopBarHeight = kRailWidth;
     static constexpr float kWindowButtonsWidth = 108.0f;
     static constexpr float kRailInset = 9.0f;
     static constexpr float kRailIconSize = kRailWidth - kRailInset * 2.0f;

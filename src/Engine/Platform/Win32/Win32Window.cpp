@@ -4,8 +4,7 @@
 
 #include <windows.h>
 
-#include <dwmapi.h>
-#include <windowsx.h>  // GET_X_LPARAM    // DwmEnableBlurBehindWindow (fenêtre transparente)
+#include <dwmapi.h>    // DwmEnableBlurBehindWindow (fenêtre transparente)
 #include <shellapi.h>  // CommandLineToArgvW
 #include <windowsx.h>  // GET_X_LPARAM
 

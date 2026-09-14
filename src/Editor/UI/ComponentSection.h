@@ -7,12 +7,6 @@
 
 #include <cfloat>
 
-// Usage:
-//   ui::ComponentSection s("Transform", ComponentColor::Blue, removable);
-//   if (s)
-//       if (auto _ = ui::BeginFields("transform")) { ... }
-//   if (s.removeClicked()) ...
-
 namespace batap::ui
 {
 struct ComponentSection

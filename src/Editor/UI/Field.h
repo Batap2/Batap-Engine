@@ -1,5 +1,6 @@
 #pragma once
 
+#include "UI/Scoped.h"
 #include "UI/UITheme.h"
 
 #include <imgui.h>
@@ -10,13 +11,16 @@
 #include <span>
 #include <string_view>
 
-// Usage:
-//   if (auto _ = ui::BeginFields("id")) {
-//       ui::Field("Position", [&]{ ... });
-//   }
-
 namespace batap::ui
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+inline std::span<float> spanOf(float* p, size_t count)
+{
+    return {p, count};
+}
+#pragma clang diagnostic pop
+
 struct BeginFields
 {
     explicit BeginFields(const char* id)
@@ -41,16 +45,16 @@ struct BeginFields
     BeginFields(const BeginFields&)            = delete;
     BeginFields& operator=(const BeginFields&) = delete;
 
-private:
+   private:
     bool active_;
 };
 
 template <typename Fn>
 auto Field(const char* label, Fn&& drawWidget) -> decltype(drawWidget())
 {
-    IM_ASSERT_USER_ERROR(ImGui::GetCurrentTable() != nullptr, "ui::Field must be called inside ui::BeginFields");
-    ImGui::PushID(label);
-    struct Guard { ~Guard() { ImGui::PopID(); } } guard;
+    IM_ASSERT_USER_ERROR(ImGui::GetCurrentTable() != nullptr,
+                         "ui::Field must be called inside ui::BeginFields");
+    ScopedID id{label};
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
     ImGui::AlignTextToFramePadding();
@@ -178,8 +182,7 @@ inline bool DragFloatAxis(const char* id, float* v, int axis, float width, float
     return changed;
 }
 
-inline bool DragFloatN(std::span<float> v, float speed = 0.01f, float min = 0.0f,
-                       float max = 0.0f)
+inline bool DragFloatN(std::span<float> v, float speed = 0.01f, float min = 0.0f, float max = 0.0f)
 {
     const auto count = static_cast<float>(v.size());
     const float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
@@ -190,9 +193,8 @@ inline bool DragFloatN(std::span<float> v, float speed = 0.01f, float min = 0.0f
     {
         if (i > 0)
             ImGui::SameLine(0.0f, spacing);
-        ImGui::PushID(static_cast<int>(i));
+        ScopedID id{static_cast<int>(i)};
         changed |= DragFloatAxis("##v", &v[i], static_cast<int>(i), w, speed, min, max);
-        ImGui::PopID();
     }
     return changed;
 }
@@ -207,11 +209,7 @@ inline bool FieldDragFloat(const char* label, float* v, float speed = 1.0f, floa
 
 inline bool FieldDragFloat3(const char* label, float* v, float speed = 1.0f)
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-    const std::span<float> xyz{v, 3};
-#pragma clang diagnostic pop
-    return Field(label, [=] { return DragFloatN(xyz, speed); });
+    return Field(label, [=] { return DragFloatN(spanOf(v, 3), speed); });
 }
 
 inline bool DragGauge(float* v, float min, float max, float speed = 0.01f,
@@ -230,12 +228,10 @@ inline bool DragGauge(float* v, float min, float max, float speed = 0.01f,
         dl->AddRectFilled(p, {p.x + w * t, p.y + h}, ImGui::GetColorU32(bg4), FrameRounding,
                           t < 1.0f ? ImDrawFlags_RoundCornersLeft : ImDrawFlags_RoundCornersAll);
 
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4{0, 0, 0, 0});
-    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4{0, 0, 0, 0});
-    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4{0, 0, 0, 0});
-    const bool changed = DragValue("##v", v, w, speed, min, max, fmt);
-    ImGui::PopStyleColor(3);
-    return changed;
+    ScopedColor frame{{ImGuiCol_FrameBg, transparent},
+                      {ImGuiCol_FrameBgHovered, transparent},
+                      {ImGuiCol_FrameBgActive, transparent}};
+    return DragValue("##v", v, w, speed, min, max, fmt);
 }
 
 inline bool FieldSlider(const char* label, float* v, float min, float max, float speed = 0.01f)
@@ -254,9 +250,16 @@ inline bool IconButton(const char* icon, float side)
     return pressed;
 }
 
-inline bool ColorField(const char* id, std::span<float> rgba)
+inline bool AddButton(const char* label)
 {
-    const ImVec4 col{rgba[0], rgba[1], rgba[2], 1.0f};
+    ScopedColor colors{{ImGuiCol_Button, transparent}, {ImGuiCol_Text, textDim}};
+    return ImGui::Button(label, {-FLT_MIN, 0.0f});
+}
+
+inline bool ColorField(const char* id, float* rgba, size_t count)
+{
+    const std::span<float> channels = spanOf(rgba, count);
+    const ImVec4 col{channels[0], channels[1], channels[2], 1.0f};
     const ImVec2 size{ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight()};
 
     if (ImGui::ColorButton(id, col, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoBorder,
@@ -266,8 +269,8 @@ inline bool ColorField(const char* id, std::span<float> rgba)
     bool changed = false;
     if (ImGui::BeginPopup(id))
     {
-        changed = rgba.size() == 4 ? ImGui::ColorPicker4("##pick", rgba.data())
-                                   : ImGui::ColorPicker3("##pick", rgba.data());
+        changed = count == 4 ? ImGui::ColorPicker4("##pick", channels.data())
+                             : ImGui::ColorPicker3("##pick", channels.data());
         ImGui::EndPopup();
     }
     return changed;
@@ -303,15 +306,6 @@ inline bool ComboField(const char* id, int* current, std::span<const char* const
                                                   {cx, cy + r * 0.8f},
                                                   ImGui::GetColorU32(textDim));
     return changed;
-}
-
-inline bool ColorFieldRaw(const char* id, float* rgba, size_t count)
-{
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-    const std::span<float> s{rgba, count};
-#pragma clang diagnostic pop
-    return ColorField(id, s);
 }
 
 inline bool AssetField(const char* icon, const char* name, ImVec4 iconColor)
@@ -352,4 +346,3 @@ inline bool AssetField(const char* icon, const char* name, ImVec4 iconColor)
 }
 
 }  // namespace batap::ui
-
