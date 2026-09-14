@@ -30,6 +30,19 @@ AssetManager::AssetManager(ResourceManager* rm) : resourceManager_(rm)
         AssetGPUArena<Material>::create(*rm, 64, "MaterialArena"));
 }
 
+std::string AssetManager::texturePathOf(uint32_t bindlessIndex) const
+{
+    std::string result;
+    getSlotMap<Texture>()->for_each(
+        [&](TextureHandle, const AssetSlotMap<Texture>::Asset& a)
+        {
+            if (result.empty() && a.value_.bindlessIndex_ == bindlessIndex &&
+                !isBuiltinAsset(a.path_))
+                result = a.path_;
+        });
+    return result;
+}
+
 void AssetManager::saveAllAssets() const
 {
     getGPUArena<Material>()->forEach(
@@ -38,8 +51,16 @@ void AssetManager::saveAllAssets() const
             if (relPath.empty() || isBuiltinAsset(relPath)) return;
             const auto* mat = getGPUArena<Material>()->get(key);
             if (!mat) return;
+
+            MaterialDesc desc;
+            desc.mat = const_cast<Material*>(mat);
+            desc.albedoTexPath = texturePathOf(mat->albedoTexIdx_);
+            desc.normalTexPath = texturePathOf(mat->normalTexIdx_);
+            desc.roughnessTexPath = texturePathOf(mat->roughnessTexIdx_);
+            desc.metallicTexPath = texturePathOf(mat->metallicTexIdx_);
+
             const std::string absPath = (std::filesystem::path(baseDir_) / relPath).string();
-            writeBmat(*mat, absPath);
+            writeBmat(desc, absPath);
         });
 }
 

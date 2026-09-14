@@ -83,7 +83,7 @@ struct AssetManager
         else
         {
             auto& map = *getSlotMap<T>();
-            auto  it  = map.pathToKey_.find(path);
+            auto it = map.pathToKey_.find(path);
             if (it == map.pathToKey_.end())
                 return std::nullopt;
             return it->second;
@@ -106,6 +106,12 @@ struct AssetManager
     }
 
     template <typename T>
+    const AssetSlotMap<T>* getSlotMap() const
+    {
+        return std::get<AssetSlotMap<T>*>(maps_);
+    }
+
+    template <typename T>
     AssetGPUArena<T>* getGPUArena()
     {
         return std::get<AssetGPUArena<T>*>(gpuArenas_);
@@ -119,6 +125,10 @@ struct AssetManager
 
     // Saves all loaded GPU-arena assets (materials, ...) back to disk.
     void saveAllAssets() const;
+
+    // Relative path of the texture sitting at that bindless index, empty when
+    // it is a builtin
+    std::string texturePathOf(uint32_t bindlessIndex) const;
 
     // Must be called before any loadAsset call. Asserts if dir is empty.
     void setBaseDir(std::string dir);

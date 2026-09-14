@@ -3,21 +3,17 @@
 #include "UI/FieldUI.h"
 
 #include <algorithm>
-#include <array>
 #include <filesystem>
 
 #include "App.h"
 #include "Assets/AssetManager.h"
-#include "Assets/AssetSlotMap.h"
 #include "Assets/Mesh.h"
-#include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "Instance/InstanceDeclaration.h"
 #include "Reflection/ComponentRegistry.h"
-#include "Shaders/ShaderInterop.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
 #include "UI/AssetHolder.h"
@@ -264,21 +260,6 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
 
 // -----------------------------------------------------------------------------
 
-static std::string texLabelFromBindlessIndex(AssetManager* am, uint32_t bindlessIndex)
-{
-    auto* white = am->get<Texture>(std::string("__default_white"));
-    if (white && bindlessIndex == white->bindlessIndex_)
-        return {};
-    std::string result;
-    am->getSlotMap<Texture>()->for_each(
-        [&](TextureHandle, const AssetSlotMap<Texture>::Asset& a)
-        {
-            if (result.empty() && a.value_.bindlessIndex_ == bindlessIndex)
-                result = std::filesystem::path(a.path_).stem().string();
-        });
-    return result;
-}
-
 // One slot per submesh, and a mesh with no submesh still draws one.
 static uint8_t materialSlotCount(EntityHandle ent, App& app)
 {
@@ -305,77 +286,31 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
         removed = removeComponentMenu("materials");
         if (g && !removed)
         {
-            for (uint8_t i = 0; i < slotCount; ++i)
+            if (auto f = ui::BeginFields("materials"))
             {
-                const std::string slotLabel = "Slot " + std::to_string(i);
-                if (auto sg = ui::CollapsingGroup(slotLabel.c_str()))
+                for (uint8_t i = 0; i < slotCount; ++i)
                 {
-                    if (auto f = ui::BeginFields(slotLabel.c_str()))
-                    {
-                        ui::Field(
-                            "Asset",
-                            [&]
-                            {
-                                std::string matLabel;
-                                if (mc->slots[i])
-                                    if (auto* p = app.ctx_->assetManager_->getPath(mc->slots[i]))
-                                        matLabel = std::filesystem::path(*p).stem().string();
-                                if (AssetHolder({.size_ = v2f(40, 40),
-                                                 .thumbnail_ = mc->slots[i] ? 1ull : 0,
-                                                 .label_ = matLabel}))
-                                    assetPicker_.open(ent, AssetType::Material, app.projectDir_, i);
-                                return true;
-                            });
-
-                        const MaterialHandle handle = mc->slots[i];
-                        if (handle)
+                    const std::string slotLabel = "Slot " + std::to_string(i);
+                    ui::Field(
+                        slotLabel.c_str(),
+                        [&]
                         {
-                            auto* mat = app.ctx_->assetManager_->get<Material>(handle);
-                            if (mat)
-                            {
-                                Material copy = *mat;
-                                bool changed = false;
+                            std::string matLabel;
+                            if (mc->slots[i])
+                                if (auto* p = app.ctx_->assetManager_->getPath(mc->slots[i]))
+                                    matLabel = std::filesystem::path(*p).stem().string();
+                            if (AssetHolder({.size_ = v2f(40, 40),
+                                             .thumbnail_ = mc->slots[i] ? 1ull : 0,
+                                             .label_ = matLabel.empty() ? "None" : matLabel}))
+                                assetPicker_.open(ent, AssetType::Material, app.projectDir_, i);
 
-                                changed |=
-                                    ui::Field("Albedo",
-                                              [&]
-                                              {
-                                                  ImGui::SetNextItemWidth(-1.0f);
-                                                  return ImGui::ColorEdit4("##alb", copy.albedo);
-                                              });
-                                changed |= ui::FieldDragFloat("Roughness", &copy.roughness, 0.01f,
-                                                              0.f, 1.f);
-                                changed |=
-                                    ui::FieldDragFloat("Metallic", &copy.metallic, 0.01f, 0.f, 1.f);
-                                changed |= ui::FieldDragFloat("Reflectivity", &copy.reflectivity,
-                                                              0.01f, 0.f, 1.f);
-
-                                if (changed)
-                                    app.ctx_->assetManager_->update(handle, copy);
-
-                                static constexpr std::array<const char*, 4> kTexLabels = {
-                                    "Albedo Tex", "Normal Tex", "Roughness Tex", "Metallic Tex"};
-                                const std::array<uint32_t, 4> matTexIdx = {
-                                    mat->albedoTexIdx_, mat->normalTexIdx_, mat->roughnessTexIdx_,
-                                    mat->metallicTexIdx_};
-                                for (uint8_t ch = 0; ch < 4; ++ch)
-                                {
-                                    ui::Field(
-                                        kTexLabels[ch],
-                                        [&, ch]
-                                        {
-                                            std::string lbl = texLabelFromBindlessIndex(
-                                                app.ctx_->assetManager_.get(), matTexIdx[ch]);
-                                            if (AssetHolder({.size_ = v2f(40, 40),
-                                                             .thumbnail_ = 0,
-                                                             .label_ = lbl.empty() ? "None" : lbl}))
-                                                assetPicker_.open(handle, ch, app.projectDir_);
-                                            return true;
-                                        });
-                                }
-                            }
-                        }
-                    }
+                            ImGui::SameLine();
+                            ImGui::BeginDisabled(!mc->slots[i]);
+                            if (ImGui::Button("Edit"))
+                                app.uiPanels_.openMaterialEditor(mc->slots[i]);
+                            ImGui::EndDisabled();
+                            return true;
+                        });
                 }
             }
             assetPicker_.draw(app);

@@ -222,6 +222,8 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     }
 
     ImGui::End();
+
+    materialEditor_.draw(app);
 }
 
 void UIPanels::drawStartupScreen(App& app, Engine& /*ctx*/)

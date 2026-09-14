@@ -17,6 +17,7 @@ bool writeBmat(const MaterialDesc& desc, const std::string& outPath)
     j["roughness"]    = desc.mat->roughness;
     j["metallic"]     = desc.mat->metallic;
     j["reflectivity"] = desc.mat->reflectivity;
+    j["shadingModel"] = desc.mat->shadingModel_;
 
     if (!desc.albedoTexPath.empty())    j["albedoTex"]    = desc.albedoTexPath;
     if (!desc.normalTexPath.empty())    j["normalTex"]    = desc.normalTexPath;
@@ -73,6 +74,7 @@ std::optional<MaterialFileData> readBmat(const std::string& path)
     if (j.contains("roughness"))    data.mat.roughness    = j["roughness"].get<float>();
     if (j.contains("metallic"))     data.mat.metallic     = j["metallic"].get<float>();
     if (j.contains("reflectivity")) data.mat.reflectivity = j["reflectivity"].get<float>();
+    if (j.contains("shadingModel")) data.mat.shadingModel_ = j["shadingModel"].get<uint32_t>();
 
     if (j.contains("albedoTex"))    data.albedoTexPath    = j["albedoTex"].get<std::string>();
     if (j.contains("normalTex"))    data.normalTexPath    = j["normalTex"].get<std::string>();

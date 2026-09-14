@@ -31,6 +31,12 @@ struct AssetPickerPopup
     bool draw(App& app);
 
   private:
+    // Loads the asset at that path and assigns it to whatever opened the
+    // picker. Shared by picking an existing file and creating a new one.
+    bool applyPath(App& app, const std::filesystem::path& path);
+    // Refills entries_ from projectDir_ + exts_, leaving the pick target alone.
+    void rescan();
+
     struct Entry { std::string name; std::filesystem::path path; };
 
     bool           pendingOpen_  = false;
@@ -46,7 +52,9 @@ struct AssetPickerPopup
     size_t      fieldOffset_ = 0;
     bool        isFieldPick_ = false;
     std::string        search_;
-    std::vector<Entry> entries_;
+    std::string              projectDir_;
+    std::vector<std::string> exts_;
+    std::vector<Entry>       entries_;
 };
 
 }  // namespace batap

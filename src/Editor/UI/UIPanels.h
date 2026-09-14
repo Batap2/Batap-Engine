@@ -2,6 +2,7 @@
 
 #include "Components/EntityHandle.h"
 #include "UI/InspectorPanel.h"
+#include "UI/MaterialEditorPanel.h"
 #include "UI/ScenePanel.h"
 
 #include <optional>
@@ -19,6 +20,7 @@ struct UIPanels
     void drawStartupScreen(App& app, Engine& ctx);
     void clearSelection() { selectedEntity_.reset(); }
     void select(EntityHandle ent) { selectedEntity_ = ent; }
+    void openMaterialEditor(MaterialHandle mat) { materialEditor_.open(mat); }
 
    private:
     void pickOnClick(World& world, App& app, Engine& ctx);
@@ -30,5 +32,6 @@ struct UIPanels
     std::string currentScenePath_;
     ScenePanel scenePanel_;
     InspectorPanel inspectorPanel_;
+    MaterialEditorPanel materialEditor_;
 };
 }  // namespace batap

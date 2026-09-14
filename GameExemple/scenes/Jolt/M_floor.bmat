@@ -1,0 +1,16 @@
+{
+    "albedo": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+    ],
+    "albedoTex": "scenes\\Jolt\\checker-map_tho.png",
+    "metallic": 0.0,
+    "metallicTex": "scenes\\Jolt\\checker-map_tho.png",
+    "normalTex": "scenes\\Jolt\\checker-map_tho.png",
+    "reflectivity": 0.0,
+    "roughness": 0.30000001192092896,
+    "roughnessTex": "scenes\\Jolt\\checker-map_tho.png",
+    "shadingModel": 0
+}

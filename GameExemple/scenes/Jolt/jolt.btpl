@@ -2,6 +2,7 @@
   "componentVersions": {
     "camera": 1,
     "freeCamController": 1,
+    "materials": 1,
     "mesh": 1,
     "pointLight": 1,
     "rigidBody": 1,
@@ -234,6 +235,19 @@
     {
       "components": [
         {
+          "slots": [
+            "scenes\\Jolt\\M_floor.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
           "mesh": "scenes\\Cornel\\assets\\3d\\cornel\\Cube.001.bmesh",
           "type": "mesh"
         },
@@ -402,26 +416,26 @@
           "znear": 0.10000000149011612
         },
         {
-          "boostSpeed": 22.684326171875,
+          "boostSpeed": 26.08697509765625,
           "controlled": true,
           "mouseSensitivity": 0.0024999999441206455,
-          "moveSpeed": 7.5614423751831055,
-          "pitch": -0.19749999046325684,
+          "moveSpeed": 8.695658683776855,
+          "pitch": -0.3649998903274536,
           "requireRightMouseButton": true,
           "type": "freeCamController",
-          "yaw": 2.180048704147339
+          "yaw": -1.2574803829193115
         },
         {
           "pos": [
-            11.093276023864746,
-            4.644660472869873,
-            -7.038411617279053
+            -9.17920970916748,
+            4.269506454467773,
+            1.6051706075668335
           ],
           "rot": [
-            -0.04559411108493805,
-            0.8823186755180359,
-            0.08741328865289688,
-            0.46021074056625366
+            -0.14678235352039337,
+            -0.5783593654632568,
+            -0.10673820972442627,
+            0.7953379154205322
           ],
           "scale": [
             1.0,

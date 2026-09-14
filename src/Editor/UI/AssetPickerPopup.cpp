@@ -9,13 +9,18 @@
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Skybox_C.h"
+#include "FileDialog.h"
+#include "Importers/FileImporter.h"
+#include "Serialization/BmatSerializer.h"
 #include "Instance/InstanceManager.h"
 #include "Reflection/ComponentRegistry.h"
 #include "World.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
+#include <algorithm>
 #include <filesystem>
+#include <span>
 
 namespace batap
 {
@@ -36,6 +41,23 @@ static std::string_view extensionFor(AssetType type)
     return {};
 }
 
+void AssetPickerPopup::rescan()
+{
+    entries_.clear();
+    if (projectDir_.empty() || exts_.empty())
+        return;
+
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(projectDir_))
+    {
+        if (!entry.is_regular_file())
+            continue;
+        const auto ext = entry.path().extension().string();
+        if (std::find(exts_.begin(), exts_.end(), ext) == exts_.end())
+            continue;
+        entries_.push_back({entry.path().stem().string(), entry.path()});
+    }
+}
+
 void AssetPickerPopup::open(EntityHandle ent, AssetType type, const std::string& projectDir,
                             uint8_t slotIndex)
 {
@@ -45,20 +67,9 @@ void AssetPickerPopup::open(EntityHandle ent, AssetType type, const std::string&
     isHdriPick_ = false;
     isFieldPick_ = false;
     search_.clear();
-    entries_.clear();
-
-    if (projectDir.empty())
-        return;
-
-    const auto ext = extensionFor(type);
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(projectDir))
-    {
-        if (!entry.is_regular_file())
-            continue;
-        if (entry.path().extension() != ext)
-            continue;
-        entries_.push_back({entry.path().stem().string(), entry.path()});
-    }
+    projectDir_ = projectDir;
+    exts_ = {std::string(extensionFor(type))};
+    rescan();
 
     pendingOpen_ = true;
 }
@@ -69,19 +80,9 @@ void AssetPickerPopup::openHdri(EntityHandle ent, const std::string& projectDir)
     isHdriPick_ = true;
     isFieldPick_ = false;
     search_.clear();
-    entries_.clear();
-
-    if (projectDir.empty())
-        return;
-
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(projectDir))
-    {
-        if (!entry.is_regular_file())
-            continue;
-        if (entry.path().extension() != ".hdr")
-            continue;
-        entries_.push_back({entry.path().stem().string(), entry.path()});
-    }
+    projectDir_ = projectDir;
+    exts_ = {".hdr"};
+    rescan();
     pendingOpen_ = true;
 }
 
@@ -97,20 +98,9 @@ void AssetPickerPopup::openField(EntityHandle ent, const ComponentType& componen
     fieldComponent_ = component.name;
     fieldOffset_ = field.offset;
     search_.clear();
-    entries_.clear();
-
-    if (projectDir.empty())
-        return;
-
-    const auto ext = extensionFor(type);
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(projectDir))
-    {
-        if (!entry.is_regular_file())
-            continue;
-        if (entry.path().extension() != ext)
-            continue;
-        entries_.push_back({entry.path().stem().string(), entry.path()});
-    }
+    projectDir_ = projectDir;
+    exts_ = {std::string(extensionFor(type))};
+    rescan();
     pendingOpen_ = true;
 }
 
@@ -123,20 +113,9 @@ void AssetPickerPopup::open(MaterialHandle mat, uint8_t channel, const std::stri
     isHdriPick_ = false;
     isFieldPick_ = false;
     search_.clear();
-    entries_.clear();
-
-    if (projectDir.empty())
-        return;
-
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(projectDir))
-    {
-        if (!entry.is_regular_file())
-            continue;
-        const auto ext = entry.path().extension().string();
-        if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".btex")
-            continue;
-        entries_.push_back({entry.path().stem().string(), entry.path()});
-    }
+    projectDir_ = projectDir;
+    exts_ = {".png", ".jpg", ".jpeg", ".btex"};
+    rescan();
     pendingOpen_ = true;
 }
 
@@ -208,6 +187,44 @@ bool applyToField(App& app, EntityHandle ent, const std::string& componentName, 
 }
 }  // namespace
 
+bool AssetPickerPopup::applyPath(App& app, const std::filesystem::path& path)
+{
+    const auto relPath = std::filesystem::relative(path, app.projectDir_).string();
+    auto handle = loadAsset(relPath, *app.ctx_);
+    if (!handle)
+        return false;
+
+    if (isFieldPick_)
+        return applyToField(app, ent_, fieldComponent_, fieldOffset_, type_, &*handle);
+
+    if (type_ == AssetType::Mesh)
+        if (auto* meshC = ent_.try_get<Mesh_C>())
+            meshC->mesh_ = std::get<MeshHandle>(*handle);
+
+    if (type_ == AssetType::Material)
+        if (auto* mc = ent_.try_get<Materials_C>())
+            if (slotIndex_ < mc->slots.size())
+            {
+                mc->slots[slotIndex_] = std::get<MaterialHandle>(*handle);
+                app.world_->instances().markDirty<Materials_C>(ent_);
+            }
+
+    if (type_ == AssetType::Texture && matHandle_)
+        if (auto* th = std::get_if<TextureHandle>(&*handle))
+            if (auto* tex = app.ctx_->assetManager_->get<Texture>(*th))
+                applyTexture(app, matHandle_, texChannel_, tex->bindlessIndex_);
+
+    if (isHdriPick_)
+        if (auto* sky = ent_.try_get<Skybox_C>())
+            if (auto* th = std::get_if<TextureHandle>(&*handle))
+            {
+                sky->hdri_ = *th;
+                app.world_->instances().markDirty<Skybox_C>(ent_);
+            }
+
+    return true;
+}
+
 bool AssetPickerPopup::draw(App& app)
 {
     if (pendingOpen_)
@@ -242,39 +259,7 @@ bool AssetPickerPopup::draw(App& app)
 
         if (ImGui::Selectable(e.name.c_str()))
         {
-            const auto relPath = std::filesystem::relative(e.path, app.projectDir_).string();
-            auto handle = loadAsset(relPath, *app.ctx_);
-            if (handle && isFieldPick_)
-                applied = applyToField(app, ent_, fieldComponent_, fieldOffset_, type_,
-                                       &*handle);
-            else if (handle)
-            {
-                if (type_ == AssetType::Mesh)
-                    if (auto* meshC = ent_.try_get<Mesh_C>())
-                        meshC->mesh_ = std::get<MeshHandle>(*handle);
-
-                if (type_ == AssetType::Material)
-                    if (auto* mc = ent_.try_get<Materials_C>())
-                        if (slotIndex_ < mc->slots.size())
-                        {
-                            mc->slots[slotIndex_] = std::get<MaterialHandle>(*handle);
-                            app.world_->instances().markDirty<Materials_C>(ent_);
-                        }
-
-                if (type_ == AssetType::Texture && matHandle_)
-                    if (auto* th = std::get_if<TextureHandle>(&*handle))
-                        if (auto* tex = app.ctx_->assetManager_->get<Texture>(*th))
-                            applyTexture(app, matHandle_, texChannel_, tex->bindlessIndex_);
-
-                if (isHdriPick_)
-                    if (auto* sky = ent_.try_get<Skybox_C>())
-                        if (auto* th = std::get_if<TextureHandle>(&*handle))
-                        {
-                            sky->hdri_ = *th;
-                            app.world_->instances().markDirty<Skybox_C>(ent_);
-                        }
-            }
-
+            applied = applyPath(app, e.path);
             ImGui::CloseCurrentPopup();
         }
     }
@@ -282,6 +267,44 @@ bool AssetPickerPopup::draw(App& app)
     ImGui::EndChild();
 
     ImGui::Separator();
+
+    if (type_ == AssetType::Material && !isFieldPick_)
+    {
+        if (ImGui::Button("New..."))
+        {
+            constexpr FileDialogFilter filter{"Material (.bmat)", "*.bmat"};
+            const std::string outPath =
+                SaveFileDialog(std::span<const FileDialogFilter>(&filter, 1), ".bmat");
+            if (!outPath.empty())
+            {
+                // Assets are addressed by a project-relative path, so one saved
+                // outside the project would not resolve on the next load.
+                const auto rel = std::filesystem::relative(outPath, app.projectDir_).string();
+                if (rel.empty() || rel.rfind("..", 0) == 0)
+                    app.showToast("Material must be saved inside the project");
+                else if (writeBmat(Material{}, outPath))
+                {
+                    applied = applyPath(app, outPath);
+                    rescan();
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+        }
+        ImGui::SameLine();
+    }
+
+    if (type_ == AssetType::Texture)
+    {
+        if (ImGui::Button("Import..."))
+        {
+            constexpr FileDialogFilter filter{"Images", "*.png;*.jpg;*.jpeg;*.tga;*.hdr"};
+            for (const auto& src : OpenFilesDialog(std::span<const FileDialogFilter>(&filter, 1)))
+                importFile(src, {app.projectDir_});
+            rescan();
+        }
+        ImGui::SameLine();
+    }
+
     if (ImGui::Button("Clear"))
     {
         if (isFieldPick_)
