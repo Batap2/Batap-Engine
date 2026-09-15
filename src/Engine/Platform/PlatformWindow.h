@@ -34,6 +34,10 @@ void platformImGuiInit(void* nativeHandle);
 void platformImGuiNewFrame(void* nativeHandle);
 void platformImGuiShutdown();
 
+// Same client-space pixels InputManager reports.
+void platformSetCursorPos(void* nativeHandle, int clientX, int clientY);
+void platformShowCursor(bool show);
+
 void platformMinimizeWindow(void* nativeHandle);
 void platformToggleMaximizeWindow(void* nativeHandle);
 void platformCloseWindow(void* nativeHandle);

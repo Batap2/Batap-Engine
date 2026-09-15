@@ -117,11 +117,11 @@ bool ScenePanel::drawRename(entt::registry& reg, EntityHandle ent)
     return true;
 }
 
-void ScenePanel::drawEntityNode(World& world, entt::entity e,
-                                std::optional<EntityHandle>& selectedEntity)
+void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selection)
 {
     auto& reg = world.registry_;
     const EntityHandle h{&reg, e};
+    rowOrder_.push_back(e);
 
     if (drawRename(reg, h))
         return;
@@ -131,9 +131,10 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e,
 
     auto* hc = reg.try_get<Hierarchy_C>(e);
     const bool hasChildren = hc && hc->firstChild != entt::null;
-    const bool selected = selectedEntity.has_value() && *selectedEntity == h;
+    const EntityHandle primary = selection.primary();
+    const bool selected = selection.contains(h);
     const bool onSelectedPath =
-        selected || (selectedEntity && Hierarchy_S::isDescendantOf(*selectedEntity, h));
+        selected || (primary.valid() && Hierarchy_S::isDescendantOf(primary, h));
 
     // The spaces hold the glyph's place: it is painted separately, in the
     // kind's colour, and left in the label it would be drawn twice.
@@ -159,6 +160,12 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e,
     // node on top, at the price of the band reporting itself unhovered wherever
     // the node covers it — hence the flag, and the mouse read by hand instead of
     // the button's own press.
+    // The band spans the visible width in screen space, outside the layout:
+    // left in it, it would stretch the content as the tree is scrolled.
+    ImGuiWindow* host = ImGui::GetCurrentWindow();
+    const ImVec2 contentMax = host->DC.CursorMaxPos;
+    const ImVec2 idealMax = host->DC.IdealMaxPos;
+
     ImGui::SetCursorScreenPos({inner.Min.x, rowTop});
     ImGui::PushID(nodeId);
     ImGui::SetNextItemAllowOverlap();
@@ -170,7 +177,8 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e,
         ImGui::OpenPopup("##rowMenu");
     if (ImGui::BeginPopup("##rowMenu"))
     {
-        selectedEntity = h;
+        if (!selection.contains(h))
+            selection.set(h);
         if (ImGui::MenuItem("Rename"))
         {
             renaming_ = h;
@@ -185,6 +193,8 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e,
     }
     ImGui::PopID();
     ImGui::SetCursorScreenPos(nodeStart);
+    host->DC.CursorMaxPos = contentMax;
+    host->DC.IdealMaxPos = idealMax;
 
     if (selected || hovered)
         ImGui::GetWindowDrawList()->AddRectFilled(
@@ -217,7 +227,15 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e,
                 kindColor, kind.icon);
 
     if (rowClicked && !ImGui::IsItemToggledOpen())
-        selectedEntity = h;
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        if (io.KeyCtrl)
+            selection.toggle(h);
+        else if (io.KeyShift && primary.valid())
+            pendingRange_ = h;
+        else
+            selection.set(h);
+    }
 
     if (ImGui::BeginDragDropSource())
     {
@@ -231,18 +249,19 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e,
 
     // The list is copied first: a drop reparents while it is being walked.
     for (entt::entity child : sortedChildren(h))
-        drawEntityNode(world, child, selectedEntity);
+        drawEntityNode(world, child, selection);
 
     ImGui::TreePop();
 }
 
-void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
+void ScenePanel::draw(World& world, Selection& selection, float bottomReserve)
 {
     auto& reg = world.registry_;
+    rowOrder_.clear();
 
     const ImGuiStyle& style = ImGui::GetStyle();
-    const float bottomReserve =
-        ImGui::GetFrameHeight() + kDropZoneHeight + style.ItemSpacing.y * 2.0f;
+    const float reserve =
+        ImGui::GetFrameHeight() + kDropZoneHeight + style.ItemSpacing.y * 2.0f + bottomReserve;
 
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{1.0f, style.FramePadding.y});
     ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 14.0f);
@@ -251,7 +270,7 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
     const float rowPitch = ImGui::GetFrameHeight() + kRowMargin * 2.0f;
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
                         ImVec2{style.ItemSpacing.x, rowPitch - ImGui::GetTextLineHeight()});
-    ImGui::BeginChild("##sceneTree", {0, -bottomReserve}, ImGuiChildFlags_None,
+    ImGui::BeginChild("##sceneTree", {0, -reserve}, ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoBackground);
 
     // The band reaches above the cursor; flush against the panel top the first
@@ -272,7 +291,7 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
     sortByName(reg, roots);
 
     for (entt::entity e : roots)
-        drawEntityNode(world, e, selectedEntity);
+        drawEntityNode(world, e, selection);
 
     ImGui::EndChild();
     ImGui::PopStyleVar(3);
@@ -294,17 +313,26 @@ void ScenePanel::draw(World& world, std::optional<EntityHandle>& selectedEntity)
     ImGui::InvisibleButton("##sceneRoot", {-1.0f, kDropZoneHeight});
     acceptEntityDrop(reg, std::nullopt);
 
+    if (pendingRange_)
+    {
+        const auto from = std::find(rowOrder_.begin(), rowOrder_.end(),
+                                    selection.primary().entity_);
+        const auto to = std::find(rowOrder_.begin(), rowOrder_.end(), pendingRange_->entity_);
+        if (from != rowOrder_.end() && to != rowOrder_.end())
+            for (auto it = std::min(from, to); it <= std::max(from, to); ++it)
+                selection.add(EntityHandle{&reg, *it});
+        pendingRange_.reset();
+    }
     if (pendingDuplicate_)
     {
-        selectedEntity = duplicateEntity(world, *pendingDuplicate_);
+        selection.set(duplicateEntity(world, *pendingDuplicate_));
         pendingDuplicate_.reset();
     }
     if (pendingDelete_)
     {
         world.destroy(*pendingDelete_);
         pendingDelete_.reset();
-        if (selectedEntity && !reg.valid(selectedEntity->entity_))
-            selectedEntity.reset();
+        selection.prune();
         if (renaming_ && !reg.valid(renaming_->entity_))
             renaming_.reset();
     }

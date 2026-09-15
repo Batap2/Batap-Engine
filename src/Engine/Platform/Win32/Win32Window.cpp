@@ -485,6 +485,23 @@ void* platformCreateWindow(const WindowDesc& desc)
     return hwnd;
 }
 
+void platformSetCursorPos(void* nativeHandle, int clientX, int clientY)
+{
+    POINT p{clientX, clientY};
+    ::ClientToScreen(static_cast<HWND>(nativeHandle), &p);
+    ::SetCursorPos(p.x, p.y);
+}
+
+void platformShowCursor(bool show)
+{
+    // ShowCursor keeps an internal counter, so the calls have to be paired.
+    static bool visible = true;
+    if (visible == show)
+        return;
+    visible = show;
+    ::ShowCursor(show ? TRUE : FALSE);
+}
+
 void platformMinimizeWindow(void* nativeHandle)
 {
     ::ShowWindow(static_cast<HWND>(nativeHandle), SW_MINIMIZE);

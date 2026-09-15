@@ -89,6 +89,8 @@ struct EntityHandle
     void setLocalPosition(const v3f& p);
     void setLocalRotation(const quatf& q);
     void setLocalScale(const v3f& s);
+    void setPosition(const v3f& p, Space space = Space::World);
+    void setRotation(const quatf& q, Space space = Space::World);
 
     void translate(const v3f& vec, Space space = Space::Local);
     void rotate(const quatf& delta, Space space = Space::Local);

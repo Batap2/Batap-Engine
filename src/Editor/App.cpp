@@ -37,7 +37,8 @@ namespace batap
 App::App(Engine& engine, World& world)
     : ctx_(&engine), world_(&world), assetManager_(ctx_->assetManager_.get())
 {
-    ui::ApplyTheme();
+    loadConfig();
+    ui::ApplyTheme(theme_);
     ui::smallFont = ctx_->renderer_->smallFont();
     ui::monoFont = ctx_->renderer_->monoFont();
 
@@ -54,8 +55,6 @@ App::App(Engine& engine, World& world)
 
     camera.translate(v3f(0, 2, 6), Space::Local);
     camera.get<Camera_C>().active_ = true;
-
-    loadRecentProjects();
 }
 
 // The World outlives the App, so its registry would otherwise be destroyed
@@ -70,6 +69,11 @@ App::~App()
 
 void App::update()
 {
+    if (themeDirty_)
+    {
+        ui::ApplyTheme(theme_);
+        themeDirty_ = false;
+    }
     pumpMsgFileDialog();
     pumpGameModuleReload();
 
@@ -193,7 +197,7 @@ static std::filesystem::path configPath()
     return base / "BatapEngine" / "recent.json";
 }
 
-void App::loadRecentProjects()
+void App::loadConfig()
 {
     auto path = configPath();
     if (!std::filesystem::exists(path))
@@ -204,6 +208,8 @@ void App::loadRecentProjects()
     try
     {
         auto j = nlohmann::json::parse(f);
+        theme_ = j.value("theme", std::string("light")) == "dark" ? ui::Theme::Dark
+                                                                    : ui::Theme::Light;
         for (auto& s : j.value("recent", nlohmann::json::array()))
         {
             auto str = s.get<std::string>();
@@ -215,13 +221,23 @@ void App::loadRecentProjects()
     {}
 }
 
-void App::saveRecentProjects()
+void App::saveConfig()
 {
     auto path = configPath();
     std::filesystem::create_directories(path.parent_path());
     nlohmann::json j;
     j["recent"] = recentProjects_;
+    j["theme"] = theme_ == ui::Theme::Dark ? "dark" : "light";
     std::ofstream(path) << j.dump(2);
+}
+
+// PopStyleColor restores the value saved at push time, so a theme applied from
+// inside a panel is undone when that panel pops. Applied at the next frame start.
+void App::setTheme(ui::Theme theme)
+{
+    theme_ = theme;
+    themeDirty_ = true;
+    saveConfig();
 }
 
 void App::selectProject(const std::string& dir)
@@ -252,7 +268,7 @@ void App::selectProject(const std::string& dir)
     recentProjects_.insert(recentProjects_.begin(), dir);
     if (recentProjects_.size() > 10)
         recentProjects_.resize(10);
-    saveRecentProjects();
+    saveConfig();
 }
 
 uint64_t App::openFileDialogAsyncWithAfterJob(std::span<const FileDialogFilter> filters,

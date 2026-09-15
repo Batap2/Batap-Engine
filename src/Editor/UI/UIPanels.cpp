@@ -32,8 +32,12 @@ namespace
 {
 constexpr ImGuiWindowFlags kFixedWindowFlags =
     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus |
-    ImGuiWindowFlags_NoScrollWithMouse;
+    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+// The bar and the rail lay their own content out by hand and have no scrollbar
+// to show where the wheel took them.
+constexpr ImGuiWindowFlags kNoScrollFlags =
+    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
 
 constexpr std::array kSceneFilter{FileDialogFilter{"Scene (.btpl)", "*.btpl"}};
 constexpr std::array kAnyAssetFilter{FileDialogFilter{"Assets", "*.*"}};
@@ -46,6 +50,9 @@ constexpr float kBarGroupGap = 16.0f;
 constexpr float kPanelMinWidth = 20.0f;
 constexpr float kPanelMaxWidth = 600.0f;
 constexpr float kResizeGripHalfWidth = 6.0f;
+constexpr float kOptionsGripHeight = 11.0f;
+constexpr float kOptionsMinHeight = 30.0f;
+constexpr float kOptionsMaxHeight = 400.0f;
 
 void drawVerticalEdge(float x)
 {
@@ -66,7 +73,7 @@ void UIPanels::selectByName(World& world, std::string_view name)
     for (auto [e, n] : reg.view<Name_C>().each())
         if (n.name_ == name)
         {
-            select(EntityHandle{&reg, e});
+            selection_.add(EntityHandle{&reg, e});
             return;
         }
 }
@@ -88,24 +95,34 @@ void UIPanels::pickOnClick(World& world, App& app, Engine& ctx)
     if (icon.hit())
         hit = icon;
 
-    if (hit.hit())
-        select(EntityHandle{&world.registry_, hit.entity_});
+    if (!hit.hit())
+    {
+        if (!input.down(Key::LCtrl))
+            clearSelection();
+        return;
+    }
+
+    const EntityHandle picked{&world.registry_, hit.entity_};
+    if (input.down(Key::LCtrl))
+        selection_.toggle(picked);
     else
-        clearSelection();
+        select(picked);
 }
 
 void UIPanels::drawSelectionBounds(World& world, App& app, Engine& ctx)
 {
-    if (!selectedEntity_ || !selectedEntity_->valid())
-        return;
+    selection_.prune();
 
-    auto bounds = entityBounds(world, ctx, selectedEntity_->entity_);
-    if (!bounds)
-        bounds = app.editorIcons_.boundsOf(world, selectedEntity_->entity_);
-    if (!bounds)
-        return;
+    for (const EntityHandle& ent : selection_.all())
+    {
+        auto bounds = entityBounds(world, ctx, ent.entity_);
+        if (!bounds)
+            bounds = app.editorIcons_.boundsOf(world, ent.entity_);
+        if (!bounds)
+            continue;
 
-    world.debugOverlay().aabb(bounds->min_, bounds->max_, col3{1.f, 0.62f, 0.f});
+        world.debugOverlay().aabb(bounds->min_, bounds->max_, col3{1.f, 0.62f, 0.f});
+    }
 }
 
 void UIPanels::drawWindowButtons(Engine& ctx, float height)
@@ -146,7 +163,7 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
     ImGui::SetNextWindowSize({vp->Size.x, kTopBarHeight}, ImGuiCond_Always);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0, 0});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    if (ImGui::Begin("##TopStrip", nullptr, kFixedWindowFlags | ImGuiWindowFlags_NoScrollbar))
+    if (ImGui::Begin("##TopStrip", nullptr, kFixedWindowFlags | kNoScrollFlags))
     {
         const float side = kRailIconSize;
         const auto centredY = [](float lineHeight) { return (kTopBarHeight - lineHeight) * 0.5f; };
@@ -254,7 +271,7 @@ void UIPanels::drawRail(World& world, App& app, Engine& ctx, float top, float he
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0, kRailInset});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ui::ScopedColor flat{{ImGuiCol_Button, ui::transparent}};
-    ImGui::Begin("##Rail", nullptr, kFixedWindowFlags | ImGuiWindowFlags_NoScrollbar);
+    ImGui::Begin("##Rail", nullptr, kFixedWindowFlags | kNoScrollFlags);
 
     const auto railButton = [](const char* icon, const char* popupId, const char* tooltip)
     {
@@ -286,7 +303,15 @@ void UIPanels::drawRail(World& world, App& app, Engine& ctx, float top, float he
         ImGui::EndPopup();
     }
 
-    ImGui::SetCursorPos({kRailInset, ImGui::GetWindowHeight() - kRailIconSize - kRailInset});
+    const float bottom = ImGui::GetWindowHeight() - kRailIconSize - kRailInset;
+    const bool light = app.theme_ == ui::Theme::Light;
+    ImGui::SetCursorPos({kRailInset, bottom - kRailIconSize - kRailInset});
+    if (ui::IconButton(light ? ICON_MD_DARK_MODE : ICON_MD_LIGHT_MODE, kRailIconSize))
+        app.setTheme(light ? ui::Theme::Dark : ui::Theme::Light);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip(light ? "Dark theme" : "Light theme");
+
+    ImGui::SetCursorPos({kRailInset, bottom});
     if (ui::IconButton(ICON_MD_CHEVRON_LEFT, kRailIconSize))
         railOpen_ = false;
     if (ImGui::IsItemHovered())
@@ -358,11 +383,80 @@ void UIPanels::drawViewMenu(World& world, App& app)
     ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
 }
 
+void UIPanels::drawGizmoOptions()
+{
+    const float width = ImGui::GetContentRegionAvail().x;
+    ImGui::InvisibleButton("##resizeOptions", {width, kOptionsGripHeight});
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive())
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+    if (ImGui::IsItemActive())
+        optionsHeight_ = std::clamp(optionsHeight_ - ImGui::GetIO().MouseDelta.y,
+                                    kOptionsMinHeight, kOptionsMaxHeight);
+
+    const ImVec2 windowPos = ImGui::GetWindowPos();
+    const float ruleY = std::round(ImGui::GetItemRectMin().y + kOptionsGripHeight * 0.5f);
+    ImGui::GetWindowDrawList()->AddLine({windowPos.x, ruleY},
+                                        {windowPos.x + ImGui::GetWindowWidth(), ruleY},
+                                        ImGui::GetColorU32(ui::border));
+
+    const float side = ImGui::GetFrameHeight() + 6.0f;
+    const auto modeButton = [&](const char* icon, GizmoMode mode, const char* tooltip)
+    {
+        const bool on = gizmo_.mode_ == mode;
+        {
+            ui::ScopedColor colors{{ImGuiCol_Button, on ? ui::accent : ui::bg2},
+                                   {ImGuiCol_ButtonHovered, on ? ui::accentHover : ui::bg3},
+                                   {ImGuiCol_Text, on ? ui::bg0 : ui::text}};
+            if (ui::IconButton(icon, side))
+                gizmo_.mode_ = mode;
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", tooltip);
+        ImGui::SameLine(0.0f, kBarItemGap);
+    };
+
+    modeButton(ICON_MD_OPEN_WITH, GizmoMode::Translate, "Move");
+    modeButton(ICON_MD_3D_ROTATION, GizmoMode::Rotate, "Rotate");
+    modeButton(ICON_MD_ZOOM_OUT_MAP, GizmoMode::Scale, "Scale");
+    ImGui::NewLine();
+
+    ImGui::BeginChild("##gizmoOptionsBody", {0.0f, 0.0f});
+
+    const bool local = gizmo_.local_ || gizmo_.mode_ == GizmoMode::Scale;
+    if (ImGui::Button(local ? ICON_MD_VIEW_IN_AR "  Local" : ICON_MD_PUBLIC "  Global",
+                      {width, side}))
+        gizmo_.local_ = !gizmo_.local_;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Handles follow the entity axes or the world axes."
+                          " Scale is always local.");
+
+    const bool center = gizmo_.pivot_ == GizmoPivot::Center;
+    if (ImGui::Button(center ? ICON_MD_FILTER_CENTER_FOCUS "  Center"
+                             : ICON_MD_ADJUST "  Pivot",
+                      {width, side}))
+        gizmo_.pivot_ = center ? GizmoPivot::Origin : GizmoPivot::Center;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Place the handles on the transform origin"
+                          " or on the centre of the selection bounds.");
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("Snap (Ctrl)");
+    if (ui::BeginFields fields{"##snapFields"})
+    {
+        ui::FieldDragFloat("Move", &gizmo_.snapUnits_, 0.05f, 0.0f, 1000.0f);
+        ui::FieldDragFloat("Rotate", &gizmo_.snapDegrees_, 0.5f, 0.0f, 180.0f);
+        ui::FieldDragFloat("Scale", &gizmo_.snapScale_, 0.01f, 0.0f, 100.0f);
+    }
+
+    ImGui::EndChild();
+}
+
 void UIPanels::draw(World& world, App& app, Engine& ctx)
 {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
 
-    pickOnClick(world, app, ctx);
+    if (!gizmo_.draw(world, ctx, selection_))
+        pickOnClick(world, app, ctx);
     drawSelectionBounds(world, app, ctx);
     drawTopBar(app, ctx);
 
@@ -381,6 +475,13 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     // sign: which way the width grows when the grip moves right.
     const auto resizeGrip = [&](const char* id, float x, float& width, float sign)
     {
+        // The grip spans the panel edge in screen space, outside the layout. Left
+        // in it, it stretches the content further down the more the window is
+        // scrolled, and the scrolling never reaches an end.
+        ImGuiWindow* host = ImGui::GetCurrentWindow();
+        const ImVec2 contentMax = host->DC.CursorMaxPos;
+        const ImVec2 idealMax = host->DC.IdealMaxPos;
+
         ImGui::SetCursorScreenPos({x - kResizeGripHalfWidth, vp->Pos.y});
         ImGui::InvisibleButton(id, {kResizeGripHalfWidth * 2.0f, vp->Size.y});
         if (ImGui::IsItemHovered() || ImGui::IsItemActive())
@@ -388,6 +489,9 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
         if (ImGui::IsItemActive())
             width = std::clamp(width + ImGui::GetIO().MouseDelta.x * sign, kPanelMinWidth,
                                kPanelMaxWidth);
+
+        host->DC.CursorMaxPos = contentMax;
+        host->DC.IdealMaxPos = idealMax;
     };
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -395,15 +499,22 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
 
     const float outlinerX = vp->Pos.x + railWidth;
     beginDockedPanel("##Outliner", outlinerX, outlinerWidth_);
-    scenePanel_.draw(world, selectedEntity_);
+    scenePanel_.draw(world, selection_, optionsHeight_ + kOptionsGripHeight);
+    drawGizmoOptions();
     resizeGrip("##resizeOutliner", outlinerX + outlinerWidth_, outlinerWidth_, 1.0f);
     drawVerticalEdge(ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 1.0f);
     ImGui::End();
 
     const float inspectorX = vp->Pos.x + vp->Size.x - inspectorWidth_;
     beginDockedPanel("##Inspector", inspectorX, inspectorWidth_);
-    if (selectedEntity_ && selectedEntity_->valid())
-        inspectorPanel_.draw(world, app, *selectedEntity_);
+    if (selection_.size() > 1)
+    {
+        ImGui::TextDisabled("%zu entities selected", selection_.size());
+        ImGui::Spacing();
+    }
+    if (selection_.primary().valid())
+        inspectorPanel_.draw(world, app, selection_.primary());
+
     resizeGrip("##resizeInspector", inspectorX, inspectorWidth_, -1.0f);
     drawVerticalEdge(ImGui::GetWindowPos().x);
     ImGui::End();
@@ -421,7 +532,7 @@ void UIPanels::drawStartupScreen(App& app, Engine& ctx)
     ImGui::SetNextWindowPos(vp->Pos);
     ImGui::SetNextWindowSize(vp->Size);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::Begin("##startup", nullptr, kFixedWindowFlags);
+    ImGui::Begin("##startup", nullptr, kFixedWindowFlags | kNoScrollFlags);
 
     // The window has no system frame, so it carries the only way to close it.
     drawWindowButtons(ctx, kTopBarHeight);

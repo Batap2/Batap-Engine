@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Components/EntityHandle.h"
+#include "Gizmo.h"
+#include "Selection.h"
 
 #include <imgui.h>
 #include "UI/InspectorPanel.h"
@@ -22,8 +24,8 @@ struct UIPanels
 {
     void draw(World& world, App& app, Engine& ctx);
     void drawStartupScreen(App& app, Engine& ctx);
-    void clearSelection() { selectedEntity_.reset(); }
-    void select(EntityHandle ent) { selectedEntity_ = ent; }
+    void clearSelection() { selection_.clear(); }
+    void select(EntityHandle ent) { selection_.set(ent); }
     void openMaterialEditor(MaterialHandle mat) { materialEditor_.open(mat); }
     void selectByName(World& world, std::string_view name);
     void setLogo(ImTextureID logo) { logo_ = logo; }
@@ -38,6 +40,7 @@ struct UIPanels
     void drawFileMenu(World& world, App& app);
     void drawImportMenu(World& world, App& app, Engine& ctx);
     void drawViewMenu(World& world, App& app);
+    void drawGizmoOptions();
 
     static constexpr float kRailWidth = 40.0f;
     // The bar is as tall as the rail is wide, so the logo squares up with it.
@@ -48,11 +51,13 @@ struct UIPanels
 
     float outlinerWidth_ = 230.0f;
     float inspectorWidth_ = 300.0f;
+    float optionsHeight_ = 224.0f;
     bool railOpen_ = true;
     ImTextureID logo_ = 0;
 
-    std::optional<EntityHandle> selectedEntity_;
+    Selection selection_;
     std::string currentScenePath_;
+    Gizmo gizmo_;
     ScenePanel scenePanel_;
     InspectorPanel inspectorPanel_;
     MaterialEditorPanel materialEditor_;

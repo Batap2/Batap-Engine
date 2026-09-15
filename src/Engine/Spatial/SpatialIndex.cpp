@@ -183,7 +183,7 @@ void SpatialIndex::overlap(const v3f& center, float radius, std::vector<entt::en
                  });
 }
 
-Ray rayFromScreen(World& world, Engine& ctx, const v2i& screenPos)
+Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos)
 {
     auto& reg = world.registry_;
 
@@ -203,10 +203,8 @@ Ray rayFromScreen(World& world, Engine& ctx, const v2i& screenPos)
 
     // The scene is drawn through a negative-height viewport, so NDC +Y is the
     // top of the screen.
-    const float ndcX = 2.f * static_cast<float>(screenPos.x()) /
-                           static_cast<float>(frameSize.x()) - 1.f;
-    const float ndcY = 1.f - 2.f * static_cast<float>(screenPos.y()) /
-                                 static_cast<float>(frameSize.y());
+    const float ndcX = 2.f * screenPos.x() / static_cast<float>(frameSize.x()) - 1.f;
+    const float ndcY = 1.f - 2.f * screenPos.y() / static_cast<float>(frameSize.y());
 
     const auto unproject = [&](float ndcZ)
     {
@@ -222,6 +220,48 @@ Ray rayFromScreen(World& world, Engine& ctx, const v2i& screenPos)
         return {};
 
     return Ray{nearPoint, delta / length, 0.f, length};
+}
+
+Ray rayFromScreen(World& world, Engine& ctx, const v2i& screenPos)
+{
+    return rayFromScreen(world, ctx,
+                         v2f(static_cast<float>(screenPos.x()), static_cast<float>(screenPos.y())));
+}
+
+std::optional<v2f> ScreenProjector::project(const v3f& world) const
+{
+    const v4f clip = viewProj_ * v4f(world.x(), world.y(), world.z(), 1.f);
+    if (clip.w() <= 1e-5f)
+        return std::nullopt;
+
+    const v2f ndc = clip.head<2>() / clip.w();
+    return v2f((ndc.x() * 0.5f + 0.5f) * frameSize_.x(),
+               (0.5f - ndc.y() * 0.5f) * frameSize_.y());
+}
+
+std::optional<ScreenProjector> screenProjector(World& world, Engine& ctx)
+{
+    auto& reg = world.registry_;
+
+    const entt::entity cam = activeCameraOf(reg);
+    if (cam == entt::null)
+        return std::nullopt;
+
+    const v2i frameSize = ctx.getFrameSize();
+    if (frameSize.x() <= 0 || frameSize.y() <= 0)
+        return std::nullopt;
+
+    const Camera_C& camC = reg.get<Camera_C>(cam);
+    const Transform_C& camT = reg.get<Transform_C>(cam);
+    const float aspect = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
+
+    ScreenProjector out;
+    out.viewProj_ = camC.make_proj(aspect) * camC.make_view(camT.world());
+    out.frameSize_ = v2f(static_cast<float>(frameSize.x()), static_cast<float>(frameSize.y()));
+    out.camPos_ = camT.world().translation();
+    out.camRight_ = camT.world().linear().col(0).normalized();
+    out.camUp_ = camT.world().linear().col(1).normalized();
+    return out;
 }
 
 std::optional<AABB> entityBounds(World& world, Engine& ctx, entt::entity e)

@@ -97,6 +97,49 @@ void Transform_S::setLocalScale(EntityHandle h, const v3f& s)
     markDirty(h);
 }
 
+void Transform_S::setPosition(EntityHandle h, const v3f& p, Space space)
+{
+    if (!has_transform(h))
+        return;
+    auto& reg = *h.reg_;
+    auto& t = h.get<Transform_C>();
+
+    t.localPosition_ = p;
+
+    if (space == Space::World)
+    {
+        const entt::entity par = Hierarchy_S::getParent(h);
+        if (par != entt::null && reg.valid(par) && reg.any_of<Transform_C>(par))
+            t.localPosition_ = reg.get<Transform_C>(par).world_.inverse() * p;
+    }
+
+    t.localDirty_ = true;
+    markDirty(h);
+}
+
+void Transform_S::setRotation(EntityHandle h, const quatf& q, Space space)
+{
+    if (!has_transform(h))
+        return;
+    auto& reg = *h.reg_;
+    auto& t = h.get<Transform_C>();
+
+    t.localRotation_ = q.normalized();
+
+    if (space == Space::World)
+    {
+        const entt::entity par = Hierarchy_S::getParent(h);
+        if (par != entt::null && reg.valid(par) && reg.any_of<Transform_C>(par))
+        {
+            const quatf qp = Transform_C::extractWorldRotation(reg.get<Transform_C>(par).world_);
+            t.localRotation_ = (qp.conjugate() * t.localRotation_).normalized();
+        }
+    }
+
+    t.localDirty_ = true;
+    markDirty(h);
+}
+
 void Transform_S::translate(EntityHandle h, const v3f& vec, Space space)
 {
     if (!has_transform(h))
@@ -120,7 +163,7 @@ void Transform_S::translate(EntityHandle h, const v3f& vec, Space space)
             {
                 const transform& pw = reg.get<Transform_C>(p).world_;
                 const transform inv = pw.inverse();
-                t.localPosition_ += (inv * vec);
+                t.localPosition_ += inv.linear() * vec;
             }
             else
             {

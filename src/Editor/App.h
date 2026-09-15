@@ -10,6 +10,7 @@
 #include "GameModuleLoader.h"
 #include "EditorIcons.h"
 #include "UI/UIPanels.h"
+#include "UI/UITheme.h"
 #include "FileDialog.h"
 #include "World.h"
 
@@ -64,8 +65,12 @@ struct App
     std::unordered_map<uint64_t, FileDialogAfterJob> fileDialogAfterJobs_;
 
     void selectProject(const std::string& dir);
-    void loadRecentProjects();
-    void saveRecentProjects();
+    void setTheme(ui::Theme theme);
+    ui::Theme theme_ = ui::Theme::Light;
+    bool themeDirty_ = false;
+
+    void loadConfig();
+    void saveConfig();
 
     uint64_t openFileDialogAsyncWithAfterJob(std::span<const FileDialogFilter> filters,
                                              FileDialogAfterJob job);

@@ -40,7 +40,23 @@ struct SpatialIndex
     bool dirty_ = true;
 };
 
+// The gizmo's precision drag moves the pointer by a hundredth of a pixel:
+// rounding to whole pixels swallows it entirely.
+Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos);
 Ray rayFromScreen(World& world, Engine& ctx, const v2i& screenPos);
+
+struct ScreenProjector
+{
+    m4f viewProj_ = m4f::Identity();
+    v2f frameSize_ = v2f::Zero();
+    v3f camPos_ = v3f::Zero();
+    v3f camRight_ = v3f::UnitX();
+    v3f camUp_ = v3f::UnitY();
+
+    std::optional<v2f> project(const v3f& world) const;
+};
+
+std::optional<ScreenProjector> screenProjector(World& world, Engine& ctx);
 
 std::optional<CameraBasis> activeCameraBasis(entt::registry& reg);
 

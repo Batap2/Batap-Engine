@@ -42,6 +42,16 @@ void EntityHandle::setLocalScale(const v3f& s)
     transformsOf(*this).setLocalScale(*this, s);
 }
 
+void EntityHandle::setPosition(const v3f& p, Space space)
+{
+    transformsOf(*this).setPosition(*this, p, space);
+}
+
+void EntityHandle::setRotation(const quatf& q, Space space)
+{
+    transformsOf(*this).setRotation(*this, q, space);
+}
+
 void EntityHandle::translate(const v3f& vec, Space space)
 {
     transformsOf(*this).translate(*this, vec, space);
