@@ -26,10 +26,15 @@
 // After that a single engine lives (host World, pools, registry); the DLL
 // only contributes code. Traps: game_module.cpp must include
 // GameComponents.h (the include *is* the registration); App::gameModule_ is
-// declared before game_ (~Game is DLL code, must run before FreeLibrary).
+// declared before game_ (~Game is DLL code, must run before FreeLibrary);
+// and it must call adoptHostImGui(*out) or the game draws no UI (see below).
 
 #include "Game.h"
 #include "Reflection/ComponentRegistry.h"
+
+#include <cstddef>
+
+struct ImGuiContext;
 
 namespace batap
 {
@@ -38,7 +43,18 @@ struct GameModuleAPI
     ComponentRegistry* registry_ = nullptr;
     Game* (*createGame_)() = nullptr;
     const char* gameExeName_ = nullptr;
+
+    // Filled by the host before the call, not by the DLL.
+    ImGuiContext* imguiContext_ = nullptr;
+    void* (*imguiAlloc_)(size_t, void*) = nullptr;
+    void (*imguiFree_)(void*, void*) = nullptr;
+    void* imguiUserData_ = nullptr;
 };
+
+// ImGui keeps its context and its allocator in globals, and the DLL links its
+// own copy of both: without this the game's widgets go into a context nobody
+// draws, and its allocations cross heaps.
+void adoptHostImGui(const GameModuleAPI& api);
 
 inline constexpr const char* GameModuleEntryName = "batapGameEntry";
 using GameModuleEntryFn = void (*)(GameModuleAPI*);

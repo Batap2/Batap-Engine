@@ -137,14 +137,16 @@ const col3& colorOf(const RigidBody_C& rb)
     return colors::cyan;
 }
 
-// Damping and mass are not on BodyInterface, and SetShape would recompute the
-// mass from the shape's density and drop mass_.
-void applyMotionProperties(PhysicsWorld& physics, JPH::BodyID id, const RigidBody_C& rb,
+// Damping, mass and the sensor flag are not on BodyInterface, and SetShape
+// would recompute the mass from the shape's density and drop mass_.
+void applyLockedProperties(PhysicsWorld& physics, JPH::BodyID id, const RigidBody_C& rb,
                            const JPH::Shape& shape)
 {
     JPH::BodyLockWrite lock(physics.system().GetBodyLockInterface(), id);
     if (!lock.Succeeded())
         return;
+
+    lock.GetBody().SetIsSensor(rb.sensor_);
 
     JPH::MotionProperties* mp = lock.GetBody().GetMotionPropertiesUnchecked();
     if (!mp)
@@ -169,7 +171,7 @@ void destroyBody(JPH::BodyInterface& bi, RigidBody_C& rb)
     rb.bodyId_ = kInvalidBodyId;
 }
 
-void createBody(JPH::BodyInterface& bi, RigidBody_C& rb, const Transform_C& tc)
+void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const Transform_C& tc)
 {
     rb.shapeScale_ = tc.scale();
     rb.dirty_ = false;
@@ -181,8 +183,12 @@ void createBody(JPH::BodyInterface& bi, RigidBody_C& rb, const Transform_C& tc)
     settings.mLinearDamping = rb.linearDamping_;
     settings.mAngularDamping = rb.angularDamping_;
     settings.mGravityFactor = rb.gravityFactor_;
+    settings.mIsSensor = rb.sensor_;
     settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
     settings.mMassPropertiesOverride.mMass = rb.mass_;
+    // Offset by one so that a destroyed body, whose GetUserData reads back 0,
+    // never resolves to entity 0.
+    settings.mUserData = static_cast<uint64_t>(entt::to_integral(e)) + 1u;
 
     rb.bodyId_ =
         bi.CreateAndAddBody(settings, activationOf(rb.motion_)).GetIndexAndSequenceNumber();
@@ -208,6 +214,41 @@ void Physics_S::onRigidBodyDestroyed(entt::registry& reg, entt::entity e)
         return;
 
     destroyBody((*world)->physics().bodies(), reg.get<RigidBody_C>(e));
+}
+
+void Physics_S::collectContacts(World& world)
+{
+    PhysicsWorld& physics = world.physics();
+    JPH::BodyInterface& bi = physics.bodies();
+    physics.contacts().take(rawContacts_);
+
+    events_.clear();
+    events_.reserve(rawContacts_.size());
+
+    const auto entityOf = [&](uint32_t bodyId) -> EntityHandle
+    {
+        if (bodyId == kInvalidBodyId)
+            return {};
+        const uint64_t user = bi.GetUserData(JPH::BodyID{bodyId});
+        if (user == 0)
+            return {};
+        return {&world.registry_, static_cast<entt::entity>(user - 1u)};
+    };
+
+    for (const RawContact& raw : rawContacts_)
+    {
+        ContactEvent ev;
+        ev.a_ = entityOf(raw.bodyA_);
+        ev.b_ = entityOf(raw.bodyB_);
+        if (!ev.a_.valid() || !ev.b_.valid())
+            continue;
+
+        ev.entered_ = raw.entered_;
+        ev.point_ = raw.point_;
+        ev.normal_ = raw.normal_;
+        ev.closingSpeed_ = raw.closingSpeed_;
+        events_.push_back(ev);
+    }
 }
 
 void Physics_S::drawColliders(World& world)
@@ -269,7 +310,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
         const auto& tc = view.get<Transform_C>(e);
         if (rb.bodyId_ == kInvalidBodyId)
         {
-            createBody(bi, rb, tc);
+            createBody(bi, e, rb, tc);
             continue;
         }
 
@@ -285,7 +326,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
             bi.SetFriction(id, rb.friction_);
             bi.SetRestitution(id, rb.restitution_);
             bi.SetGravityFactor(id, rb.gravityFactor_);
-            applyMotionProperties(physics, id, rb, *shape);
+            applyLockedProperties(physics, id, rb, *shape);
         }
 
         const JPH::EMotionType wanted = motionTypeOf(rb.motion_);
@@ -298,7 +339,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
             if (current == JPH::EMotionType::Static || wanted == JPH::EMotionType::Static)
             {
                 destroyBody(bi, rb);
-                createBody(bi, rb, tc);
+                createBody(bi, e, rb, tc);
                 continue;
             }
             bi.SetObjectLayer(id, layerOf(rb.motion_));
@@ -313,6 +354,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
     }
 
     physics.step(dt);
+    collectContacts(world);
 
     Transform_S& transforms = *world.systems().transforms_;
     for (auto e : view)

@@ -52,6 +52,7 @@ struct RigidBody_C
     float linearDamping_ = 0.05f;
     float angularDamping_ = 0.05f;
     float gravityFactor_ = 1.f;
+    bool sensor_ = false;
 
     uint32_t bodyId_ = kInvalidBodyId;
     v3f shapeScale_ = {1.f, 1.f, 1.f};
@@ -69,6 +70,7 @@ static_assert(refl::fieldName<RigidBody_C, 5>() == "restitution");
 static_assert(refl::fieldName<RigidBody_C, 6>() == "linearDamping");
 static_assert(refl::fieldName<RigidBody_C, 7>() == "angularDamping");
 static_assert(refl::fieldName<RigidBody_C, 8>() == "gravityFactor");
+static_assert(refl::fieldName<RigidBody_C, 9>() == "sensor");
 
 BATAP_COMPONENT(RigidBody_C, "rigidBody", ComponentMeta{.color = ComponentColor::Green},
                 fieldSkip<&RigidBody_C::bodyId_>(),

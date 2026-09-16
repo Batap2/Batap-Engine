@@ -3,8 +3,10 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 #include "Components/EntityHandle.h"
 #include "Instance/InstanceManager.h"
+#include "Physics/ContactEvent.h"
 #include "Renderer/SceneBinding.h"
 
 #include <entt/entt.hpp>
@@ -45,6 +47,7 @@ struct World
     DebugDraw& debugOverlay();
     Billboards& billboards();
     SceneRenderArgs renderArgs();
+    const std::vector<ContactEvent>& contacts() const;
     bool loadScene(const std::string& path);
 
     // Replaces the registry itself: its per-type storages hold code pointers

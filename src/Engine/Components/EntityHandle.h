@@ -99,6 +99,18 @@ struct EntityHandle
 
     void setParent(EntityHandle newParent);
     EntityHandle parent() const;
+
+    void addForce(const v3f& force);
+    void addForce(const v3f& force, const v3f& worldPoint);
+    void addTorque(const v3f& torque);
+    void addImpulse(const v3f& impulse);
+    void addImpulse(const v3f& impulse, const v3f& worldPoint);
+    void addAngularImpulse(const v3f& angularImpulse);
+
+    v3f velocity() const;
+    void setVelocity(const v3f& v);
+    v3f angularVelocity() const;
+    void setAngularVelocity(const v3f& v);
 };
 }  // namespace batap
 

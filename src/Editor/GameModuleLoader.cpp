@@ -3,6 +3,8 @@
 #include "Reflection/ComponentRegistry.h"
 #include "UI/FieldUI.h"
 
+#include "imgui.h"
+
 #include <iostream>
 
 #if defined(_WIN32)
@@ -75,6 +77,8 @@ bool GameModuleLoader::loadStaged()
     }
 
     api_ = {};
+    api_.imguiContext_ = ImGui::GetCurrentContext();
+    ImGui::GetAllocatorFunctions(&api_.imguiAlloc_, &api_.imguiFree_, &api_.imguiUserData_);
     entry(&api_);
     ComponentRegistry::instance().importFrom(*api_.registry_);
 

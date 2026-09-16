@@ -11,11 +11,18 @@ masse embarquée et sa position changent le delta-v disponible, le couple au
 décollage et la difficulté de l'atterrissage. Tout le reste est du décor autour
 de ça.
 
-**« Physique réaliste » veut dire : les bonnes équations, pas les bonnes
-distances.** Gravité newtonienne, orbites, transferts, atterrissage propulsif —
-tout est simulé pour de vrai. Mais le système est compressé (§1.2) : à l'échelle
-réelle un transfert Terre-Lune dure trois jours, et le `float` 32 bits du moteur
-n'a plus qu'une résolution de 23 m à cette distance.
+**La physique doit sembler réaliste, pas l'être.** Les *lois* sont les vraies —
+gravité newtonienne en 1/r², orbites, transferts, atterrissage propulsif, tout
+est intégré pour de bon et rien n'est scripté. Les *constantes* sont choisies
+pour le jeu : la Terre fait 250 m de rayon, la gravité au sol vaut 18 m/s², un
+transfert vers la Lune dure une minute. Personne ne peut voir qu'une constante
+est fausse ; tout le monde sent qu'une trajectoire est vraie.
+
+Ce choix est ce qui rend le jeu jouable, et il tire dans le bon sens : les
+petites échelles rapprochent tout, et une gravité plus forte que la nôtre rend
+le déplacement à pied plus nerveux (à 9.81 on flotte) **tout en raccourcissant
+les trajets** (§1.2). Le joueur, les caisses et l'entrepôt gardent seuls leur
+taille réelle — c'est à eux qu'on mesure le monde.
 
 ---
 
@@ -27,15 +34,10 @@ scène (`SpatialIndex::raycast` → `entt::entity`), `DebugDraw` (lignes, sphèr
 boîtes), caméras multiples via `Camera_C::active_`, `Time::scale_`, hot reload
 du jeu.
 
-**Manque, côté moteur** — détaillé dans les sections, récapitulé en §8 :
-
-1. appliquer forces et impulsions depuis le jeu sans toucher Jolt à la main ;
-2. capteurs (volumes déclencheurs) et événements de contact ;
-3. origine flottante ;
-4. contrôleur de personnage ;
-5. HUD depuis la DLL du jeu (`Batap_Engine` est une lib **statique**, donc la
-   DLL a sa propre copie du contexte ImGui — appeler ImGui depuis le jeu
-   dessinerait dans un contexte mort).
+**Manquait, côté moteur** — les quatre briques de §8 sont faites : forces et
+impulsions sur `EntityHandle`, capteurs et événements de contact, contrôleur de
+personnage, et ImGui accessible depuis la DLL du jeu. Le détail et les pièges
+de chacune sont en §8.
 
 ---
 
@@ -52,12 +54,12 @@ dynamiques passent à `gravityFactor_ = 0` et le jeu applique la sienne.
 **Acté : somme des forces des trois astres, pas de sphères d'influence.** Les
 coniques raccordées de KSP existent pour prédire analytiquement une
 trajectoire ; ici on intègre numériquement de toute façon, et trois corps par
-objet dynamique ne coûtent rien. C'est plus réaliste *et* plus court à écrire.
+objet dynamique ne coûtent rien. C'est plus juste *et* plus court à écrire.
 
 - [ ] **1.** `CelestialBody_C` — `mu_` (soit G·M directement, pour ne pas
       traîner de très grands nombres) et rayon. L'astre est un corps Jolt
-      statique de forme `Sphere` : analytique, exacte, aucune tessellation même
-      à 100 km de rayon.
+      statique de forme `Sphere` : analytique et exacte, aucune tessellation à
+      faire. Le relief et l'entrepôt sont des meshes statiques posés dessus.
 - [ ] **2.** `Gravity_S` dans `fixedUpdate` — pour chaque corps dynamique,
       `F = Σ mu_i · m · d_i / |d_i|³`, appliquée via l'API de §8.1. À valider :
       un corps lâché à la bonne vitesse reste en orbite circulaire sur
@@ -69,32 +71,72 @@ objet dynamique ne coûtent rien. C'est plus réaliste *et* plus court à écrir
 
 ### 1.2 Échelle
 
-Chiffres de départ, à régler au jeu :
+**Contrainte de départ : un transfert Terre-Lune dure une minute réelle.** Un
+transfert de Hohmann dure `t = π·sqrt(a³/mu)` avec `a = (r1+r2)/2` et
+`mu = g·R²`. En posant les distances comme des multiples de `R`, il ne reste
+que :
 
-| | rayon | g surface | orbite |
-|---|---|---|---|
-| Terre | 100 km | 9.81 | — |
-| Lune | 30 km | 1.6 | 600 km |
-| Petite lune | 10 km | 0.3 | 250 km |
+```
+t ∝ sqrt(R / g)
+```
 
-À 100 km de rayon, la vitesse orbitale rasante `sqrt(mu/R)` vaut ≈ 990 m/s —
-des nombres lisibles sur un HUD. Critère de réglage des distances : **un
-transfert doit durer 2 à 5 minutes** avec une accélération du temps modérée
-(§6.4).
+C'est l'outil de réglage : il dit comment bouger une constante sans casser le
+reste. Doubler le rayon de la planète rallonge le trajet de 40 % — sauf si on
+double aussi sa gravité, auquel cas rien ne change. **Et comme une gravité plus
+forte est aussi ce qu'on veut à pied, les deux réglages tirent ensemble : monter
+`g` achète un monde plus grand à durée de trajet constante.**
 
-### 1.3 Origine flottante — **(moteur)**
+Valeurs de départ, à régler au ressenti et pas au calcul :
 
-Le vrai risque technique du projet. Le `float` a une résolution relative de
-6e-8 : à 600 km de l'origine, le pas de position vaut 4 cm, et la fusée tremble
-sur sa piste.
+| | rayon | g surface | mu = g·R² | orbite |
+|---|---|---|---|---|
+| Terre | 250 m | 18 | 1 125 000 | — |
+| Lune | 80 m | 2.5 | 16 000 | 1200 m |
+| Petite lune | 30 m | 3 | 2 700 | 600 m, inclinée |
 
-- [ ] **1.** Quand la fusée dépasse ~5 km de l'origine, translater toute la
-      scène : `Transform_C` des racines et positions des corps Jolt. Quelques
-      centaines d'objets, c'est une boucle triviale.
-- [ ] **2.** Conséquence à ne pas manquer : **plus aucune position monde ne peut
-      être mise en cache d'une frame à l'autre.** Tout ce qui garde un `v3f`
-      absolu (cible de navigation, point d'amarrage) doit être recalé au
-      rebasage, ou stocké relativement à une entité.
+Ce qu'elles donnent — tout est lisible à deux chiffres, ce qui est le vrai
+critère :
+
+- transfert depuis une orbite basse à 300 m vers 1200 m : **61 s** ;
+- vitesse orbitale basse **61 m/s**, libération **95 m/s** ;
+- injection vers la Lune : **16 m/s** de delta-v, deux ou trois secondes de
+  poussée ;
+- arrivée à 11 m/s de vitesse relative à la Lune, posé à moins de 3 m/s ;
+- sphère d'influence de la Lune ≈ 220 m pour 80 m de rayon : largement de quoi
+  se faire capturer sans viser au mètre près ;
+- la Terre fait 1570 m de tour et l'horizon est à 30 m des yeux — un petit
+  monde, mais un monde.
+
+Les cinq boutons, et ce que chacun fait :
+
+| bouton | effet direct | effet de bord |
+|---|---|---|
+| `g` Terre | ressenti à pied (saut, chute) | raccourcit le trajet en `1/sqrt(g)` |
+| `R` Terre | taille du monde jouable | rallonge le trajet en `sqrt(R)` |
+| distance Lune | durée du voyage (≈ `d^1.5`) | et rien d'autre |
+| `g` Lune | **difficulté de l'atterrissage** | taille de sa sphère d'influence |
+| poussée / masse | marge de rattrapage en vol | consommation |
+
+La petite lune est inclinée pour ne pas venir perturber la trajectoire
+Terre-Lune par hasard. Elle sert d'escale et de second terrain.
+
+**L'alternative, si le monde-bille ne plaît pas visuellement** : garder une
+grosse planète et faire le trajet **en poussée continue** au lieu d'une orbite
+de transfert. `t = 2·sqrt(d/a)` — à 2 g de poussée, une minute couvre 18 km.
+Tout aussi cohérent, mais ça coûte une dizaine de fois plus de carburant et ça
+supprime la mécanique orbitale du jeu. À trancher en regardant la première
+planète à l'écran, pas avant.
+
+### 1.3 Origine flottante — pas nécessaire, et c'est une conséquence de §1.2
+
+Noté ici pour ne pas y revenir : à l'échelle réelle, le `float` (résolution
+relative 6e-8) donne un pas de position de 23 m à la distance Terre-Lune, et
+tout le projet aurait eu besoin d'une origine flottante. **À 1500 m de
+l'origine, le pas vaut un dixième de millimètre.** Rien à faire, aucune brique
+moteur à écrire, et les positions monde peuvent être mises en cache librement.
+
+C'est le second gros dividende du modèle réduit, après la disparition de
+l'accélération du temps (§6.4).
 
 ---
 
@@ -175,10 +217,11 @@ sur sa piste.
 - [ ] **3. HUD** — vitesse relative à l'astre visé, altitude sol, carburant,
       angle par rapport à la verticale locale. Voir §8.5 pour le problème de
       contexte ImGui.
-- [ ] **4. Accélération du temps** — un transfert dure des minutes.
-      `Time::scale_` existe, mais multiplier le pas fixe casse l'intégration.
-      Donc : ×10 au maximum, et seulement **loin de toute surface** ; retour
-      imposé à ×1 en approche.
+- [ ] **4. Accélération du temps — supprimée par §1.2.** Un transfert dure une
+      minute, il n'y a donc rien à accélérer : le vol se joue en temps réel d'un
+      bout à l'autre. C'est un système entier en moins (multiplier le pas fixe
+      casse l'intégration, et il aurait fallu forcer le retour à ×1 en
+      approche), et surtout un vol qu'on pilote au lieu de le regarder passer.
 
 ---
 
@@ -186,6 +229,22 @@ sur sa piste.
 
 C'est le moment du jeu, l'équivalent de la marche arrière au quai dans Euro
 Truck. Tout le reste est calme, ici on retient son souffle.
+
+**Et ça doit rester rattrapable.** Le plaisir vient de la tension, pas de
+l'échec — une approche ratée doit pouvoir être reprise, pas punie. Les leviers,
+du plus efficace au moins :
+
+1. **`g` de la Lune bas** (§1.2). C'est le vrai bouton de difficulté : il donne
+   du temps de réaction et réduit la vitesse d'arrivée au sol. Tout le reste
+   n'est qu'un ajustement à côté.
+2. **Poussée/masse confortable** (TWR ≈ 3 à vide) — on doit toujours pouvoir
+   annuler sa descente, même tard.
+3. **Carburant généreux.** Le jeu porte sur le pilotage, pas sur l'optimisation
+   du delta-v ; tomber en panne sèche en approche n'apprend rien.
+4. **Piste large** devant la fusée, seuils d'atterrissage clairement indulgents
+   au départ. On les resserre quand c'est trop facile, jamais l'inverse.
+5. **Amortissement de rotation actif** (§2.3), pour que l'assiette ne soit pas
+   un problème en plus de la vitesse.
 
 - [ ] **1.** `LandingPad_C` : la piste et son rayon d'acceptation.
 - [ ] **2.** Conditions de réussite, évaluées au contact : vitesse verticale
@@ -204,23 +263,94 @@ Truck. Tout le reste est calme, ici on retient son souffle.
 Elles vivent dans `src/Engine`, pas dans `GameExemple`, et resservent à
 n'importe quel jeu.
 
-- [ ] **1. Forces et impulsions depuis le gameplay.** Aujourd'hui il faut passer
-      par `world.physics().bodies()` et `rb.bodyId_` à la main. Une poignée de
-      fonctions sur `EntityHandle` (`addForce`, `addTorque`, `addImpulse`,
-      `velocity`, `setVelocity`) — même logique de façade que `batap.h`.
-- [ ] **2. Capteurs et contacts.** Un `bool sensor_` dans `RigidBody_C` (Jolt :
-      `IsSensor`), plus un `ContactListener` qui remplit une liste d'événements
-      consommable dans `fixedUpdate`. Nécessaire pour la soute et la piste ; le
-      reste s'en passe avec des distances.
-- [ ] **3. Origine flottante** (§1.3).
-- [ ] **4. Contrôleur de personnage** (§3).
-- [ ] **5. HUD depuis la DLL du jeu.** `Batap_Engine` est une lib **statique** :
-      la DLL du jeu en a sa propre copie, donc son propre contexte ImGui global,
-      et un `ImGui::Begin` depuis `MyGame` ne dessinerait rien. Deux sorties —
-      transmettre le contexte de l'hôte (`ImGui::SetCurrentContext` au
-      chargement de la DLL, dans `GameModule`), ou passer le moteur en lib
-      partagée. La première est locale et suffit ; à trancher au moment du HUD,
-      pas avant.
+- [x] **1. Forces et impulsions depuis le gameplay.** Fait —
+      `addForce`/`addTorque`/`addImpulse`/`addAngularImpulse` (avec les
+      surcharges au point monde), `velocity`/`setVelocity`,
+      `angularVelocity`/`setAngularVelocity` sur `EntityHandle`, implémentées
+      dans `GameplayApi.cpp` à côté des transformées. Un appel sur une entité
+      sans corps est sans effet : `Physics_S` crée les corps dans son propre
+      `fixedUpdate`, qui passe après celui du jeu.
+
+      **Les setters de transformée poussent la pose dans Jolt.** Il n'y a pas
+      d'API de téléportation à part : `setPosition`, `setLocalPosition`,
+      `translate` et les rotations déplacent aussi le corps ou le personnage,
+      parce que sans ça le système qui détient la pose réécrit la transformée
+      au tick suivant et le déplacement disparaît — silencieusement, ce qui
+      était déjà le cas des corps **dynamiques** avant. Les vitesses ne sont
+      pas touchées : le jeu les remet à zéro s'il le veut. Les systèmes
+      moteur, eux, écrivent par `Transform_S` directement, donc leur écriture
+      de retour ne reboucle pas.
+
+- [x] **2. Capteurs et contacts.** Fait — `sensor_` dans `RigidBody_C` (volume
+      qui signale les recouvrements sans réponse de collision), et
+      `world.contacts()` qui rend les `ContactEvent` du dernier pas : les deux
+      entités, entrée ou sortie, le point, la normale et `closingSpeed_`.
+      Quatre choses à savoir avant de s'en servir :
+      1. **Les événements ont un tick de retard.** `Physics_S` les résout après
+         son `step`, qui passe après le `fixedUpdate` du jeu — donc le jeu lit
+         au tick N les contacts du pas N-1.
+      2. **`closingSpeed_` est la seule donnée non reconstructible.** Elle est
+         relevée avant le solveur, positive quand les deux corps se
+         rapprochaient ; après coup la réponse de collision l'a effacée. C'est
+         la mesure du « posé à moins de 3 m/s » de §7.2.
+      3. **`a_` et `b_` ne sont pas ordonnés par rôle** mais par `BodyID` de
+         Jolt : le capteur peut être dans l'un ou l'autre, il faut tester les
+         deux. La normale s'oriente en conséquence.
+      4. **Un corps qui s'endort largue tous ses contacts**, donc une caisse au
+         repos dans la soute émet une fausse sortie, puis une nouvelle entrée à
+         son réveil. Les entrées sont idempotentes (ranger une caisse déjà
+         rangée ne fait rien), les sorties demandent de vérifier que le corps a
+         vraiment bougé.
+- [x] **3. Contrôleur de personnage.** Fait — `Character_C` + `Character_S`
+      au-dessus du `CharacterVirtual` de Jolt, appelé dans la boucle à pas fixe
+      après le pas physique. Le jeu écrit `mode_`, `moveVelocity_`, `wantJump_`
+      et `gravity_` ; il lit `onGround_` et `velocity_`. Cinq points :
+      1. **`gravity_` pilote tout** : la chute, et le vecteur *up* qui en est
+         déduit. Marcher sur une sphère (§3.2) ne demande donc qu'à écrire la
+         gravité locale — mesuré, un basculement de la gravité en −X décolle le
+         personnage d'un sol horizontal et le fait accélérer à 9.81 m/s².
+      2. **`mode_` choisit la règle de vitesse**, et c'est la seule chose que
+         le moteur impose. En `Walk`, `moveVelocity_` est projeté sur le sol,
+         la gravité s'intègre, `wantJump_` saute, et le personnage hérite de la
+         vitesse de son support. En `Fly`, `moveVelocity_` **est** la vitesse,
+         en 3D, sans sol ni collage ni gravité — le jeu écrit alors sa propre
+         règle entière. Tout le reste (glissement le long des murs) est de la
+         géométrie, pas du game feel : ajouter un mode ne coûte qu'une branche
+         dans `Character_S`.
+      3. **La transformée est aux pieds**, pas au centre de la capsule, et
+         `Character_S` n'écrit que la position : l'orientation reste au jeu,
+         pour ne pas se battre avec la caméra.
+      4. **Le personnage n'est pas dans le broadphase.** Un `CharacterVirtual`
+         n'est pas un corps : aucun raycast ne le touche et rien ne rebondit
+         dessus. Le jour où une caisse devra le heurter, c'est
+         `mInnerBodyShape` dans les réglages Jolt, pas un corps à côté.
+      5. Les vecteurs d'`ExtendedUpdateSettings` de Jolt sont câblés en +Y ;
+         ils sont reconstruits depuis *up*, sinon monter une marche et coller
+         au sol partent de travers dès que la gravité n'est plus verticale.
+- [x] **4. HUD depuis la DLL du jeu.** Fait — le jeu appelle ImGui
+      directement. La frame ImGui est ouverte par le moteur
+      (`Renderer::beginFrame`), pas par l'éditeur, donc `Game::update` tombe
+      dedans aussi bien en exe autonome qu'en mode Play. Mesuré sur un dump de
+      frame : un bloc de 200×80 dessiné par la DLL sort à 16000 pixels exacts,
+      à la bonne place et à la bonne couleur.
+      - **En exe autonome il n'y avait rien à faire** : le jeu est compilé
+        dedans, une seule copie d'ImGui.
+      - **En DLL**, `Batap_Engine` est une lib **statique** : la DLL a son
+        propre contexte ImGui *et* son propre allocateur. L'hôte passe les deux
+        dans `GameModuleAPI` et `adoptHostImGui(*out)` les adopte au chargement
+        — c'est le schéma que la doc d'ImGui prescrit aux DLL
+        (`SetCurrentContext` + `SetAllocatorFunctions`). Oublier l'allocateur
+        marche par accident tant que les deux binaires partagent le même CRT,
+        et corrompt le tas dès qu'ils divergent.
+      - **Le seul piège qui reste** : `game_module.cpp` doit appeler
+        `adoptHostImGui`. Sans ça le jeu dessine dans un contexte que personne
+        ne rend, sans erreur ni message. C'est noté dans la liste des pièges
+        en tête de `GameModule.h`.
+
+      Passer le moteur en lib partagée règlerait la famille entière de
+      problèmes (ImGui, mais aussi les globales de réflexion décrites dans
+      `GameModule.h`) ; ça reste la sortie de secours si ces adoptions se
+      multiplient.
 
 ---
 
@@ -238,9 +368,9 @@ Il faut pour ça : §8.1, §1.1, §1.2, §2.1-3, §6.1.
 Toujours sans personnage : on charge en cliquant sur les caisses depuis la vue
 orbitale. C'est le cœur du jeu, et il est testable avant d'avoir un FPS.
 
-**v2 — le voyage.** La Lune, la trajectoire prédite, le HUD, l'accélération du
-temps, la piste et ses conditions. Et l'origine flottante, qui devient
-obligatoire dès qu'on quitte la Terre.
+**v2 — le voyage.** La Lune, la trajectoire prédite, le HUD, la piste et ses
+conditions d'atterrissage. Rien d'autre : ni origine flottante ni accélération
+du temps, le modèle réduit de §1.2 a supprimé les deux.
 
 **v3 — le FPS.** Le personnage, l'entrepôt, la pompe, l'échelle, la bascule de
 vue. C'est ce qui donne le ton du jeu, mais c'est de l'habillage autour d'une
@@ -250,8 +380,10 @@ boucle qui doit déjà tourner.
 
 ## Pièges
 
-- **Précision `float`** — §1.3. Ne pas le repousser « à plus tard » sans le
-  savoir : tout code qui cache une position monde devra être repris.
+- **Les constantes se règlent ensemble** — `t ∝ sqrt(R/g)` (§1.2). Grossir la
+  planète seule rallonge le trajet, et au-delà de quelques minutes ça ramène
+  l'accélération du temps et l'origine flottante, deux systèmes que le modèle
+  réduit avait supprimés. Monter `g` en même temps annule l'effet.
 - **Gravité globale de Jolt** — `gravityFactor_ = 0` sur chaque corps dynamique,
   sinon deux gravités s'additionnent.
 - **Composants du jeu** — un nouveau `Foo_C` doit être inclus depuis

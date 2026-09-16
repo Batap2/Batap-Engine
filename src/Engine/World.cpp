@@ -16,6 +16,7 @@
 #include "Renderer/SceneBinding.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
+#include "Systems/Character_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
@@ -33,6 +34,7 @@ World::World(Engine& ctx) : ctx_(&ctx)
     registry_.ctx().emplace<World*>(this);
     instanceManager_->connectHooks(registry_);
     systems_->physics_->connectHooks(registry_);
+    systems_->characters_->connectHooks(registry_);
     spatialIndex_->connectHooks(registry_);
 
     // refresh camera ratio on window resize
@@ -65,6 +67,11 @@ SceneRenderArgs World::renderArgs()
     return {&registry_, instanceManager_.get()};
 }
 
+const std::vector<ContactEvent>& World::contacts() const
+{
+    return systems_->physics_->contacts();
+}
+
 void World::update()
 {
     systems_->update(ctx_->deltaTime_, *ctx_, *this);
@@ -79,6 +86,7 @@ void World::update(Game& game)
     {
         game.fixedUpdate(*this, time_.fixedDt_);
         systems_->physics_->fixedUpdate(*this, time_.fixedDt_);
+        systems_->characters_->fixedUpdate(*this, time_.fixedDt_);
         time_.accumulator_ -= time_.fixedDt_;
     }
 
@@ -129,6 +137,7 @@ void World::resetScene()
     reg.ctx().emplace<World*>(this);
     instanceManager_->connectHooks(reg);
     systems_->physics_->connectHooks(reg);
+    systems_->characters_->connectHooks(reg);
     spatialIndex_->connectHooks(reg);
     spatialIndex_->markDirty();
 

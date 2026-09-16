@@ -13,6 +13,10 @@ extern "C" __declspec(dllexport) void batapGameEntry(batap::GameModuleAPI* out)
     batap::registerAssetFieldTypes();
     batap::registerPhysicsFieldTypes();
 
+    // The DLL links its own ImGui globals; without this the game draws into a
+    // context nobody renders.
+    batap::adoptHostImGui(*out);
+
     out->registry_ = &batap::ComponentRegistry::instance();
     out->createGame_ = []() -> batap::Game* { return new batap::MyGame(); };
     out->gameExeName_ = "GameExemple";
