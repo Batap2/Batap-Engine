@@ -107,6 +107,8 @@ struct EntityHandle
     void addImpulse(const v3f& impulse, const v3f& worldPoint);
     void addAngularImpulse(const v3f& angularImpulse);
 
+    void setMass(float mass);
+
     v3f velocity() const;
     void setVelocity(const v3f& v);
     v3f angularVelocity() const;

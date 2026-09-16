@@ -48,6 +48,8 @@ struct World
     Billboards& billboards();
     SceneRenderArgs renderArgs();
     const std::vector<ContactEvent>& contacts() const;
+    void setGravity(const v3f& g);
+    v3f gravity() const;
     bool loadScene(const std::string& path);
 
     // Replaces the registry itself: its per-type storages hold code pointers

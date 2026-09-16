@@ -9,6 +9,7 @@
 #include "Physics/PhysicsWorld.h"
 
 #include <Jolt/Physics/Body/BodyInterface.h>
+#include <Jolt/Physics/Body/BodyLock.h>
 
 #include "Components/Character_C.h"
 #include "Components/RigidBody_C.h"
@@ -69,6 +70,13 @@ static void syncPhysicsPose(const EntityHandle& h)
                             physics.tempAllocator());
         return;
     }
+
+    // Only a dynamic body owns its own pose. Physics_S already drives static
+    // and kinematic ones from the transform, and a kinematic one must go
+    // through MoveKinematic there or it teleports and carries nothing.
+    const RigidBody_C* rb = h.try_get<RigidBody_C>();
+    if (!rb || rb->motion_ != RigidBody_C::Motion::Dynamic)
+        return;
 
     if (const BodyRef b = bodyOf(h))
         b.bodies_->SetPositionAndRotation(b.id_, toJolt(tc->pos()), toJolt(tc->rot()),
@@ -176,6 +184,32 @@ void EntityHandle::addAngularImpulse(const v3f& angularImpulse)
 {
     if (const BodyRef b = bodyOf(*this))
         b.bodies_->AddAngularImpulse(b.id_, toJolt(angularImpulse));
+}
+
+// Goes straight to the body: patching RigidBody_C would raise dirty_ and have
+// Physics_S rebuild the shape, which a burning rocket would pay every tick.
+void EntityHandle::setMass(float mass)
+{
+    RigidBody_C* rb = try_get<RigidBody_C>();
+    if (!rb)
+        return;
+    rb->mass_ = mass;
+
+    const BodyRef b = bodyOf(*this);
+    if (!b)
+        return;
+
+    JPH::BodyLockWrite lock(worldOf(*this).physics().system().GetBodyLockInterface(), b.id_);
+    if (!lock.Succeeded())
+        return;
+
+    JPH::MotionProperties* mp = lock.GetBody().GetMotionPropertiesUnchecked();
+    if (!mp)
+        return;
+
+    JPH::MassProperties props = lock.GetBody().GetShape()->GetMassProperties();
+    props.ScaleToMass(mass);
+    mp->SetMassProperties(mp->GetAllowedDOFs(), props);
 }
 
 v3f EntityHandle::velocity() const

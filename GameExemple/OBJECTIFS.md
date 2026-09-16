@@ -56,18 +56,53 @@ coniques raccordées de KSP existent pour prédire analytiquement une
 trajectoire ; ici on intègre numériquement de toute façon, et trois corps par
 objet dynamique ne coûtent rien. C'est plus juste *et* plus court à écrire.
 
-- [ ] **1.** `CelestialBody_C` — `mu_` (soit G·M directement, pour ne pas
-      traîner de très grands nombres) et rayon. L'astre est un corps Jolt
-      statique de forme `Sphere` : analytique et exacte, aucune tessellation à
-      faire. Le relief et l'entrepôt sont des meshes statiques posés dessus.
-- [ ] **2.** `Gravity_S` dans `fixedUpdate` — pour chaque corps dynamique,
-      `F = Σ mu_i · m · d_i / |d_i|³`, appliquée via l'API de §8.1. À valider :
-      un corps lâché à la bonne vitesse reste en orbite circulaire sur
-      plusieurs tours.
-- [ ] **3. Les astres sont sur rails.** Leurs orbites ne sont **pas** simulées :
-      une orbite intégrée dérive, et voir la Lune s'échapper au bout de vingt
-      minutes n'apporte rien. Position = fonction analytique du temps (cercle,
-      angle = ω·t), corps `Kinematic`.
+- [x] **1.** `CelestialBody_C` + `CelestialBody_S` — fait. Le composant porte
+      `mu_` (G·M directement, pour ne pas traîner de très grands nombres) et
+      `radius_` ; le système **dérive le collider** : une sphère Jolt de
+      `radius_`, analytique et exacte, aucune tessellation à faire. Le relief et
+      l'entrepôt seront des meshes statiques posés dessus.
+      **L'astre ne peut pas être `Dynamic`** : chaque corps qu'il attire lui
+      repousse dessus par le contact, et un astre dynamique serait baladé par ce
+      qui se pose sur lui. Le système le rétrograde en `Static` ; `Kinematic`
+      reste permis pour les rails du point 3. Dériver le collider plutôt que de
+      le saisir à la main rend l'erreur impossible et donne une seule source au
+      rayon. Vérifié : astre créé `Dynamic` → rendu `Static`, déplacement
+      0.000000 m avec une caisse posée dessus sur 400 ticks.
+- [x] **2.** `Gravity_S` — fait, `F = Σ mu_i · m · d_i / |d_i|³` sur chaque
+      corps dynamique, par la façade de §8.1. **La gravité globale de Jolt est
+      mise à zéro** (`world.setGravity`) au lieu de `gravityFactor_ = 0` par
+      corps : un réglage qui ne peut pas s'oublier sur une entité.
+      Validé à la mesure, orbite circulaire à r=300 avec les constantes de
+      §1.2 : le rayon oscille entre 299.491 et 300.514 (±0.17 %, l'ondulation
+      du pas fixe) et la dérive après cinq tours vaut +0.0016 % **sans
+      croître** — l'erreur est bornée, l'orbite ne se dégrade pas.
+- [x] **3. Les astres s'attirent entre eux — pas de rails.** Fait. Le plan
+      disait « position analytique, sinon ça dérive » ; la mesure a démenti la
+      crainte, une orbite intégrée au pas fixe tient à ±0.02 % sans dériver.
+      `CelestialBody_S` intègre donc la gravité mutuelle des astres et écrit
+      leur transformée.
+      - **`Kinematic` est ce qui rend ça possible** : Jolt ne laisse jamais un
+        contact déplacer un corps cinématique, donc l'astre orbite pour de vrai
+        sans que ce qui se pose dessus le bouscule. `Static` = astre épinglé
+        (l'ancre du système), `Dynamic` refusé.
+      - **`circularize_`** est une action d'inspecteur : elle remplit
+        `velocity_` pour une orbite circulaire autour de l'astre qui tire le
+        plus fort, puis se rabaisse. Éviter de calculer `sqrt(mu/r)` à la main
+        pour chaque lune.
+      - Mesuré : Lune à 1200 m d'une Terre épinglée, r = 1200 ± 0.26 m sur
+        trois orbites sans dérive, et une caisse posée dessus reste à distance
+        constante à 3 décimales pendant un tour complet — elle voyage avec la
+        Lune au lieu d'être laissée sur place.
+      - **Un pas de retard, par construction** : `MoveKinematic` fait parcourir
+        le pas au corps, donc son collider suit sa transformée d'un pas
+        (0.51 m à 30 m/s). C'est ce décalage qui emporte ce qui est posé
+        dessus ; comparer une position à la transformée de l'astre plutôt qu'à
+        son collider donne cet écart-là.
+      - **Conséquence à anticiper** : un astre qui bouge emporte les corps
+        **dynamiques** posés dessus, pas les meshes **statiques**. Si l'entrepôt
+        de §5 est posé sur une Terre qui orbite, il sera laissé sur place. D'où
+        le choix simple : **épingler la Terre en `Static`** et ne faire orbiter
+        que les lunes.
 
 ### 1.2 Échelle
 
@@ -142,18 +177,29 @@ l'accélération du temps (§6.4).
 
 ## 2. La fusée
 
-- [ ] **1.** `Rocket_C` — poussée max, débit de carburant, carburant courant,
-      masse à vide. `RigidBody_C` avec les formes du fuselage et des pattes.
-- [ ] **2.** `Rocket_S` dans `fixedUpdate` — poussée le long de l'axe local,
-      appliquée **au point du moteur** et pas au centre de masse : c'est ce qui
-      fait qu'une charge décentrée donne un couple. Consommation
-      `= poussée · dt · k`, et la masse du corps baisse au fur et à mesure.
-- [ ] **3. RCS et assistance de rotation.** Piloter en 3D sans frottement est
-      désagréable sans aide : par défaut, lâcher les commandes amortit la
-      rotation jusqu'à l'arrêt. Désactivable. Ce n'est pas de la triche, c'est
-      ce que fait le vrai pilote automatique.
-- [ ] **4.** Panne sèche = plus de poussée. Pas de game over, juste une
-      trajectoire qu'on ne contrôle plus.
+- [x] **1-4. `Rocket_C` + `Rocket_S`** — faits. Le composant porte la poussée
+      max, le débit, le carburant, la masse à vide, la position locale du
+      moteur, le couple RCS et l'assistance ; le jeu y écrit `throttle_` et
+      `rcsInput_` à chaque tick.
+      - **La poussée s'applique au point du moteur**, pas au centre de masse :
+        c'est ce qui fera qu'une soute mal chargée donne un couple. Vérifié
+        dans les deux sens — moteur dans l'axe, ω reste à 0.00000 ; décalé
+        d'un mètre, α = couple/I au chiffre près.
+      - **La masse baisse avec le carburant** via `EntityHandle::setMass`, qui
+        écrit directement dans le corps Jolt. Passer par `registry.patch`
+        lèverait `dirty_` et ferait reconstruire la forme à chaque tick.
+        Validé par l'équation de Tsiolkovsky : `Δv = (F/ṁ)·ln(m₀/m₁)` donne
+        12.048 m/s pour une seconde de poussée, mesuré 11.847.
+      - **Panne sèche** : à carburant nul la poussée tombe, mesuré — vitesse
+        figée sur 60 ticks manette à fond.
+      - **L'assistance de rotation tire sur les mêmes propulseurs** : le couple
+        correcteur est borné par `rcsTorque_`, donc elle ne peut pas arrêter la
+        fusée plus vite que le pilote. C'est une décroissance exponentielle de
+        constante `τ = I / assistGain_` — mesuré 1.417 s, et ω tombe de 1.026
+        à 0.058 en 4.1 s.
+      - **Piège de mesure, pas de code** : `Game::fixedUpdate` passe *avant*
+        `Physics_S`, donc tout ce qu'on lit dans le jeu au tick N reflète le
+        pas N-1. Un rapport instantané paraît toujours en retard d'un tick.
 
 ---
 

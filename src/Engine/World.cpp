@@ -11,6 +11,7 @@
 #include "InputManager.h"
 #include "Instance/EntityFactory.h"
 #include "Instance/InstanceManager.h"
+#include "Physics/JoltConvert.h"
 #include "Physics/PhysicsWorld.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneBinding.h"
@@ -70,6 +71,16 @@ SceneRenderArgs World::renderArgs()
 const std::vector<ContactEvent>& World::contacts() const
 {
     return systems_->physics_->contacts();
+}
+
+void World::setGravity(const v3f& g)
+{
+    physics_->system().SetGravity(toJolt(g));
+}
+
+v3f World::gravity() const
+{
+    return toEigen(physics_->system().GetGravity());
 }
 
 void World::update()
