@@ -42,14 +42,15 @@ inline ComponentColor assetColor(AssetType type)
     return ComponentColor::Violet;
 }
 
-inline bool AssetRow(const char* icon, ComponentColor color, const std::string& name)
+inline bool AssetRow(const char* icon, ComponentColor color, const std::string& name,
+                     float width = 0.f)
 {
-    return AssetField(icon, name.empty() ? "None" : name.c_str(), colorOf(color));
+    return AssetField(icon, name.empty() ? "None" : name.c_str(), colorOf(color), width);
 }
 
-inline bool AssetRow(AssetType type, const std::string& name)
+inline bool AssetRow(AssetType type, const std::string& name, float width = 0.f)
 {
-    return AssetRow(assetIcon(type), assetColor(type), name);
+    return AssetRow(assetIcon(type), assetColor(type), name, width);
 }
 
 }  // namespace batap::ui

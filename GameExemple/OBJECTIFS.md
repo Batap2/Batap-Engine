@@ -1,70 +1,68 @@
-# Objectifs — GameExemple : fret spatial
+# Objectifs — Livreur de l'espace
 
-**Le jeu** : on est à pied, en vue FPS, dans un entrepôt sur Terre. On attrape
-des marchandises, on les range dans la soute d'une fusée, on fait le plein, on
-monte l'échelle. La vue bascule en caméra orbitale autour de la fusée. On
-décolle, on transfère vers la Lune, et il faut se poser en douceur sur la
-piste. Trois astres en tout : la Terre, la Lune, et une petite lune.
+**Ce fichier dit quoi construire et dans quel ordre.**
+[JEU.md](JEU.md) dit ce qu'est le jeu — le but, les mécaniques, la direction
+artistique, les questions ouvertes. Rien de narratif ici, rien de technique
+là-bas.
 
-Le cœur du jeu est le même que celui d'Euro Truck : **on sent la charge**. La
-masse embarquée et sa position changent le delta-v disponible, le couple au
-décollage et la difficulté de l'atterrissage. Tout le reste est du décor autour
-de ça.
+Ce qu'il faut en retenir pour lire la suite : un tout petit système solaire
+(une étoile, une planète nue, puis la nôtre avec ses deux lunes), on habite la
+grande lune dans un garage, on livre des colis, et **la progression est en
+delta-v** — ce qui bloque n'est jamais une porte mais un manque de carburant.
 
 **La physique doit sembler réaliste, pas l'être.** Les *lois* sont les vraies —
 gravité newtonienne en 1/r², orbites, transferts, atterrissage propulsif, tout
 est intégré pour de bon et rien n'est scripté. Les *constantes* sont choisies
-pour le jeu : la Terre fait 250 m de rayon, la gravité au sol vaut 18 m/s², un
-transfert vers la Lune dure une minute. Personne ne peut voir qu'une constante
-est fausse ; tout le monde sent qu'une trajectoire est vraie.
-
-Ce choix est ce qui rend le jeu jouable, et il tire dans le bon sens : les
-petites échelles rapprochent tout, et une gravité plus forte que la nôtre rend
-le déplacement à pied plus nerveux (à 9.81 on flotte) **tout en raccourcissant
-les trajets** (§1.2). Le joueur, les caisses et l'entrepôt gardent seuls leur
-taille réelle — c'est à eux qu'on mesure le monde.
+pour le jeu. Personne ne peut voir qu'une constante est fausse ; tout le monde
+sent qu'une trajectoire est vraie.
 
 ---
 
-## 0. Inventaire
+## 0. État
 
-**Déjà là** : Jolt via `PhysicsWorld`, `RigidBody_C` avec formes multiples et
-`gravityFactor_` par corps, pas de temps fixe (`Game::fixedUpdate`), raycast
-scène (`SpatialIndex::raycast` → `entt::entity`), `DebugDraw` (lignes, sphères,
-boîtes), caméras multiples via `Camera_C::active_`, `Time::scale_`, hot reload
-du jeu.
+**Fait et mesuré** : gravité à N corps et astres qui s'attirent (§1.1), physique
+de la fusée — poussée au point moteur, masse qui baisse, RCS, assistance (§2),
+personnage qui marche sur une sphère et caméra FPS (§3), port d'objets au
+ressort (§4). Côté moteur, les quatre briques de §8 : forces et impulsions sur
+`EntityHandle`, capteurs et événements de contact, contrôleur de personnage,
+ImGui depuis la DLL du jeu.
 
-**Manquait, côté moteur** — les quatre briques de §8 sont faites : forces et
-impulsions sur `EntityHandle`, capteurs et événements de contact, contrôleur de
-personnage, et ImGui accessible depuis la DLL du jeu. Le détail et les pièges
-de chacune sont en §8.
+**Ce que le nouveau découpage change**, et rien de plus :
+
+1. **L'échelle** (§1.2) — cinq corps au lieu de trois, et le critère de réglage
+   n'est plus « un transfert dure une minute » mais « le buggy suffit chez soi
+   et nulle part ailleurs ».
+2. **La fusée devient un assemblage** (§2.5) — la physique déjà validée ne
+   change pas, elle lit ses nombres des pièces au lieu de champs saisis.
+3. **Le garage vit sur une lune qui orbite** (§5.1) — et ça, c'est le seul vrai
+   blocage moteur que la nouvelle boucle introduit.
+
+Sont **abandonnés** de l'ancien plan : l'entrepôt sur Terre, l'échelle à monter,
+la pompe à essence comme étape séparée. Ils reviennent fondus dans le garage.
 
 ---
 
 ## 1. Le socle : gravité et échelle
 
-Rien ne peut être testé avant ces deux points, et ils conditionnent tout le
-reste.
-
 ### 1.1 Gravité vers les astres
 
-Jolt applique une gravité globale constante, inutilisable ici. Tous les corps
-dynamiques passent à `gravityFactor_ = 0` et le jeu applique la sienne.
+Jolt applique une gravité globale constante, inutilisable ici : elle est mise
+à zéro une fois pour toutes (`world.setGravity`) et le jeu applique la sienne.
 
-**Acté : somme des forces des trois astres, pas de sphères d'influence.** Les
+**Acté : somme des forces de tous les astres, pas de sphères d'influence.** Les
 coniques raccordées de KSP existent pour prédire analytiquement une
-trajectoire ; ici on intègre numériquement de toute façon, et trois corps par
+trajectoire ; ici on intègre numériquement de toute façon, et cinq corps par
 objet dynamique ne coûtent rien. C'est plus juste *et* plus court à écrire.
 
 - [x] **1.** `CelestialBody_C` + `CelestialBody_S` — fait. Le composant porte
       `mu_` (G·M directement, pour ne pas traîner de très grands nombres) et
       `radius_` ; le système **dérive le collider** : une sphère Jolt de
       `radius_`, analytique et exacte, aucune tessellation à faire. Le relief et
-      l'entrepôt seront des meshes statiques posés dessus.
+      le garage seront des meshes statiques posés dessus.
       **L'astre ne peut pas être `Dynamic`** : chaque corps qu'il attire lui
       repousse dessus par le contact, et un astre dynamique serait baladé par ce
-      qui se pose sur lui. Le système le rétrograde en `Static` ; `Kinematic`
-      reste permis pour les rails du point 3. Dériver le collider plutôt que de
+      qui se pose sur lui. Le système le rétrograde donc ; `Kinematic` est le mode
+      des astres qui orbitent (point 3), `Static` celui de l'ancre. Dériver le collider plutôt que de
       le saisir à la main rend l'erreur impossible et donne une seule source au
       rayon. Vérifié : astre créé `Dynamic` → rendu `Static`, déplacement
       0.000000 m avec une caisse posée dessus sur 400 ticks.
@@ -98,69 +96,59 @@ objet dynamique ne coûtent rien. C'est plus juste *et* plus court à écrire.
         (0.51 m à 30 m/s). C'est ce décalage qui emporte ce qui est posé
         dessus ; comparer une position à la transformée de l'astre plutôt qu'à
         son collider donne cet écart-là.
-      - **Conséquence à anticiper** : un astre qui bouge emporte les corps
-        **dynamiques** posés dessus, pas les meshes **statiques**. Si l'entrepôt
-        de §5 est posé sur une Terre qui orbite, il sera laissé sur place. D'où
-        le choix simple : **épingler la Terre en `Static`** et ne faire orbiter
-        que les lunes.
+      - **Conséquence devenue bloquante** : un astre qui bouge emporte les corps
+        **dynamiques** posés dessus, pas les meshes **statiques**. Comme on
+        habite désormais une lune qui orbite, l'esquive d'avant (épingler l'astre
+        habité) ne tient plus. C'est §5.1.
 
 ### 1.2 Échelle
 
-**Contrainte de départ : un transfert Terre-Lune dure une minute réelle.** Un
-transfert de Hohmann dure `t = π·sqrt(a³/mu)` avec `a = (r1+r2)/2` et
-`mu = g·R²`. En posant les distances comme des multiples de `R`, il ne reste
-que :
+**Le critère a changé.** Avant : « un transfert dure une minute ». Maintenant :
+**le buggy doit suffire chez soi et échouer partout ailleurs.** C'est la vitesse
+de libération de chaque corps qui dessine la progression, pas un tableau de
+niveaux.
 
-```
-t ∝ sqrt(R / g)
-```
+Valeurs de départ, à régler au ressenti :
 
-C'est l'outil de réglage : il dit comment bouger une constante sans casser le
-reste. Doubler le rayon de la planète rallonge le trajet de 40 % — sauf si on
-double aussi sa gravité, auquel cas rien ne change. **Et comme une gravité plus
-forte est aussi ce qu'on veut à pied, les deux réglages tirent ensemble : monter
-`g` achète un monde plus grand à durée de trajet constante.**
-
-Valeurs de départ, à régler au ressenti et pas au calcul :
-
-| | rayon | g surface | mu = g·R² | orbite |
+| corps | rayon | g surface | mu = g·R² | orbite |
 |---|---|---|---|---|
-| Terre | 250 m | 18 | 1 125 000 | — |
-| Lune | 80 m | 2.5 | 16 000 | 1200 m |
-| Petite lune | 30 m | 3 | 2 700 | 600 m, inclinée |
+| Étoile | 400 m | — | 110 000 000 | centre |
+| Planète A | 500 m | 10 | 2 500 000 | 6 000 m |
+| **Notre planète** (B) | 600 m | 12 | 4 320 000 | 10 000 m |
+| **Ta lune** | 300 m | 3 | 270 000 | 2 500 m autour de B |
+| Petite lune | 100 m | 1.5 | 15 000 | 4 000 m autour de B |
 
-Ce qu'elles donnent — tout est lisible à deux chiffres, ce qui est le vrai
-critère :
+L'échelle de difficulté qui en découle, en vitesse de libération :
 
-- transfert depuis une orbite basse à 300 m vers 1200 m : **61 s** ;
-- vitesse orbitale basse **61 m/s**, libération **95 m/s** ;
-- injection vers la Lune : **16 m/s** de delta-v, deux ou trois secondes de
-  poussée ;
-- arrivée à 11 m/s de vitesse relative à la Lune, posé à moins de 3 m/s ;
-- sphère d'influence de la Lune ≈ 220 m pour 80 m de rayon : largement de quoi
-  se faire capturer sans viser au mètre près ;
-- la Terre fait 1570 m de tour et l'horizon est à 30 m des yeux — un petit
-  monde, mais un monde.
+- **ta lune : 42 m/s.** Hors de portée d'un buggy, atteignable par la première
+  mini-fusée. C'est la barrière qui t'enferme chez toi au début.
+- **petite lune : 17 m/s**, plus quelques dizaines de m/s pour changer d'orbite
+  autour de B. La première destination « loin ».
+- **planète B : 120 m/s.** Y descendre et en repartir demande une vraie fusée —
+  c'est le deuxième palier.
+- **planète A : transfert de Hohmann de 3 min 34** depuis B, plus les 141 m/s de
+  sa propre libération. Le dernier palier.
 
-Les cinq boutons, et ce que chacun fait :
+Et les temps de trajet : ta lune fait le tour de B en 6 min 20, la petite lune
+en 12 min 40, B fait le tour de l'étoile en 10 min, A en 4 min 40. **Les
+destinations bougent pendant qu'on vole** — c'est ce qui crée les fenêtres de
+tir, et c'est le principal bouton à tourner si ça paraît absurde à l'œil.
 
-| bouton | effet direct | effet de bord |
-|---|---|---|
-| `g` Terre | ressenti à pied (saut, chute) | raccourcit le trajet en `1/sqrt(g)` |
-| `R` Terre | taille du monde jouable | rallonge le trajet en `sqrt(R)` |
-| distance Lune | durée du voyage (≈ `d^1.5`) | et rien d'autre |
-| `g` Lune | **difficulté de l'atterrissage** | taille de sa sphère d'influence |
-| poussée / masse | marge de rattrapage en vol | consommation |
+Pour le buggy : ta lune fait 1 885 m de tour, soit **95 secondes de conduite** à
+20 m/s. Une livraison locale est un trajet, pas une formalité.
 
-La petite lune est inclinée pour ne pas venir perturber la trajectoire
-Terre-Lune par hasard. Elle sert d'escale et de second terrain.
+Les formules pour retoucher tout ça sans rien casser :
 
-**L'alternative, si le monde-bille ne plaît pas visuellement** : garder une
-grosse planète et faire le trajet **en poussée continue** au lieu d'une orbite
-de transfert. `t = 2·sqrt(d/a)` — à 2 g de poussée, une minute couvre 18 km.
-Tout aussi cohérent, mais ça coûte une dizaine de fois plus de carburant et ça
-supprime la mécanique orbitale du jeu. À trancher en regardant la première
-planète à l'écran, pas avant.
+```
+g = mu / R²             vitesse orbitale  v = sqrt(mu / r)
+libération sqrt(2mu/r)  période           2π·sqrt(r³ / mu)
+transfert de Hohmann    t = π·sqrt(a³/mu), a = (r1+r2)/2
+```
+
+**Rappel du piège d'échelle** : monter un rayon sans monter la gravité rallonge
+les trajets en `sqrt(R/g)`, et au-delà de quelques minutes ça ramène
+l'accélération du temps et l'origine flottante, deux systèmes dont §1.3 et §6.4
+nous ont débarrassés.
 
 ### 1.3 Origine flottante — pas nécessaire, et c'est une conséquence de §1.2
 
@@ -175,7 +163,10 @@ l'accélération du temps (§6.4).
 
 ---
 
-## 2. La fusée
+## 2. La fusée en pièces
+
+**Acquis, et inchangé par le passage aux pièces** — toute la physique de vol
+est faite et mesurée :
 
 - [x] **1-4. `Rocket_C` + `Rocket_S`** — faits. Le composant porte la poussée
       max, le débit, le carburant, la masse à vide, la position locale du
@@ -201,52 +192,162 @@ l'accélération du temps (§6.4).
         `Physics_S`, donc tout ce qu'on lit dans le jeu au tick N reflète le
         pas N-1. Un rapport instantané paraît toujours en retard d'un tick.
 
+### 2.5 L'assemblage
+
+**Le joueur choisit quoi et combien, jamais où.** Un vaisseau est donc une
+**liste de modules** et rien d'autre ; l'ordre, les positions, les formes, la
+masse et les capacités en sont dérivés. Une seule source de vérité, et l'éditeur
+(plus tard) n'aura qu'à éditer cette liste.
+
+**La fusée assemblée est UN corps rigide**, pas des corps reliés par des
+contraintes : c'est de là que KSP tire son fléchissement et son coût en solveur.
+`RigidBody_C` accepte déjà plusieurs formes — un module y dépose la ou les
+siennes, et Jolt en tire le centre de masse seul.
+
+**L'ordre de la pile est imposé**, de bas en haut :
+
+```
+moteur  →  structure  →  réservoirs  →  soute  →  cockpit
+```
+
+Les pattes sont sur la structure, donc en bas près du sol. Les réservoirs sous
+la soute descendent le centre de masse. Le cockpit conique termine la pile.
+
+**Règles de validité** : exactement un cockpit, exactement un moteur, autant de
+réservoirs, soutes et structures qu'on veut. Le **cockpit fixe la classe** et
+tous les modules suivent la sienne — jamais de mélange, jamais d'adaptateur.
+
+- [ ] **1. La table des modules.** Un `ModuleType` (moteur, réservoir de gaz,
+      réservoir d'oxygène, soute, structure, cockpit) × deux classes, et pour
+      chacun : hauteur, diamètre, masse à vide, et sa contribution — poussée et
+      débit pour le moteur, capacité pour les réservoirs, envergure des pattes
+      pour la structure. En dur dans le jeu pour commencer ; ça migrera vers de
+      la donnée quand le réglage deviendra pénible.
+- [ ] **2. `RocketDesign_C`** — la liste des modules, plus la classe. Composant
+      froid (il ne change qu'au garage), donc un `std::vector` y est admis comme
+      dans `RigidBody_C`. C'est la seule chose que l'éditeur écrira.
+- [ ] **3. `RocketBuild_S`** — reconstruit tout quand la liste change : trie les
+      modules dans l'ordre canonique, empile les hauteurs pour obtenir chaque
+      position locale, remplit `RigidBody_C::shapes_` et pose une entité enfant
+      par module pour le mesh. **À valider sans une seule image** : une liste
+      donnée produit la bonne hauteur totale, les bons offsets, et un centre de
+      masse à la hauteur calculée à la main.
+- [ ] **4. Agrégation dans `Rocket_C`** — poussée max, débit, capacité de gaz,
+      capacité d'oxygène, masse à vide, point moteur. **`Rocket_S` ne change
+      pas** : il lit les mêmes champs, ils sont calculés au lieu d'être saisis.
+      À valider : un vaisseau assemblé équivalent à la fusée d'essai de §2 vole
+      pareil, même Δv de Tsiolkovsky.
+- [ ] **5. Les meshes**, une fois 1-4 mesurés. Puis l'éditeur, qui n'est qu'une
+      UI par-dessus la liste de §2.5.2.
+- [ ] **6. Casse** — un module détruit sort de la liste, `RocketBuild_S`
+      reconstruit, la masse et le centre de masse suivent d'eux-mêmes. Voir §7.
+
+**Deux pièges repérés d'avance :**
+
+- **La soute est creuse, et une forme convexe ne l'est pas.** Elle contribue
+      donc plusieurs formes — un plancher et des parois — pas une. C'est pour ça
+      qu'un module doit pouvoir en déposer plusieurs.
+- **Reconstruire coûte une forme Jolt neuve.** Ne le faire que sur changement
+      réel de la liste, jamais par tick : c'est le même piège que `setMass` de
+      §8.1, qui existe précisément pour éviter de passer par `patch`.
+
 ---
 
-## 3. Le personnage à pied — **(moteur)**
+## 3. Le personnage à pied
 
-- [ ] **1.** `CharacterVirtual` de Jolt, déjà dans la lib. Un `Character_C`
-      (vitesse, hauteur, rayon) et le système qui le pousse.
-- [ ] **2.** Son vecteur *up* doit être recalculé chaque frame vers le centre de
-      l'astre le plus proche, sinon marcher sur une sphère ne marche pas.
-- [ ] **3.** Caméra FPS attachée à la tête, souris = orientation. Distincte de
-      `FreeCamController_S`, qui vole et ne collisionne pas.
+- [x] **1.** `Character_C` + `Character_S` sur le `CharacterVirtual` de Jolt —
+      c'est §8.3, avec ses quatre pièges.
+- [x] **2. Le haut local vient de la gravité.** `Gravity_S` écrit
+      `Character_C::gravity_` avec la même somme d'attractions que pour les
+      corps rigides ; `Character_S` en déduit le vecteur *up*. Le personnage
+      n'a donc aucune notion d'astre, et marcher sur une sphère ne demande pas
+      une ligne de plus. Mesuré sur le **flanc** d'une planete de 250 m, là où
+      le haut local est +X et pas +Y : debout à r = 250.0000, et après cinq
+      secondes de marche tangentielle à 4 m/s, toujours r = 250.0000 pour un
+      arc de 4.58° — exactement 20 m / 250 m. Aucune perte d'altitude ni de
+      contact.
+- [x] **3. Caméra FPS** — `FpsController_C` + `FpsController_S`. La souris
+      oriente, WASD remplit `moveVelocity_`, espace lève `wantJump_`.
+      - **Le cap est un vecteur du plan du sol, pas un angle de lacet.**
+        Marcher autour d'une sphère fait tourner ce plan sous les pieds ; un
+        lacet mesuré depuis un axe monde ne survivrait pas au passage sur le
+        flanc, un vecteur reprojeté à chaque frame si.
+      - Le tangage reste un scalaire borné, tourné autour du *right* tangent,
+        donc l'horizon ne roule jamais. Mesuré : `fwd·up` et `right·up` à
+        0.000000.
+      - **L'entrée est lue dans `update`, l'œil placé dans `lateUpdate`** : la
+        première parce que `pressed()` est un état de frame que le pas fixe
+        verrait deux fois ou pas du tout (§8.3), le second parce que l'œil suit
+        les pieds et doit attendre qu'ils aient bougé.
+      - La caméra est une **entité enfant** portant `Camera_C` ; le système la
+        place en espace monde à `pieds + up · eyeHeight`, parce qu'un décalage
+        local suivrait +Y et pas la verticale locale.
 
 ---
 
 ## 4. Marchandises et soute
 
-- [ ] **1.** `Carryable_C` sur les caisses. `SpatialIndex::raycast` depuis la
-      caméra, touche *E* pour attraper.
-- [ ] **2.** Objet porté → `Kinematic`, tenu devant la caméra. Relâché →
-      `Dynamic`, avec la vitesse du personnage. Deux lignes, et ça suffit à ce
-      que porter une caisse soit satisfaisant.
-- [ ] **3.** `CargoBay_C` sur la fusée : un volume. Une caisse lâchée dedans est
-      *rangée*.
-- [ ] **4. Une caisse rangée devient enfant `Kinematic` de la fusée et sa masse
-      s'ajoute à celle du corps.** Le piège sinon : des caisses libres dans une
-      soute qui accélère à 3 g rebondissent en permanence, le solveur souffre et
-      le vol devient du bruit. On garde quand même ce qu'on cherchait — la masse
-      totale et le centre de masse changent vraiment.
-- [ ] **5.** Recalculer le centre de masse du corps à chaque chargement et
-      déchargement. C'est ce qui rend une soute mal équilibrée punitive.
+**Acte : rien ne se range tout seul.** Les caisses restent des corps libres, y
+compris en vol ; c'est au joueur de les caler. Et l'objet porté n'est pas
+accroché à la main, il pend au bout d'un ressort.
+
+- [x] **1. `Carryable_C` + `Grabber_C` + `Grab_S`** — faits. *E* attrape et
+      relâche. Le tir part de la caméra et passe par
+      **`World::raycastPhysics`**, ajouté pour l'occasion : il touche les
+      *colliders*, là où `SpatialIndex::raycast` touche les bornes de rendu. Pour
+      attraper un objet physique c'est le collider qui fait foi, et ça marche
+      sur un corps sans mesh. L'entité se retrouve par le user data du corps
+      Jolt, celui-là même qui sert aux événements de contact (§8.2).
+- [x] **2. L'objet porté reste `Dynamic`**, tiré par un ressort amorti vers un
+      point devant la caméra. Il continue donc à cogner les murs, il traîne, il
+      balance.
+      **Le ressort est en N/m, pas en accélération** : l'écart au point de
+      maintien vaut `m·g / stiffness`, donc il grandit avec la masse au lieu
+      d'être le même pour tout le monde. Mesuré : 0.1481 m à 10 kg et 0.5947 m
+      à 40 kg, contre 0.1482 et 0.5947 prédits — quatre fois plus lourd pend
+      quatre fois plus bas.
+      **`maxForce_` borne la prise** : à 300 kg le poids (5400 N) dépasse les
+      4000 N du bras et la caisse ne quitte pas le sol. C'est le réglage qui
+      décide de ce qu'un homme seul peut charger.
+- [x] **3-5. Plus de rangement automatique** — les anciens points 3 à 5
+      (`CargoBay_C`, caisse rendue `Kinematic` enfant de la fusée, masse
+      sommée, centre de masse recalculé) sont **abandonnés**. Les caisses se
+      baladent dans la soute comme n'importe quel corps, et la fusée sent leur
+      masse **par les contacts** : elles s'appuient sur la cloison arrière
+      pendant la poussée, ce qui transmet leur poids sans qu'on ait à l'ajouter
+      à la main. Le centre de masse déplacé tombe du même coup.
+      **À surveiller** : c'est exactement ce que l'ancien point 4 voulait
+      éviter — une pile de corps libres dans une soute qui accélère à 3 g est
+      le cas difficile du solveur. Si ça vibre, les sorties sont des sangles
+      (contraintes) ou de l'amortissement, pas un retour au rangement
+      automatique : le gameplay recherché est justement d'avoir à bien caler
+      son chargement.
 
 ---
 
-## 5. Le sol : entrepôt, pompe, échelle, bascule de vue
+## 5. Le garage
 
-- [ ] **1.** Scène `scenes/Spatial/` — entrepôt statique, caisses, pompe, fusée
-      sur son pas de tir, échelle.
-- [ ] **2.** Ravitaillement : à portée de la pompe, une touche remplit le
-      réservoir progressivement. Le carburant est une masse — faire le plein
-      alourdit.
-- [ ] **3.** L'échelle : un volume de montée, le personnage y monte à vitesse
-      constante en ignorant la gravité.
-- [ ] **4.** Entrer dans la fusée → personnage désactivé, `Camera_C::active_`
-      bascule sur la caméra orbitale. L'inverse à l'arrivée.
-- [ ] **5.** Détection de proximité : **en v0 une simple distance suffit**
-      (pompe, échelle, cockpit). Les vrais capteurs (§8.2) ne deviennent
-      nécessaires que pour la soute et la piste.
+Le point de départ et le seul lieu « chaud » du jeu : on y construit, on y
+répare, on y prend ses contrats, on en repart chargé.
+
+- [ ] **1. Blocage moteur : le contenu de surface doit suivre son astre.**
+      C'est la conséquence directe de §1.1.3, et la nouvelle boucle la rend
+      incontournable — **on habite une lune qui orbite**. Un astre `Kinematic`
+      emporte les corps **dynamiques** posés dessus, mais pas les meshes
+      **statiques** : le garage serait laissé sur place au premier tour
+      d'orbite. Épingler sa lune tuerait justement ce qu'on veut voir.
+      **La sortie** : `Physics_S` place les corps `Static` et `Kinematic` depuis
+      `tc.pos()`, qui est la position **locale**. Les faire suivre la transformée
+      **monde** rend le parentage utilisable, et le garage devient un enfant de
+      sa lune. Correctif court et ciblé, mais à faire avant toute scène jouable.
+- [ ] **2. La scène** — construite à l'éditeur : garage, aire de pose, buggy,
+      caisses, plateforme de construction.
+- [ ] **3. Ravitaillement et réparation** — à portée du garage, contre argent.
+      Une simple distance suffit, pas besoin de capteur.
+- [ ] **4. Bascule de vue** — à pied / buggy / fusée. `Camera_C::active_` fait
+      déjà le travail ; ce qui compte est de désactiver le contrôleur qu'on
+      quitte.
+- [ ] **5. Le tableau des contrats** — où l'on choisit sa livraison. Voir §10.
 
 ---
 
@@ -271,36 +372,38 @@ l'accélération du temps (§6.4).
 
 ---
 
-## 7. L'atterrissage
+## 7. Se poser, et se rater
 
-C'est le moment du jeu, l'équivalent de la marche arrière au quai dans Euro
-Truck. Tout le reste est calme, ici on retient son souffle.
+Le moment du jeu. Tout le reste est calme, ici on retient son souffle.
 
 **Et ça doit rester rattrapable.** Le plaisir vient de la tension, pas de
-l'échec — une approche ratée doit pouvoir être reprise, pas punie. Les leviers,
-du plus efficace au moins :
+l'échec. Les leviers, du plus efficace au moins :
 
-1. **`g` de la Lune bas** (§1.2). C'est le vrai bouton de difficulté : il donne
-   du temps de réaction et réduit la vitesse d'arrivée au sol. Tout le reste
-   n'est qu'un ajustement à côté.
+1. **`g` de l'astre visé** (§1.2) — le vrai bouton de difficulté : il donne du
+   temps de réaction et réduit la vitesse d'arrivée. Le reste n'est qu'un
+   ajustement à côté.
 2. **Poussée/masse confortable** (TWR ≈ 3 à vide) — on doit toujours pouvoir
    annuler sa descente, même tard.
 3. **Carburant généreux.** Le jeu porte sur le pilotage, pas sur l'optimisation
-   du delta-v ; tomber en panne sèche en approche n'apprend rien.
-4. **Piste large** devant la fusée, seuils d'atterrissage clairement indulgents
-   au départ. On les resserre quand c'est trop facile, jamais l'inverse.
-5. **Amortissement de rotation actif** (§2.3), pour que l'assiette ne soit pas
-   un problème en plus de la vitesse.
+   du delta-v.
+4. **Aire d'arrivée large**, seuils clairement indulgents au départ. On les
+   resserre quand c'est trop facile, jamais l'inverse.
+5. **Amortissement de rotation actif** (§2.3).
 
-- [ ] **1.** `LandingPad_C` : la piste et son rayon d'acceptation.
-- [ ] **2.** Conditions de réussite, évaluées au contact : vitesse verticale
-      sous un seuil, vitesse horizontale sous un seuil, angle par rapport à la
-      verticale locale sous un seuil, et centre de la fusée sur la piste. Les
-      seuils se durcissent avec la charge embarquée — c'est là que la masse
-      transportée se paie.
-- [ ] **3.** Échec = on rebondit, on verse. Pas d'écran de défaite : la fusée
-      couchée sur le flanc dit tout.
-- [ ] **4.** *Plus tard* — pattes cassables, réservoir qui fuit. Pas en v0.
+- [ ] **1. `LandingPad_C`** — l'aire et son rayon d'acceptation.
+- [ ] **2. Conditions** évaluées au contact : vitesse verticale, vitesse
+      horizontale, angle à la verticale locale. La donnée qui compte est
+      `ContactEvent::closingSpeed_` de §8.2 — relevée **avant** le solveur,
+      c'est la seule mesure d'impact que la réponse de collision n'a pas encore
+      effacée.
+- [ ] **3. La casse** — au-delà d'un seuil, la pièce touchée est détruite
+      (§2.5.4). Les pattes cèdent avant les réservoirs : c'est le seuil par
+      pièce qui raconte ça, pas une règle globale.
+- [ ] **4. Le remorqueur** — épave irrécupérable : on paie, la fusée revient au
+      garage amputée de ses pièces cassées, on rachète les pièces. Aucune perte
+      de progression, seulement de l'argent. Le tarif monte avec la distance —
+      se planter loin coûte cher, ce qui suffit à rendre les contrats lointains
+      risqués sans inventer de pénalité.
 
 ---
 
@@ -398,44 +501,134 @@ n'importe quel jeu.
       `GameModule.h`) ; ça reste la sortie de secours si ces adoptions se
       multiplient.
 
+- [ ] **5. Animations de nœuds.** Les pieds d'atterrissage de la fusée
+      bougent ; c'est la première animation du moteur, et il n'en a aucune.
+
+      **Acté : animation rigide par nœud, pas de skinning.** Chaque pied est
+      un objet Blender séparé, origine sur la charnière, parenté à la coque.
+      `MeshDecomposer` fait déjà une entité par nœud avec `Hierarchy_C` et un
+      `Transform_C` local : animer, c'est écrire la rotation locale de
+      l'entité du pied, `Transform_S` propage. Zéro code rendu. Le skinning
+      (armature ou shape keys) demanderait des joints et des poids dans le
+      `.bmesh` et le vertex layout, des matrices d'os par instance dans
+      `InstanceManager`, un vertex shader dédié et un upload par frame — pour
+      trois pieds qui pivotent, ça ne paie pas. On y viendra le jour où un
+      personnage doit se déformer, pas avant.
+
+      1. **Import.** Lire les `aiAnimation` de la scène Assimp dans
+         `MeshDecomposer` : un clip par animation, un canal par nœud (clés
+         position / rotation / échelle, nom du nœud, durée, ticks par
+         seconde). Écrire un fichier `.banim` à côté des `.bmesh`, et un
+         `AnimationHandle` dans `AssetHandle.h` comme les trois autres.
+      2. **Composant.** `Animator_C` sur la racine de l'objet : le clip, `t`,
+         vitesse, boucle ou non. Plat et trivialement copiable comme les autres.
+      3. **Système.** `Animator_S` avance `t` et, pour chaque canal, retrouve
+         l'entité descendante qui porte le nom du nœud et écrit sa transformée
+         locale par `Transform_S`. Interpolation linéaire des positions,
+         `slerp` des rotations, rien de plus.
+      4. **Gameplay.** Le jeu ne touche que `t` et la vitesse : pieds sortis =
+         `t` va vers la fin, rentrés = vers zéro. Pas d'état machine ni de
+         blend, une seule barre de temps par clip suffit ici.
+
+      Trois pièges :
+      - **Les canaux se lient par nom de nœud.** Renommer un pied dans Blender
+        casse le lien silencieusement ; le système doit le signaler une fois
+        au chargement plutôt que d'animer dans le vide.
+      - **Ne jamais ajouter `aiProcess_PreTransformVertices`** aux flags
+        d'import : il aplatit la hiérarchie et jette les animations avec.
+        Même chose côté Blender : ne pas joindre les pieds ni appliquer leurs
+        transforms, l'origine reviendrait au monde.
+      - **Un pied animé ne collisionne pas tout seul.** Le collider de la
+        fusée est celui de `RigidBody_C`, il ne suit pas les enfants. Pour
+        v0 les pieds sont visuels, le collider reste une forme fixe sur la
+        coque qui inclut les pieds sortis. Un collider par pied qui suit le
+        mouvement, c'est un `MutableCompoundShape` Jolt et une mise à jour de
+        la forme par tick — à ne faire que si l'atterrissage (§7) le réclame.
+
+---
+
+## 9. Le buggy
+
+Le premier véhicule, et celui qui définit le rayon d'action du début.
+
+- [ ] **1. Prendre le véhicule de Jolt.** `VehicleConstraint` +
+      `WheeledVehicleController` sont dans la lib : roues, suspension, moteur,
+      boîte, différentiels, barres anti-roulis. L'écrire à la main serait la
+      même erreur que de réécrire `CharacterVirtual`.
+- [ ] **2. `Buggy_C` + `Buggy_S`** sur le modèle de `Character_C` : le composant
+      porte la géométrie et les réglages, le jeu y écrit gaz / frein / direction,
+      le système tient l'objet Jolt. Même propriétaire que le pool de
+      personnages, pour la même raison de durée de vie.
+- [ ] **3. La gravité est déjà bonne** : le châssis est un corps dynamique, donc
+      `Gravity_S` s'en occupe sans une ligne de plus. En revanche
+      `VehicleConstraint` a un vecteur « haut » comme le personnage — même piège
+      qu'en §8.3, il faut le réécrire depuis la gravité locale à chaque tick,
+      sinon rouler sur le flanc d'une lune part de travers.
+- [ ] **4. Une soute** — les caisses s'y baladent librement comme dans la fusée
+      (§4). Freiner trop fort les envoie devant.
+
+---
+
+## 10. Contrats, argent, améliorations
+
+Rien de physique ici, et c'est pourtant ce qui transforme la boucle en jeu.
+Tout tient dans des composants plats et de l'UI.
+
+- [ ] **1. `DeliveryPoint_C`** — posé à l'éditeur sur n'importe quel astre.
+      Porte de quoi identifier le lieu ; le reste est calculé.
+- [ ] **2. Contrats** — un colis à prendre, un point à atteindre, une prime.
+      **La prime se dérive du delta-v, pas d'un chiffre écrit à la main** :
+      c'est ce qui garantit que les destinations lointaines paient mieux sans
+      qu'on ait à équilibrer un tableau.
+- [ ] **3. Livraison validée** — le colis (un `Carryable_C`) repose dans la zone
+      du point. On le porte à la main : c'est ce qui rend l'arrivée concrète
+      plutôt qu'un écran de validation.
+- [ ] **4. La boutique** — pièces de fusée, réparations, buggy, puis capacités
+      du perso (porter plus lourd, réserve d'oxygène, jetpack — le mode `Fly` de
+      `Character_C` existe déjà) et outillage du garage.
+- [ ] **5. Sauvegarde** — argent, pièces possédées, contrats en cours. Le
+      sérialiseur de scène existe ; ce qui manque est un état de partie qui ne
+      soit pas une scène.
+
 ---
 
 ## Ordre
 
-**v0 — le seul qui compte au départ.** Une sphère (la Terre), une fusée, de la
-gravité vers le centre, de la poussée, l'amortissement de rotation, la caméra
-orbitale. Décoller, tourner, revenir se poser. **Pas de personnage, pas de
-cargaison, pas de Lune, pas d'entrepôt.** Si piloter la fusée est bon, le jeu
-existe ; sinon, rien de ce qui suit ne le sauvera.
+**v0 — piloter.** Un astre, une fusée d'une pièce, la caméra orbitale, le HUD
+minimal. Décoller, tourner, revenir se poser. Pas de garage, pas de contrat, pas
+de buggy. **Si piloter n'est pas bon, rien de ce qui suit ne le sauvera.** Il ne
+manque pour ça que §6.1 et le branchement des touches sur `throttle_` et
+`rcsInput_` : tout le reste est fait.
 
-Il faut pour ça : §8.1, §1.1, §1.2, §2.1-3, §6.1.
+**v1 — le garage.** Le correctif de §5.1 (le contenu suit son astre), la scène
+du garage sur la lune, la bascule de vue, et une livraison codée en dur d'un
+bout à l'autre. C'est la première fois que la boucle moyenne tourne.
 
-**v1 — la charge.** La soute, les caisses, le centre de masse, le carburant.
-Toujours sans personnage : on charge en cliquant sur les caisses depuis la vue
-orbitale. C'est le cœur du jeu, et il est testable avant d'avoir un FPS.
+**v2 — le buggy.** §9 en entier, plus des points de livraison dispersés sur la
+lune. Le jeu du début existe : on livre chez soi et on n'a pas les moyens de
+partir.
 
-**v2 — le voyage.** La Lune, la trajectoire prédite, le HUD, la piste et ses
-conditions d'atterrissage. Rien d'autre : ni origine flottante ni accélération
-du temps, le modèle réduit de §1.2 a supprimé les deux.
+**v3 — l'argent et les pièces.** §10 et §2.5. La progression s'ouvre : on
+s'achète sa première fusée, puis de quoi aller plus loin.
 
-**v3 — le FPS.** Le personnage, l'entrepôt, la pompe, l'échelle, la bascule de
-vue. C'est ce qui donne le ton du jeu, mais c'est de l'habillage autour d'une
-boucle qui doit déjà tourner.
+**v4 — les crashs.** §7.3 et §7.4. L'échec devient une dépense.
 
 ---
 
 ## Pièges
 
-- **Les constantes se règlent ensemble** — `t ∝ sqrt(R/g)` (§1.2). Grossir la
-  planète seule rallonge le trajet, et au-delà de quelques minutes ça ramène
-  l'accélération du temps et l'origine flottante, deux systèmes que le modèle
-  réduit avait supprimés. Monter `g` en même temps annule l'effet.
-- **Gravité globale de Jolt** — `gravityFactor_ = 0` sur chaque corps dynamique,
-  sinon deux gravités s'additionnent.
+- **Le contenu de surface ne suit pas son astre** (§5.1). Le plus gros piquet
+  restant : tant que `Physics_S` place les corps statiques depuis leur position
+  *locale*, rien ne peut être parenté à une lune qui bouge.
+- **Les constantes se règlent ensemble** — `t ∝ sqrt(R/g)` (§1.2). Monter `g` en
+  même temps que `R` annule l'effet sur les durées de trajet.
+- **Le vecteur « haut » se réécrit depuis la gravité** — vrai pour le personnage
+  (§8.3), vrai pour le véhicule (§9.3), et les réglages Jolt qui le câblent en
+  +Y sont à reconstruire à chaque fois.
 - **Composants du jeu** — un nouveau `Foo_C` doit être inclus depuis
   `GameComponents.h` pour que la DLL l'enregistre dans son registre.
-- **Zéro état statique dans la DLL** — la règle du hot reload vaut ici aussi :
-  l'état du jeu (phase courante, fusée pilotée) vit dans des composants, pas
-  dans des globales.
+- **Zéro état statique dans la DLL** — l'état du jeu (argent, contrat en cours)
+  vit dans des composants, pas dans des globales : un hot reload le perdrait.
 - **Le pas fixe est l'ami de la physique** — toute la logique de vol dans
-  `fixedUpdate`, jamais dans `update`.
+  `fixedUpdate`, jamais dans `update`. Et ce qu'on y lit reflète le pas
+  précédent (§2).

@@ -6,17 +6,25 @@
 
 #include "Components/Camera_C.h"
 #include "Components/Hierarchy_C.h"
+#include "Components/Transform_C.h"
 #include "Engine.h"
 #include "Game.h"
 #include "InputManager.h"
 #include "Instance/EntityFactory.h"
 #include "Instance/InstanceManager.h"
-#include "Physics/JoltConvert.h"
 #include "Physics/PhysicsWorld.h"
+
+#include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+
+#include "Physics/JoltConvert.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneBinding.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
+#include "Systems/Camera_S.h"
 #include "Systems/Character_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
@@ -36,6 +44,7 @@ World::World(Engine& ctx) : ctx_(&ctx)
     instanceManager_->connectHooks(registry_);
     systems_->physics_->connectHooks(registry_);
     systems_->characters_->connectHooks(registry_);
+    systems_->cameras_->connectHooks(registry_);
     spatialIndex_->connectHooks(registry_);
 
     // refresh camera ratio on window resize
@@ -65,12 +74,50 @@ SpatialIndex& World::spatialIndex()
 
 SceneRenderArgs World::renderArgs()
 {
-    return {&registry_, instanceManager_.get()};
+    return {&registry_, instanceManager_.get(), renderCamera()};
+}
+
+entt::entity World::renderCamera()
+{
+    if (registry_.valid(renderCamera_) && registry_.all_of<Camera_C, Transform_C>(renderCamera_))
+        return renderCamera_;
+    for (entt::entity e : registry_.view<Camera_C, Transform_C>())
+        if (registry_.get<Camera_C>(e).active_)
+            return e;
+    return entt::null;
 }
 
 const std::vector<ContactEvent>& World::contacts() const
 {
     return systems_->physics_->contacts();
+}
+
+RayHit World::raycastPhysics(const Ray& ray) const
+{
+    const float from = ray.tMin_;
+    const float to = std::min(ray.tMax_, 1e7f);
+    if (to <= from)
+        return {};
+
+    const JPH::RRayCast cast{toJolt(ray.origin_ + ray.dir_ * from), toJolt(ray.dir_ * (to - from))};
+    JPH::RayCastResult result;
+    if (!physics_->system().GetNarrowPhaseQuery().CastRay(cast, result))
+        return {};
+
+    const uint64_t user = physics_->bodies().GetUserData(result.mBodyID);
+    if (user == 0)
+        return {};
+
+    RayHit hit;
+    hit.entity_ = static_cast<entt::entity>(user - 1u);
+    hit.t_ = from + result.mFraction * (to - from);
+    hit.point_ = ray.origin_ + ray.dir_ * hit.t_;
+
+    JPH::BodyLockRead lock(physics_->system().GetBodyLockInterface(), result.mBodyID);
+    if (lock.Succeeded())
+        hit.normal_ = toEigen(
+            lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2, toJolt(hit.point_)));
+    return hit;
 }
 
 void World::setGravity(const v3f& g)
@@ -149,6 +196,7 @@ void World::resetScene()
     instanceManager_->connectHooks(reg);
     systems_->physics_->connectHooks(reg);
     systems_->characters_->connectHooks(reg);
+    systems_->cameras_->connectHooks(reg);
     spatialIndex_->connectHooks(reg);
     spatialIndex_->markDirty();
 

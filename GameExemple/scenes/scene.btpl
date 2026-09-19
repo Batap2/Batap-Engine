@@ -1,0 +1,1163 @@
+{
+  "componentVersions": {
+    "materials": 1,
+    "mesh": 1,
+    "skybox": 1,
+    "transform": 1
+  },
+  "entities": [
+    {
+      "components": [
+        {
+          "color1": [
+            0.5,
+            0.7200000286102295,
+            0.8999999761581421
+          ],
+          "color2": [
+            0.800000011920929,
+            0.8799999952316284,
+            1.0
+          ],
+          "color3": [
+            0.25,
+            0.20000000298023224,
+            0.15000000596046448
+          ],
+          "hdri": null,
+          "horizonWidth": 0.15000000596046448,
+          "intensity": 1.0,
+          "mode": 0,
+          "type": "skybox"
+        }
+      ],
+      "name": "Skybox",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/door.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.0019614913035184145,
+            1.9150632619857788,
+            0.7980677485466003
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "door",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/wing.002.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.00791102647781372,
+            0.28566139936447144,
+            0.991969883441925
+          ],
+          "rot": [
+            0.0,
+            0.8660253882408142,
+            0.0,
+            -0.5
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "wing.002",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/wing.001.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.8551155924797058,
+            0.2856614291667938,
+            -0.5028361678123474
+          ],
+          "rot": [
+            0.0,
+            0.8660253882408142,
+            0.0,
+            0.5000000596046448
+          ],
+          "scale": [
+            0.9999999403953552,
+            1.0,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "wing.001",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/wing.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.8630266785621643,
+            0.2856614589691162,
+            -0.48913365602493286
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "wing",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.8660253882408142,
+            0.0,
+            0.5000000596046448
+          ],
+          "scale": [
+            0.9999999403953552,
+            1.0,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "Empty",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/body.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/body.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "body",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.8660253882408142,
+            0.0,
+            -0.5000000596046448
+          ],
+          "scale": [
+            0.9999999403953552,
+            1.0,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "leg1.002",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/hinge.002.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "hinge.002",
+      "parent": 7
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/feet.002.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.00046941637992858887,
+            -0.7569751739501953,
+            -0.9776270389556885
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "feet.002",
+      "parent": 7
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator_hinge.002.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator_hinge.002",
+      "parent": 7
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator1.005.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.004979729652404785,
+            0.6168060898780823,
+            -0.9345993399620056
+          ],
+          "rot": [
+            -0.0009078095899894834,
+            0.0,
+            0.0,
+            0.9999995827674866
+          ],
+          "scale": [
+            1.0,
+            0.9999999403953552,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator1.005",
+      "parent": 7
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator2.002.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.002570228185504675,
+            -1.088877558708191,
+            -0.4433978796005249
+          ],
+          "rot": [
+            0.0009078094735741615,
+            0.0,
+            0.0,
+            0.9999995827674866
+          ],
+          "scale": [
+            1.0,
+            0.9999999403953552,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator2.002",
+      "parent": 11
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator3.002.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.002494990359991789,
+            -1.0909806489944458,
+            -0.44198745489120483
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator3.002",
+      "parent": 12
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator1.004.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.004979729652404785,
+            0.6168060898780823,
+            -0.9345993399620056
+          ],
+          "rot": [
+            -0.0009078095899894834,
+            0.0,
+            0.0,
+            0.9999995827674866
+          ],
+          "scale": [
+            1.0,
+            0.9999999403953552,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator1.004",
+      "parent": 7
+    },
+    {
+      "components": [
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.8660253882408142,
+            0.0,
+            0.5000000596046448
+          ],
+          "scale": [
+            0.9999999403953552,
+            1.0,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "leg1.001",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/hinge.001.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "hinge.001",
+      "parent": 15
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/feet.001.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.00046941637992858887,
+            -0.7569751739501953,
+            -0.9776269793510437
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "feet.001",
+      "parent": 15
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator_hinge.001.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator_hinge.001",
+      "parent": 15
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator1.003.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0049797892570495605,
+            0.6168060898780823,
+            -0.9345993399620056
+          ],
+          "rot": [
+            -0.0009078095899894834,
+            0.0,
+            0.0,
+            0.9999995827674866
+          ],
+          "scale": [
+            1.0,
+            0.9999999403953552,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator1.003",
+      "parent": 15
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator2.001.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.0025703771971166134,
+            -1.088877558708191,
+            -0.4433978796005249
+          ],
+          "rot": [
+            0.0009078094735741615,
+            0.0,
+            0.0,
+            0.9999995827674866
+          ],
+          "scale": [
+            1.0,
+            0.9999999403953552,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator2.001",
+      "parent": 19
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator3.001.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.002494990359991789,
+            -1.0909806489944458,
+            -0.4419872760772705
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator3.001",
+      "parent": 20
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator1.002.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0049797892570495605,
+            0.6168060898780823,
+            -0.9345993399620056
+          ],
+          "rot": [
+            -0.0009078095899894834,
+            0.0,
+            0.0,
+            0.9999995827674866
+          ],
+          "scale": [
+            1.0,
+            0.9999999403953552,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator1.002",
+      "parent": 15
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/hinge.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "hinge",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/feet.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.00046941390610300004,
+            -0.7569751739501953,
+            -0.9776269793510437
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "feet",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator_hinge.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator_hinge",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator1.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            0.004979767370969057,
+            0.6168060898780823,
+            -0.9345992803573608
+          ],
+          "rot": [
+            -0.0009078095317818224,
+            0.0,
+            0.0,
+            0.9999995827674866
+          ],
+          "scale": [
+            1.0,
+            0.9999999403953552,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator1",
+      "parent": null
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator2.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.0025703292340040207,
+            -1.0888776779174805,
+            -0.4433978796005249
+          ],
+          "rot": [
+            0.0009078095317818224,
+            0.0,
+            0.0,
+            0.9999995827674866
+          ],
+          "scale": [
+            1.0,
+            0.9999999403953552,
+            0.9999999403953552
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator2",
+      "parent": 26
+    },
+    {
+      "components": [
+        {
+          "slots": [
+            "3d/spaceship/mat_1.bmat",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "type": "materials"
+        },
+        {
+          "mesh": "3d/spaceship/actuator3.bmesh",
+          "type": "mesh"
+        },
+        {
+          "pos": [
+            -0.0024949542712420225,
+            -1.0909806489944458,
+            -0.44198739528656006
+          ],
+          "rot": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "type": "transform"
+        }
+      ],
+      "name": "actuator3",
+      "parent": 27
+    }
+  ]
+}

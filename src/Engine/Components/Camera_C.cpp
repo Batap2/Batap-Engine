@@ -1,7 +1,15 @@
 #include "Camera_C.h"
 
+#include "Systems/Camera_S.h"
+
 namespace batap
 {
+void Camera_C::afterDeserialize(EntityHandle h, World&)
+{
+    if (h.get<Camera_C>().active_)
+        Camera_S::activate(*h.reg_, h.entity_);
+}
+
 m4f Camera_C::make_proj(float aspect) const
 {
     if (aspect <= 0.0f || znear_ <= 0.0f || zfar_ <= znear_ || fov_ <= 0.0f)

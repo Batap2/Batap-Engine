@@ -260,14 +260,8 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
     if (!reg)
         return;
 
-    EntityHandle cam;
-    reg->view<Camera_C, Transform_C>().each(
-        [&](entt::entity e, Camera_C& c, Transform_C&)
-        {
-            if (c.active_)
-                cam = {reg, e};
-        });
-    if (!cam.valid())
+    const EntityHandle cam{reg, args.camera_};
+    if (!cam.valid() || !reg->all_of<Camera_C, Transform_C>(args.camera_))
         return;
     const auto camID = instanceM->pool<CameraInstance>().getGPUIndex(cam);
     if (!camID.valid())

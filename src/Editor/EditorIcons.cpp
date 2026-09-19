@@ -3,6 +3,7 @@
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
 #include "Components/Camera_C.h"
+#include "Components/EditorOnly_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/Transform_C.h"
 #include "Engine.h"
@@ -187,13 +188,14 @@ void EditorIcons::draw(World& world, Engine& ctx)
                  .materialIdx_ = materialIdx,
                  .sizeMode_ = Billboards::SizeMode::Screen});
 
-    for (auto [e, cam, tc] : world.registry_.view<Camera_C, Transform_C>().each())
+    const entt::entity eye = world.renderCamera();
+    for (entt::entity e : world.registry_.view<Camera_C, Transform_C>())
     {
         // The camera being rendered from sits at the eye: its icon would fill
         // the screen or fall behind the near plane.
-        if (cam.active_)
+        if (e == eye || world.registry_.all_of<EditorOnly_C>(e))
             continue;
-        out.add({.pos_ = tc.world().translation(),
+        out.add({.pos_ = world.registry_.get<Transform_C>(e).world().translation(),
                  .size_ = {kIconSize, kIconSize},
                  .textureIdx_ = camera_.bindlessIndex_,
                  .materialIdx_ = materialIdx,
@@ -203,12 +205,13 @@ void EditorIcons::draw(World& world, Engine& ctx)
 
 namespace
 {
-bool hasIcon(entt::registry& reg, entt::entity e)
+bool hasIcon(World& world, entt::entity e)
 {
+    auto& reg = world.registry_;
     if (reg.all_of<PointLight_C, Transform_C>(e))
         return true;
-    const auto* cam = reg.try_get<Camera_C>(e);
-    return cam && !cam->active_ && reg.all_of<Transform_C>(e);
+    return reg.all_of<Camera_C, Transform_C>(e) && !reg.all_of<EditorOnly_C>(e) &&
+           e != world.renderCamera();
 }
 
 BillboardQuad iconQuad(const v3f& pos, const CameraBasis& cam)
@@ -221,10 +224,10 @@ BillboardQuad iconQuad(const v3f& pos, const CameraBasis& cam)
 std::optional<AABB> EditorIcons::boundsOf(World& world, entt::entity e) const
 {
     auto& reg = world.registry_;
-    if (!show_ || !reg.valid(e) || !hasIcon(reg, e))
+    if (!show_ || !reg.valid(e) || !hasIcon(world, e))
         return std::nullopt;
 
-    const auto cam = activeCameraBasis(reg);
+    const auto cam = renderCameraBasis(reg);
     if (!cam)
         return std::nullopt;
 
@@ -242,7 +245,7 @@ RayHit EditorIcons::raycast(World& world, const Ray& ray, float maxT) const
     if (!show_)
         return best;
 
-    const auto cam = activeCameraBasis(world.registry_);
+    const auto cam = renderCameraBasis(world.registry_);
     if (!cam)
         return best;
 
@@ -262,9 +265,9 @@ RayHit EditorIcons::raycast(World& world, const Ray& ray, float maxT) const
     for (auto [e, light, tc] : world.registry_.view<PointLight_C, Transform_C>().each())
         test(e, tc.world().translation());
 
-    for (auto [e, camC, tc] : world.registry_.view<Camera_C, Transform_C>().each())
-        if (!camC.active_)
-            test(e, tc.world().translation());
+    for (entt::entity e : world.registry_.view<Camera_C, Transform_C>())
+        if (hasIcon(world, e))
+            test(e, world.registry_.get<Transform_C>(e).world().translation());
 
     return best;
 }

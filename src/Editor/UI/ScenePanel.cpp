@@ -1,5 +1,6 @@
 #include "ScenePanel.h"
 
+#include "Components/EditorOnly_C.h"
 #include "Components/Hierarchy_C.h"
 #include "Components/Name_C.h"
 #include "Instance/InstanceManager.h"
@@ -28,7 +29,6 @@ namespace
 {
 constexpr const char* kEntityPayload = "ENTITY";
 constexpr const char* kAddEntityPopup = "##addEntity";
-constexpr float kDropZoneHeight = 32.0f;
 
 void sortByName(entt::registry& reg, std::vector<entt::entity>& entities)
 {
@@ -79,18 +79,41 @@ EntityHandle duplicateEntity(World& world, EntityHandle src)
     return dst;
 }
 
-void acceptEntityDrop(entt::registry& reg, std::optional<EntityHandle> newParent)
+void dropEntity(entt::registry& reg, const ImGuiPayload& payload,
+                std::optional<EntityHandle> newParent)
+{
+    const EntityHandle dragged{&reg, *static_cast<const entt::entity*>(payload.Data)};
+    if (!newParent)
+        Hierarchy_S::detach(dragged);
+    else if (newParent->entity_ != dragged.entity_)
+        Hierarchy_S::attach(*newParent, dragged);
+}
+
+void acceptEntityDrop(entt::registry& reg, EntityHandle newParent)
 {
     if (!ImGui::BeginDragDropTarget())
         return;
-
     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kEntityPayload))
+        dropEntity(reg, *payload, newParent);
+    ImGui::EndDragDropTarget();
+}
+
+void acceptRootDrop(entt::registry& reg)
+{
+    ImGuiWindow* tree = ImGui::GetCurrentWindow();
+    const ImRect inner = tree->InnerRect;
+    if (!ImGui::BeginDragDropTargetCustom(inner, tree->GetID("##sceneRoot")))
+        return;
+    constexpr ImGuiDragDropFlags flags =
+        ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect;
+    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kEntityPayload, flags))
     {
-        const EntityHandle dragged{&reg, *static_cast<const entt::entity*>(payload->Data)};
-        if (!newParent)
-            Hierarchy_S::detach(dragged);
-        else if (newParent->entity_ != dragged.entity_)
-            Hierarchy_S::attach(*newParent, dragged);
+        if (payload->Preview)
+            tree->DrawList->AddRect({inner.Min.x + 1.0f, inner.Min.y + 1.0f},
+                                    {inner.Max.x - 1.0f, inner.Max.y - 1.0f},
+                                    ImGui::GetColorU32(ImGuiCol_DragDropTarget), 0.0f, 0, 2.0f);
+        if (payload->Delivery)
+            dropEntity(reg, *payload, std::nullopt);
     }
     ImGui::EndDragDropTarget();
 }
@@ -260,8 +283,7 @@ void ScenePanel::draw(World& world, Selection& selection, float bottomReserve)
     rowOrder_.clear();
 
     const ImGuiStyle& style = ImGui::GetStyle();
-    const float reserve =
-        ImGui::GetFrameHeight() + kDropZoneHeight + style.ItemSpacing.y * 2.0f + bottomReserve;
+    const float reserve = ImGui::GetFrameHeight() + style.ItemSpacing.y + bottomReserve;
 
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{1.0f, style.FramePadding.y});
     ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 14.0f);
@@ -270,18 +292,19 @@ void ScenePanel::draw(World& world, Selection& selection, float bottomReserve)
     const float rowPitch = ImGui::GetFrameHeight() + kRowMargin * 2.0f;
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
                         ImVec2{style.ItemSpacing.x, rowPitch - ImGui::GetTextLineHeight()});
-    ImGui::BeginChild("##sceneTree", {0, -reserve}, ImGuiChildFlags_None,
-                      ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoBackground);
-
     // The band reaches above the cursor; flush against the panel top the first
-    // row would have it clipped.
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kRowMargin +
-                         std::round(ui::TextOpticalOffsetY()));
+    // row would have it clipped. Padding rather than a cursor move: an empty
+    // tree would leave the move with no item after it, which ImGui rejects.
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                        ImVec2{0.0f, kRowMargin + std::round(ui::TextOpticalOffsetY())});
+    ImGui::BeginChild("##sceneTree", {0, -reserve}, ImGuiChildFlags_AlwaysUseWindowPadding,
+                      ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoBackground);
+    ImGui::PopStyleVar();
 
     std::vector<entt::entity> roots;
     for (auto e : reg.storage<entt::entity>())
     {
-        if (!reg.valid(e))
+        if (!reg.valid(e) || reg.all_of<EditorOnly_C>(e))
             continue;
         auto* hc = reg.try_get<Hierarchy_C>(e);
         if (hc && hc->parent != entt::null)
@@ -292,6 +315,7 @@ void ScenePanel::draw(World& world, Selection& selection, float bottomReserve)
 
     for (entt::entity e : roots)
         drawEntityNode(world, e, selection);
+    acceptRootDrop(reg);
 
     ImGui::EndChild();
     ImGui::PopStyleVar(3);
@@ -309,9 +333,6 @@ void ScenePanel::draw(World& world, Selection& selection, float bottomReserve)
         }
         ImGui::EndPopup();
     }
-
-    ImGui::InvisibleButton("##sceneRoot", {-1.0f, kDropZoneHeight});
-    acceptEntityDrop(reg, std::nullopt);
 
     if (pendingRange_)
     {

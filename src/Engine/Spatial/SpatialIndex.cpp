@@ -24,16 +24,10 @@ void SpatialIndex::connectHooks(entt::registry& reg)
 
 namespace
 {
-entt::entity activeCameraOf(entt::registry& reg)
+entt::entity renderCameraOf(entt::registry& reg)
 {
-    entt::entity cam = entt::null;
-    reg.view<Camera_C, Transform_C>().each(
-        [&](entt::entity e, Camera_C& c, Transform_C&)
-        {
-            if (c.active_)
-                cam = e;
-        });
-    return cam;
+    World** world = reg.ctx().find<World*>();
+    return world ? (*world)->renderCamera() : entt::null;
 }
 
 std::optional<BillboardQuad> quadOf(entt::registry& reg, entt::entity e, const CameraBasis& cam)
@@ -56,9 +50,9 @@ std::optional<BillboardQuad> quadOf(entt::registry& reg, entt::entity e, const C
 }
 }  // namespace
 
-std::optional<CameraBasis> activeCameraBasis(entt::registry& reg)
+std::optional<CameraBasis> renderCameraBasis(entt::registry& reg)
 {
-    const entt::entity cam = activeCameraOf(reg);
+    const entt::entity cam = renderCameraOf(reg);
     if (cam == entt::null)
         return std::nullopt;
 
@@ -134,7 +128,7 @@ RayHit SpatialIndex::raycastBillboards(const Ray& ray, float bestT) const
         return best;
 
     auto& reg = world_->registry_;
-    const auto cam = activeCameraBasis(reg);
+    const auto cam = renderCameraBasis(reg);
     if (!cam)
         return best;
 
@@ -187,7 +181,7 @@ Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos)
 {
     auto& reg = world.registry_;
 
-    const entt::entity cam = activeCameraOf(reg);
+    const entt::entity cam = renderCameraOf(reg);
     if (cam == entt::null)
         return {};
 
@@ -243,7 +237,7 @@ std::optional<ScreenProjector> screenProjector(World& world, Engine& ctx)
 {
     auto& reg = world.registry_;
 
-    const entt::entity cam = activeCameraOf(reg);
+    const entt::entity cam = renderCameraOf(reg);
     if (cam == entt::null)
         return std::nullopt;
 
@@ -279,7 +273,7 @@ std::optional<AABB> entityBounds(World& world, Engine& ctx, entt::entity e)
             mesh && mesh->localBounds_.valid())
             return mesh->localBounds_.transformed(tc->world());
 
-    if (const auto cam = activeCameraBasis(reg))
+    if (const auto cam = renderCameraBasis(reg))
         if (const auto quad = quadOf(reg, e, *cam))
         {
             AABB out;

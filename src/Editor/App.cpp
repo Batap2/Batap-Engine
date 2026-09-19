@@ -10,7 +10,8 @@
 #include "Platform/PlatformWindow.h"
 #include "Serialization/EntitySerializer.h"
 #include "Components/Camera_C.h"
-#include "Components/FreeCamController_C.h"
+#include "Components/EditorOnly_C.h"
+#include "Components/Transform_C.h"
 #include "UI/FieldUI.h"
 #include "UI/UIPanels.h"
 #include "UI/UITheme.h"
@@ -48,13 +49,34 @@ App::App(Engine& engine, World& world)
             uiPanels_.setLogo(ctx_->renderer_->imguiTexture(tex->gpu_));
     installFieldUI();
 
-    EntityHandle camera = world.spawn("camera");
-    auto& controller = camera.emplace<FreeCamController_C>();
-    controller.controlled_ = true;
-    controller.requireRightMouseButton_ = true;
+    editorCamCtrl_.requireRightMouseButton_ = true;
+}
 
-    camera.translate(v3f(0, 2, 6), Space::Local);
-    camera.get<Camera_C>().active_ = true;
+void App::syncEditorCamera()
+{
+    auto& reg = world_->registry_;
+    entt::entity cam = entt::null;
+    for (entt::entity e : reg.view<EditorOnly_C, Camera_C>())
+        cam = e;
+
+    if (cam == entt::null)
+    {
+        EntityHandle h = world_->spawn("camera");
+        reg.emplace<EditorOnly_C>(h.entity_);
+        h.emplace<FreeCamController_C>(editorCamCtrl_);
+        h.setLocalPosition(editorCamPos_);
+        h.setLocalRotation(editorCamRot_);
+        cam = h.entity_;
+    }
+    else
+    {
+        const auto& tc = reg.get<Transform_C>(cam);
+        editorCamPos_ = tc.pos();
+        editorCamRot_ = tc.rot();
+        editorCamCtrl_ = reg.get<FreeCamController_C>(cam);
+    }
+
+    world_->setRenderCamera(playing_ ? entt::null : cam);
 }
 
 // The World outlives the App, so its registry would otherwise be destroyed
@@ -84,6 +106,7 @@ void App::update()
     else
     {
         uiPanels_.draw(*world_, *this, *ctx_);
+        syncEditorCamera();
         editorIcons_.draw(*world_, *ctx_);
         if (playing_ && game_)
             world_->update(*game_);

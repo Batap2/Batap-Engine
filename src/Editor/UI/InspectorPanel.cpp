@@ -208,7 +208,12 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                           {
                               const std::string name =
                                   ui::assetName(*app.ctx_->assetManager_, mc->slots[i]);
-                              if (ui::AssetRow(AssetType::Material, name))
+                              const ImGuiStyle& style = ImGui::GetStyle();
+                              const float editW =
+                                  ImGui::CalcTextSize("Edit").x + style.FramePadding.x * 2.f;
+                              const float rowW = ImGui::GetContentRegionAvail().x - editW -
+                                                 style.ItemSpacing.x;
+                              if (ui::AssetRow(AssetType::Material, name, rowW))
                                   assetPicker_.open(ent, AssetType::Material, app.projectDir_, i);
 
                               ImGui::SameLine();

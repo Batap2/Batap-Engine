@@ -58,7 +58,7 @@ struct ScreenProjector
 
 std::optional<ScreenProjector> screenProjector(World& world, Engine& ctx);
 
-std::optional<CameraBasis> activeCameraBasis(entt::registry& reg);
+std::optional<CameraBasis> renderCameraBasis(entt::registry& reg);
 
 // Bounds of what is actually drawn: the mesh, or the billboard quad — which
 // faces the camera, so those bounds move with it.

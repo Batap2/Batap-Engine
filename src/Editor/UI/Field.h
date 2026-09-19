@@ -308,11 +308,11 @@ inline bool ComboField(const char* id, int* current, std::span<const char* const
     return changed;
 }
 
-inline bool AssetField(const char* icon, const char* name, ImVec4 iconColor)
+inline bool AssetField(const char* icon, const char* name, ImVec4 iconColor, float width = 0.f)
 {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 p = ImGui::GetCursorScreenPos();
-    const float w = ImGui::GetContentRegionAvail().x;
+    const float w = width > 0.f ? width : ImGui::GetContentRegionAvail().x;
     const float h = ImGui::GetFrameHeight();
     const float pad = ImGui::GetStyle().FramePadding.x;
 

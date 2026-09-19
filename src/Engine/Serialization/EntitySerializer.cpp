@@ -1,6 +1,7 @@
 #include "EntitySerializer.h"
 #include "EntityDescSerializer.h"
 
+#include "Components/EditorOnly_C.h"
 #include "Components/Hierarchy_C.h"
 #include "Components/Name_C.h"
 #include "Components/UnknownComponents_C.h"
@@ -81,7 +82,7 @@ static nlohmann::json sceneToJson(World& world, const Engine& ctx)
 
     for (auto e : reg.storage<entt::entity>())
     {
-        if (!reg.valid(e))
+        if (!reg.valid(e) || reg.all_of<EditorOnly_C>(e))
             continue;
         auto* hc = reg.try_get<Hierarchy_C>(e);
         if (!hc || hc->parent == entt::null)

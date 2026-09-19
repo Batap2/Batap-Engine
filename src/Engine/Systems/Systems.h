@@ -14,6 +14,7 @@ struct World;
 struct FreeCamController_S;
 struct Physics_S;
 struct Character_S;
+struct Camera_S;
 struct Billboard_S;
 struct Bounds_S;
 
@@ -28,6 +29,7 @@ struct Systems
     std::unique_ptr<Transform_S> transforms_;
     std::unique_ptr<Physics_S> physics_;
     std::unique_ptr<Character_S> characters_;
+    std::unique_ptr<Camera_S> cameras_;
     std::unique_ptr<Billboard_S> billboards_;
     std::unique_ptr<Bounds_S> bounds_;
 };
