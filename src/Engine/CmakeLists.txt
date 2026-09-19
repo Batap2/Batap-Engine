@@ -72,12 +72,26 @@ target_include_directories(Batap_Engine SYSTEM PUBLIC
 # Compile definitions (PUBLIC so Editor gets the same ImGui config)
 target_compile_definitions(Batap_Engine PUBLIC
   IMGUI_USER_CONFIG="${source_dir}/Engine/UI/imguiConfig.h"
-  BATAP_ROOT_DIR="${CMAKE_SOURCE_DIR}"
+  # PROJECT_SOURCE_DIR, not CMAKE_SOURCE_DIR: when a game consumes the engine
+  # as a subdirectory the top-level project is the game, and Paths.cpp and the
+  # shader hot reload need the engine tree.
+  BATAP_ROOT_DIR="${PROJECT_SOURCE_DIR}"
   $<$<CONFIG:Debug>:_DEBUG>
 )
 # imgui_impl_vulkan passe par les pointeurs de fonctions volk (pas de lien
 # statique avec un loader Vulkan)
 target_compile_definitions(Batap_Engine PUBLIC IMGUI_IMPL_VULKAN_USE_VOLK)
+
+# What consuming the public headers requires. A game lives outside this tree,
+# so directory-level settings of the root CMakeLists never reach it: everything
+# it needs travels with the target.
+target_compile_features(Batap_Engine PUBLIC cxx_std_20)
+if(WIN32)
+  target_compile_definitions(Batap_Engine PUBLIC
+    NOMINMAX WIN32_LEAN_AND_MEAN VK_USE_PLATFORM_WIN32_KHR)
+elseif(APPLE)
+  target_compile_definitions(Batap_Engine PUBLIC VK_USE_PLATFORM_METAL_EXT)
+endif()
 
 # Optimization flags (keep your current behavior)
 target_compile_options(Batap_Engine PRIVATE

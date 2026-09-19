@@ -18,8 +18,8 @@ endif()
 #   Batap_EditorLib  (lib, src/Editor)   the editor, links the engine
 #   Batap_Editor     (exe)               the editor; opening a project loads
 #                                        its <project>/bin/Game.dll (hot reload)
-#   GameExemple      (exe, GameExemple/) the game, standalone
-#   GameExemple_Game (dll, GameExemple/) the same game for the editor
+# A game lives in its own repo: it adds this directory with add_subdirectory()
+# and declares its targets with batap_add_game() (cmake/BatapGame.cmake).
 project(Batap LANGUAGES C CXX)
 
 # ------------------------------------------------------------------------------
@@ -151,11 +151,6 @@ if(APPLE)
   )
 endif()
 
-# Global compile defs (Windows)
-if(WIN32)
-  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
-endif()
-
 # ------------------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------------------
@@ -171,12 +166,13 @@ function(silence_external_sources target)
     endforeach()
 endfunction()
 
+include("${PROJECT_SOURCE_DIR}/cmake/BatapGame.cmake")
+
 # ------------------------------------------------------------------------------
 # Subprojects
 # ------------------------------------------------------------------------------
 add_subdirectory("${source_dir}/Engine")
 add_subdirectory("${source_dir}/Editor")
-add_subdirectory("${PROJECT_SOURCE_DIR}/GameExemple")
 
 silence_external_sources(Batap_Engine)
 silence_external_sources(Batap_EditorLib)
