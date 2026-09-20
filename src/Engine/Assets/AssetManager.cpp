@@ -7,6 +7,7 @@
 #include "AssetGPUArena.h"
 #include "AssetLoader.h"
 #include "AssetSlotMap.h"
+#include "Renderer/ResourceManager.h"
 #include "Serialization/BmatSerializer.h"
 
 #include <cassert>
@@ -62,6 +63,18 @@ void AssetManager::saveAllAssets() const
             const std::string absPath = (std::filesystem::path(baseDir_) / relPath).string();
             writeBmat(desc, absPath);
         });
+}
+
+template <>
+bool AssetManager::unload<Mesh>(AssetHandle<Mesh> key)
+{
+    auto& map = *getSlotMap<Mesh>();
+    Mesh* mesh = map.get(key);
+    if (!mesh)
+        return false;
+    if (mesh->buffer_.valid())
+        resourceManager_->requestDestroy(mesh->buffer_);
+    return map.erase(key);
 }
 
 AssetManager::~AssetManager()

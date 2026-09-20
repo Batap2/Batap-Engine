@@ -111,7 +111,11 @@ void App::update()
         if (playing_ && game_)
             world_->update(*game_);
         else
+        {
+            if (game_)
+                game_->editorUpdate(*world_);
             world_->update();
+        }
     }
 }
 

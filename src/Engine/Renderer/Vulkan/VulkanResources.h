@@ -96,6 +96,7 @@ struct ResourceManager
     struct UploadRequest
     {
         GPUResourceHandle dest;
+        VkBuffer src = VK_NULL_HANDLE;
         uint64_t srcOffset = 0;
         uint64_t size = 0;
         uint64_t dstOffset = 0;
@@ -112,7 +113,8 @@ struct ResourceManager
     };
 
     Buffer createBufferInternal(uint64_t sizeBytes);
-    std::byte* stagingAlloc(uint64_t size, uint64_t& outOffset);
+    Buffer createStagingBuffer(uint64_t sizeBytes, std::byte*& outMapped);
+    std::byte* stagingAlloc(uint64_t size, UploadRequest& req);
     uint32_t allocTextureIndex();
     void destroyNow(Buffer& b);
     void destroyNow(Image& i);
@@ -135,6 +137,8 @@ struct ResourceManager
     std::vector<StagingRing> staging_;
     std::vector<DestroyQueue> destroyQueues_;
     std::vector<UploadRequest> uploadRequests_;
+    // Requests that did not fit the ring; flushUploads hands them to destroyQueues_.
+    std::vector<Buffer> oversizeStaging_;
 
     // Set 0: the default sampler plus the bindless table of sampled images.
     // textureNext_ hands out never-used slots, textureFree_ recycles freed ones.

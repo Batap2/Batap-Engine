@@ -267,7 +267,11 @@ Les autres différences de design vs le ResourceManager DX12 :
   dans le ring mappé* (en DX12 il rendait un `std::vector` recopié ensuite —
   le bug B7). `flushUploads(cmd)` enregistre les `vkCmdCopyBuffer`/
   `CopyBufferToImage` + les barrières de layout. Un ring par frame-in-flight,
-  recyclé par `beginFrame(i)` quand le GPU a fini ce slot.
+  recyclé par `beginFrame(i)` quand le GPU a fini ce slot. Une requête qui ne
+  tient pas dans ce qui reste du ring reçoit un buffer de staging à elle
+  (`oversizeStaging_`), que `flushUploads` verse dans la file de destruction du
+  slot après avoir enregistré la copie : les 64 Mo sont un chemin rapide, pas
+  un plafond.
 - **Pas d'alignement de row pitch** pour les textures : le 256 était une règle
   DX12 ; en Vulkan les rangées sont serrées (`bufferRowLength = 0`).
 - **Destruction différée par slot de frame** : `requestDestroy` met en file,

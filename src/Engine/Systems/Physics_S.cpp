@@ -2,8 +2,10 @@
 
 #include "Physics/PhysicsWorld.h"
 
+#include <Jolt/Geometry/AABox.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Body/MassProperties.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
@@ -11,15 +13,21 @@
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
 
+#include "Assets/AssetManager.h"
+#include "Assets/Mesh.h"
 #include "Components/RigidBody_C.h"
 #include "Components/Transform_C.h"
 #include "Physics/JoltConvert.h"
+#include "Physics/MeshCollider.h"
 #include "Renderer/DebugDraw.h"
+#include "Serialization/BmeshSerializer.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
 #include "World.h"
 
 #include <algorithm>
+#include <filesystem>
+#include <iostream>
 #include <numbers>
 
 namespace batap
@@ -68,7 +76,22 @@ bool isCentered(const Shape& s)
     return s.localPos_.isZero() && s.localRotDeg_.isZero();
 }
 
-JPH::ShapeRefC primitiveOf(const Shape& s)
+// The triangles come from the file, not from the GPU copy: the loader keeps
+// no CPU vertices. Read once per build, never per tick.
+JPH::ShapeRefC meshShapeOf(const Shape& s, AssetManager& assets)
+{
+    const std::string* path = s.mesh_ ? assets.getPath(s.mesh_) : nullptr;
+    if (path)
+        if (const auto data = readBmesh((std::filesystem::path(assets.baseDir()) / *path).string()))
+            if (JPH::ShapeRefC shape = makeMeshShape(*data))
+                return shape;
+
+    std::cerr << "[Physics_S] mesh collider unavailable" << (path ? " : " + *path : std::string{})
+              << ", falling back to a unit sphere\n";
+    return new JPH::SphereShape(1.f);
+}
+
+JPH::ShapeRefC primitiveOf(const Shape& s, AssetManager& assets)
 {
     switch (s.kind_)
     {
@@ -76,6 +99,8 @@ JPH::ShapeRefC primitiveOf(const Shape& s)
             return new JPH::SphereShape(s.radius_);
         case Shape::Kind::Capsule:
             return new JPH::CapsuleShape(s.halfHeight_, s.radius_);
+        case Shape::Kind::Mesh:
+            return meshShapeOf(s, assets);
         case Shape::Kind::Box:
             break;
     }
@@ -86,29 +111,29 @@ JPH::ShapeRefC primitiveOf(const Shape& s)
                              std::min(JPH::cDefaultConvexRadius, smallest * 0.5f));
 }
 
-JPH::ShapeRefC makeUnscaledShape(const RigidBody_C& rb)
+JPH::ShapeRefC makeUnscaledShape(const RigidBody_C& rb, AssetManager& assets)
 {
     if (rb.shapes_.size() == 1)
     {
         const Shape& s = rb.shapes_.front();
         if (isCentered(s))
-            return primitiveOf(s);
+            return primitiveOf(s, assets);
         // A StaticCompoundShape needs at least two children, so a lone
         // offset shape is wrapped instead.
         return new JPH::RotatedTranslatedShape(toJolt(s.localPos_), toJolt(localRotOf(s)),
-                                               primitiveOf(s));
+                                               primitiveOf(s, assets));
     }
 
     JPH::StaticCompoundShapeSettings settings;
     for (const Shape& s : rb.shapes_)
-        settings.AddShape(toJolt(s.localPos_), toJolt(localRotOf(s)), primitiveOf(s));
+        settings.AddShape(toJolt(s.localPos_), toJolt(localRotOf(s)), primitiveOf(s, assets));
 
     return settings.Create().Get();
 }
 
-JPH::ShapeRefC makeShape(const RigidBody_C& rb, const v3f& scale)
+JPH::ShapeRefC makeShape(const RigidBody_C& rb, const v3f& scale, AssetManager& assets)
 {
-    JPH::ShapeRefC base = makeUnscaledShape(rb);
+    JPH::ShapeRefC base = makeUnscaledShape(rb, assets);
     const JPH::Vec3 s = toJolt(scale);
     if (s.IsClose(JPH::Vec3::sOne()))
         return base;
@@ -119,6 +144,25 @@ JPH::ShapeRefC makeShape(const RigidBody_C& rb, const v3f& scale)
     // a non-zero one) instead of letting Jolt assert on whatever the
     // inspector produced.
     return new JPH::ScaledShape(base, base->MakeScaleValid(s));
+}
+
+// A mesh has no volume, so Jolt hands back invalid mass properties for it and
+// ScaleToMass would divide by zero: a mesh (or anything wrapping one) gets the
+// inertia of the solid box of its bounds instead. A kinematic body never reads
+// them, but Jolt refuses the NaN in debug.
+JPH::MassProperties massPropertiesOf(const JPH::Shape& shape, float mass)
+{
+    JPH::MassProperties mp;
+    if (shape.MustBeStatic())
+    {
+        const JPH::AABox bounds = shape.GetLocalBounds();
+        const JPH::Vec3 size = JPH::Vec3::sMax(bounds.GetSize(), JPH::Vec3::sReplicate(1e-3f));
+        mp.SetMassAndInertiaOfSolidBox(size, 1.f);
+    }
+    else
+        mp = shape.GetMassProperties();
+    mp.ScaleToMass(mass);
+    return mp;
 }
 
 const col3& colorOf(const RigidBody_C& rb)
@@ -135,6 +179,23 @@ const col3& colorOf(const RigidBody_C& rb)
             break;
     }
     return colors::cyan;
+}
+
+// A mesh collider has no wire of its own, so its bounds stand in for it. The
+// four body diagonals, dimmer than the wire, mark the box as a stand-in: a
+// plain box would read as a box collider.
+void drawMeshProxy(DebugDraw& dbg, const transform& xform, const v3f& half, const col3& color)
+{
+    dbg.box(xform, half, color);
+
+    const col3 hatch{color * 0.55f};
+    for (int corner = 0; corner < 4; ++corner)
+    {
+        const v3f a{half.x(), corner & 1 ? -half.y() : half.y(),
+                    corner & 2 ? -half.z() : half.z()};
+        const v3f b = -a;
+        dbg.line(xform * a, xform * b, hatch);
+    }
 }
 
 // Damping, mass and the sensor flag are not on BodyInterface, and SetShape
@@ -154,10 +215,7 @@ void applyLockedProperties(PhysicsWorld& physics, JPH::BodyID id, const RigidBod
 
     mp->SetLinearDamping(rb.linearDamping_);
     mp->SetAngularDamping(rb.angularDamping_);
-
-    JPH::MassProperties mass = shape.GetMassProperties();
-    mass.ScaleToMass(rb.mass_);
-    mp->SetMassProperties(mp->GetAllowedDOFs(), mass);
+    mp->SetMassProperties(mp->GetAllowedDOFs(), massPropertiesOf(shape, rb.mass_));
 }
 
 void destroyBody(JPH::BodyInterface& bi, RigidBody_C& rb)
@@ -171,21 +229,22 @@ void destroyBody(JPH::BodyInterface& bi, RigidBody_C& rb)
     rb.bodyId_ = kInvalidBodyId;
 }
 
-void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const Transform_C& tc)
+void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const Transform_C& tc,
+                AssetManager& assets)
 {
     rb.shapeScale_ = tc.scale();
     rb.dirty_ = false;
-    JPH::BodyCreationSettings settings(makeShape(rb, rb.shapeScale_), toJolt(tc.pos()),
-                                       toJolt(tc.rot()), motionTypeOf(rb.motion_),
-                                       layerOf(rb.motion_));
+    JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_, assets);
+    JPH::BodyCreationSettings settings(shape, toJolt(tc.pos()), toJolt(tc.rot()),
+                                       motionTypeOf(rb.motion_), layerOf(rb.motion_));
     settings.mFriction = rb.friction_;
     settings.mRestitution = rb.restitution_;
     settings.mLinearDamping = rb.linearDamping_;
     settings.mAngularDamping = rb.angularDamping_;
     settings.mGravityFactor = rb.gravityFactor_;
     settings.mIsSensor = rb.sensor_;
-    settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
-    settings.mMassPropertiesOverride.mMass = rb.mass_;
+    settings.mOverrideMassProperties = JPH::EOverrideMassProperties::MassAndInertiaProvided;
+    settings.mMassPropertiesOverride = massPropertiesOf(*shape, rb.mass_);
     // Offset by one so that a destroyed body, whose GetUserData reads back 0,
     // never resolves to entity 0.
     settings.mUserData = static_cast<uint64_t>(entt::to_integral(e)) + 1u;
@@ -257,6 +316,7 @@ void Physics_S::drawColliders(World& world)
         return;
 
     DebugDraw& dbg = world.debugOverlay();
+    AssetManager& assets = world.assets();
     for (auto [e, rb, tc] : world.registry_.view<RigidBody_C, Transform_C>().each())
     {
         const transform base = TRS_Transform(tc.pos(), tc.rot(), v3f::Ones());
@@ -284,6 +344,17 @@ void Physics_S::drawColliders(World& world)
                     dbg.capsule(xform, s.halfHeight_ * scale.y(),
                                 s.radius_ * (scale.x() + scale.z()) * 0.5f, color);
                     break;
+                case Shape::Kind::Mesh:
+                    if (const Mesh* mesh = assets.get(s.mesh_); mesh && mesh->localBounds_.valid())
+                    {
+                        const v3f center = (mesh->localBounds_.min_ + mesh->localBounds_.max_) * 0.5f;
+                        const v3f half = (mesh->localBounds_.max_ - mesh->localBounds_.min_) * 0.5f;
+                        drawMeshProxy(dbg,
+                                      xform * TRS_Transform(center.cwiseProduct(scale),
+                                                            quatf::Identity(), v3f::Ones()),
+                                      half.cwiseProduct(scale), color);
+                    }
+                    break;
             }
         }
     }
@@ -294,6 +365,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
     auto& reg = world.registry_;
     PhysicsWorld& physics = world.physics();
     JPH::BodyInterface& bi = physics.bodies();
+    AssetManager& assets = world.assets();
 
     auto view = reg.view<RigidBody_C, Transform_C>();
 
@@ -310,7 +382,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
         const auto& tc = view.get<Transform_C>(e);
         if (rb.bodyId_ == kInvalidBodyId)
         {
-            createBody(bi, e, rb, tc);
+            createBody(bi, e, rb, tc, assets);
             continue;
         }
 
@@ -321,7 +393,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
             rb.dirty_ = false;
             rb.shapeScale_ = tc.scale();
 
-            JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_);
+            JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_, assets);
             bi.SetShape(id, shape, false, activationOf(rb.motion_));
             bi.SetFriction(id, rb.friction_);
             bi.SetRestitution(id, rb.restitution_);
@@ -339,7 +411,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
             if (current == JPH::EMotionType::Static || wanted == JPH::EMotionType::Static)
             {
                 destroyBody(bi, rb);
-                createBody(bi, e, rb, tc);
+                createBody(bi, e, rb, tc, assets);
                 continue;
             }
             bi.SetObjectLayer(id, layerOf(rb.motion_));

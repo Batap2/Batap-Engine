@@ -47,6 +47,7 @@ struct Renderer
     void beginFrame();
 
     void resize(uint32_t w, uint32_t h);
+    void setVsync(bool on);
     void flush();
 
     using ResizeCallback = std::function<void(uint32_t w, uint32_t h)>;

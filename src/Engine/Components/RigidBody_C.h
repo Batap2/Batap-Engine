@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Assets/AssetHandle.h"
 #include "EigenTypes.h"
 #include "Reflection/ComponentRegistry.h"
 
@@ -17,16 +18,21 @@ struct Shape
     {
         Box = 0,
         Sphere = 1,
-        Capsule = 2
+        Capsule = 2,
+        Mesh = 3
     };
 
     Kind kind_ = Kind::Box;
 
     // Only the dimensions its kind_ uses are read: halfExtents for a box,
-    // radius for a sphere, radius + halfHeight for a capsule.
+    // radius for a sphere, radius + halfHeight for a capsule, mesh for a mesh.
+    // The triangles are read back from the .bmesh when the body is built;
+    // Jolt treats them as single-sided, front face counter-clockwise, and a
+    // mesh must never collide with another mesh (Static or Kinematic only).
     v3f halfExtents_ = {0.5f, 0.5f, 0.5f};
     float radius_ = 0.5f;
     float halfHeight_ = 0.5f;
+    MeshHandle mesh_;
 
     v3f localPos_ = v3f::Zero();
     v3f localRotDeg_ = v3f::Zero();

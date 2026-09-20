@@ -17,10 +17,12 @@
 #import <QuartzCore/CAMetalLayer.h>
 
 #include <array>
+#include <chrono>
 #include <mach-o/dyld.h>
 #include <objc/runtime.h>
 
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace
@@ -450,6 +452,12 @@ bool platformPumpMessages()
         }
     }
     return !g_quitRequested;
+}
+
+void platformSleepUntil(std::chrono::steady_clock::time_point target)
+{
+    // nanosleep lands well under 0.1 ms late on macOS: no spin needed.
+    std::this_thread::sleep_until(target);
 }
 
 std::string platformExeDir()

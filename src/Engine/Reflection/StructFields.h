@@ -18,7 +18,7 @@
 namespace batap::refl
 {
 
-inline constexpr std::size_t kMaxFields = 16;
+inline constexpr std::size_t kMaxFields = 24;
 
 // --- field count ---------------------------------------------------------
 
@@ -81,6 +81,14 @@ constexpr auto tieFields(T& x)
     else if constexpr (n == 14) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o); }
     else if constexpr (n == 15) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p); }
     else if constexpr (n == 16) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q); }
+    else if constexpr (n == 17) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r); }
+    else if constexpr (n == 18) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s); }
+    else if constexpr (n == 19) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t); }
+    else if constexpr (n == 20) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u); }
+    else if constexpr (n == 21) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v); }
+    else if constexpr (n == 22) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w); }
+    else if constexpr (n == 23) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w,y] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w,y); }
+    else if constexpr (n == 24) { auto& [a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w,y,z] = x; return std::tie(a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w,y,z); }
     /* clang-format on */
 }
 

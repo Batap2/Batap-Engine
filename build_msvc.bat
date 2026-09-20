@@ -11,6 +11,7 @@ if "%~1"=="" (
   exit /b 1
 )
 
+set "SCRIPT_DIR=%~dp0"
 set "PRESET=%~1"
 set "DO_CONFIGURE=0"
 set "NO_FORMAT=0"
@@ -71,7 +72,7 @@ set "BUILD_RC=%ERRORLEVEL%"
 if "%NO_FORMAT%"=="1" (
   type "%LOGFILE%"
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0format_clang.ps1" -Path "%LOGFILE%"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%format_clang.ps1" -Path "%LOGFILE%"
 )
 
 del /q "%LOGFILE%" >nul 2>&1

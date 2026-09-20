@@ -368,6 +368,11 @@ void Renderer::resize(uint32_t w, uint32_t h)
         cb(width_, height_);
 }
 
+void Renderer::setVsync(bool on)
+{
+    swapchain_.setVsync(on);
+}
+
 void Renderer::onResize(ResizeCallback cb)
 {
     resizeCallbacks_.push_back(std::move(cb));

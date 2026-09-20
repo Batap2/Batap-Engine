@@ -48,6 +48,8 @@ void GeometryPass::record(const PassContext& pass)
             if (!meshC.mesh_)
                 return;
             auto* mesh = pass.assetManager_->get(meshC.mesh_);
+            if (!mesh)
+                return;  // unloaded since the handle was written
 
             const auto id =
                 pass.instanceManager_->pool<StaticMeshInstance>().getGPUIndex({pass.reg_, e});

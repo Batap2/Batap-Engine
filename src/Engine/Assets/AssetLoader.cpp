@@ -31,9 +31,9 @@ static std::string_view extractExtension(std::string_view path)
     return path.substr(dot + 1);
 }
 
-static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const Engine& ctx)
+static std::optional<AssetHandleAny> loadMesh(std::string_view relPath,
+                                              AssetManager& assetManager)
 {
-    auto& assetManager = *ctx.assetManager_;
     assert(!assetManager.baseDir().empty() &&
            "AssetManager baseDir not set — call setBaseDir before loading assets");
     const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / relPath).string();
@@ -164,11 +164,10 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, const En
     return AssetHandleAny{handle};
 }
 
-static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const Engine& ctx,
-                                                  bool isBtex)
+static std::optional<AssetHandleAny> loadTexture(std::string_view relPath,
+                                                 AssetManager& assetManager, bool isBtex)
 {
     namespace fs = std::filesystem;
-    auto& assetManager = *ctx.assetManager_;
     const std::string key = std::string(relPath);
 
     // Early-out: already loaded, no GPU work needed.
@@ -252,10 +251,10 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath, const
     return AssetHandleAny{handle};
 }
 
-static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, const Engine& ctx)
+static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath,
+                                                  AssetManager& assetManager)
 {
     namespace fs = std::filesystem;
-    auto& assetManager = *ctx.assetManager_;
     const std::string absPath = (fs::path(assetManager.baseDir()) / relPath).string();
 
     auto data = readBmat(absPath);
@@ -275,7 +274,7 @@ static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath, cons
         const uint32_t fallback = fallbackTex ? fallbackTex->bindlessIndex_ : 0xFFFFFFFFu;
         if (texPath.empty()) return fallback;
         const bool isBtex = (extractExtension(texPath) == "btex");
-        if (!loadTexture(texPath, ctx, isBtex)) return fallback;
+        if (!loadTexture(texPath, assetManager, isBtex)) return fallback;
         auto* tex = assetManager.get<Texture>(texPath);
         return tex ? tex->bindlessIndex_ : fallback;
     };
@@ -362,18 +361,23 @@ void createDefaultAssets(const Engine& ctx)
     assetManager.emplace<Material>(kUnlitMaterialPath, kUnlitMaterialPath, unlitMat);
 }
 
-std::optional<AssetHandleAny> loadAsset(std::string_view path, const Engine& ctx)
+std::optional<AssetHandleAny> loadAsset(std::string_view path, AssetManager& assets)
 {
     const auto ext = extractExtension(path);
 
-    if (ext == "bmesh") return loadMesh(path, ctx);
-    if (ext == "bmat")  return loadMaterial(path, ctx);
-    if (ext == "btex")  return loadTexture(path, ctx, true);
+    if (ext == "bmesh") return loadMesh(path, assets);
+    if (ext == "bmat")  return loadMaterial(path, assets);
+    if (ext == "btex")  return loadTexture(path, assets, true);
 
     if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "hdr")
-        return loadTexture(path, ctx, false);
+        return loadTexture(path, assets, false);
 
     return std::nullopt;
+}
+
+std::optional<AssetHandleAny> loadAsset(std::string_view path, const Engine& ctx)
+{
+    return loadAsset(path, *ctx.assetManager_);
 }
 
 }  // namespace batap

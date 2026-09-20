@@ -36,24 +36,7 @@ ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFra
     // ---- Staging rings, mappés en permanence ----
     staging_.resize(FramesInFlight);
     for (auto& ring : staging_)
-    {
-        VkBufferCreateInfo bufferInfo{};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = stagingBytesPerFrame;
-        bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-        VmaAllocationCreateInfo allocInfo{};
-        allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-        allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-                          VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-        VmaAllocationInfo outInfo{};
-        if (vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &ring.buffer.buffer,
-                            &ring.buffer.allocation, &outInfo) != VK_SUCCESS)
-            throw std::runtime_error("ResourceManager(vk) : staging ring");
-        ring.buffer.size = stagingBytesPerFrame;
-        ring.mapped = static_cast<std::byte*>(outInfo.pMappedData);
-    }
+        ring.buffer = createStagingBuffer(stagingBytesPerFrame, ring.mapped);
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -158,6 +141,9 @@ ResourceManager::~ResourceManager()
     for (auto& ring : staging_)
         destroyNow(ring.buffer);
     staging_.clear();
+    for (auto& b : oversizeStaging_)
+        destroyNow(b);
+    oversizeStaging_.clear();
 
     if (texturePool_)
         vkDestroyDescriptorPool(ctx_.device_, texturePool_, nullptr);
@@ -184,6 +170,29 @@ ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes
     if (vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation,
                         nullptr) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : createBuffer");
+    return buffer;
+}
+
+ResourceManager::Buffer ResourceManager::createStagingBuffer(uint64_t sizeBytes,
+                                                             std::byte*& outMapped)
+{
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = sizeBytes;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                      VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VmaAllocationInfo outInfo{};
+    Buffer buffer{};
+    buffer.size = sizeBytes;
+    if (vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation,
+                        &outInfo) != VK_SUCCESS)
+        throw std::runtime_error("ResourceManager(vk) : staging buffer");
+    outMapped = static_cast<std::byte*>(outInfo.pMappedData);
     return buffer;
 }
 
@@ -285,16 +294,26 @@ uint32_t ResourceManager::textureIndex(GPUResourceHandle texture)
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage-in-container"
 
-std::byte* ResourceManager::stagingAlloc(uint64_t size, uint64_t& outOffset)
+std::byte* ResourceManager::stagingAlloc(uint64_t size, UploadRequest& req)
 {
     auto& ring = staging_[currentFrame()];
     const uint64_t offset = alignUp(ring.offset, StagingAlignment);
-    if (offset + size > ring.buffer.size)
-        throw std::runtime_error(
-            "ResourceManager(vk) : staging ring full — raise stagingBytesPerFrame");
-    ring.offset = offset + size;
-    outOffset = offset;
-    return ring.mapped + offset;
+    if (offset + size <= ring.buffer.size)
+    {
+        ring.offset = offset + size;
+        req.src = ring.buffer.buffer;
+        req.srcOffset = offset;
+        return ring.mapped + offset;
+    }
+
+    // Out of ring for this frame: the request gets a buffer of its own, freed
+    // by the slot's destroy queue once flushUploads has recorded the copy.
+    std::byte* mapped = nullptr;
+    const Buffer own = createStagingBuffer(size, mapped);
+    oversizeStaging_.push_back(own);
+    req.src = own.buffer;
+    req.srcOffset = 0;
+    return mapped;
 }
 
 std::span<std::byte> ResourceManager::requestUpload(GPUResourceHandle dest, uint64_t sizeBytes,
@@ -313,7 +332,7 @@ std::span<std::byte> ResourceManager::requestPartialUpload(GPUResourceHandle des
     UploadRequest req{};
     req.dest = dest;
     req.dstOffset = destOffset;
-    std::byte* ptr = stagingAlloc(sizeBytes, req.srcOffset);
+    std::byte* ptr = stagingAlloc(sizeBytes, req);
     req.srcOffset += subOffset;
     req.size = subSize;
     uploadRequests_.push_back(req);
@@ -331,7 +350,7 @@ std::span<std::byte> ResourceManager::requestTextureUpload(GPUResourceHandle des
     req.isImage = true;
     req.width = width;
     req.height = height;
-    std::byte* ptr = stagingAlloc(size, req.srcOffset);
+    std::byte* ptr = stagingAlloc(size, req);
     uploadRequests_.push_back(req);
 
     return {ptr, size};
@@ -354,12 +373,14 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
             else if (auto fit = frameBuffers_.find(req.dest); fit != frameBuffers_.end())
                 target = fit->second[currentFrame()].buffer;
             assert(target && "flushUploads: unknown buffer");
+            if (!target)
+                continue;
 
             VkBufferCopy region{};
             region.srcOffset = req.srcOffset;
             region.dstOffset = req.dstOffset;
             region.size = req.size;
-            vkCmdCopyBuffer(cmd, staging_[currentFrame()].buffer.buffer, target, 1, &region);
+            vkCmdCopyBuffer(cmd, req.src, target, 1, &region);
             continue;
         }
 
@@ -382,8 +403,8 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
         region.bufferOffset = req.srcOffset;
         region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
         region.imageExtent = {req.width, req.height, 1};
-        vkCmdCopyBufferToImage(cmd, staging_[currentFrame()].buffer.buffer, image.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        vkCmdCopyBufferToImage(cmd, req.src, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                               &region);
 
         // Each level is downscaled from the previous one: mip N-1 flips to
         // TRANSFER_SRC (waiting for the write that filled it), then the blit
@@ -436,6 +457,10 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
     BarrierBatch{}.memory(Usage::TransferDst, Usage::AnyRead).flush(cmd);
 
     uploadRequests_.clear();
+
+    auto& retire = destroyQueues_[currentFrame()].buffers;
+    retire.insert(retire.end(), oversizeStaging_.begin(), oversizeStaging_.end());
+    oversizeStaging_.clear();
 }
 
 void ResourceManager::beginFrame()
@@ -456,6 +481,8 @@ void ResourceManager::beginFrame()
 
 void ResourceManager::requestDestroy(GPUResourceHandle handle)
 {
+    std::erase_if(uploadRequests_, [&](const UploadRequest& r) { return r.dest == handle; });
+
     if (auto it = buffers_.find(handle); it != buffers_.end())
     {
         destroyQueues_[currentFrame()].buffers.push_back(it->second);

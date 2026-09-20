@@ -18,6 +18,8 @@ int runEditor(const EditorConfig& cfg)
         World world{engine};
         App app{engine, world};
 
+        engine.setMaxFps(144);
+
         // `--game <dll>` (dev mode): the game is loaded as a module instead of
         // coming from the opened project.
         const auto args = platformCommandLineArgs();

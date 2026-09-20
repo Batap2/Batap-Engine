@@ -27,6 +27,10 @@ struct VulkanSwapchain
     // (minimised).
     void recreate();
 
+    // Recreates now. Minimised, the recreate is skipped and the flag lands
+    // with the next resize.
+    void setVsync(bool on);
+
     // Split out of acquire() so staging and pending destroys can be recycled at
     // the start of the CPU frame, before the uploads are written. Idempotent.
     void waitFrame();
@@ -50,6 +54,7 @@ struct VulkanSwapchain
     uint32_t lastAcquired_ = 0;
     bool frameWaited_ = false;
     bool transparent_ = false;
+    bool vsync_ = false;
 
     // Acquire is per frame in flight; render is per image, because present may
     // wait on a semaphore still tied to that image (spec requirement).

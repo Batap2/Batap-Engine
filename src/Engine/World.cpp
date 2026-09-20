@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 
+#include "Assets/AssetManager.h"
 #include "Components/Camera_C.h"
 #include "Components/Hierarchy_C.h"
 #include "Components/Transform_C.h"
@@ -158,6 +159,11 @@ void World::update(Game& game)
 InputManager& World::input()
 {
     return *ctx_->inputManager_;
+}
+
+AssetManager& World::assets()
+{
+    return *ctx_->assetManager_;
 }
 
 DebugDraw& World::debug()

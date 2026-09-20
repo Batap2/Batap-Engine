@@ -43,7 +43,7 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
         throw std::runtime_error("Engine: failed to create the window");
 
     inputManager_ = std::make_unique<InputManager>();
-    lastTime_ = std::chrono::high_resolution_clock::now();
+    lastTime_ = std::chrono::steady_clock::now();
 
     renderer_ = std::make_unique<Renderer>(window_, desc.transparent);
     assetManager_ = std::make_unique<AssetManager>(renderer_->resourceManager_);
@@ -83,6 +83,7 @@ Engine::~Engine()
 
 Frame Engine::nextFrame()
 {
+    limitFrameRate();
     if (!platformPumpMessages())
         return Frame{this, false};
 
@@ -96,9 +97,9 @@ Frame Engine::nextFrame()
 
 void Engine::beginFrame()
 {
-    std::chrono::duration<float> dt = std::chrono::high_resolution_clock::now() - lastTime_;
-    lastTime_ = std::chrono::high_resolution_clock::now();
-    deltaTime_ = dt.count();
+    const auto now = std::chrono::steady_clock::now();
+    deltaTime_ = std::chrono::duration<float>(now - lastTime_).count();
+    lastTime_ = now;
 
     renderer_->beginFrame();
     inputManager_->DispatchEvents();
@@ -113,6 +114,21 @@ void Engine::endFrame()
     debugOverlay_->endFrame(deltaTime_);
     billboards_->endFrame(deltaTime_);
     renderer_->render();
+}
+
+void Engine::limitFrameRate()
+{
+    if (settings_.maxFps_ == 0)
+        return;
+    const auto period = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<double>(1.0 / settings_.maxFps_));
+    platformSleepUntil(lastTime_ + period);
+}
+
+void Engine::setVsync(bool on)
+{
+    settings_.vsync_ = on;
+    renderer_->setVsync(on);
 }
 
 void Engine::updateFpsTitle()

@@ -100,6 +100,9 @@ struct AssetManager
     }
 
     template <typename T>
+    bool unload(AssetHandle<T> key);
+
+    template <typename T>
     AssetSlotMap<T>* getSlotMap()
     {
         return std::get<AssetSlotMap<T>*>(maps_);
@@ -139,5 +142,8 @@ struct AssetManager
     std::tuple<AssetSlotMap<Mesh>*, AssetSlotMap<Texture>*> maps_{};
     std::tuple<AssetGPUArena<Material>*> gpuArenas_{};
 };
+
+template <>
+bool AssetManager::unload<Mesh>(AssetHandle<Mesh> key);
 
 }  // namespace batap

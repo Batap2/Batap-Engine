@@ -19,6 +19,7 @@ inline bool isBuiltinAsset(std::string_view path)
 }
 
 struct Engine;
+struct AssetManager;
 
 // Loads an asset from disk into memory and registers it in the AssetManager.
 // Supported formats:
@@ -27,9 +28,22 @@ struct Engine;
 //   .btex               → Texture (descriptor file)
 //   .png / .jpg / .jpeg → Texture (raw image)
 // Returns nullopt if the format is unsupported or loading fails.
+// Game code reaches the AssetManager through World::assets(), never the Engine.
+std::optional<AssetHandleAny> loadAsset(std::string_view path, AssetManager& assets);
 std::optional<AssetHandleAny> loadAsset(std::string_view path, const Engine& ctx);
 
 // Null handle if loading fails or the file is not a T.
+template <class T>
+AssetHandle<T> loadAsset(std::string_view path, AssetManager& assets)
+{
+    auto any = loadAsset(path, assets);
+    if (!any)
+        return {};
+    if (auto* handle = std::get_if<AssetHandle<T>>(&*any))
+        return *handle;
+    return {};
+}
+
 template <class T>
 AssetHandle<T> loadAsset(std::string_view path, const Engine& ctx)
 {

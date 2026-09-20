@@ -1,10 +1,16 @@
 #include "PhysicsFieldTypes.h"
 
+#include "Assets/AssetLoader.h"
+#include "Assets/AssetManager.h"
+#include "Assets/Mesh.h"
 #include "Components/RigidBody_C.h"
+#include "Engine.h"
 #include "Reflection/ComponentRegistry.h"
 
 #include <nlohmann/json.hpp>
 
+#include <iostream>
+#include <string>
 #include <vector>
 
 namespace batap
@@ -24,7 +30,8 @@ v3f vecFromJson(const nlohmann::json& in, const v3f& fallback)
     return v3f{in[0].get<float>(), in[1].get<float>(), in[2].get<float>()};
 }
 
-nlohmann::json shapeToJson(const Shape& s)
+// The mesh travels as its asset path, like Mesh_C does (AssetFieldTypes).
+nlohmann::json shapeToJson(const Shape& s, const Engine& ctx)
 {
     nlohmann::json j;
     j["kind"] = static_cast<uint32_t>(s.kind_);
@@ -33,10 +40,12 @@ nlohmann::json shapeToJson(const Shape& s)
     j["halfHeight"] = s.halfHeight_;
     j["localPos"] = vecToJson(s.localPos_);
     j["localRotDeg"] = vecToJson(s.localRotDeg_);
+    const std::string* mesh = s.mesh_ ? ctx.assetManager_->getPath(s.mesh_) : nullptr;
+    j["mesh"] = mesh ? nlohmann::json(*mesh) : nlohmann::json(nullptr);
     return j;
 }
 
-Shape shapeFromJson(const nlohmann::json& j)
+Shape shapeFromJson(const nlohmann::json& j, const Engine& ctx)
 {
     Shape s;
     if (!j.is_object())
@@ -53,6 +62,14 @@ Shape shapeFromJson(const nlohmann::json& j)
         s.localPos_ = vecFromJson(j["localPos"], s.localPos_);
     if (j.contains("localRotDeg"))
         s.localRotDeg_ = vecFromJson(j["localRotDeg"], s.localRotDeg_);
+    if (j.contains("mesh") && j["mesh"].is_string())
+    {
+        const std::string path = j["mesh"].get<std::string>();
+        const auto found = ctx.assetManager_->getHandle<Mesh>(path);
+        s.mesh_ = found ? *found : loadAsset<Mesh>(path, ctx);
+        if (!s.mesh_)
+            std::cerr << "[PhysicsFieldTypes] mesh collider non résolu : " << path << "\n";
+    }
     return s;
 }
 
@@ -65,14 +82,14 @@ void registerPhysicsFieldTypes()
     auto& slot = fieldTypeSlot<Shapes>();
     slot.typeName = "Shape[]";
 
-    slot.toJson = [](const void* f, nlohmann::json& out, const Engine&)
+    slot.toJson = [](const void* f, nlohmann::json& out, const Engine& ctx)
     {
         out = nlohmann::json::array();
         for (const Shape& s : *static_cast<const Shapes*>(f))
-            out.push_back(shapeToJson(s));
+            out.push_back(shapeToJson(s, ctx));
     };
 
-    slot.fromJson = [](void* f, const nlohmann::json& in, const Engine&)
+    slot.fromJson = [](void* f, const nlohmann::json& in, const Engine& ctx)
     {
         auto& shapes = *static_cast<Shapes*>(f);
         shapes.clear();
@@ -80,7 +97,7 @@ void registerPhysicsFieldTypes()
             return;
         shapes.reserve(in.size());
         for (const auto& j : in)
-            shapes.push_back(shapeFromJson(j));
+            shapes.push_back(shapeFromJson(j, ctx));
     };
 }
 

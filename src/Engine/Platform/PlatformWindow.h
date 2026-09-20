@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,9 @@ bool platformIsWindowMaximized(void* nativeHandle);
 
 // False once the window asked to close.
 bool platformPumpMessages();
+
+// Precise: a plain sleep rounds to the scheduler tick (15.6 ms on Windows).
+void platformSleepUntil(std::chrono::steady_clock::time_point target);
 
 // Path resolution must never depend on the working directory: it changes
 // with how the app is launched (double-click, terminal, debugger).

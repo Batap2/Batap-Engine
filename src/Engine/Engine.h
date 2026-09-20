@@ -25,6 +25,12 @@ struct WindowDesc
     bool        transparent = false;
 };
 
+struct EngineSettings
+{
+    uint32_t maxFps_ = 0;
+    bool vsync_ = false;
+};
+
 struct Frame
 {
     Frame(const Frame&)            = delete;
@@ -69,6 +75,11 @@ struct Engine
     std::unique_ptr<DebugDraw> debugOverlay_;
     std::unique_ptr<Billboards> billboards_;
 
+    const EngineSettings& settings() const { return settings_; }
+    // 0 = uncapped. CPU sleep
+    void setMaxFps(uint32_t fps) { settings_.maxFps_ = fps; }
+    void setVsync(bool on);
+
     float deltaTime_ = 0;
 
     // Read by the Win32 hit test to know what drags the window.
@@ -79,11 +90,13 @@ struct Engine
    private:
     friend struct Frame;  // ~Frame calls endFrame()
 
+    void limitFrameRate();
     void beginFrame();
     void endFrame();
     void updateFpsTitle();
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> lastTime_;
+    EngineSettings settings_;
+    std::chrono::steady_clock::time_point lastTime_;
 
     void* window_ = nullptr;
     std::string title_;

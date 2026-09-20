@@ -44,6 +44,7 @@ struct World
     void update(Game& game);
 
     InputManager& input();
+    AssetManager& assets();
     DebugDraw& debug();
     DebugDraw& debugOverlay();
     Billboards& billboards();

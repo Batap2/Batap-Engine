@@ -98,10 +98,13 @@ bool VulkanSwapchain::createSwapchain()
     { return std::find(presentModes.begin(), presentModes.end(), m) != presentModes.end(); };
 
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    if (hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR))
-        presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-    else if (hasMode(VK_PRESENT_MODE_MAILBOX_KHR))
-        presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+    if (!vsync_)
+    {
+        if (hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR))
+            presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+        else if (hasMode(VK_PRESENT_MODE_MAILBOX_KHR))
+            presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+    }
 
     // Transparence : c'est le driver qui décide ce que le compositeur sait
     // blender — on prend ce qu'il expose, sinon fenêtre opaque normale.
@@ -185,6 +188,14 @@ void VulkanSwapchain::recreate()
 {
     vkDeviceWaitIdle(ctx_.device_);
     createSwapchain();
+}
+
+void VulkanSwapchain::setVsync(bool on)
+{
+    if (on == vsync_)
+        return;
+    vsync_ = on;
+    recreate();
 }
 
 VulkanSwapchain::~VulkanSwapchain()

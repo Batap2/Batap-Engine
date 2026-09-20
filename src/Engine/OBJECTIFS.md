@@ -7,6 +7,9 @@ tout ça est fait ; l'historique détaillé vit dans git. Fil conducteur
 inchangé : réduire ce qu'un dev doit toucher, une seule source de vérité par
 concept.
 
+**Ajouté le 2026-09-20** : §6, les ombres — l'état de l'art est fait, la
+décision est prise, rien n'est commencé.
+
 ---
 
 ### 2b. Rendu — culling et binning
@@ -289,6 +292,190 @@ les shaders de matériau, sauf le jour où un matériau voudra de l'alpha test
 ou du déplacement de vertex — à ce moment-là le contrat gagne un
 `MaterialVertex`, pas avant.
 
+## 6. Ombres — cascades par lumière, occulteurs sphériques
+
+État des lieux (2026-09-20) : le moteur n'a aucune ombre. `PointLight_C` porte
+déjà `castShadows_`, uploadé dans `PointLightGPUData` et lu par personne. Ce
+qu'on appelle « ombre » est un seul nombre : la **visibilité** de la lumière
+depuis le point éclairé, qui multiplie le terme direct dans la boucle de
+`ShadeSurface`. Toute la section construit ce nombre, dans une fonction
+`ShadowVisibility` — et c'est le contrat : le jour où une autre technique la
+remplace, rien d'autre ne bouge.
+
+**Acté : shadow maps en cascades autour de la caméra pour toute lumière qui
+coche `castShadows_`, et occulteurs sphériques analytiques pour les casters
+hors de portée des cascades.** Le ray tracing matériel (`VK_KHR_ray_query`,
+inline dans le PS existant) donnerait le même résultat exact au pixel, en une
+trentaine de lignes de shader, sans biais ni cascades, pour 0,3 à 0,6 ms en
+1440p — mais il impose une RTX 20 / RX 6000 / Arc en spec minimale, refusé pour
+le premier jeu. Il viendra comme **seconde implémentation** de la même fonction
+(voir « plus tard »), pas comme première. Écartés : les Virtual Shadow Maps et
+tout cache de casters statiques (une lumière qui bouge par rapport à ses casters
+invalide tout à chaque frame, et c'est le cas nominal d'un astre qui tourne),
+les volumes d'ombre au stencil (exacts au pixel, mais le volume d'un gros caster
+remplit l'écran et le fill rate s'effondre — plus personne ne les livre depuis
+Doom 3), les cartes filtrables VSM/EVSM/MSM (2 à 4× la mémoire, light bleeding,
+pour un rendu à ombres dures : le PCF est ce que tout le monde livre).
+
+**Ce qui rend la brique générique**, et c'est le seul écart au CSM des livres :
+la direction de projection est calculée **par cascade**, du centre de la sphère
+de la cascade vers la position de la lumière. Une lumière directionnelle est le
+cas où cette direction est constante ; une lumière ponctuelle lointaine s'en
+sert telle quelle. L'erreur est l'écart angulaire de la lumière à travers la
+cascade : à 10 km, une cascade de 10 m de rayon fait 0,06°, une de 1 km fait
+5,7° — un texel de décalage sur l'ombre d'une falaise de 20 m, dans la cascade
+la plus grossière. Une cascade dont la sphère contient la lumière, ou en est à
+moins de 4 rayons, se désactive (visibilité 1) : c'est la dégradation prévue,
+pas un cas d'erreur. Les lumières locales avec ombres (cube maps) sont une autre
+brique, non planifiée.
+
+Ce que le moteur n'a pas, et qui est partagé avec §4 : plusieurs scopes de
+rendu (§4.1) et des cibles produites par une passe, lues par leur index
+bindless (§4.2). Le prepass §4.3 n'est pas requis. Le coût CPU redouté en §2b
+ne mord pas : une cinquantaine de draws par cascade, quatre cascades.
+
+- [ ] **1. `sourceRadius_` et occulteurs sphériques** — indépendant du reste,
+      une demi-journée, et ça rend déjà les éclipses. `PointLight_C` gagne
+      `sourceRadius_` (rayon physique de l'émetteur, 0 = ponctuel ; Unreal dit
+      *Source Radius*) et `shadowDistance_` (portée des cascades) ;
+      `sourceRadius_` prend une des deux cases de `pad_` dans
+      `PointLightGPUData`, 48 octets inchangés. `ShadowSphere_C { float
+      radius_ = 0; }` sur une entité qui a un `Mesh_C` : 0 = la sphère
+      englobante de `localBounds_` sous `Transform_C::world()` (le calcul de
+      `Bounds_S::drawBounds`), une valeur = override. Pool
+      `ShadowSphereInstance` → `SphereOccluderGPUData { float3 center_; float
+      radius_; }`, binding `SphereOccludersBinding` du frame set, compteur dans
+      `DrawPush`. Dans la boucle des lumières, pour chaque occulteur qui ne
+      contient pas le point (`dS > R`, sinon un astre s'éteindrait lui-même :
+      son relief est dans sa propre sphère) :
+
+      ```hlsl
+      // Scatterer (KSP) : écart angulaire entre la lumière et l'occulteur,
+      // moins le rayon angulaire de l'occulteur, ramené en distance dans le
+      // plan de la source et comparé à son rayon → pénombre en smoothstep.
+      float3 L = light.pos_ - P;  float dL = length(L);  L /= dL;
+      float3 S = occ.center_ - P; float dS = length(S);  S /= dS;
+      float dd = dL * (asin(min(1, length(cross(L, S)))) - asin(min(1, occ.radius_ / dS)));
+      float w  = smoothstep(-1, 1, -dd / max(light.sourceRadius_, 1e-3));
+      w *= smoothstep(0, 0.2, dot(L, S));   // occulteur derrière le point : rien
+      vis *= 1 - w;
+      ```
+
+      Approximation lisse du recouvrement de deux disques ; l'aire exacte de la
+      lentille si l'œil réclame, pas avant. Vérifiable au nombre : occulteur de
+      rayon R à distance d sur l'axe de la lumière → 0 ; décalé angulairement
+      de plus de `R/d + sourceRadius/dL` → 1 ; monotone entre les deux.
+- [ ] **2. Cible de profondeur** — `createDepthTarget` dans `ResourceManager`,
+      jumeau du `createRenderTarget` de §4.2 : un mip, `D32_SFLOAT`,
+      `DEPTH_STENCIL_ATTACHMENT|SAMPLED`, slot bindless sur une vue à aspect
+      profondeur, taille fixe (pas de recréation au resize). Un **atlas** de
+      `ShadowAtlasSize = 4096` dans `EngineConfig.h`, quatre cascades de 2048²
+      en quadrants — une seule `Texture2D` dans la table bindless, ce que le
+      frame set « storage buffers uniquement » impose de toute façon. 64 Mo ;
+      `D16_UNORM` en fait 32 si ça pèse. Un `SamplerComparisonState` à un
+      nouveau binding du set bindless (`ShadowSamplerBinding = 2`) :
+      `compareEnable`, `LESS_OR_EQUAL`, clamp to border, bordure à 1 — hors de
+      l'atlas, c'est éclairé.
+- [ ] **3. Passe d'ombre** — `ShadowPass` dans `Passes/`, `ShadowVS.hlsl`
+      déclaré dans `ShaderCatalog.h` (VS seul, pas de PS, le seul stream
+      `Position`). Il lit `ShadowGPUData` (nouveau binding du frame set :
+      `viewProj_[4]`, sphère `center/radius` par cascade, `texelWorld_[4]`,
+      `atlasIndex_`, `cascadeCount_`) et l'index de cascade en push constant —
+      un champ nommé dans `DrawPush`, pas `cameraIndex_` détourné. Pipeline :
+      `depth(D32, write, LESS)`, `depthBiasEnable` avec le biais en état
+      dynamique (`vkCmdSetDepthBias`, constant + pente, réglables sans rebuild),
+      `depthClampEnable` pour le *pancaking* — la feature `depthClamp` se
+      demande dans `VulkanContext`, et en Vulkan elle désactive aussi le
+      clipping en Z, c'est exactement ce qu'on veut : un caster entre la lumière
+      et la cascade se plaque sur le plan proche au lieu de disparaître. Cull
+      back comme la géométrie, à revoir si acné. Une scope de rendu sur l'atlas
+      (`CLEAR` à 1, `STORE`), viewport et scissor par quadrant, et pour chaque
+      cascade **la même itération de `Mesh_C` que `GeometryPass::record`** —
+      factoriser la boucle de draws pour qu'elle serve aux deux, sinon un mesh
+      dessiné d'un côté et pas de l'autre est une ombre qui manque ou qui
+      flotte. Barrière `DepthAttachment → Sampled` avant la scope principale.
+- [ ] **4. Ajustement des cascades** — CPU, chaque frame, un `ShadowCascades.h`
+      à côté de `SkyIrradiance`. Découpes entre `znear_` et `shadowDistance_`
+      par le schéma pratique de PSSM (λ = 0,7 entre log et uniforme) ; par
+      tranche, la **sphère englobante des 8 coins** (Valient, ShaderX6) —
+      invariante à la rotation de la caméra ; direction = `normalize(light.pos
+      − center)` ; vue orthographique de côté `2r`, plan proche collé à la
+      sphère côté lumière, le pancaking fait le reste ; **snapping** : le centre
+      exprimé dans le repère de la lumière est arrondi au texel (`2r / 2048`)
+      avant de construire la matrice — sans ça chaque pas de caméra fait
+      grouiller les bords. Une seule lumière à cascades pour l'instant, la
+      première qui coche `castShadows_` ; N lumières = N atlas, plus tard.
+      Défauts pour 2 000 m de portée :
+
+      | cascade | portée | texel |
+      |---|---|---|
+      | 0 | 0 – 10 m | 1 cm |
+      | 1 | 10 – 50 m | 5 cm |
+      | 2 | 50 – 300 m | 30 cm |
+      | 3 | 300 – 2 000 m | 2 m |
+- [ ] **5. Lecture** — `Shadows.hlsli`, inclus par `Lighting.hlsli` :
+      `float ShadowVisibility(float3 P, float3 N, float3 L, PointLightGPUData
+      light)`. Cascade = la première dont la sphère contient P (le test de
+      distance remplace les splits en profondeur de vue, et c'est ce qui rend
+      le fondu possible : dans les 10 % extérieurs de la sphère, lerp avec la
+      suivante). **Biais par la normale** : `P += N · texelWorld · k · (1 −
+      NdotL)`, k ≈ 1,5, plus le biais de pente de la rastérisation — jamais le
+      biais par plan récepteur, désactivé chez The Witness, MJP et Scatterer
+      pour les mêmes cas dégénérés. Projection par `viewProj_`, UV dans le
+      quadrant, **PCF 3×3** en `SampleCmpLevelZero` (9 taps ; le 5×5 en 9 taps
+      de The Witness comme montée en gamme). Puis, comme §4.5 pour l'AO et
+      pour la raison inverse : la visibilité multiplie **le terme direct et lui
+      seul** — l'ambiant ne voit pas les ombres.
+- [ ] **6. Validation** — mesurée sur dump, jamais à l'œil :
+      1. tous les `castShadows_` à faux → image identique au pixel à
+         aujourd'hui ;
+      2. cube de 1 m à 1 m au-dessus d'un plan, lumière à 10 km sur l'axe →
+         aire assombrie = 1 m² projeté, à ± 5 % ;
+      3. caméra translatée d'un demi-texel, puis tournée sur place : zéro pixel
+         de bord d'ombre qui change entre les deux dumps ;
+      4. plan à 80° de la lumière : aucun pixel d'ombre parasite en son centre
+         (acné) ; caisse posée : l'ombre touche le pied (peter-panning) ;
+      5. quatre cascades sur la scène complète (270 k triangles) < 0,5 ms GPU,
+         timestamps ou Tracy.
+
+**Pièges** :
+- `setViewportYUp` pose un viewport de hauteur négative ; la passe d'ombre en
+  a un à elle par quadrant, et le signe de Y entre la matrice, l'atlas et la
+  lecture se vérifie sur une image, comme en §4.4.
+- `SampleCmp` sur la table bindless `Texture2D<float4>` : si dxc ou le
+  validateur SPIR-V refusent la comparaison sur une image non-depth, une table
+  `Texture2D<float>` à part, même modèle bindless.
+- Une lumière qui tourne fait **ramper la grille de texels** sur les surfaces :
+  le snapping ne fixe que les translations de caméra. C'est le lot de tout jeu
+  à cycle jour/nuit ; le PCF le lisse, rien ne l'annule.
+- **Terminateur d'ombre** : sur un mesh low-poly à normales lissées, la
+  normale interpolée ment sur la position et l'ombre se strie près du
+  terminateur — shadow maps et ray tracing pareil. Facettes (normales par
+  face), ou le hack de Hanika (*Ray Tracing Gems II*, ch. 4, 2021).
+- Le jour du ray tracing : **désactiver les occulteurs sphériques**, sinon
+  double ombre (dure par les rayons, douce par la formule).
+
+**Plus tard, pas maintenant** :
+- **Shadow map par objet** (CryEngine *Per Object Shadows*) : un frustum
+  ajusté à la sphère englobante d'un caster désigné, depuis la lumière. Pour
+  voir l'auto-ombrage d'un gros objet entier au loin — 60 cm par texel sur
+  600 m de rayon à 2048². Générique, en réserve si la vue lointaine le
+  réclame.
+- **Cube maps** pour les lumières locales (`castShadows_` sur une lampe à
+  10 m). Six faces en une passe par `VK_KHR_multiview`.
+- **Ray query** comme second corps de `ShadowVisibility` : extensions
+  `VK_KHR_acceleration_structure` + `VK_KHR_ray_query` (+
+  `deferred_host_operations`) via vk-bootstrap, deux flags d'usage sur les
+  buffers de mesh (`SHADER_DEVICE_ADDRESS`,
+  `ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY`), une BLAS par mesh à
+  l'upload, une TLAS reconstruite à chaque frame depuis les `world_` des
+  instances (jamais de refit — NVIDIA), un binding d'un nouveau type de
+  descripteur. Vérifié le 2026-09-20 : le dxc du SDK (1.4.357, dxc 1.9)
+  compile un `RayQuery` en `ps_6_6` vers du SPIR-V valide avec les flags
+  actuels du moteur. Mesuré ailleurs : 0,16 – 0,23 ms le rayon par pixel en
+  1080p sur une 2080 Ti, scène statique. Sans dénoiseur tant que les ombres
+  restent dures.
+
 ## 3. Restes
 
 - [ ] **Hot reload : snapshot binaire + hash de layout** (remplace le JSON) —
@@ -297,9 +484,23 @@ ou du déplacement de vertex — à ce moment-là le contrat gagne un
       restore memcpy, type modifié → migration champ-par-champ payée par ce
       type seul. Coût dominé par le link, indépendant de la taille de scène.
 - [ ] **`findByName`** — la seule requête qui reste côté moteur.
-- [ ] **Budget de staging par frame** — un débordement lève au lieu de
-      corrompre, mais une frame lourde (gros import) tue le process.
-      Allocateur de staging par blocs recyclés derrière une fence.
+- [x] **Budget de staging par frame** — fait, plus simple que l'allocateur par
+      blocs prévu : une requête qui ne tient pas dans ce qui reste du ring
+      reçoit un buffer de staging à elle (`oversizeStaging_`), que
+      `flushUploads` verse dans la file de destruction du slot une fois la
+      copie enregistrée — libéré derrière la même fence que le ring. Le
+      débordement ne lève plus ; les 64 Mo restent le chemin rapide.
+- [x] **Réglages live** (2026-09-20) — fait : un setter par réglage qui
+      applique sur place (`engine.setMaxFps()`, `engine.setVsync()`), l'état
+      se lit par `engine.settings()`. Acté : pas de scrutation par frame, un
+      réglage qui demande une action la fait dans son setter, un réglage
+      paramètre est lu là où il sert. `maxFps_` : sommeil précis avant le pump des messages
+      (`platformSleepUntil` — timer haute résolution puis spin 1 ms ; mesuré
+      +1,5 µs de moyenne, p99 +78 µs, 0,73 ms de CPU par frame ; un
+      `sleep_until` nu se trompe de +9,7 ms). `vsync_` : swapchain recréé en
+      FIFO. Acté : ni UI, ni JSON, ni réflexion pour l'instant — à la main
+      quand le menu options arrivera ; la réflexion ne paie qu'au-delà d'une
+      dizaine de champs et son `drawUI` est nul dans le build jeu.
 
 ---
 

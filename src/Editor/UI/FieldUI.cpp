@@ -41,6 +41,8 @@ const char* kindName(Shape::Kind k)
             return "Sphere";
         case Shape::Kind::Capsule:
             return "Capsule";
+        case Shape::Kind::Mesh:
+            return "Mesh";
         case Shape::Kind::Box:
             break;
     }
@@ -132,7 +134,7 @@ void installFieldUI()
         });
 
     set<std::vector<Shape>>(
-        [](void* p, const Field&, FieldUIContext&)
+        [](void* p, const Field&, FieldUIContext& fieldCtx)
         {
             auto& shapes = *static_cast<std::vector<Shape>*>(p);
             bool changed = false;
@@ -163,7 +165,7 @@ void installFieldUI()
 
                 int kind = static_cast<int>(s.kind_);
                 ImGui::SetNextItemWidth(-1.0f);
-                if (ImGui::Combo("##kind", &kind, "Box\0Sphere\0Capsule\0"))
+                if (ImGui::Combo("##kind", &kind, "Box\0Sphere\0Capsule\0Mesh\0"))
                 {
                     s.kind_ = static_cast<Shape::Kind>(kind);
                     changed = true;
@@ -185,6 +187,15 @@ void installFieldUI()
                         changed |= ImGui::DragFloat("Half height", &s.halfHeight_, 0.01f, 0.001f,
                                                     10000.f);
                         break;
+                    case Shape::Kind::Mesh:
+                    {
+                        const std::string* path =
+                            s.mesh_ && fieldCtx.app_ && fieldCtx.app_->assetManager_
+                                ? fieldCtx.app_->assetManager_->getPath(s.mesh_)
+                                : nullptr;
+                        ImGui::TextDisabled("%s", path ? path->c_str() : "(no mesh)");
+                        break;
+                    }
                 }
 
                 changed |= ImGui::DragFloat3("Offset", s.localPos_.data(), 0.01f);
