@@ -8,7 +8,11 @@ inchangé : réduire ce qu'un dev doit toucher, une seule source de vérité par
 concept.
 
 **Ajouté le 2026-09-20** : §6, les ombres — l'état de l'art est fait, la
-décision est prise, rien n'est commencé.
+décision est prise.
+
+**2026-09-21** : §6.1 réécrit (formulation angulaire, partition avec les
+cascades, marqueur additif, extension capsule chiffrée), §6.4 corrigé, §6.7
+ajouté. §6.1 est **en cours**, le reste n'est pas commencé.
 
 ---
 
@@ -309,7 +313,16 @@ inline dans le PS existant) donnerait le même résultat exact au pixel, en une
 trentaine de lignes de shader, sans biais ni cascades, pour 0,3 à 0,6 ms en
 1440p — mais il impose une RTX 20 / RX 6000 / Arc en spec minimale, refusé pour
 le premier jeu. Il viendra comme **seconde implémentation** de la même fonction
-(voir « plus tard »), pas comme première. Écartés : les Virtual Shadow Maps et
+(voir « plus tard »), pas comme première.
+
+*Arbitrage réexaminé le 2026-09-21, décision inchangée, mais le raisonnement
+manquait une ligne : le ray query est **moins de travail total** que les
+cascades — ~30 lignes de shader et une TLAS reconstruite par frame contre
+atlas, cible profondeur, passe, depth clamp, viewports par quadrant, ajustement
+CPU des cascades, snapping, biais par cascade, PCF et fondu ; et il rendrait
+§6.1 inutile par-dessus le marché. Le seul argument contre reste la spec
+minimale, qui est une décision de marché, pas de rendu. À rejouer sur la part
+réelle de parc capable de RT, pas de mémoire.* Écartés : les Virtual Shadow Maps et
 tout cache de casters statiques (une lumière qui bouge par rapport à ses casters
 invalide tout à chaque frame, et c'est le cas nominal d'un astre qui tourne),
 les volumes d'ombre au stencil (exacts au pixel, mais le volume d'un gros caster
@@ -335,36 +348,98 @@ bindless (§4.2). Le prepass §4.3 n'est pas requis. Le coût CPU redouté en §
 ne mord pas : une cinquantaine de draws par cascade, quatre cascades.
 
 - [ ] **1. `sourceRadius_` et occulteurs sphériques** — indépendant du reste,
-      une demi-journée, et ça rend déjà les éclipses. `PointLight_C` gagne
-      `sourceRadius_` (rayon physique de l'émetteur, 0 = ponctuel ; Unreal dit
-      *Source Radius*) et `shadowDistance_` (portée des cascades) ;
-      `sourceRadius_` prend une des deux cases de `pad_` dans
-      `PointLightGPUData`, 48 octets inchangés. `ShadowSphere_C { float
-      radius_ = 0; }` sur une entité qui a un `Mesh_C` : 0 = la sphère
-      englobante de `localBounds_` sous `Transform_C::world()` (le calcul de
-      `Bounds_S::drawBounds`), une valeur = override. Pool
-      `ShadowSphereInstance` → `SphereOccluderGPUData { float3 center_; float
-      radius_; }`, binding `SphereOccludersBinding` du frame set, compteur dans
-      `DrawPush`. Dans la boucle des lumières, pour chaque occulteur qui ne
-      contient pas le point (`dS > R`, sinon un astre s'éteindrait lui-même :
-      son relief est dans sa propre sphère) :
+      une demi-journée, et ça rend déjà les éclipses. C'est le **second corps de
+      `ShadowVisibility`**, pas une fonctionnalité à part : les cascades tiennent
+      0 – `shadowDistance_`, les occulteurs tiennent au-delà, et les deux
+      **partitionnent** l'espace au lieu de se superposer.
+
+      `PointLight_C` gagne `sourceRadius_` (rayon physique de l'émetteur, 0 =
+      ponctuel ; Unreal dit *Source Radius*) et `shadowDistance_` (portée des
+      cascades) : les deux prennent les deux cases de `pad_` de
+      `PointLightGPUData`, 48 octets inchangés. `ShadowSphere_C { float radius_
+      = 0; }` sur une entité qui a un `Mesh_C` : 0 = la sphère englobante du
+      mesh, une valeur = override. Pool `ShadowSphereInstance` →
+      `SphereOccluderGPUData { float3 center_; float radius_; }`, binding
+      `SphereOccludersBinding` du frame set, compteur dans `DrawPush`.
+
+      **Le rayon dérivé est `halfSize().maxCoeff()` de l'AABB transformée, pas
+      `.norm()`** — la norme est la sphère autour de la boîte autour de la
+      sphère, √3 fois trop grande, soit une éclipse 73 % trop longue. `maxCoeff`
+      est exact sur un mesh rond et sous-estime sur un mesh allongé : assumé,
+      les occulteurs sont des astres. C'est cette valeur qui donne le relief
+      au-dessus de `radius_` dont parle §8.9 du jeu — mesuré à **11,3 %** par
+      `SpaceFret_PlanetCheck` (`r/R max` = 1,1130 au niveau 7), pas les 7 % qui
+      y sont écrits.
+
+      **Formulation angulaire**, et c'est ce qui rend la brique générique : la
+      lumière n'entre pas par sa position mais par son **rayon angulaire**,
+      `asin(sourceRadius_ / dL)` pour une lumière positionnelle, un champ direct
+      le jour où une directionnelle existe. Le test devient la comparaison de
+      deux angles, et une spot, une sphere light ou une directionnelle tombent
+      dedans sans toucher au code.
 
       ```hlsl
-      // Scatterer (KSP) : écart angulaire entre la lumière et l'occulteur,
-      // moins le rayon angulaire de l'occulteur, ramené en distance dans le
-      // plan de la source et comparé à son rayon → pénombre en smoothstep.
+      // Scatterer (KSP), réécrit en angulaire. sep = écart angulaire entre la
+      // lumière et l'occulteur ; rO, rL = leurs rayons angulaires.
       float3 L = light.pos_ - P;  float dL = length(L);  L /= dL;
       float3 S = occ.center_ - P; float dS = length(S);  S /= dS;
-      float dd = dL * (asin(min(1, length(cross(L, S)))) - asin(min(1, occ.radius_ / dS)));
-      float w  = smoothstep(-1, 1, -dd / max(light.sourceRadius_, 1e-3));
-      w *= smoothstep(0, 0.2, dot(L, S));   // occulteur derrière le point : rien
-      vis *= 1 - w;
+      if (dS <= occ.radius_)  continue;   // le point est DANS l'occulteur
+      if (dot(L, S) <= 0)     continue;   // occulteur derrière le point
+      // partition : ce que les cascades couvrent ne passe pas par ici
+      if (length(occ.center_ - cam.pos_) + occ.radius_ < light.shadowDistance_) continue;
+      float sep = acos(clamp(dot(L, S), -1, 1));
+      float rO  = asin(clamp(occ.radius_ / dS, 0, 1));
+      float rL  = asin(clamp(light.sourceRadius_ / dL, 0, 1));
+      vis *= smoothstep(-rL, rL, sep - rO);   // 0 au centre de l'ombre, 1 dehors
       ```
 
-      Approximation lisse du recouvrement de deux disques ; l'aire exacte de la
-      lentille si l'œil réclame, pas avant. Vérifiable au nombre : occulteur de
-      rayon R à distance d sur l'axe de la lumière → 0 ; décalé angulairement
-      de plus de `R/d + sourceRadius/dL` → 1 ; monotone entre les deux.
+      **La partition se teste dans le shader, pas au CPU** — contrairement à ce
+      qu'on voudrait : `fill()` ne voit pas la caméra (`AccessOf<Uses>` donne des
+      composants, pas la vue) et l'appartenance à un pool suit la présence d'un
+      composant, jamais un prédicat par frame. Le test est scalaire, uniforme sur
+      l'écran, trois occulteurs dans le buffer : le coût est nul, et c'est plus
+      juste qu'un cull CPU qui trancherait par caméra au lieu de par point ombré.
+
+      **`ShadowSphere_C` est un marqueur *additif*, et c'est une brique générique
+      qui manque au moteur** — pas un détail de cette section.
+      `InstanceManager.h:232` suppose un aspect de rendu par entité et
+      `InspectorPanel.cpp:373` exclut les marqueurs de « Add component » : tel
+      quel, `ShadowSphere_C` ne serait ni ajoutable à un astre qui porte déjà
+      `Mesh_C`, ni retirable. Le mécanisme, lui, marche déjà — les hooks sont par
+      marqueur et `markDirty` teste `pool.contains(handle)` pool par pool. Donc
+      un `static constexpr bool Additive = true;` sur l'instance, et
+      `markerComponentMask()` ne retient que les marqueurs exclusifs. Dix lignes,
+      et c'est ce dont le pool de capsules, les décalques et tout second aspect
+      auront besoin.
+
+      Vérifiable au nombre : occulteur de rayon R à distance d sur l'axe de la
+      lumière → 0 ; décalé angulairement de plus de `R/d + sourceRadius/dL` → 1 ;
+      monotone entre les deux ; un occulteur entièrement contenu dans
+      `shadowDistance_` autour de la caméra n'assombrit rien du tout.
+
+      **Limites assumées** : les occulteurs se **multiplient** (`vis *= …`), donc
+      deux qui se recouvrent sur le disque de la source sur-assombrissent — deux
+      moitiés superposées donnent 75 % au lieu de 50 %. Invisible sur un double
+      transit, faux ailleurs. Et le `smoothstep` reste une approximation de
+      l'aire de la lentille d'intersection de deux disques ; l'aire exacte est
+      deux `acos` et une racine, à sortir seulement si le dégradé se voit faux.
+
+      **Extension prévue : la capsule.** La sphère est le seul solide dont la
+      silhouette est un disque depuis n'importe où — c'est ça qu'on achète, pas
+      la simplicité. Le critère qui dit quand elle ne suffit plus est chiffré :
+      **le détail de silhouette ne compte que s'il dépasse la largeur de la
+      pénombre**, soit 8 cm par mètre de distance caster → receveur (le diamètre
+      angulaire de 4,6° de l'étoile). Un astre à 3 km du sol qu'il ombre :
+      pénombre de 240 m ; la sphère reste exacte à l'observable tant que le
+      relief reste sous la pénombre, soit `f · radius_ < 0,08 · d` — avec les
+      11,3 % mesurés et 3 km de distance, `radius_ < 2,1 km`. Le seuil suit les
+      réglages du générateur, donc c'est la formule qui compte, pas le nombre. Un personnage de 1,7 m : pénombre
+      de 14 cm, une sphère englobante se trompe d'un mètre — sept fois la
+      pénombre, d'où les capsules d'Unreal riggées sur le squelette. Même pool,
+      même boucle, « distance au centre » devient « distance au segment ».
+      Au-delà, on quitte la famille analytique : une boîte ou un convexe
+      quelconque n'ont pas de forme close par pixel, et le seul vrai généraliste
+      est le cone tracing dans un SDF — un autre étage de technique.
 - [ ] **2. Cible de profondeur** — `createDepthTarget` dans `ResourceManager`,
       jumeau du `createRenderTarget` de §4.2 : un mip, `D32_SFLOAT`,
       `DEPTH_STENCIL_ATTACHMENT|SAMPLED`, slot bindless sur une vue à aspect
@@ -395,8 +470,12 @@ ne mord pas : une cinquantaine de draws par cascade, quatre cascades.
       dessiné d'un côté et pas de l'autre est une ombre qui manque ou qui
       flotte. Barrière `DepthAttachment → Sampled` avant la scope principale.
 - [ ] **4. Ajustement des cascades** — CPU, chaque frame, un `ShadowCascades.h`
-      à côté de `SkyIrradiance`. Découpes entre `znear_` et `shadowDistance_`
-      par le schéma pratique de PSSM (λ = 0,7 entre log et uniforme) ; par
+      à côté de `SkyIrradiance`. Découpes entre un plan proche **remonté à
+      ~1,6 m** et `shadowDistance_`, en **log pur** — et non le λ = 0,7 de PSSM
+      qui traînait ici : avec `znear_` à 0,1 m il donnerait 151 / 310 / 568 /
+      2 000 m, rien à voir avec la table ci-dessous. C'est la table qui a
+      raison, et personne ne dépense une cascade sur les dix premiers
+      centimètres devant l'œil. Par
       tranche, la **sphère englobante des 8 coins** (Valient, ShaderX6) —
       invariante à la rotation de la caméra ; direction = `normalize(light.pos
       − center)` ; vue orthographique de côté `2r`, plan proche collé à la
@@ -438,6 +517,17 @@ ne mord pas : une cinquantaine de draws par cascade, quatre cascades.
       5. quatre cascades sur la scène complète (270 k triangles) < 0,5 ms GPU,
          timestamps ou Tracy.
 
+- [ ] **7. Contact shadows en espace écran** — un court ray march dans le
+      buffer de profondeur, 8 à 16 pas sur ~1 m, qui rattrape exactement le
+      détail que cascade 0 rate et que le biais détruit : le pied de la caisse,
+      le contact des pneus du buggy, les petites pièces de la fusée. C'est la
+      réponse au **peter-panning**, le seul défaut de la liste qui reste un
+      arbitrage plutôt qu'un correctif. 0,1 à 0,3 ms, aucun coût en spec
+      minimale, et ça multiplie le même terme direct que `ShadowVisibility`.
+      **Gratuit en plomberie** : il lit la profondeur pleine scène, donc il
+      arrive avec le prepass de §4.3 que l'AO réclame déjà — donc après §4.3,
+      pas avant.
+
 **Pièges** :
 - `setViewportYUp` pose un viewport de hauteur négative ; la passe d'ombre en
   a un à elle par quadrant, et le signe de Y entre la matrice, l'atlas et la
@@ -452,8 +542,10 @@ ne mord pas : une cinquantaine de draws par cascade, quatre cascades.
   normale interpolée ment sur la position et l'ombre se strie près du
   terminateur — shadow maps et ray tracing pareil. Facettes (normales par
   face), ou le hack de Hanika (*Ray Tracing Gems II*, ch. 4, 2021).
-- Le jour du ray tracing : **désactiver les occulteurs sphériques**, sinon
-  double ombre (dure par les rayons, douce par la formule).
+- **Double ombre** : un occulteur sphérique et une cascade qui couvrent le même
+  caster l'ombrent deux fois. C'est la partition de §6.1 qui l'empêche, pas une
+  vigilance — et le jour du ray tracing, les occulteurs se désactivent en
+  entier, sinon dure par les rayons et douce par la formule.
 
 **Plus tard, pas maintenant** :
 - **Shadow map par objet** (CryEngine *Per Object Shadows*) : un frustum

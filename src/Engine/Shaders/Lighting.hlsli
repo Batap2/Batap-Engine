@@ -11,6 +11,8 @@ StructuredBuffer<PointLightGPUData> PointLightBuffer;
 StructuredBuffer<Material> MaterialBuffer;
 [[vk::binding(SkyboxBinding, FrameSet)]]
 StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
+[[vk::binding(SphereOccludersBinding, FrameSet)]]
+StructuredBuffer<SphereOccluderGPUData> SphereOccluderBuffer;
 
 [[vk::binding(SamplerBinding, BindlessSet)]]  SamplerState      g_sampler;
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
@@ -90,6 +92,55 @@ float3 F_Schlick(float HdotV, float3 F0)
     return F0 + (1.0f - F0) * pow(saturate(1.0f - HdotV), 5.0f);
 }
 
+// The light's visibility from P, multiplying the direct term only. Cascades go
+// inside this function when they arrive, not beside it. Current body: the far
+// field, through analytic sphere occluders. The test is angular, so a spot or a
+// directional would fit as-is; only rL would be obtained differently.
+float ShadowVisibility(float3 P, float3 L, float dL, PointLightGPUData light, float3 camPos)
+{
+    if (light.castShadows_ == 0)
+        return 1.0f;
+
+    // The floor keeps smoothstep defined when sourceRadius_ is 0, where the
+    // transition collapses to a hard step.
+    float rL = max(asin(clamp(light.sourceRadius_ / max(dL, 1e-4f), 0.0f, 1.0f)), 1e-5f);
+
+    float vis = 1.0f;
+
+    [loop]
+    for (uint i = 0; i < g_draw.sphereOccluderCount_; ++i)
+    {
+        SphereOccluderGPUData occ = SphereOccluderBuffer[i];
+        if (occ.radius_ <= 0.0f)
+            continue;
+
+        // What the cascades cover does not come through here, or the caster
+        // would be shadowed twice.
+        if (length(occ.center_ - camPos) + occ.radius_ < light.shadowDistance_)
+            continue;
+
+        float3 S  = occ.center_ - P;
+        float  dS = length(S);
+        if (dS <= occ.radius_)  // inside the occluder: its own relief must not
+            continue;           // put it out
+        S /= dS;
+
+        float cosSep = dot(L, S);
+        if (cosSep <= 0.0f)     // occluder behind the point: nothing
+            continue;
+
+        // Overlap of two discs on the sphere of directions.
+        float sep = acos(clamp(cosSep, -1.0f, 1.0f));
+        float rO  = asin(clamp(occ.radius_ / dS, 0.0f, 1.0f));
+
+        // Independent by assumption: two occluders overlapping on the source's
+        // disc over-darken. Invisible on a double transit, wrong elsewhere.
+        vis *= smoothstep(-rL, rL, sep - rO);
+    }
+
+    return vis;
+}
+
 struct Surface
 {
     float3 albedo_;
@@ -140,6 +191,11 @@ float3 ShadeSurface(uint shadingModel, Surface s)
             continue;
 
         float3 L = toLight / dist;
+
+        float shadow = ShadowVisibility(s.posWS_, L, dist, light, cam.pos_);
+        if (shadow <= 0.0f)
+            continue;
+
         float3 H = normalize(V + L);
 
         float rangeAtt   = saturate(1.0f - dist / light.radius_);
@@ -161,7 +217,8 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         float3 kD_light = (1.0f - F) * (1.0f - s.metallic_);
         float3 diffuse = kD_light * s.albedo_ / PI;
 
-        color += (diffuse + specular) * radiance * NdotL;
+        // Direct term only: the ambient does not see shadows.
+        color += (diffuse + specular) * radiance * NdotL * shadow;
     }
 
     return color;

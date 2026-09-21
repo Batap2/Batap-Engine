@@ -27,6 +27,7 @@
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/ShadowSphere_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "EigenTypes.h"
@@ -194,6 +195,8 @@ struct PointLightInstance
         out.radius_ = light.radius_;
         out.falloff_ = light.falloff_;
         out.castShadows_ = static_cast<uint32_t>(light.castShadows_);
+        out.sourceRadius_ = light.sourceRadius_;
+        out.shadowDistance_ = light.shadowDistance_;
     }
 };
 
@@ -239,10 +242,57 @@ struct SkyboxInstance
     }
 };
 
+struct ShadowSphereInstance
+{
+    using GPUData = SphereOccluderGPUData;
+    using Uses = TypeList<ShadowSphere_C, Mesh_C, Transform_C>;
+    static constexpr uint32_t Binding = SphereOccludersBinding;
+    static constexpr size_t InitialCapacity = 8;
+    static constexpr uint32_t DrawPush::* CountField = &DrawPush::sphereOccluderCount_;
+
+    // Rides on an entity that already has an aspect instead of defining one,
+    // so the inspector treats it as an ordinary component. Nothing else needs
+    // changing: hooks are per marker and markDirty tests pool.contains() pool
+    // by pool, so two memberships already coexist.
+    static constexpr bool Additive = true;
+
+    static void fill(AccessOf<Uses> in, GPUData& out)
+    {
+        // Inert until proven otherwise: the shader skips a zero radius.
+        out.radius_ = 0.f;
+
+        auto* trans = in.get<Transform_C>();
+        if (!trans)
+            return;
+
+        const auto world = trans->world();
+        store(out.center_, world.translation());
+
+        if (const float radiusOverride = in.marker().radius_; radiusOverride > 0.f)
+        {
+            out.radius_ = radiusOverride;
+            return;
+        }
+
+        auto* meshC = in.get<Mesh_C>();
+        if (!meshC || !meshC->mesh_)
+            return;
+
+        const Mesh* mesh = in.ctx.assetManager_->get(meshC->mesh_);
+        if (!mesh || !mesh->localBounds_.valid())
+            return;
+
+        const AABB bounds = mesh->localBounds_.transformed(world);
+        store(out.center_, bounds.center());
+
+        out.radius_ = bounds.halfSize().maxCoeff();
+    }
+};
+
 // ----------- GPUInstances : the one list the plumbing reads -----------------
 
-using GPUInstances =
-    TypeList<StaticMeshInstance, CameraInstance, PointLightInstance, SkyboxInstance>;
+using GPUInstances = TypeList<StaticMeshInstance, CameraInstance, PointLightInstance,
+                              SkyboxInstance, ShadowSphereInstance>;
 
 // What the plumbing assumes of an instance, checked where it is declared
 // rather than deep in a pool instantiation.
@@ -282,16 +332,32 @@ ComponentMask usedComponentMask()
     return detail::maskOfList(static_cast<typename Instance::Uses*>(nullptr));
 }
 
-// The components whose presence defines an entity's rendering aspect — one
-// per pool. GPUInstanceManager assumes at most one per entity (two markers =
-// two pools), so a UI offering components to add must exclude these; the
-// entity's aspect is chosen at spawn (Spawnable.h), not amended after.
+// An instance may declare Additive: its marker adds a pool to an entity that
+// already has an aspect, instead of being that aspect. ShadowSphere_C is one —
+// it rides on a mesh. The pools were always independent (hooks per marker,
+// markDirty testing pool.contains one by one); what Additive changes is only
+// whether the UI reads the marker as the entity's kind.
+template <class Instance>
+constexpr bool isAdditiveInstance()
+{
+    if constexpr (requires { Instance::Additive; })
+        return Instance::Additive;
+    else
+        return false;
+}
+
+// The components whose presence defines an entity's rendering *aspect* — at
+// most one per entity, chosen at spawn (Spawnable.h) and not amended after, so
+// a UI offering components to add must exclude these. Additive markers are not
+// aspects and stay out of the mask: they are added and removed like any other
+// component.
 namespace detail
 {
 template <class... Is>
 ComponentMask markerMaskOfList(TypeList<Is...>*)
 {
-    return (ComponentMask{0} | ... | componentMask<MarkerOf<Is>>());
+    return (ComponentMask{0} | ... |
+            (isAdditiveInstance<Is>() ? ComponentMask{0} : componentMask<MarkerOf<Is>>()));
 }
 }  // namespace detail
 

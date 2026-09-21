@@ -43,7 +43,8 @@ enum FrameSetBinding : uint
     DebugShapeVertsBinding = 5,
     DebugShapesBinding = 6,
     BillboardsBinding = 7,
-    FrameSetBindingCount = 8,
+    SphereOccludersBinding = 8,
+    FrameSetBindingCount = 9,
 };
 
 enum ShadingModel : uint
@@ -58,10 +59,14 @@ struct CameraGPUData
 {
     float4x4 view_;
     float4x4 proj_;
-    float3 pos_;   float znear_;
-    float3 right_; float zfar_;
-    float3 up_;    float fov_;
-    float3 fwd_;   float pad_;
+    float3 pos_;
+    float znear_;
+    float3 right_;
+    float zfar_;
+    float3 up_;
+    float fov_;
+    float3 fwd_;
+    float pad_;
 };
 
 struct StaticMeshGPUData
@@ -72,11 +77,20 @@ struct StaticMeshGPUData
 
 struct PointLightGPUData
 {
-    float3 pos_;   float intensity_;
-    float3 color_; float radius_;
+    float3 pos_;
+    float intensity_;
+    float3 color_;
+    float radius_;
     float falloff_;
     uint castShadows_;
-    float pad_[2];
+    float sourceRadius_;    // 0 = a point light: penumbras of zero width
+    float shadowDistance_;  // cascade range; occluders take over beyond it
+};
+
+struct SphereOccluderGPUData
+{
+    float3 center_;
+    float radius_;
 };
 
 // Also the material asset: it is uploaded to its arena as-is.
@@ -95,8 +109,8 @@ struct Material
 
 struct SkyboxGPUData
 {
-    float4 sh[9];  // SH L2 irradiance, already scaled by intensity
-    uint mode;     // 0 = HDRI, 1 = FlatColor, 2 = Gradient
+    float4 sh[9];        // SH L2 irradiance, already scaled by intensity
+    uint mode;           // 0 = HDRI, 1 = FlatColor, 2 = Gradient
     uint bindlessIndex;  // HDRI texture
     uint mipCount;
     float intensity;
@@ -111,7 +125,8 @@ struct SkyboxGPUData
 // wireframe under a matrix, so nothing is tessellated per frame.
 struct DebugVertexGPUData
 {
-    float3 pos_; float pad_;
+    float3 pos_;
+    float pad_;
 };
 
 struct DebugShapeGPUData
@@ -122,13 +137,14 @@ struct DebugShapeGPUData
 
 struct BillboardGPUData
 {
-    float3 pos_;  float sizeX_;
+    float3 pos_;
+    float sizeX_;
     float4 tint_;
     float4 rot_;  // only read when BillboardFixed
     float sizeY_;
     uint materialIdx_;
     uint textureIdx_;  // overrides the material albedo map when valid
-    uint flags_;  // bit 0: size is a fraction of screen height, bit 1: Y-locked, bit 2: fixed
+    uint flags_;       // bit 0: size is a fraction of screen height, bit 1: Y-locked, bit 2: fixed
 };
 
 static const uint BillboardScreenSize = 1u;
@@ -142,6 +158,7 @@ struct DrawPush
     uint submeshIndex_;
     uint pointLightCount_;
     uint skyboxCount_;
+    uint sphereOccluderCount_;
 };
 
 #ifdef __cplusplus
@@ -151,7 +168,8 @@ static_assert(sizeof(StaticMeshGPUData) == 96);
 static_assert(sizeof(PointLightGPUData) == 48);
 static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
-static_assert(sizeof(DrawPush) == 20);
+static_assert(sizeof(DrawPush) == 24);
+static_assert(sizeof(SphereOccluderGPUData) == 16);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);

@@ -117,13 +117,22 @@ target_compile_options(batap_warnings INTERFACE
   -Wno-unused-variable
   -Wno-unsafe-buffer-usage-in-libc-call
   -Wno-missing-prototypes
+  # -Wpadded fires on nearly any struct mixing types, in the engine as in the
+  # game: silencing it is the only option short of reordering every struct for
+  # a diagnostic that says nothing about correctness. It was already off on
+  # Apple; the clang shipped with VS 18 emits it too.
+  -Wno-padded
+  # -Wnrvo fires on the idiomatic `return {}` on failure, `return local` on
+  # success: clang gives up NRVO as soon as two return statements disagree.
+  # Forcing a single exit would make four functions worse to save one move on
+  # an error path. It is a codegen hint, not a correctness diagnostic.
+  -Wno-nrvo
   -Wno-missing-designated-field-initializers
 )
 if(APPLE)
   # Parité avec tools/compile-check : diagnostics que le build Windows
   # n'applique pas, ou spécifiques à AppleClang
   target_compile_options(batap_warnings INTERFACE
-    -Wno-padded
     -Wno-poison-system-directories
     -Wno-weak-vtables
     -Wno-exit-time-destructors

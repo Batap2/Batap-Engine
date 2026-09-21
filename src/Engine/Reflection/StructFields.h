@@ -116,8 +116,15 @@ template <class T>
 T Probe<T>::value{};
 #pragma clang diagnostic pop
 
+// Its address is never read at run time: fieldPtr exists only to be spelled
+// out inside prettySignature's __PRETTY_FUNCTION__, and that spelling is the
+// same in the engine and in the game DLL. A duplicated copy is harmless here —
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-warning-option"
+#pragma clang diagnostic ignored "-Wunique-object-duplication"
 template <class T, std::size_t I>
 inline constexpr auto fieldPtr = &std::get<I>(tieFields(Probe<T>::value));
+#pragma clang diagnostic pop
 
 // clang prints the full path of Ptr in the signature, e.g.
 // "... [T = ..., Ptr = &batap::refl::detail::Probe<batap::PointLight_C>::value.color_]"
