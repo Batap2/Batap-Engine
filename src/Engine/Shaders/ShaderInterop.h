@@ -30,7 +30,11 @@ enum DescriptorSetIndex : uint
 enum BindlessBinding : uint
 {
     SamplerBinding = 0,
-    TexturesBinding = 1,
+    // Compare-enabled sampler: SampleCmp returns the filtered result of the
+    // depth test, which is what makes a PCF tap one instruction.
+    ShadowSamplerBinding = 1,
+    // Must stay the HIGHEST binding of the set: VARIABLE_DESCRIPTOR_COUNT
+    TexturesBinding = 2,
 };
 
 enum FrameSetBinding : uint

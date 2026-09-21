@@ -40,6 +40,12 @@ struct ResourceManager
     GPUResourceHandle createImage2D(uint32_t width, uint32_t height, ResourceFormat format,
                                     std::optional<std::string_view> name = std::nullopt);
 
+    GPUResourceHandle createTarget(uint32_t width, uint32_t height, ResourceFormat format,
+                                   std::optional<std::string_view> name = std::nullopt);
+
+
+    VkImage imageFor(GPUResourceHandle handle);
+
     void requestDestroy(GPUResourceHandle handle);
     uint32_t textureIndex(GPUResourceHandle image);
 
@@ -59,6 +65,7 @@ struct ResourceManager
 
     VkImageView viewFor(GPUResourceHandle handle);
     VkSampler textureSampler() const { return textureSampler_; }
+    VkSampler shadowSampler() const { return shadowSampler_; }
     VkDevice device() const;
 
     VkDescriptorSetLayout textureSetLayout() const { return textureSetLayout_; }
@@ -115,6 +122,7 @@ struct ResourceManager
     Buffer createBufferInternal(uint64_t sizeBytes);
     Buffer createStagingBuffer(uint64_t sizeBytes, std::byte*& outMapped);
     std::byte* stagingAlloc(uint64_t size, UploadRequest& req);
+
     uint32_t allocTextureIndex();
     void destroyNow(Buffer& b);
     void destroyNow(Image& i);
@@ -146,6 +154,7 @@ struct ResourceManager
     VkDescriptorSet textureSet_ = VK_NULL_HANDLE;
     VkDescriptorPool texturePool_ = VK_NULL_HANDLE;
     VkSampler textureSampler_ = VK_NULL_HANDLE;
+    VkSampler shadowSampler_ = VK_NULL_HANDLE;
     uint32_t textureCapacity_ = 0;
     uint32_t textureNext_ = 0;
     std::vector<uint32_t> textureFree_;

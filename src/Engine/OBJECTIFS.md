@@ -84,22 +84,49 @@ compute serait une deuxième famille à porter (layout, barrières, hot reload)
 pour zéro gain. Le jour où un dénoiseur voudra de la LDS, ce sera un vrai
 argument — pas avant.
 
-- [ ] **1. Plusieurs scopes de rendu** — une passe plein écran qui *lit* la
-      profondeur ne peut pas vivre dans la scope qui l'écrit. Sortir le
-      begin/end de `Renderer::render` : le `Renderer` passe la vue swapchain et
-      la vue profondeur à `ScenePasses::record`, qui ouvre les siennes, et garde
-      pour lui la scope ImGui, après la scène. Validable seul : l'image ne doit
-      pas bouger d'un pixel.
-- [ ] **2. Cibles de rendu dans `ResourceManager`** — `createImage2D` est taillé
-      pour les textures uploadées : chaîne de mips complète, slot bindless,
-      `SAMPLED|TRANSFER_*` et rien d'autre. Ajouter un `createRenderTarget` — un
-      seul mip, `COLOR_ATTACHMENT|SAMPLED`, aucun chemin d'upload, recréé dans
-      le `onResize`. Il garde le slot bindless, et c'est structurant : le frame
-      set est **storage buffers uniquement** par construction
+- [x] **1. Plusieurs scopes de rendu** — *fait le 2026-09-21.* Une passe plein
+      écran qui *lit* la profondeur ne peut pas vivre dans la scope qui l'écrit.
+      Le begin/end est sorti de `Renderer::render` : `ScenePasses::record` ouvre
+      la sienne sur les cibles qu'on lui passe, le `Renderer` garde la scope
+      ImGui, après la scène, **en couleur seule** — l'UI ne porte pas de
+      profondeur et lui donner celle de la scène la laisserait y écrire.
+
+      Deux choses que le plan n'avait pas prévues, et qui sont le vrai contenu
+      de l'étape :
+      - **Qui efface.** `record` décline la frame quand la scène n'a pas de
+        caméra, et alors personne n'a écrit la swapchain. Il retourne donc un
+        `bool` « j'ai effacé », et la scope ImGui bascule son `loadOp` de `LOAD`
+        à `CLEAR` quand il est faux. Sans ça, une scène sans caméra montre la
+        frame précédente.
+      - **`RenderTargets` est un type partagé**, pas un membre du `Renderer`
+        (`Vulkan/VulkanRenderTargets.h` : vue couleur, vue profondeur, extent,
+        couleur d'effacement). Une passe n'a pas à connaître le `Renderer` pour
+        savoir où elle dessine, et §4.2 comme §6.2 y ajouteront leurs cibles.
+
+      Validé : build vert sur `msvc-debug` et `msvc-relwithdebinfo` ; **image
+      identique au SHA256** avant/après sur une scène statique rendue par le
+      jeu, ce qui est le critère que l'étape se donnait ; éditeur lancé sur
+      `test_buggy.btpl`, scène et UI dessinées ensemble, **aucune erreur des
+      couches de validation**. Les deux configs donnent le même octet.
+- [x] **2. Cibles de rendu dans `ResourceManager`** — *fait le 2026-09-21.*
+      `createImage2D` est taillé pour les textures uploadées : chaîne de mips
+      complète, slot bindless, `SAMPLED|TRANSFER_*` et rien d'autre. À côté,
+      `createRenderTarget` — un seul mip, `COLOR_ATTACHMENT|SAMPLED`, aucun
+      chemin d'upload. Il garde le slot bindless, et c'est structurant : le
+      frame set est **storage buffers uniquement** par construction
       (`createFrameSetLayout` câble `STORAGE_BUFFER` sur ses
       `FrameSetBindingCount` bindings), donc une texture produite par une passe
       se lit par son index bindless, passé en push constant — pas par le frame
       set.
+
+      Écrit avec son jumeau de §6.2 : couleur et profondeur ne diffèrent que par
+      l'aspect de la vue et un bit d'usage, donc un `createTarget` privé et deux
+      noms publics — le vocabulaire du plan sans le copier-coller. S'ajoute un
+      `imageFor(handle)`, dont les barrières d'une cible produite ont besoin
+      entre la passe qui l'écrit et celle qui l'échantillonne. Le `onResize` du
+      plan n'a pas d'objet pour l'instant : la seule cible existante est l'atlas
+      d'ombre, de taille fixe. Le premier client redimensionnable — la cible AO
+      de §4.4 — l'apportera.
 - [ ] **3. Prepass profondeur + normales** — SSILVB lit la profondeur complète
       de la scène *avant* l'éclairage ; un forward ne l'a pas. Une passe
       depth-only (le VS de la géométrie, pas de PS) avec une cible normales en
@@ -440,17 +467,26 @@ ne mord pas : une cinquantaine de draws par cascade, quatre cascades.
       Au-delà, on quitte la famille analytique : une boîte ou un convexe
       quelconque n'ont pas de forme close par pixel, et le seul vrai généraliste
       est le cone tracing dans un SDF — un autre étage de technique.
-- [ ] **2. Cible de profondeur** — `createDepthTarget` dans `ResourceManager`,
-      jumeau du `createRenderTarget` de §4.2 : un mip, `D32_SFLOAT`,
-      `DEPTH_STENCIL_ATTACHMENT|SAMPLED`, slot bindless sur une vue à aspect
-      profondeur, taille fixe (pas de recréation au resize). Un **atlas** de
-      `ShadowAtlasSize = 4096` dans `EngineConfig.h`, quatre cascades de 2048²
-      en quadrants — une seule `Texture2D` dans la table bindless, ce que le
-      frame set « storage buffers uniquement » impose de toute façon. 64 Mo ;
-      `D16_UNORM` en fait 32 si ça pèse. Un `SamplerComparisonState` à un
-      nouveau binding du set bindless (`ShadowSamplerBinding = 2`) :
-      `compareEnable`, `LESS_OR_EQUAL`, clamp to border, bordure à 1 — hors de
-      l'atlas, c'est éclairé.
+- [x] **2. Cible de profondeur** — *fait le 2026-09-21.* `createDepthTarget`
+      dans `ResourceManager`, jumeau du `createRenderTarget` de §4.2 : un mip,
+      `D32_SFLOAT`, `DEPTH_STENCIL_ATTACHMENT|SAMPLED`, slot bindless sur une
+      vue à aspect profondeur, taille fixe — l'atlas est l'affaire d'une
+      lumière, pas de la fenêtre. L'**atlas** de `ShadowAtlasSize = 4096`
+      (`EngineConfig.h`, avec `ShadowCascadeCount = 4`) est alloué par
+      `ScenePasses`, qui survit à toute passe qui y touche ; §6.3 le remplit.
+      64 Mo ; `D16_UNORM` en fait 32 si ça pèse. Sampler de comparaison
+      immuable, `compareEnable`, `LESS_OR_EQUAL`, clamp to border, bordure
+      blanche — une lecture qui tombe hors de l'atlas lit la profondeur 1, donc
+      « rien devant moi » : hors des cascades, c'est éclairé.
+
+      **Correction au plan : `ShadowSamplerBinding` ne peut pas valoir 2.**
+      `TexturesBinding` est déclaré `VARIABLE_DESCRIPTOR_COUNT`, et Vulkan
+      n'autorise ce drapeau que sur le **binding le plus haut du set**. L'ordre
+      est donc `SamplerBinding = 0`, `ShadowSamplerBinding = 1`,
+      `TexturesBinding = 2` : tout nouveau binding du set bindless s'insère
+      **avant** les textures, jamais après. Vérifié après renumérotage — image
+      du jeu identique au SHA256, et une scène texturée avec skybox et icônes
+      d'éditeur rend à l'identique.
 - [ ] **3. Passe d'ombre** — `ShadowPass` dans `Passes/`, `ShadowVS.hlsl`
       déclaré dans `ShaderCatalog.h` (VS seul, pas de PS, le seul stream
       `Position`). Il lit `ShadowGPUData` (nouveau binding du frame set :

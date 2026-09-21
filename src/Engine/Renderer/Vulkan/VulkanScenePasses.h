@@ -8,6 +8,7 @@
 #include "Renderer/Vulkan/Passes/GeometryPass.h"
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
 #include "Renderer/Vulkan/Passes/SkyPass.h"
+#include "Renderer/Vulkan/VulkanRenderTargets.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -29,7 +30,9 @@ struct ScenePasses
     ScenePasses(const ScenePasses&) = delete;
     ScenePasses& operator=(const ScenePasses&) = delete;
 
-    void record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, uint32_t height,
+    // Returns false without recording anything when the scene has
+    // no camera to draw from the caller then owns the clear.
+    bool record(VkCommandBuffer cmd, uint32_t frame, const RenderTargets& targets,
                 const SceneRenderArgs& args, Engine& ctx);
 
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
@@ -48,6 +51,8 @@ struct ScenePasses
     VkDescriptorPool framePool_ = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> frameSets_;
     VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
+
+    GPUResourceHandle shadowAtlas_;
 
     GeometryPass geometry_;
     BillboardPass billboards_;

@@ -11,8 +11,8 @@ void bindScene(Engine& ctx, World& world)
 {
     auto* passes = ctx.renderer_->scenePasses();
     ctx.renderer_->setSceneRecord(
-        [&ctx, &world, passes](VkCommandBuffer cmd, uint32_t frame, uint32_t width,
-                               uint32_t height)
-        { passes->record(cmd, frame, width, height, world.renderArgs(), ctx); });
+        [&ctx, &world, passes](VkCommandBuffer cmd, uint32_t frame,
+                               const RenderTargets& targets)
+        { return passes->record(cmd, frame, targets, world.renderArgs(), ctx); });
 }
 }  // namespace batap

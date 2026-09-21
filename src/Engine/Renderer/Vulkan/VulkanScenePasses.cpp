@@ -117,6 +117,9 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
       sky_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       debug_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat})
 {
+    shadowAtlas_ = resources_.createTarget(ShadowAtlasSize, ShadowAtlasSize,
+                                           ResourceFormat::D32_FLOAT, "shadow atlas");
+
     const std::string shaderDir = resolveEngineFile("shaders", "shaders");
 
     std::array<std::optional<ShaderModule>, ShaderCount> owned;
@@ -252,24 +255,50 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     vkUpdateDescriptorSets(ctx_.device_, FrameSetBindingCount, writes.data(), 0, nullptr);
 }
 
-void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, uint32_t height,
-                         const SceneRenderArgs& args, Engine& ctx)
+bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame,
+                         const RenderTargets& targets, const SceneRenderArgs& args,
+                         Engine& ctx)
 {
     auto* reg = args.reg_;
     auto* instanceM = args.instanceManager_;
     if (!reg)
-        return;
+        return false;
 
     const EntityHandle cam{reg, args.camera_};
     if (!cam.valid() || !reg->all_of<Camera_C, Transform_C>(args.camera_))
-        return;
+        return false;
     const auto camID = instanceM->pool<CameraInstance>().getGPUIndex(cam);
     if (!camID.valid())
-        return;
+        return false;
 
     writeFrameSet(frame, args, ctx);
 
-    setViewportYUp(cmd, width, height);
+    VkRenderingAttachmentInfo color{};
+    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    color.imageView = targets.color_;
+    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color.clearValue.color = targets.clearColor_;
+
+    VkRenderingAttachmentInfo depth{};
+    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depth.imageView = targets.depth_;
+    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.clearValue.depthStencil = {1.0f, 0};
+
+    VkRenderingInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderingInfo.renderArea = {{0, 0}, targets.extent_};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &color;
+    renderingInfo.pDepthAttachment = &depth;
+    vkCmdBeginRendering(cmd, &renderingInfo);
+
+    setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
 
     const VkDescriptorSet sets[2] = {resources_.textureSet(), frameSets_[frame]};
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 2, sets, 0,
@@ -298,5 +327,8 @@ void ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, uint32_t width, ui
     // After the sky: it writes no depth, so it would paint over any wire drawn
     // against the background.
     debug_.record(pass);
+
+    vkCmdEndRendering(cmd);
+    return true;
 }
 }  // namespace batap

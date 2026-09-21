@@ -289,41 +289,42 @@ void Renderer::render()
                Discard::Yes)
         .flush(cmd);
 
-    VkRenderingAttachmentInfo color{};
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color.imageView = swapchain_.views_[imageIndex];
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    RenderTargets targets{};
+    targets.color_ = swapchain_.views_[imageIndex];
+    targets.depth_ = depthView_;
+    targets.extent_ = swapchain_.extent_;
     // Alpha 0 when transparent: the desktop shows through where nothing is drawn
-    color.clearValue.color = {{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
+    targets.clearColor_ = {{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
 
-    VkRenderingAttachmentInfo depth{};
-    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth.imageView = depthView_;
-    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth.clearValue.depthStencil = {1.0f, 0};
+    // The scene needs to opens and closes its own scopes.
+    const bool sceneCleared = sceneRecord_ && sceneRecord_(cmd, frame, targets);
 
-    VkRenderingInfo renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfo.renderArea = {{0, 0}, swapchain_.extent_};
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &color;
-    renderingInfo.pDepthAttachment = &depth;
-
-    vkCmdBeginRendering(cmd, &renderingInfo);
-    if (sceneRecord_)
-        sceneRecord_(cmd, frame, swapchain_.extent_.width, swapchain_.extent_.height);
-    if (imguiFrameOpen_)
+    if (imguiFrameOpen_ || !sceneCleared)
     {
-        ImGui::Render();
-        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-        imguiFrameOpen_ = false;
+        VkRenderingAttachmentInfo uiColor{};
+        uiColor.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        uiColor.imageView = targets.color_;
+        uiColor.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        uiColor.loadOp = sceneCleared ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
+        uiColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        uiColor.clearValue.color = targets.clearColor_;
+
+        VkRenderingInfo uiInfo{};
+        uiInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        uiInfo.renderArea = {{0, 0}, targets.extent_};
+        uiInfo.layerCount = 1;
+        uiInfo.colorAttachmentCount = 1;
+        uiInfo.pColorAttachments = &uiColor;
+
+        vkCmdBeginRendering(cmd, &uiInfo);
+        if (imguiFrameOpen_)
+        {
+            ImGui::Render();
+            ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+            imguiFrameOpen_ = false;
+        }
+        vkCmdEndRendering(cmd);
     }
-    vkCmdEndRendering(cmd);
 
     auto swapchainBarrier = [&](Usage from, Usage to)
     { BarrierBatch{}.image(swapchain_.images_[imageIndex], from, to, colorRange()).flush(cmd); };

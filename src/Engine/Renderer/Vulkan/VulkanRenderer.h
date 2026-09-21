@@ -2,6 +2,7 @@
 
 #include "Handles.h"
 #include "Renderer/Vulkan/VulkanContext.h"
+#include "Renderer/Vulkan/VulkanRenderTargets.h"
 #include "Renderer/Vulkan/VulkanSwapchain.h"
 
 #include <imgui.h>
@@ -23,8 +24,8 @@ struct Billboards;
 // Frame model (docs/vulkan.md §10):
 //   beginFrame: wait on the slot fence, recycle staging and pending destroys —
 //   the frame's uploads are written after that;
-//   render: flushUploads → one rendering scope (swapchain + depth) the scene
-//   records into (callback set by bindScene) → present.
+//   render: flushUploads → the scene records its own scopes (callback set by
+//   bindScene) → an ImGui scope on the swapchain → present.
 // Rendering goes straight into the swapchain: no composition pass.
 struct Renderer
 {
@@ -53,10 +54,10 @@ struct Renderer
     using ResizeCallback = std::function<void(uint32_t w, uint32_t h)>;
     void onResize(ResizeCallback cb);
 
-    // Set by bindScene; called inside the rendering scope, every frame.
     ScenePasses* scenePasses();
-    using SceneRecordFn = std::function<void(VkCommandBuffer cmd, uint32_t frame, uint32_t width,
-                                             uint32_t height)>;
+
+    using SceneRecordFn =
+        std::function<bool(VkCommandBuffer cmd, uint32_t frame, const RenderTargets& targets)>;
     void setSceneRecord(SceneRecordFn fn);
 
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);

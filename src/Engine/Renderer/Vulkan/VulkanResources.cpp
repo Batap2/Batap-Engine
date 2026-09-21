@@ -54,14 +54,37 @@ ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFra
     if (vkCreateSampler(ctx_.device_, &samplerInfo, nullptr, &textureSampler_) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : sampler");
 
+    // Compare-enabled twin, for shadow atlases. Clamp to a white border: a
+    // lookup that lands outside the atlas reads depth 1, which compares as
+    // "nothing in front of me" — outside the cascades, it is lit.
+    VkSamplerCreateInfo shadowSamplerInfo{};
+    shadowSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    shadowSamplerInfo.magFilter = VK_FILTER_LINEAR;
+    shadowSamplerInfo.minFilter = VK_FILTER_LINEAR;
+    shadowSamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    shadowSamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    shadowSamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    shadowSamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    shadowSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    shadowSamplerInfo.compareEnable = VK_TRUE;
+    shadowSamplerInfo.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    if (vkCreateSampler(ctx_.device_, &shadowSamplerInfo, nullptr, &shadowSampler_) != VK_SUCCESS)
+        throw std::runtime_error("ResourceManager(vk) : shadow sampler");
+
     textureCapacity_ = BindlessTextureCapacity;
 
-    VkDescriptorSetLayoutBinding bindings[2]{};
+    VkDescriptorSetLayoutBinding bindings[3]{};
     bindings[SamplerBinding].binding = SamplerBinding;
     bindings[SamplerBinding].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     bindings[SamplerBinding].descriptorCount = 1;
     bindings[SamplerBinding].stageFlags = VK_SHADER_STAGE_ALL;
     bindings[SamplerBinding].pImmutableSamplers = &textureSampler_;
+
+    bindings[ShadowSamplerBinding].binding = ShadowSamplerBinding;
+    bindings[ShadowSamplerBinding].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+    bindings[ShadowSamplerBinding].descriptorCount = 1;
+    bindings[ShadowSamplerBinding].stageFlags = VK_SHADER_STAGE_ALL;
+    bindings[ShadowSamplerBinding].pImmutableSamplers = &shadowSampler_;
 
     // VARIABLE_DESCRIPTOR_COUNT requires the highest binding number of the set
     bindings[TexturesBinding].binding = TexturesBinding;
@@ -73,25 +96,25 @@ ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFra
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
         VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
         VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-    const VkDescriptorBindingFlags bindingFlags[2] = {0, textureFlags};
+    const VkDescriptorBindingFlags bindingFlags[3] = {0, 0, textureFlags};
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo{};
     flagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-    flagsInfo.bindingCount = 2;
+    flagsInfo.bindingCount = 3;
     flagsInfo.pBindingFlags = bindingFlags;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.pNext = &flagsInfo;
     layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-    layoutInfo.bindingCount = 2;
+    layoutInfo.bindingCount = 3;
     layoutInfo.pBindings = bindings;
     if (vkCreateDescriptorSetLayout(ctx_.device_, &layoutInfo, nullptr, &textureSetLayout_) !=
         VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : bindless layout");
 
     VkDescriptorPoolSize poolSizes[2] = {
-        {VK_DESCRIPTOR_TYPE_SAMPLER, 1},
+        {VK_DESCRIPTOR_TYPE_SAMPLER, 2},
         {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureCapacity_},
     };
     VkDescriptorPoolCreateInfo poolInfo{};
@@ -147,6 +170,8 @@ ResourceManager::~ResourceManager()
 
     if (texturePool_)
         vkDestroyDescriptorPool(ctx_.device_, texturePool_, nullptr);
+    if (shadowSampler_)
+        vkDestroySampler(ctx_.device_, shadowSampler_, nullptr);
     if (textureSetLayout_)
         vkDestroyDescriptorSetLayout(ctx_.device_, textureSetLayout_, nullptr);
     if (textureSampler_)
@@ -199,9 +224,8 @@ ResourceManager::Buffer ResourceManager::createStagingBuffer(uint64_t sizeBytes,
 GPUResourceHandle ResourceManager::createStaticBuffer(uint64_t sizeBytes,
                                                       std::optional<std::string_view> name)
 {
-    GPUResourceHandle handle = name
-        ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
-        : GPUResourceHandle(GPUResourceType::StaticResource);
+    GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
+                                    : GPUResourceHandle(GPUResourceType::StaticResource);
     buffers_.emplace(handle, createBufferInternal(sizeBytes));
     return handle;
 }
@@ -283,6 +307,88 @@ GPUResourceHandle ResourceManager::createImage2D(uint32_t width, uint32_t height
     return handle;
 }
 
+namespace
+{
+bool isDepthFormat(VkFormat f)
+{
+    return f == VK_FORMAT_D32_SFLOAT || f == VK_FORMAT_D24_UNORM_S8_UINT ||
+           f == VK_FORMAT_D16_UNORM || f == VK_FORMAT_D32_SFLOAT_S8_UINT;
+}
+}  // namespace
+
+GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
+                                                ResourceFormat format,
+                                                std::optional<std::string_view> name)
+{
+    GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
+                                    : GPUResourceHandle(GPUResourceType::StaticResource);
+
+    Image image{};
+    image.format = toVkFormat(format);
+    image.width = width;
+    image.height = height;
+    image.mipLevels = 1;
+
+    const bool depth = isDepthFormat(image.format);
+    const VkImageAspectFlags aspect = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.format = image.format;
+    imageInfo.extent = {width, height, 1};
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.usage =
+        VK_IMAGE_USAGE_SAMPLED_BIT |
+        (depth ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+    if (vmaCreateImage(allocator_, &imageInfo, &allocInfo, &image.image, &image.allocation,
+                       nullptr) != VK_SUCCESS)
+        throw std::runtime_error("ResourceManager(vk) : createTarget");
+
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = image.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = image.format;
+    viewInfo.subresourceRange = {aspect, 0, 1, 0, 1};
+    if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &image.view) != VK_SUCCESS)
+        throw std::runtime_error("ResourceManager(vk) : target view");
+
+    image.textureIndex = allocTextureIndex();
+
+    VkDescriptorImageInfo descriptor{};
+    descriptor.imageView = image.view;
+    descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = textureSet_;
+    write.dstBinding = TexturesBinding;
+    write.dstArrayElement = image.textureIndex;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    write.pImageInfo = &descriptor;
+    vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
+
+    images_.emplace(handle, image);
+    return handle;
+}
+
+VkImage ResourceManager::imageFor(GPUResourceHandle handle)
+{
+    auto it = images_.find(handle);
+    assert(it != images_.end() && "imageFor: not an image");
+    return it->second.image;
+}
+
 uint32_t ResourceManager::textureIndex(GPUResourceHandle texture)
 {
     auto it = images_.find(texture);
@@ -323,8 +429,7 @@ std::span<std::byte> ResourceManager::requestUpload(GPUResourceHandle dest, uint
 }
 
 std::span<std::byte> ResourceManager::requestPartialUpload(GPUResourceHandle dest,
-                                                           uint64_t sizeBytes,
-                                                           uint64_t destOffset,
+                                                           uint64_t sizeBytes, uint64_t destOffset,
                                                            uint64_t subOffset, uint64_t subSize)
 {
     assert(subOffset + subSize <= sizeBytes && "requestPartialUpload: sub-range out of the span");
@@ -392,8 +497,8 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
         // blits). Discard because every level is rewritten below — but a
         // re-upload still has to wait for the shader reads in flight on the
         // contents it drops.
-        const Usage before =
-            image.layout == VK_IMAGE_LAYOUT_UNDEFINED ? Usage::None : Usage::ShaderRead;
+        const Usage before = image.layout == VK_IMAGE_LAYOUT_UNDEFINED ? Usage::None
+                                                                       : Usage::ShaderRead;
         BarrierBatch{}
             .image(image.image, before, Usage::TransferDst, colorRange(0, image.mipLevels),
                    Discard::Yes)
@@ -412,8 +517,7 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
         for (uint32_t mip = 1; mip < image.mipLevels; ++mip)
         {
             BarrierBatch{}
-                .image(image.image, Usage::TransferDst, Usage::TransferSrc,
-                       colorRange(mip - 1, 1))
+                .image(image.image, Usage::TransferDst, Usage::TransferSrc, colorRange(mip - 1, 1))
                 .flush(cmd);
 
             const auto mipDim = [](uint32_t base, uint32_t level)

@@ -6,4 +6,6 @@ namespace batap
 constexpr uint32_t FramesInFlight = 3;
 constexpr uint32_t BindlessTextureCapacity = 4096;
 constexpr uint64_t StagingBytesPerFrame = 64ull * 1024 * 1024;
+constexpr uint32_t ShadowAtlasSize = 4096;
+constexpr uint32_t ShadowCascadeCount = 4;
 }  // namespace batap
