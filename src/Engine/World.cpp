@@ -148,6 +148,7 @@ void World::update(Game& game)
         systems_->characters_->fixedUpdate(*this, time_.fixedDt_);
         time_.accumulator_ -= time_.fixedDt_;
     }
+    systems_->physics_->interpolate(*this, time_.accumulator_ / time_.fixedDt_);
 
     game.update(*this, dt);
     systems_->update(ctx_->deltaTime_, *ctx_, *this);

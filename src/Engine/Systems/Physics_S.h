@@ -18,6 +18,12 @@ struct Physics_S
 
     void fixedUpdate(World& world, float dt);
 
+    // After the frame's fixed steps: a dynamic body's transform gets the pose
+    // alpha of the way from before the last step to after it, so the render
+    // does not jump once per step. A transform read in a fixedUpdate can thus
+    // lag Jolt by up to one step.
+    void interpolate(World& world, float alpha);
+
     void drawColliders(World& world);
     bool showColliders_ = false;
 

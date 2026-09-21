@@ -64,6 +64,10 @@ struct RigidBody_C
 
     uint32_t bodyId_ = kInvalidBodyId;
     v3f shapeScale_ = {1.f, 1.f, 1.f};
+    // Pose before the last step, for the render interpolation in Physics_S.
+    v3f prevPos_ = v3f::Zero();
+    quatf prevRot_ = quatf::Identity();
+    bool prevValid_ = false;
     // Raised by entt's on_update: whoever edits this component must go through
     // registry.patch (the inspector does) or the body keeps its old settings.
     bool dirty_ = false;
@@ -84,6 +88,9 @@ static_assert(refl::fieldName<RigidBody_C, 10>() == "centerOfMassOffset");
 BATAP_COMPONENT(RigidBody_C, "rigidBody", ComponentMeta{.color = ComponentColor::Green},
                 fieldSkip<&RigidBody_C::bodyId_>(),
                 fieldSkip<&RigidBody_C::shapeScale_>(),
+                fieldSkip<&RigidBody_C::prevPos_>(),
+                fieldSkip<&RigidBody_C::prevRot_>(),
+                fieldSkip<&RigidBody_C::prevValid_>(),
                 fieldSkip<&RigidBody_C::dirty_>(),
                 fieldMeta<&RigidBody_C::mass_>({.speed = 0.05f, .min = 0.001f, .max = 10000.f}),
                 fieldMeta<&RigidBody_C::friction_>({.speed = 0.01f, .min = 0.f, .max = 1.f}),

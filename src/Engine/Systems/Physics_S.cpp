@@ -237,6 +237,7 @@ void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const T
 {
     rb.shapeScale_ = tc.scale();
     rb.dirty_ = false;
+    rb.prevValid_ = false;
     JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_, assets);
     JPH::BodyCreationSettings settings(shape, toJolt(tc.pos()), toJolt(tc.rot()),
                                        motionTypeOf(rb.motion_), layerOf(rb.motion_));
@@ -254,6 +255,19 @@ void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const T
 
     rb.bodyId_ =
         bi.CreateAndAddBody(settings, activationOf(rb.motion_)).GetIndexAndSequenceNumber();
+}
+
+void rememberPose(JPH::BodyInterface& bi, JPH::BodyID id, RigidBody_C& rb)
+{
+    rb.prevValid_ = bi.IsActive(id);
+    if (!rb.prevValid_)
+        return;
+
+    JPH::RVec3 pos;
+    JPH::Quat rot;
+    bi.GetPositionAndRotation(id, pos, rot);
+    rb.prevPos_ = toEigen(pos);
+    rb.prevRot_ = toEigen(rot);
 }
 
 }  // namespace
@@ -426,6 +440,8 @@ void Physics_S::fixedUpdate(World& world, float dt)
         else if (rb.motion_ == RigidBody_C::Motion::Static)
             bi.SetPositionAndRotationWhenChanged(id, toJolt(tc.pos()), toJolt(tc.rot()),
                                                  JPH::EActivation::DontActivate);
+        else
+            rememberPose(bi, id, rb);
     }
 
     physics.step(dt);
@@ -439,12 +455,44 @@ void Physics_S::fixedUpdate(World& world, float dt)
             continue;
 
         const JPH::BodyID id{rb.bodyId_};
-        if (!bi.IsActive(id))  // asleep: its pose did not move
+        // Asleep since before the step: its pose did not move. One that fell
+        // asleep during the step still needs its final pose written.
+        if (!rb.prevValid_ && !bi.IsActive(id))
             continue;
 
         const EntityHandle h{&reg, e};
         transforms.setLocalPosition(h, toEigen(bi.GetPosition(id)));
         transforms.setLocalRotation(h, toEigen(bi.GetRotation(id)));
+    }
+}
+
+void Physics_S::interpolate(World& world, float alpha)
+{
+    auto& reg = world.registry_;
+    JPH::BodyInterface& bi = world.physics().bodies();
+    Transform_S& transforms = *world.systems().transforms_;
+
+    auto view = reg.view<RigidBody_C, Transform_C>();
+    for (auto e : view)
+    {
+        const auto& rb = view.get<RigidBody_C>(e);
+        if (rb.motion_ != RigidBody_C::Motion::Dynamic || rb.bodyId_ == kInvalidBodyId ||
+            !rb.prevValid_)
+            continue;
+
+        const JPH::BodyID id{rb.bodyId_};
+        if (!bi.IsActive(id))
+            continue;
+
+        JPH::RVec3 pos;
+        JPH::Quat rot;
+        bi.GetPositionAndRotation(id, pos, rot);
+
+        // Through Transform_S, not EntityHandle: its setters push the pose
+        // back into Jolt.
+        const EntityHandle h{&reg, e};
+        transforms.setLocalPosition(h, rb.prevPos_ + (toEigen(pos) - rb.prevPos_) * alpha);
+        transforms.setLocalRotation(h, rb.prevRot_.slerp(alpha, toEigen(rot)));
     }
 }
 

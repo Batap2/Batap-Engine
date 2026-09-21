@@ -501,6 +501,24 @@ ne mord pas : une cinquantaine de draws par cascade, quatre cascades.
       FIFO. Acté : ni UI, ni JSON, ni réflexion pour l'instant — à la main
       quand le menu options arrivera ; la réflexion ne paie qu'au-delà d'une
       dizaine de champs et son `drawUI` est nul dans le build jeu.
+- [x] **Interpolation du rendu entre deux pas physiques** (2026-09-21) — fait :
+      `Physics_S` relève la pose de chaque corps dynamique actif avant le pas
+      (`rememberPose`), et `Physics_S::interpolate(alpha)`, appelé par
+      `World::update` après la boucle fixe avec `alpha = accumulateur /
+      fixedDt_`, écrit dans la transformée le `lerp` / `slerp` entre cette pose
+      et celle d'après le pas. Le symptôme corrigé : à 60 Hz de physique pour
+      144 Hz de rendu, 7 frames sur 12 ne bougeaient pas et les autres
+      sautaient de v/60 — un corps qui vibre d'autant plus qu'il va vite, face
+      à une caméra lissée qui bouge à chaque frame. Acté : interpolation plutôt
+      qu'extrapolation (rien ne s'enfonce dans le sol à l'impact, au prix d'un
+      pas de retard, 16,7 ms) ; les corps cinématiques ne sont pas interpolés,
+      leur transformée **est** l'état de la simulation (un astre qui orbite
+      saute donc encore de v/60 par pas). Pièges : un système moteur écrit la
+      pose interpolée par `Transform_S`, jamais par `EntityHandle` dont les
+      setters téléportent le corps ; une transformée de corps dynamique lue
+      dans un `fixedUpdate` retarde d'au plus un pas sur Jolt ;
+      `syncPhysicsPose` recale la pose précédente après un téléport gameplay,
+      sinon une frame de traînée.
 
 ---
 

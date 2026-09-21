@@ -74,13 +74,19 @@ static void syncPhysicsPose(const EntityHandle& h)
     // Only a dynamic body owns its own pose. Physics_S already drives static
     // and kinematic ones from the transform, and a kinematic one must go
     // through MoveKinematic there or it teleports and carries nothing.
-    const RigidBody_C* rb = h.try_get<RigidBody_C>();
+    RigidBody_C* rb = h.reg_->try_get<RigidBody_C>(h.entity_);
     if (!rb || rb->motion_ != RigidBody_C::Motion::Dynamic)
         return;
 
-    if (const BodyRef b = bodyOf(h))
-        b.bodies_->SetPositionAndRotation(b.id_, toJolt(tc->pos()), toJolt(tc->rot()),
-                                          JPH::EActivation::Activate);
+    const BodyRef b = bodyOf(h);
+    if (!b)
+        return;
+
+    b.bodies_->SetPositionAndRotation(b.id_, toJolt(tc->pos()), toJolt(tc->rot()),
+                                      JPH::EActivation::Activate);
+    // Or the next frames would interpolate from where the body was.
+    rb->prevPos_ = tc->pos();
+    rb->prevRot_ = tc->rot();
 }
 
 void EntityHandle::markDirty(ComponentMask changed)

@@ -9,8 +9,11 @@ struct World;
 // already loaded — spawn, grab references), then per frame: fixedUpdate() 0..n
 // times at World::Time::fixedDt_ (physics, deterministic logic), update()
 // before the transform flush, lateUpdate() after it — world matrices read in
-// lateUpdate are this frame's (camera follow, look-at). dt is already scaled
-// by pause/timescale (0 when paused).
+// lateUpdate are this frame's (camera follow, look-at). Between two steps a
+// dynamic body's transform holds the pose interpolated for the render
+// (Physics_S::interpolate): update() and lateUpdate() see it move every frame,
+// and a fixedUpdate() reading it sees Jolt up to one step late. dt is already
+// scaled by pause/timescale (0 when paused).
 // Scene loading itself stays outside: the standalone main loads the game's
 // scene, the editor plays whatever scene is open.
 // editorUpdate() is the editor's: every frame while NOT playing, before the
