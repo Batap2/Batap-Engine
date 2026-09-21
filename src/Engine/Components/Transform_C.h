@@ -30,6 +30,10 @@ struct Transform_C
     const quatf& rot()   const { return localRotation_; }
     const v3f&   scale() const { return localScale_; }
 
+    v3f   worldPos()   const { return world_.translation(); }
+    quatf worldRot()   const { return extractWorldRotation(world_); }
+    v3f   worldScale() const;
+
     // No constructor for entt
     static Transform_C fromPosRotScale(v3f pos, quatf rot, v3f scale)
     {

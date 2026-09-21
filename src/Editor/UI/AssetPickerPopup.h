@@ -25,8 +25,14 @@ struct AssetPickerPopup
     void open(MaterialHandle mat, uint8_t channel, const std::string& projectDir);
     // Open specifically for picking an HDRI for a Skybox_C component.
     void openHdri(EntityHandle ent, const std::string& projectDir);
+    // An element of a container field (the mesh of one shape in a rigid
+    // body's shape list): `element` maps the field's address and an index to
+    // the handle inside it. It lives in the editor, so a game module reload
+    // cannot leave it dangling.
+    using FieldElementFn = void* (*)(void* fieldPtr, size_t index);
     void openField(EntityHandle ent, const ComponentType& component, const Field& field,
-                   AssetType type, const std::string& projectDir);
+                   AssetType type, const std::string& projectDir,
+                   FieldElementFn element = nullptr, size_t elementIndex = 0);
     // True on the frame a pick or a clear was applied.
     bool draw(App& app);
 
@@ -48,9 +54,11 @@ struct AssetPickerPopup
     uint8_t        texChannel_ = 0;  // 0=albedo 1=normal 2=roughness 3=metallic
     // Field target: looked up by name and offset at apply time, so a hot
     // reload between opening and picking cannot leave a dangling pointer.
-    std::string fieldComponent_;
-    size_t      fieldOffset_ = 0;
-    bool        isFieldPick_ = false;
+    std::string    fieldComponent_;
+    size_t         fieldOffset_ = 0;
+    bool           isFieldPick_ = false;
+    FieldElementFn fieldElement_ = nullptr;
+    size_t         fieldElementIndex_ = 0;
     std::string        search_;
     std::string              projectDir_;
     std::vector<std::string> exts_;

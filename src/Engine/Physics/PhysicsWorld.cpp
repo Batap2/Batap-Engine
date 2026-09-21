@@ -85,10 +85,51 @@ void PhysicsWorld::destroyCharacter(uint32_t key)
     characters_.erase(key);
 }
 
+JPH::Constraint* PhysicsWorld::constraint(uint32_t key)
+{
+    const auto it = constraints_.find(key);
+    return it == constraints_.end() ? nullptr : it->second.constraint_.GetPtr();
+}
+
+JPH::Constraint& PhysicsWorld::addConstraint(uint32_t key, JPH::Constraint* constraint,
+                                             JPH::PhysicsStepListener* listener)
+{
+    destroyConstraint(key);
+
+    system_.AddConstraint(constraint);
+    if (listener)
+        system_.AddStepListener(listener);
+
+    constraints_[key] = OwnedConstraint{constraint, listener};
+    return *constraint;
+}
+
+void PhysicsWorld::destroyConstraint(uint32_t key)
+{
+    const auto it = constraints_.find(key);
+    if (it == constraints_.end())
+        return;
+
+    if (it->second.listener_)
+        system_.RemoveStepListener(it->second.listener_);
+    system_.RemoveConstraint(it->second.constraint_);
+    constraints_.erase(it);
+}
+
 void PhysicsWorld::clear()
 {
     contacts_.clear();
     characters_.clear();
+
+    // Before the bodies below: a constraint left in the system would keep a
+    // pointer to one that is about to be destroyed.
+    for (auto& [key, owned] : constraints_)
+    {
+        if (owned.listener_)
+            system_.RemoveStepListener(owned.listener_);
+        system_.RemoveConstraint(owned.constraint_);
+    }
+    constraints_.clear();
 
     JPH::BodyIDVector ids;
     system_.GetBodies(ids);

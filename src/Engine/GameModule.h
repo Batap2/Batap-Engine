@@ -1,7 +1,8 @@
 #pragma once
 
 // Boundary between a host (editor) and a game DLL — loaded from
-// <project>/bin/Game.dll when a project opens, or forced with `--game X.dll`.
+// <project>/bin/<GameModuleFileName> when a project opens, or forced with
+// `--game X.dll`.
 //
 // The DLL carries its own copy of the engine code it reaches, and with it a
 // second copy of the reflection globals (registry, fieldTypeSlot<M>,
@@ -55,6 +56,19 @@ struct GameModuleAPI
 // own copy of both: without this the game's widgets go into a context nobody
 // draws, and its allocations cross heaps.
 void adoptHostImGui(const GameModuleAPI& api);
+
+// Debug links the debug CRT and Joltd.dll, release the plain ones, and a
+// module's dependencies are resolved from the *host's* directory, never from
+// the module's own: a debug module under a release host dies in LoadLibrary
+// before any of the above runs. So each configuration copies its module under
+// its own name (BatapGame.cmake) and a host only ever looks for the name
+// matching its own build.
+inline constexpr const char* GameModuleFileName =
+#if defined(_DEBUG)
+    "Gamed.dll";
+#else
+    "Game.dll";
+#endif
 
 inline constexpr const char* GameModuleEntryName = "batapGameEntry";
 using GameModuleEntryFn = void (*)(GameModuleAPI*);

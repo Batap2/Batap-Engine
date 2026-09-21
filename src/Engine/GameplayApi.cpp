@@ -142,7 +142,7 @@ void EntityHandle::scale(const v3f& vec)
 
 void EntityHandle::setParent(EntityHandle newParent)
 {
-    Hierarchy_S::setParent(*this, newParent);
+    transformsOf(*this).setParent(*this, newParent);
 }
 
 EntityHandle EntityHandle::parent() const

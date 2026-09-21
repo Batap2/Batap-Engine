@@ -8,6 +8,7 @@
 #include <Jolt/Physics/Body/MassProperties.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/ScaledShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
@@ -134,6 +135,8 @@ JPH::ShapeRefC makeUnscaledShape(const RigidBody_C& rb, AssetManager& assets)
 JPH::ShapeRefC makeShape(const RigidBody_C& rb, const v3f& scale, AssetManager& assets)
 {
     JPH::ShapeRefC base = makeUnscaledShape(rb, assets);
+    if (!rb.centerOfMassOffset_.isZero())
+        base = new JPH::OffsetCenterOfMassShape(base, toJolt(rb.centerOfMassOffset_));
     const JPH::Vec3 s = toJolt(scale);
     if (s.IsClose(JPH::Vec3::sOne()))
         return base;

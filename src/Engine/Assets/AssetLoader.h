@@ -55,6 +55,13 @@ AssetHandle<T> loadAsset(std::string_view path, const Engine& ctx)
     return {};
 }
 
+// Re-reads an asset already in memory and swaps its content in place: the handle
+// stays valid, so every component pointing at it shows the new data. Returns
+// false if the path is not loaded or the file cannot be read — the content in
+// memory is then left untouched.
+bool reloadAsset(std::string_view path, AssetManager& assets);
+bool reloadAsset(std::string_view path, const Engine& ctx);
+
 // Creates engine built-in assets: 1×1 white texture + default material (GPU slot 0).
 // Must be called once, before any scene assets are loaded.
 void createDefaultAssets(const Engine& ctx);

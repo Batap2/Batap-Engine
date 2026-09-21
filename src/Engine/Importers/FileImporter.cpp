@@ -1,6 +1,8 @@
 #include "FileImporter.h"
 #include "MeshDecomposer.h"
 
+#include "Assets/AssetLoader.h"
+
 #include <array>
 #include <filesystem>
 #include <string>
@@ -50,11 +52,10 @@ ImportResult importFile(std::string_view path, ImportOptions opts)
         if (decomp.ok)
         {
             out.kind = ImportResult::Kind::Decomposed;
-            out.writtenFiles = decomp.bmeshPaths;
-            out.writtenFiles.insert(out.writtenFiles.end(), decomp.texturePaths.begin(),
-                                    decomp.texturePaths.end());
-            out.writtenFiles.insert(out.writtenFiles.end(),
-                                    decomp.btplPaths.begin(), decomp.btplPaths.end());
+            for (const auto* written : {&decomp.bmeshPaths, &decomp.texturePaths,
+                                        &decomp.bmatPaths, &decomp.btplPaths})
+                out.writtenFiles.insert(out.writtenFiles.end(), written->begin(),
+                                        written->end());
         }
         else
         {
@@ -64,6 +65,14 @@ ImportResult importFile(std::string_view path, ImportOptions opts)
     }
 
     return out;
+}
+
+size_t reloadImportedAssets(const ImportResult& result, AssetManager& assets)
+{
+    size_t reloaded = 0;
+    for (const std::string& file : result.writtenFiles)
+        reloaded += reloadAsset(file, assets) ? 1u : 0u;
+    return reloaded;
 }
 
 }  // namespace batap

@@ -64,6 +64,12 @@ namespace batap {
         localRotation_ = quatf(R).normalized();
     }
 
+    v3f Transform_C::worldScale() const
+    {
+        const m3f A = world_.linear();
+        return {A.col(0).norm(), A.col(1).norm(), A.col(2).norm()};
+    }
+
     quatf Transform_C::extractWorldRotation(const transform& t)
     {
         m3f R = t.linear();

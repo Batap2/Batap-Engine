@@ -1,29 +1,31 @@
 #include "App.h"
 
-#include "Engine.h"
 #include "Assets/AssetLoader.h"
-#include "Paths.h"
 #include "Assets/Texture.h"
-#include "Renderer/Renderer.h"
-#include "FileDialog.h"
-#include "Importers/FileImporter.h"
-#include "Platform/PlatformWindow.h"
-#include "Serialization/EntitySerializer.h"
 #include "Components/Camera_C.h"
 #include "Components/EditorOnly_C.h"
 #include "Components/Transform_C.h"
+#include "EditorConfig.h"
+#include "Engine.h"
+#include "FileDialog.h"
+#include "Importers/FileImporter.h"
+#include "Paths.h"
+#include "Platform/PlatformWindow.h"
+#include "Renderer/Renderer.h"
+#include "Serialization/EntitySerializer.h"
 #include "UI/FieldUI.h"
 #include "UI/UIPanels.h"
 #include "UI/UITheme.h"
 #include "Utils/UIDGenerator.h"
 
+
 #include <imgui.h>
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <memory>
-#include <nlohmann/json.hpp>
+#include <tuple>
+
 
 #if defined(_WIN32)
 // clang-format off
@@ -34,6 +36,24 @@
 
 namespace batap
 {
+
+namespace
+{
+constexpr auto kConfigSaveDelay = std::chrono::seconds(1);
+
+quatf camRotation(float yaw, float pitch)
+{
+    return (quatf{angleaxisf(yaw, v3f::UnitY())} * quatf{angleaxisf(pitch, v3f::UnitX())})
+        .normalized();
+}
+
+auto camState(const v3f& pos, const FreeCamController_C& ctrl, const Camera_C& view)
+{
+    return std::tuple{pos.x(),     pos.y(),         pos.z(),          ctrl.yaw_,
+                      ctrl.pitch_, ctrl.moveSpeed_, ctrl.boostSpeed_, ctrl.mouseSensitivity_,
+                      view.fov_,   view.znear_,     view.zfar_};
+}
+}  // namespace
 
 App::App(Engine& engine, World& world)
     : ctx_(&engine), world_(&world), assetManager_(ctx_->assetManager_.get())
@@ -52,31 +72,70 @@ App::App(Engine& engine, World& world)
     editorCamCtrl_.requireRightMouseButton_ = true;
 }
 
-void App::syncEditorCamera()
+EntityHandle App::editorCamera()
 {
     auto& reg = world_->registry_;
-    entt::entity cam = entt::null;
-    for (entt::entity e : reg.view<EditorOnly_C, Camera_C>())
-        cam = e;
+    auto view = reg.view<EditorOnly_C, Camera_C>();
+    const auto it = view.begin();
+    return it == view.end() ? EntityHandle{} : EntityHandle{&reg, *it};
+}
 
-    if (cam == entt::null)
+void App::applyEditorCamera()
+{
+    EntityHandle cam = editorCamera();
+    if (!cam.valid())
+        return;
+
+    cam.get<FreeCamController_C>() = editorCamCtrl_;
+    Camera_C& view = cam.get<Camera_C>();
+    view.fov_ = editorCamView_.fov_;
+    view.znear_ = editorCamView_.znear_;
+    view.zfar_ = editorCamView_.zfar_;
+    cam.setLocalPosition(editorCamPos_);
+    cam.setLocalRotation(editorCamRot_);
+    world_->instances().markDirty<Camera_C>(cam);
+}
+
+void App::syncEditorCamera()
+{
+    EntityHandle cam = editorCamera();
+
+    if (!cam.valid())
     {
-        EntityHandle h = world_->spawn("camera");
-        reg.emplace<EditorOnly_C>(h.entity_);
-        h.emplace<FreeCamController_C>(editorCamCtrl_);
-        h.setLocalPosition(editorCamPos_);
-        h.setLocalRotation(editorCamRot_);
-        cam = h.entity_;
+        cam = world_->spawn("camera");
+        world_->registry_.emplace<EditorOnly_C>(cam.entity_);
+        cam.emplace<FreeCamController_C>(editorCamCtrl_);
+        applyEditorCamera();
     }
     else
     {
-        const auto& tc = reg.get<Transform_C>(cam);
+        const Transform_C& tc = cam.get<Transform_C>();
+        const FreeCamController_C& ctrl = cam.get<FreeCamController_C>();
+        const Camera_C& view = cam.get<Camera_C>();
+
+        if (camState(tc.pos(), ctrl, view) !=
+            camState(editorCamPos_, editorCamCtrl_, editorCamView_))
+            markConfigDirty();
+
         editorCamPos_ = tc.pos();
         editorCamRot_ = tc.rot();
-        editorCamCtrl_ = reg.get<FreeCamController_C>(cam);
+        editorCamCtrl_ = ctrl;
+        editorCamCtrl_.requireRightMouseButton_ = true;
+        editorCamView_.fov_ = view.fov_;
+        editorCamView_.znear_ = view.znear_;
+        editorCamView_.zfar_ = view.zfar_;
     }
 
-    world_->setRenderCamera(playing_ ? entt::null : cam);
+    world_->setRenderCamera(playing_ ? entt::null : cam.entity_);
+}
+
+void App::setScenePath(std::string path)
+{
+    if (!scenePath_.empty())
+        saveConfig();
+
+    scenePath_ = std::move(path);
+    loadSceneCamera();
 }
 
 // The World outlives the App, so its registry would otherwise be destroyed
@@ -84,6 +143,10 @@ void App::syncEditorCamera()
 // code destroys itself through DLL code.
 App::~App()
 {
+    // Before resetScene: the camera the config wants is the live one.
+    if (configDirty_)
+        saveConfig();
+
     game_.reset();
     if (world_)
         world_->resetScene();
@@ -98,6 +161,9 @@ void App::update()
     }
     pumpMsgFileDialog();
     pumpGameModuleReload();
+
+    if (configDirty_ && std::chrono::steady_clock::now() >= configSaveAt_)
+        saveConfig();
 
     if (state_ == AppState::SelectProject)
     {
@@ -136,7 +202,7 @@ void App::pumpGameModuleReload()
             showToast("Game reloaded");
         }
         else
-            showToast("Game reload failed (see console)");
+            showToast("Game reload failed: " + gameModule_.lastError());
     }
     catch (const std::exception& e)
     {
@@ -207,55 +273,84 @@ void App::runStandalone()
                   "--project \"" + projectDir_ + "\" --scene \"" + scene.string() + "\"");
 }
 
-// L'emplacement par-utilisateur de chaque OS : %APPDATA% / Application Support
-static std::filesystem::path configPath()
+std::string App::sceneKey() const
 {
-#if defined(_WIN32)
-    char* appdata = nullptr;
-    size_t len = 0;
-    _dupenv_s(&appdata, &len, "APPDATA");
-    std::filesystem::path base = appdata ? appdata : ".";
-    free(appdata);
-#else
-    const char* home = std::getenv("HOME");
-    std::filesystem::path base = home ? std::filesystem::path(home) / "Library/Application Support"
-                                      : ".";
-#endif
-    return base / "BatapEngine" / "recent.json";
+    return editorConfig::sceneKey(projectDir_, scenePath_);
 }
 
 void App::loadConfig()
 {
-    auto path = configPath();
-    if (!std::filesystem::exists(path))
-        return;
-    std::ifstream f(path);
-    if (!f.is_open())
-        return;
-    try
-    {
-        auto j = nlohmann::json::parse(f);
-        theme_ = j.value("theme", std::string("light")) == "dark" ? ui::Theme::Dark
-                                                                    : ui::Theme::Light;
-        for (auto& s : j.value("recent", nlohmann::json::array()))
-        {
-            auto str = s.get<std::string>();
-            if (!str.empty())
-                recentProjects_.push_back(std::move(str));
-        }
-    }
-    catch (...)
-    {}
+    editorConfig::File file;
+    editorConfig::read(file, {}, {});
+    theme_ = file.theme;
+    recentProjects_ = std::move(file.recent);
 }
 
 void App::saveConfig()
 {
-    auto path = configPath();
-    std::filesystem::create_directories(path.parent_path());
-    nlohmann::json j;
-    j["recent"] = recentProjects_;
-    j["theme"] = theme_ == ui::Theme::Dark ? "dark" : "light";
-    std::ofstream(path) << j.dump(2);
+    editorConfig::File file;
+    file.theme = theme_;
+    file.recent = recentProjects_;
+    file.camera = {editorCamCtrl_.moveSpeed_,        editorCamCtrl_.boostSpeed_,
+                   editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_,
+                   editorCamView_.znear_,            editorCamView_.zfar_};
+    file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_};
+    file.hasPose = true;
+
+    editorConfig::write(file, projectDir_, sceneKey());
+    configDirty_ = false;
+}
+
+void App::loadProjectCamera()
+{
+    editorCamCtrl_ = FreeCamController_C{};
+    editorCamCtrl_.requireRightMouseButton_ = true;
+    editorCamView_ = Camera_C{};
+
+    // Seeded with the defaults just restored: a key the file does not carry
+    // must come back as the component wrote it, not as a zero.
+    editorConfig::File file;
+    file.camera = {editorCamCtrl_.moveSpeed_,        editorCamCtrl_.boostSpeed_,
+                   editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_,
+                   editorCamView_.znear_,            editorCamView_.zfar_};
+    editorConfig::read(file, projectDir_, {});
+
+    editorCamCtrl_.moveSpeed_ = file.camera.moveSpeed;
+    editorCamCtrl_.boostSpeed_ = file.camera.boostSpeed;
+    editorCamCtrl_.mouseSensitivity_ = file.camera.mouseSensitivity;
+    editorCamView_.fov_ = file.camera.fov;
+    editorCamView_.znear_ = file.camera.znear;
+    editorCamView_.zfar_ = file.camera.zfar;
+
+    applyEditorCamera();
+}
+
+// A scene never opened before keeps the camera where it is, rather than
+// throwing it back to the origin.
+void App::loadSceneCamera()
+{
+    const std::string scene = sceneKey();
+    if (scene.empty())
+        return;
+
+    editorConfig::File file;
+    file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_};
+    editorConfig::read(file, projectDir_, scene);
+    if (!file.hasPose)
+        return;
+
+    editorCamPos_ = file.pose.pos;
+    editorCamCtrl_.yaw_ = file.pose.yaw;
+    editorCamCtrl_.pitch_ = file.pose.pitch;
+    editorCamRot_ = camRotation(editorCamCtrl_.yaw_, editorCamCtrl_.pitch_);
+
+    applyEditorCamera();
+}
+
+void App::markConfigDirty()
+{
+    configDirty_ = true;
+    configSaveAt_ = std::chrono::steady_clock::now() + kConfigSaveDelay;
 }
 
 // PopStyleColor restores the value saved at push time, so a theme applied from
@@ -269,7 +364,14 @@ void App::setTheme(ui::Theme theme)
 
 void App::selectProject(const std::string& dir)
 {
+    if (!projectDir_.empty())
+        saveConfig();
+
+    // The scene that was open belongs to the project being left, so its name
+    // must not become a key under the new one.
+    scenePath_.clear();
     projectDir_ = dir;
+    loadProjectCamera();
     ctx_->assetManager_->setBaseDir(dir);
     state_ = AppState::Running;
 
@@ -277,12 +379,21 @@ void App::selectProject(const std::string& dir)
     {
         try
         {
-            const auto dll = std::filesystem::path(dir) / "bin" / "Game.dll";
-            if (std::filesystem::exists(dll) && gameModule_.load(dll.string()))
+            const auto dll = std::filesystem::path(dir) / "bin" / GameModuleFileName;
+            if (!std::filesystem::exists(dll))
+            {
+                // A project with no game module is legitimate, but the name
+                // differs per configuration — so name the one looked for.
+                showToast("No " + std::string(GameModuleFileName) + " in " +
+                          (std::filesystem::path(dir) / "bin").string());
+            }
+            else if (gameModule_.load(dll.string()))
             {
                 adoptGame();
                 showToast("Game loaded");
             }
+            else
+                showToast("Game load failed: " + gameModule_.lastError());
         }
         catch (const std::exception& e)
         {
@@ -315,6 +426,50 @@ uint64_t App::openFolderDialogAsyncWithAfterJob(FileDialogAfterJob job)
     return id;
 }
 
+void App::importAssets(std::span<const std::string> paths)
+{
+    size_t imported = 0;
+    size_t reloaded = 0;
+    std::string skipped;
+    std::string failed;
+
+    const auto note = [](std::string& list, const std::string& path)
+    {
+        if (!list.empty())
+            list += ", ";
+        list += std::filesystem::path(path).filename().string();
+    };
+
+    for (const std::string& path : paths)
+    {
+        const ImportResult result = importFile(path, ImportOptions{projectDir_});
+        if (result.kind == ImportResult::Kind::Unsupported)
+        {
+            note(skipped, path);
+            continue;
+        }
+        if (!result)
+        {
+            note(failed, path);
+            continue;
+        }
+        ++imported;
+        reloaded += reloadImportedAssets(result, *assetManager_);
+    }
+
+    std::string msg;
+    if (imported > 0)
+        msg = (reloaded == 0 ? "Imported " : "Reimported ") + std::to_string(imported) + " file(s)";
+    if (reloaded > 0)
+        msg += ", " + std::to_string(reloaded) + " asset(s) refreshed";
+    if (!skipped.empty())
+        msg += (msg.empty() ? "Format not imported: " : " — not imported: ") + skipped;
+    if (!failed.empty())
+        msg += (msg.empty() ? "Import failed: " : " — failed: ") + failed;
+    if (!msg.empty())
+        showToast(std::move(msg));
+}
+
 void App::pumpMsgFileDialog()
 {
     fileDialogMsgBus_.pumpType<FileDialogMsg>(
@@ -328,8 +483,7 @@ void App::pumpMsgFileDialog()
                 return;
             }
 
-            for (auto& path : msg.paths_)
-                importFile(path, ImportOptions{projectDir_});
+            importAssets(msg.paths_);
         });
 }
 

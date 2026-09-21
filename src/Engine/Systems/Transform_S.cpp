@@ -97,6 +97,31 @@ void Transform_S::setLocalScale(EntityHandle h, const v3f& s)
     markDirty(h);
 }
 
+void Transform_S::setParent(EntityHandle h, EntityHandle newParent)
+{
+    if (!has_transform(h))
+    {
+        Hierarchy_S::setParent(h, newParent);
+        return;
+    }
+
+    auto& reg = *h.reg_;
+    // The last flushed world, like every other Space::World path here.
+    const transform world = h.get<Transform_C>().world_;
+
+    Hierarchy_S::setParent(h, newParent);
+
+    auto& t = h.get<Transform_C>();
+    const entt::entity par = Hierarchy_S::getParent(h);
+    if (par != entt::null && reg.valid(par) && reg.any_of<Transform_C>(par))
+        t.setLocalFromTransform(reg.get<Transform_C>(par).world_.inverse() * world);
+    else
+        t.setLocalFromTransform(world);
+
+    t.localDirty_ = true;
+    markDirty(h);
+}
+
 void Transform_S::setPosition(EntityHandle h, const v3f& p, Space space)
 {
     if (!has_transform(h))

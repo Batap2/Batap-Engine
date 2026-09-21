@@ -6,6 +6,7 @@
 #include "imgui.h"
 
 #include <iostream>
+#include <system_error>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -16,6 +17,23 @@
 namespace batap
 {
 namespace fs = std::filesystem;
+
+namespace
+{
+std::string systemLoadError()
+{
+#if defined(_WIN32)
+    const auto code = static_cast<int>(::GetLastError());
+    std::string msg = std::system_category().message(code);
+    while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r'))
+        msg.pop_back();
+    return msg + " (" + std::to_string(code) + ")";
+#else
+    const char* err = ::dlerror();
+    return err ? err : "unknown error";
+#endif
+}
+}  // namespace
 
 bool GameModuleLoader::load(const std::string& dllPath)
 {
@@ -31,14 +49,20 @@ bool GameModuleLoader::stage()
     std::error_code ec;
     const auto mtime = fs::last_write_time(sourcePath_, ec);
     if (ec)
+    {
+        lastError_ = sourcePath_.string() + ": " + ec.message();
         return false;
+    }
 
     fs::path staged = sourcePath_;
     staged.replace_filename(sourcePath_.stem().string() + "_loaded_" +
                             std::to_string(generation_++) + ".dll");
     fs::copy_file(sourcePath_, staged, fs::copy_options::overwrite_existing, ec);
     if (ec)
+    {
+        lastError_ = "cannot stage " + staged.string() + ": " + ec.message();
         return false;
+    }
 
     stagedPath_ = staged;
     loadedMtime_ = mtime;
@@ -54,7 +78,9 @@ bool GameModuleLoader::loadStaged()
 #endif
     if (!lib_)
     {
-        std::cerr << "[GameModule] failed to load " << stagedPath_.string() << "\n";
+        lastError_ = systemLoadError();
+        std::cerr << "[GameModule] failed to load " << stagedPath_.string() << ": " << lastError_
+                  << "\n";
         return false;
     }
     loadedPath_ = stagedPath_;
@@ -71,8 +97,8 @@ bool GameModuleLoader::loadStaged()
 #endif
     if (!entry)
     {
-        std::cerr << "[GameModule] " << GameModuleEntryName << " not found in "
-                  << sourcePath_.string() << "\n";
+        lastError_ = std::string(GameModuleEntryName) + " not found in " + sourcePath_.string();
+        std::cerr << "[GameModule] " << lastError_ << "\n";
         return false;
     }
 
@@ -90,6 +116,7 @@ bool GameModuleLoader::loadStaged()
                 installFieldUIFor(*f.type);
 
     ComponentRegistry::instance().validate();
+    lastError_.clear();
     std::cerr << "[GameModule] loaded " << loadedPath_.string() << "\n";
     return true;
 }

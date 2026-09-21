@@ -49,6 +49,12 @@ const char* kindName(Shape::Kind k)
     return "Box";
 }
 
+void* meshOfShape(void* fieldPtr, size_t index)
+{
+    auto& shapes = *static_cast<std::vector<Shape>*>(fieldPtr);
+    return index < shapes.size() ? static_cast<void*>(&shapes[index].mesh_) : nullptr;
+}
+
 template <class M>
 void set(DrawFn fn)
 {
@@ -134,7 +140,7 @@ void installFieldUI()
         });
 
     set<std::vector<Shape>>(
-        [](void* p, const Field&, FieldUIContext& fieldCtx)
+        [](void* p, const Field& f, FieldUIContext& fieldCtx)
         {
             auto& shapes = *static_cast<std::vector<Shape>*>(p);
             bool changed = false;
@@ -189,11 +195,21 @@ void installFieldUI()
                         break;
                     case Shape::Kind::Mesh:
                     {
-                        const std::string* path =
-                            s.mesh_ && fieldCtx.app_ && fieldCtx.app_->assetManager_
-                                ? fieldCtx.app_->assetManager_->getPath(s.mesh_)
-                                : nullptr;
-                        ImGui::TextDisabled("%s", path ? path->c_str() : "(no mesh)");
+                        // The picker applies the pick itself (patch +
+                        // markDirty), so the row reports no change of its own.
+                        AssetManager* assets =
+                            fieldCtx.app_ ? fieldCtx.app_->assetManager_ : nullptr;
+                        const std::string name =
+                            assets ? ui::assetName(*assets, s.mesh_) : std::string{};
+                        const bool clicked =
+                            ui::AssetRow(AssetType::Mesh, name, ImGui::CalcItemWidth());
+                        ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+                        ImGui::TextUnformatted("Mesh");
+                        if (clicked && assets && fieldCtx.picker_ && fieldCtx.component_)
+                            fieldCtx.picker_->openField(fieldCtx.ent_, *fieldCtx.component_, f,
+                                                        AssetType::Mesh,
+                                                        fieldCtx.app_->projectDir_, meshOfShape,
+                                                        static_cast<size_t>(id));
                         break;
                     }
                 }

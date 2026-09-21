@@ -7,6 +7,8 @@
 namespace batap
 {
 
+// Every path is relative to baseDir — the key an asset is addressed by. A file
+// written outside the project has no key and is not reported.
 struct DecomposeResult
 {
     std::vector<std::string> bmeshPaths;

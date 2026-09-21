@@ -5,6 +5,7 @@
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
+#include <Jolt/Physics/Constraints/Constraint.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include "Physics/ContactCollector.h"
@@ -46,6 +47,14 @@ struct PhysicsWorld
                                            JPH::RVec3Arg pos, JPH::QuatArg rot);
     void destroyCharacter(uint32_t key);
 
+    // Constraints are keyed and owned here for one reason: they must leave the
+    // PhysicsSystem before the bodies they hold, and clear() is where that is
+    // known. listener is for the constraints that are also step listeners.
+    JPH::Constraint* constraint(uint32_t key);
+    JPH::Constraint& addConstraint(uint32_t key, JPH::Constraint* constraint,
+                                   JPH::PhysicsStepListener* listener = nullptr);
+    void destroyConstraint(uint32_t key);
+
    private:
     // Declared first: TempAllocatorImpl allocates through Jolt's allocator,
     // which only exists once JoltRuntime has registered it.
@@ -64,9 +73,17 @@ struct PhysicsWorld
 
     JPH::PhysicsSystem system_;
 
+    struct OwnedConstraint
+    {
+        JPH::Ref<JPH::Constraint> constraint_;
+        JPH::PhysicsStepListener* listener_ = nullptr;
+    };
+
     // After system_, so they are destroyed before it: a CharacterVirtual holds
-    // a pointer to the PhysicsSystem it queries.
+    // a pointer to the PhysicsSystem it queries, and a constraint is
+    // registered inside it.
     std::unordered_map<uint32_t, JPH::Ref<JPH::CharacterVirtual>> characters_;
+    std::unordered_map<uint32_t, OwnedConstraint> constraints_;
 };
 
 }  // namespace batap

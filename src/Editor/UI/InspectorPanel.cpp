@@ -16,6 +16,7 @@
 #include "Instance/InstanceDeclaration.h"
 #include "Instance/Spawnable.h"
 #include "Reflection/ComponentRegistry.h"
+#include "Systems/Hierarchy_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
 #include "UI/IconsMaterialDesign.h"
@@ -130,17 +131,37 @@ void InspectorPanel::drawTransform(EntityHandle ent)
     if (!section)
         return;
 
+    // Without a parent the two spaces are the same pose: no button, and the
+    // fields stay the local ones.
+    const bool parented = Hierarchy_S::hasParent(ent);
+    if (parented)
+    {
+        if (ImGui::Button(worldSpace_ ? ICON_MD_PUBLIC "  World" : ICON_MD_VIEW_IN_AR "  Local",
+                          {ImGui::GetContentRegionAvail().x, 0.0f}))
+            worldSpace_ = !worldSpace_;
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Read the pose in world space or relative to the parent."
+                              " World scale is lossy, so it only shows.");
+        ImGui::Spacing();
+    }
+    const bool world = parented && worldSpace_;
+
     auto fields = ui::BeginFields("transform");
     if (!fields)
         return;
 
-    v3f pos = t->pos();
+    v3f pos = world ? t->worldPos() : t->pos();
     if (ui::FieldDragFloat3("Position", pos.data(), 0.05f))
-        ent.setLocalPosition(pos);
+    {
+        if (world)
+            ent.setPosition(pos, Space::World);
+        else
+            ent.setLocalPosition(pos);
+    }
 
     // Euler angles are cached: a quaternion has several equivalent triplets,
     // and recomputing one every frame would make the field jump while dragged.
-    const quatf rot = t->rot().normalized();
+    const quatf rot = (world ? t->worldRot() : t->rot()).normalized();
     if (!rotationEditEntity_ || *rotationEditEntity_ != ent ||
         1.0f - std::abs(rotationEditSourceQuat_.dot(rot)) > 1e-4f)
     {
@@ -157,12 +178,17 @@ void InspectorPanel::drawTransform(EntityHandle ent)
                        angleaxisf(eulerRad.z(), v3f::UnitZ());
         newRot.normalize();
         rotationEditSourceQuat_ = newRot;
-        ent.setLocalRotation(newRot);
+        if (world)
+            ent.setRotation(newRot, Space::World);
+        else
+            ent.setLocalRotation(newRot);
     }
 
-    v3f scale = t->scale();
-    if (ui::FieldDragFloat3("Scale", scale.data(), 0.01f))
+    v3f scale = world ? t->worldScale() : t->scale();
+    ImGui::BeginDisabled(world);
+    if (ui::FieldDragFloat3("Scale", scale.data(), 0.01f) && !world)
         ent.setLocalScale(scale);
+    ImGui::EndDisabled();
 }
 
 void InspectorPanel::drawMesh(EntityHandle ent, App& app)

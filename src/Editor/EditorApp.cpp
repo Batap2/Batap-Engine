@@ -32,7 +32,7 @@ int runEditor(const EditorConfig& cfg)
             else if (args[i] == "--scene")
             {
                 EntitySerializer::clearSceneAndLoad(world, engine, args[i + 1]);
-                app.uiPanels_.setScenePath(args[i + 1]);
+                app.setScenePath(args[i + 1]);
             }
             else if (args[i] == "--select")
                 app.uiPanels_.selectByName(world, args[i + 1]);

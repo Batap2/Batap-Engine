@@ -24,6 +24,8 @@ struct Transform_S
     void setLocalRotation(EntityHandle e, const quatf& q);
     void setLocalScale(EntityHandle e, const v3f& s);
 
+    void setParent(EntityHandle e, EntityHandle newParent);
+
     void setPosition(EntityHandle e, const v3f& p, Space space = Space::World);
     void setRotation(EntityHandle e, const quatf& q, Space space = Space::World);
 

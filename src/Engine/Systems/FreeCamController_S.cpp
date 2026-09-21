@@ -15,34 +15,30 @@ void FreeCamController_S::update(Engine& ctx, World& world, float deltaTime)
             if (!controller.controlled_)
                 return;
 
-            const bool looking = !controller.requireRightMouseButton_ ||
-                                 ctx.inputManager_->down(MouseButton::Right);
+            if (controller.requireRightMouseButton_ &&
+                !ctx.inputManager_->down(MouseButton::Right))
+                return;
 
             entt::registry* reg = &world.registry_;
 
-            if (looking)
+            const v2i mouseD = ctx.inputManager_->mouseDelta();
+            if (!mouseD.isZero())
             {
-                v2i mouseD = ctx.inputManager_->mouseDelta();
+                controller.yaw_ += static_cast<float>(-mouseD.x()) * controller.mouseSensitivity_;
+                controller.pitch_ +=
+                    static_cast<float>(-mouseD.y()) * controller.mouseSensitivity_;
 
-                if (!mouseD.isZero())
-                {
-                    controller.yaw_ +=
-                        static_cast<float>(-mouseD.x()) * controller.mouseSensitivity_;
-                    controller.pitch_ +=
-                        static_cast<float>(-mouseD.y()) * controller.mouseSensitivity_;
+                constexpr float pitchLimit = 1.55334306f;
+                controller.pitch_ = std::clamp(controller.pitch_, -pitchLimit, pitchLimit);
 
-                    constexpr float pitchLimit = 1.55334306f;
-                    controller.pitch_ = std::clamp(controller.pitch_, -pitchLimit, pitchLimit);
+                quatf qYaw{angleaxisf(controller.yaw_, v3f::UnitY())};
+                quatf qPitch{angleaxisf(controller.pitch_, v3f::UnitX())};
 
-                    quatf qYaw{angleaxisf(controller.yaw_, v3f::UnitY())};
-                    quatf qPitch{angleaxisf(controller.pitch_, v3f::UnitX())};
-
-                    EntityHandle{reg, ent}.setLocalRotation((qYaw * qPitch).normalized());
-                }
+                EntityHandle{reg, ent}.setLocalRotation((qYaw * qPitch).normalized());
             }
 
             float scroll = ctx.inputManager_->wheel();
-            if (looking && scroll != 0.f)
+            if (scroll != 0.f)
             {
                 controller.moveSpeed_ *= std::pow(1.15f, scroll);
                 controller.moveSpeed_  = std::clamp(controller.moveSpeed_, 0.1f, 1000.f);

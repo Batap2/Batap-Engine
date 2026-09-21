@@ -26,6 +26,8 @@ struct InspectorPanel
     // add menu: registry components minus markers and those already present
     void drawAddComponent(EntityHandle ent, World& world);
 
+    bool worldSpace_ = false;
+
     // Cache for euler rotation
     std::optional<EntityHandle> rotationEditEntity_;
     v3f   rotationEditEulerDeg_  = v3f::Zero();

@@ -12,6 +12,7 @@
 #include "Serialization/BtexSerializer.h"
 #include "Utils/UIDGenerator.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <filesystem>
@@ -31,26 +32,19 @@ static std::string_view extractExtension(std::string_view path)
     return path.substr(dot + 1);
 }
 
-static std::optional<AssetHandleAny> loadMesh(std::string_view relPath,
-                                              AssetManager& assetManager)
+static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& mesh)
 {
     assert(!assetManager.baseDir().empty() &&
            "AssetManager baseDir not set — call setBaseDir before loading assets");
-    const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / relPath).string();
+    const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / key).string();
 
     auto data = readBmesh(absPath);
     if (!data || data->vertices.empty())
     {
         std::cerr << "[AssetLoader] Failed to read bmesh: " << absPath << "\n";
-        return std::nullopt;
+        return false;
     }
 
-    const std::string key = std::string(relPath);
-    auto [handle, inserted] = assetManager.emplace<Mesh>(key, key);
-    if (!inserted)
-        return AssetHandleAny{handle};
-
-    auto* mesh = assetManager.get(handle);
     auto* rm = assetManager.resourceManager_;
 
     // All the streams of a mesh share one buffer, each at its own offset.
@@ -88,22 +82,22 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath,
     const auto guid =
         rm->createStaticBuffer(cursor, key + "_" + std::to_string(next_uid64()) + "_mesh");
 
-    mesh->buffer_ = guid;
-    mesh->streamOffsets_[Mesh::Index] = indexOffset;
-    mesh->indexCount_ = static_cast<uint32_t>(data->indices.size());
+    mesh.buffer_ = guid;
+    mesh.streamOffsets_[Mesh::Index] = indexOffset;
+    mesh.indexCount_ = static_cast<uint32_t>(data->indices.size());
     std::memcpy(rm->requestUpload(guid, indexBytes, indexOffset).data(), data->indices.data(),
                 indexBytes);
 
-    mesh->streamOffsets_[Mesh::Position] = vertexOffset;
-    mesh->vertexCount_ = static_cast<uint32_t>(vcount);
+    mesh.streamOffsets_[Mesh::Position] = vertexOffset;
+    mesh.vertexCount_ = static_cast<uint32_t>(vcount);
     std::memcpy(rm->requestUpload(guid, vertexBytes, vertexOffset).data(), data->vertices.data(),
                 vertexBytes);
 
-    mesh->streamOffsets_[Mesh::Normal] = normalOffset;
+    mesh.streamOffsets_[Mesh::Normal] = normalOffset;
     std::memcpy(rm->requestUpload(guid, normalBytes, normalOffset).data(), data->normals.data(),
                 normalBytes);
 
-    mesh->streamOffsets_[Mesh::UV0] = uvOffset;
+    mesh.streamOffsets_[Mesh::UV0] = uvOffset;
     std::memcpy(rm->requestUpload(guid, uvBytes, uvOffset).data(), data->uvs.data(), uvBytes);
 
     // Tangents need real UVs to mean anything; without them the value is unused
@@ -150,40 +144,68 @@ static std::optional<AssetHandleAny> loadMesh(std::string_view relPath,
         }
     }
 
-    mesh->streamOffsets_[Mesh::Tangent] = tangentOffset;
+    mesh.streamOffsets_[Mesh::Tangent] = tangentOffset;
     std::memcpy(rm->requestUpload(guid, tangentBytes, tangentOffset).data(), tangents.data(),
                 tangentBytes);
 
-    mesh->indexFormat_ = ResourceFormat::R32_UINT;
+    mesh.indexFormat_ = ResourceFormat::R32_UINT;
     for (const v3f& v : data->vertices)
-        mesh->localBounds_.extend(v);
-    mesh->subMeshCount = static_cast<uint8_t>(std::min(data->subMeshes.size(), size_t(8)));
-    for (uint8_t i = 0; i < mesh->subMeshCount; ++i)
-        mesh->subMeshes[i] = {data->subMeshes[i].indexOffset, data->subMeshes[i].indexCount};
+        mesh.localBounds_.extend(v);
+    mesh.subMeshCount = static_cast<uint8_t>(std::min(data->subMeshes.size(), size_t(8)));
+    for (uint8_t i = 0; i < mesh.subMeshCount; ++i)
+        mesh.subMeshes[i] = {data->subMeshes[i].indexOffset, data->subMeshes[i].indexCount};
 
+    return true;
+}
+
+static std::optional<AssetHandleAny> loadMesh(std::string_view relPath,
+                                              AssetManager& assetManager)
+{
+    const std::string key = std::string(relPath);
+    if (auto existing = assetManager.getHandle<Mesh>(key))
+        return AssetHandleAny{*existing};
+
+    Mesh mesh{};
+    if (!buildMesh(key, assetManager, mesh))
+        return std::nullopt;
+
+    auto [handle, _] = assetManager.emplace<Mesh>(key, key, mesh);
     return AssetHandleAny{handle};
 }
 
-static std::optional<AssetHandleAny> loadTexture(std::string_view relPath,
-                                                 AssetManager& assetManager, bool isBtex)
+static bool reloadMesh(const std::string& key, AssetManager& assetManager)
+{
+    const auto handle = assetManager.getHandle<Mesh>(key);
+    if (!handle)
+        return false;
+
+    Mesh fresh{};
+    if (!buildMesh(key, assetManager, fresh))
+        return false;
+
+    Mesh* mesh = assetManager.get(*handle);
+    const GPUResourceHandle old = mesh->buffer_;
+    *mesh = fresh;
+    if (old.valid())
+        assetManager.resourceManager_->requestDestroy(old);
+    return true;
+}
+
+static bool buildTexture(const std::string& key, AssetManager& assetManager, bool isBtex,
+                         Texture& tex)
 {
     namespace fs = std::filesystem;
-    const std::string key = std::string(relPath);
-
-    // Early-out: already loaded, no GPU work needed.
-    if (auto existing = assetManager.getHandle<Texture>(key))
-        return AssetHandleAny{*existing};
 
     // resolve source image path — .btex redirects to its sourcePath
     TextureDesc desc;
     if (isBtex)
     {
-        const std::string absBtex = (fs::path(assetManager.baseDir()) / relPath).string();
+        const std::string absBtex = (fs::path(assetManager.baseDir()) / key).string();
         auto d = readBtex(absBtex);
         if (!d)
         {
             std::cerr << "[AssetLoader] Failed to read btex: " << absBtex << "\n";
-            return std::nullopt;
+            return false;
         }
         desc = std::move(*d);
     }
@@ -208,7 +230,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath,
     if (!hdrPixels && !ldrPixels)
     {
         std::cerr << "[AssetLoader] stbi_load failed: " << absSource << " — " << stbi_failure_reason() << "\n";
-        return std::nullopt;
+        return false;
     }
 
     const uint32_t       bytesPerPixel = isHdr ? 16u : 4u;
@@ -237,7 +259,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath,
     stbi_image_free(isHdr ? static_cast<void*>(hdrPixels) : static_cast<void*>(ldrPixels));
 
     // build runtime Texture
-    Texture tex{};
+    tex = Texture{};
     tex.bindlessIndex_    = rm->textureIndex(gpuTex);
     tex.gpu_              = gpuTex;
     tex.format_     = resFmt;
@@ -246,16 +268,87 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath,
     tex.sizeY_         = static_cast<uint32_t>(h);
     tex.irradianceSH_  = hdriSH;
 
-    const std::string name  = std::filesystem::path(relPath).stem().string();
+    return true;
+}
+
+static std::optional<AssetHandleAny> loadTexture(std::string_view relPath,
+                                                 AssetManager& assetManager, bool isBtex)
+{
+    const std::string key = std::string(relPath);
+
+    // Early-out: already loaded, no GPU work needed.
+    if (auto existing = assetManager.getHandle<Texture>(key))
+        return AssetHandleAny{*existing};
+
+    Texture tex{};
+    if (!buildTexture(key, assetManager, isBtex, tex))
+        return std::nullopt;
+
+    const std::string name = std::filesystem::path(relPath).stem().string();
     auto [handle, _] = assetManager.emplace<Texture>(name, key, tex);
     return AssetHandleAny{handle};
 }
 
-static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath,
-                                                  AssetManager& assetManager)
+// Materials keep a bindless index, not a handle, so nothing else would move them
+// onto the image a reload just created.
+static void remapMaterialTexture(AssetManager& assetManager, uint32_t oldIndex,
+                                 uint32_t newIndex)
+{
+    auto* arena = assetManager.getGPUArena<Material>();
+    arena->forEach(
+        [&](MaterialHandle key, const std::string&, const std::string&)
+        {
+            const Material* mat = arena->get(key);
+            if (!mat)
+                return;
+
+            Material patched = *mat;
+            bool changed = false;
+            const auto remap = [&](uint32_t& idx)
+            {
+                if (idx != oldIndex)
+                    return;
+                idx = newIndex;
+                changed = true;
+            };
+            remap(patched.albedoTexIdx_);
+            remap(patched.normalTexIdx_);
+            remap(patched.roughnessTexIdx_);
+            remap(patched.metallicTexIdx_);
+
+            if (changed)
+                arena->update(key, patched);
+        });
+}
+
+static bool reloadTexture(const std::string& key, AssetManager& assetManager, bool isBtex)
+{
+    const auto handle = assetManager.getHandle<Texture>(key);
+    if (!handle)
+        return false;
+
+    Texture fresh{};
+    if (!buildTexture(key, assetManager, isBtex, fresh))
+        return false;
+
+    Texture* tex = assetManager.get(*handle);
+    const uint32_t oldIndex = tex->bindlessIndex_;
+    const GPUResourceHandle oldGpu = tex->gpu_;
+    *tex = fresh;
+
+    // Frees oldIndex for a later create, so it must run once nothing points at it.
+    if (oldIndex != fresh.bindlessIndex_)
+        remapMaterialTexture(assetManager, oldIndex, fresh.bindlessIndex_);
+    if (oldGpu.valid())
+        assetManager.resourceManager_->requestDestroy(oldGpu);
+    return true;
+}
+
+static std::optional<Material> buildMaterial(const std::string& key,
+                                             AssetManager& assetManager)
 {
     namespace fs = std::filesystem;
-    const std::string absPath = (fs::path(assetManager.baseDir()) / relPath).string();
+    const std::string absPath = (fs::path(assetManager.baseDir()) / key).string();
 
     auto data = readBmat(absPath);
     if (!data)
@@ -284,10 +377,36 @@ static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath,
     mat.roughnessTexIdx_ = resolveTexIdx(data->roughnessTexPath);
     mat.metallicTexIdx_  = resolveTexIdx(data->metallicTexPath);
 
-    const std::string key  = std::string(relPath);
-    const std::string name = fs::path(relPath).stem().string();
-    auto [handle, inserted] = assetManager.emplace<Material>(name, key, mat);
+    return mat;
+}
+
+static std::optional<AssetHandleAny> loadMaterial(std::string_view relPath,
+                                                  AssetManager& assetManager)
+{
+    const std::string key = std::string(relPath);
+    if (auto existing = assetManager.getHandle<Material>(key))
+        return AssetHandleAny{*existing};
+
+    const auto mat = buildMaterial(key, assetManager);
+    if (!mat)
+        return std::nullopt;
+
+    const std::string name = std::filesystem::path(relPath).stem().string();
+    auto [handle, _] = assetManager.emplace<Material>(name, key, *mat);
     return AssetHandleAny{handle};
+}
+
+static bool reloadMaterial(const std::string& key, AssetManager& assetManager)
+{
+    const auto handle = assetManager.getHandle<Material>(key);
+    if (!handle)
+        return false;
+
+    const auto mat = buildMaterial(key, assetManager);
+    if (!mat)
+        return false;
+
+    return assetManager.update(*handle, *mat);
 }
 
 void createDefaultAssets(const Engine& ctx)
@@ -378,6 +497,41 @@ std::optional<AssetHandleAny> loadAsset(std::string_view path, AssetManager& ass
 std::optional<AssetHandleAny> loadAsset(std::string_view path, const Engine& ctx)
 {
     return loadAsset(path, *ctx.assetManager_);
+}
+
+static bool reloadByKey(const std::string& key, std::string_view ext, AssetManager& assets)
+{
+    if (ext == "bmesh") return reloadMesh(key, assets);
+    if (ext == "bmat")  return reloadMaterial(key, assets);
+    if (ext == "btex")  return reloadTexture(key, assets, true);
+
+    if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "hdr")
+        return reloadTexture(key, assets, false);
+
+    return false;
+}
+
+bool reloadAsset(std::string_view path, AssetManager& assets)
+{
+    const auto ext = extractExtension(path);
+    const std::string key = std::string(path);
+
+    // A scene file spells a path as it was written there, and the same file can
+    // sit in memory twice, once per separator. Both spellings are refreshed.
+    std::string alt = key;
+    const bool generic = alt.find('\\') == std::string::npos;
+    std::replace(alt.begin(), alt.end(), generic ? '/' : '\\',
+                 generic ? '\\' : '/');
+
+    bool reloaded = reloadByKey(key, ext, assets);
+    if (alt != key)
+        reloaded = reloadByKey(alt, ext, assets) || reloaded;
+    return reloaded;
+}
+
+bool reloadAsset(std::string_view path, const Engine& ctx)
+{
+    return reloadAsset(path, *ctx.assetManager_);
 }
 
 }  // namespace batap

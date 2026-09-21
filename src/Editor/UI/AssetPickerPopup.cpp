@@ -10,7 +10,6 @@
 #include "Components/Mesh_C.h"
 #include "Components/Skybox_C.h"
 #include "FileDialog.h"
-#include "Importers/FileImporter.h"
 #include "Serialization/BmatSerializer.h"
 #include "Instance/InstanceManager.h"
 #include "Reflection/ComponentRegistry.h"
@@ -88,7 +87,8 @@ void AssetPickerPopup::openHdri(EntityHandle ent, const std::string& projectDir)
 
 void AssetPickerPopup::openField(EntityHandle ent, const ComponentType& component,
                                  const Field& field, AssetType type,
-                                 const std::string& projectDir)
+                                 const std::string& projectDir, FieldElementFn element,
+                                 size_t elementIndex)
 {
     ent_ = ent;
     type_ = type;
@@ -97,6 +97,8 @@ void AssetPickerPopup::openField(EntityHandle ent, const ComponentType& componen
     isFieldPick_ = true;
     fieldComponent_ = component.name;
     fieldOffset_ = field.offset;
+    fieldElement_ = element;
+    fieldElementIndex_ = elementIndex;
     search_.clear();
     projectDir_ = projectDir;
     exts_ = {std::string(extensionFor(type))};
@@ -146,7 +148,8 @@ static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, ui
 namespace
 {
 bool applyToField(App& app, EntityHandle ent, const std::string& componentName, size_t offset,
-                  AssetType type, const AssetHandleAny* picked)
+                  AssetPickerPopup::FieldElementFn element, size_t elementIndex, AssetType type,
+                  const AssetHandleAny* picked)
 {
     const ComponentType* ct = ComponentRegistry::instance().find(componentName);
     if (!ct || !ct->tryGet || !ent.valid())
@@ -164,6 +167,12 @@ bool applyToField(App& app, EntityHandle ent, const std::string& componentName, 
         return false;
 
     void* dst = field->ptrIn(component);
+    if (element)
+    {
+        dst = element(dst, elementIndex);
+        if (!dst)  // the element was removed while the popup was open
+            return false;
+    }
     switch (type)
     {
         case AssetType::Mesh:
@@ -195,7 +204,8 @@ bool AssetPickerPopup::applyPath(App& app, const std::filesystem::path& path)
         return false;
 
     if (isFieldPick_)
-        return applyToField(app, ent_, fieldComponent_, fieldOffset_, type_, &*handle);
+        return applyToField(app, ent_, fieldComponent_, fieldOffset_, fieldElement_,
+                            fieldElementIndex_, type_, &*handle);
 
     if (type_ == AssetType::Mesh)
         if (auto* meshC = ent_.try_get<Mesh_C>())
@@ -298,8 +308,7 @@ bool AssetPickerPopup::draw(App& app)
         if (ImGui::Button("Import..."))
         {
             constexpr FileDialogFilter filter{"Images", "*.png;*.jpg;*.jpeg;*.tga;*.hdr"};
-            for (const auto& src : OpenFilesDialog(std::span<const FileDialogFilter>(&filter, 1)))
-                importFile(src, {app.projectDir_});
+            app.importAssets(OpenFilesDialog(std::span<const FileDialogFilter>(&filter, 1)));
             rescan();
         }
         ImGui::SameLine();
@@ -308,7 +317,8 @@ bool AssetPickerPopup::draw(App& app)
     if (ImGui::Button("Clear"))
     {
         if (isFieldPick_)
-            applied = applyToField(app, ent_, fieldComponent_, fieldOffset_, type_, nullptr);
+            applied = applyToField(app, ent_, fieldComponent_, fieldOffset_, fieldElement_,
+                                   fieldElementIndex_, type_, nullptr);
 
         if (!isFieldPick_ && type_ == AssetType::Mesh)
             if (auto* meshC = ent_.try_get<Mesh_C>())

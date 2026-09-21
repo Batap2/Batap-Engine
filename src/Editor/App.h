@@ -13,6 +13,7 @@
 #include "UI/UITheme.h"
 #include "FileDialog.h"
 #include "World.h"
+#include "Components/Camera_C.h"
 #include "Components/FreeCamController_C.h"
 #include "EigenTypes.h"
 
@@ -52,9 +53,16 @@ struct App
     std::chrono::steady_clock::time_point toastEnd_{};
 
     void syncEditorCamera();
+    void applyEditorCamera();
+    EntityHandle editorCamera();
     v3f editorCamPos_{0.f, 2.f, 6.f};
     quatf editorCamRot_ = quatf::Identity();
     FreeCamController_C editorCamCtrl_;
+    Camera_C editorCamView_;
+
+    void setScenePath(std::string path);
+    std::string sceneKey() const;
+    std::string scenePath_;
 
     Engine* ctx_ = nullptr;
     World*   world_ = nullptr;
@@ -78,6 +86,17 @@ struct App
 
     void loadConfig();
     void saveConfig();
+    void loadProjectCamera();
+    void loadSceneCamera();
+    // Written on every camera move, so the file is only touched once the
+    // camera has been still for kConfigSaveDelay.
+    void markConfigDirty();
+    bool configDirty_ = false;
+    std::chrono::steady_clock::time_point configSaveAt_{};
+
+    // Imports, then reloads in place whatever the import rewrote that the engine
+    // already holds: importing the same file again updates the open scene.
+    void importAssets(std::span<const std::string> paths);
 
     uint64_t openFileDialogAsyncWithAfterJob(std::span<const FileDialogFilter> filters,
                                              FileDialogAfterJob job);

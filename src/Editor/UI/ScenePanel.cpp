@@ -82,11 +82,11 @@ EntityHandle duplicateEntity(World& world, EntityHandle src)
 void dropEntity(entt::registry& reg, const ImGuiPayload& payload,
                 std::optional<EntityHandle> newParent)
 {
-    const EntityHandle dragged{&reg, *static_cast<const entt::entity*>(payload.Data)};
+    EntityHandle dragged{&reg, *static_cast<const entt::entity*>(payload.Data)};
     if (!newParent)
-        Hierarchy_S::detach(dragged);
+        dragged.setParent(EntityHandle{});
     else if (newParent->entity_ != dragged.entity_)
-        Hierarchy_S::attach(*newParent, dragged);
+        dragged.setParent(*newParent);
 }
 
 void acceptEntityDrop(entt::registry& reg, EntityHandle newParent)

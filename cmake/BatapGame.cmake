@@ -4,8 +4,11 @@
 # project the editor opens:
 #   <name>       exe: the game standalone. Placed next to Batap_Editor.exe,
 #                where the editor's Run button spawns it from.
-#   <name>_Game  dll: the same game for the editor, copied to
-#                <project>/bin/Game.dll after each build (hot reload).
+#   <name>_Game  dll: the same game for the editor, copied after each build
+#                (hot reload) to <project>/bin/Game.dll — or bin/Gamed.dll in
+#                Debug, since a debug module cannot load under a release
+#                editor and vice versa. The host picks the name matching its
+#                own configuration (GameModuleFileName, GameModule.h).
 function(batap_add_game name)
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "" "EXE;MODULE")
   if(NOT arg_EXE OR NOT arg_MODULE)
@@ -28,5 +31,5 @@ function(batap_add_game name)
   add_custom_command(TARGET ${name}_Game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:${name}_Game>
-            "${CMAKE_CURRENT_SOURCE_DIR}/bin/Game.dll")
+            "${CMAKE_CURRENT_SOURCE_DIR}/bin/$<IF:$<CONFIG:Debug>,Gamed,Game>.dll")
 endfunction()

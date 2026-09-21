@@ -12,7 +12,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 
 namespace batap
 {
@@ -29,7 +28,6 @@ struct UIPanels
     void openMaterialEditor(MaterialHandle mat) { materialEditor_.open(mat); }
     void selectByName(World& world, std::string_view name);
     void setLogo(ImTextureID logo) { logo_ = logo; }
-    void setScenePath(std::string path) { currentScenePath_ = std::move(path); }
 
    private:
     void pickOnClick(World& world, App& app, Engine& ctx);
@@ -40,7 +38,8 @@ struct UIPanels
     void drawFileMenu(World& world, App& app);
     void drawImportMenu(World& world, App& app, Engine& ctx);
     void drawViewMenu(World& world, App& app);
-    void drawGizmoOptions();
+    void drawEditorOptions(World& world, App& app);
+    void drawCameraOptions(World& world, App& app);
 
     static constexpr float kRailWidth = 40.0f;
     // The bar is as tall as the rail is wide, so the logo squares up with it.
@@ -51,12 +50,11 @@ struct UIPanels
 
     float outlinerWidth_ = 230.0f;
     float inspectorWidth_ = 300.0f;
-    float optionsHeight_ = 224.0f;
+    float optionsHeight_ = 300.0f;
     bool railOpen_ = true;
     ImTextureID logo_ = 0;
 
     Selection selection_;
-    std::string currentScenePath_;
     Gizmo gizmo_;
     ScenePanel scenePanel_;
     InspectorPanel inspectorPanel_;

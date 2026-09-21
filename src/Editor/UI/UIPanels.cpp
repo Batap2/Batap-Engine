@@ -3,13 +3,15 @@
 #include "App.h"
 #include "Assets/AssetManager.h"
 #include "Engine.h"
-#include "Importers/FileImporter.h"
 #include "InputManager.h"
 #include "Renderer/DebugDraw.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
 #include "FileDialog.h"
+#include "Components/Camera_C.h"
+#include "Components/FreeCamController_C.h"
 #include "Components/Name_C.h"
+#include "Instance/InstanceManager.h"
 #include "UI/IconsMaterialDesign.h"
 #include "Platform/PlatformWindow.h"
 #include "UI/Field.h"
@@ -186,7 +188,7 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
         float left = kTopBarHeight + kBarItemGap;
 
         const std::string sceneName =
-            currentScenePath_.empty() ? std::string("untitled") : fileStem(currentScenePath_);
+            app.scenePath_.empty() ? std::string("untitled") : fileStem(app.scenePath_);
         ImGui::SetCursorPos({left, centredY(ImGui::GetTextLineHeight())});
         {
             ui::ScopedColor bright{{ImGuiCol_Text, ui::textBright}};
@@ -341,7 +343,7 @@ void UIPanels::drawFileMenu(World& world, App& app)
                 if (paths.empty())
                     return;
                 EntitySerializer::clearSceneAndLoad(*app.world_, *app.ctx_, paths[0]);
-                currentScenePath_ = paths[0];
+                app.setScenePath(paths[0]);
                 clearSelection();
             });
 
@@ -352,7 +354,7 @@ void UIPanels::drawFileMenu(World& world, App& app)
         {
             EntitySerializer::save(world, *app.ctx_, path);
             app.ctx_->assetManager_->saveAllAssets();
-            currentScenePath_ = std::move(path);
+            app.setScenePath(std::move(path));
         }
     }
 }
@@ -362,10 +364,7 @@ void UIPanels::drawImportMenu(World& world, App& app, Engine& ctx)
     if (ImGui::MenuItem("Import assets"))
         app.openFileDialogAsyncWithAfterJob(kAnyAssetFilter,
                                             [&app](std::vector<std::string>&& paths)
-                                            {
-                                                for (const auto& path : paths)
-                                                    importFile(path, {app.projectDir_});
-                                            });
+                                            { app.importAssets(paths); });
 
     if (ImGui::MenuItem("Load assets"))
         app.openFileDialogAsyncWithAfterJob(kTemplateFilter,
@@ -383,7 +382,7 @@ void UIPanels::drawViewMenu(World& world, App& app)
     ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
 }
 
-void UIPanels::drawGizmoOptions()
+void UIPanels::drawEditorOptions(World& world, App& app)
 {
     const float width = ImGui::GetContentRegionAvail().x;
     ImGui::InvisibleButton("##resizeOptions", {width, kOptionsGripHeight});
@@ -420,7 +419,7 @@ void UIPanels::drawGizmoOptions()
     modeButton(ICON_MD_ZOOM_OUT_MAP, GizmoMode::Scale, "Scale");
     ImGui::NewLine();
 
-    ImGui::BeginChild("##gizmoOptionsBody", {0.0f, 0.0f});
+    ImGui::BeginChild("##editorOptionsBody", {0.0f, 0.0f});
 
     const bool local = gizmo_.local_ || gizmo_.mode_ == GizmoMode::Scale;
     if (ImGui::Button(local ? ICON_MD_VIEW_IN_AR "  Local" : ICON_MD_PUBLIC "  Global",
@@ -448,7 +447,43 @@ void UIPanels::drawGizmoOptions()
         ui::FieldDragFloat("Scale", &gizmo_.snapScale_, 0.01f, 0.0f, 100.0f);
     }
 
+    drawCameraOptions(world, app);
+
     ImGui::EndChild();
+}
+
+void UIPanels::drawCameraOptions(World& world, App& app)
+{
+    EntityHandle cam = app.editorCamera();
+    auto* camera = cam.try_get<Camera_C>();
+    auto* controller = cam.try_get<FreeCamController_C>();
+    if (!camera || !controller)
+        return;
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("Camera");
+    if (ui::BeginFields fields{"##cameraFields"})
+    {
+        // FreeCamController_S rebinds boost to three times the speed on every
+        // wheel notch, so a speed edit that left it alone would not survive.
+        if (ui::FieldDragFloat("Speed", &controller->moveSpeed_, 0.1f, 0.1f, 1000.0f))
+            controller->boostSpeed_ = controller->moveSpeed_ * 3.0f;
+        ui::FieldDragFloat("Boost", &controller->boostSpeed_, 0.1f, 0.1f, 3000.0f);
+        // Three decimals, the field default, round the sensitivity to nothing.
+        ui::Field("Sensitivity",
+                  [&]
+                  {
+                      return ui::DragValue("##v", &controller->mouseSensitivity_,
+                                           ImGui::GetContentRegionAvail().x, 0.0001f, 0.0001f,
+                                           0.05f, "%.4f");
+                  });
+
+        bool camChanged = ui::FieldDragFloat("FOV", &camera->fov_, 0.01f, 0.01f, 3.14f);
+        camChanged |= ui::FieldDragFloat("Near", &camera->znear_, 0.01f, 0.001f, 10.0f);
+        camChanged |= ui::FieldDragFloat("Far", &camera->zfar_, 1.0f, 1.0f, 1e6f);
+        if (camChanged)
+            world.instances().markDirty<Camera_C>(cam);
+    }
 }
 
 void UIPanels::draw(World& world, App& app, Engine& ctx)
@@ -500,7 +535,7 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     const float outlinerX = vp->Pos.x + railWidth;
     beginDockedPanel("##Outliner", outlinerX, outlinerWidth_);
     scenePanel_.draw(world, selection_, optionsHeight_ + kOptionsGripHeight);
-    drawGizmoOptions();
+    drawEditorOptions(world, app);
     resizeGrip("##resizeOutliner", outlinerX + outlinerWidth_, outlinerWidth_, 1.0f);
     drawVerticalEdge(ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 1.0f);
     ImGui::End();

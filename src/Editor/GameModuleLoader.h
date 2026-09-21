@@ -17,6 +17,9 @@ struct GameModuleLoader
     std::unique_ptr<Game> makeGame() const;
     bool loaded() const { return lib_ != nullptr; }
 
+    // Why the last load failed.
+    const std::string& lastError() const { return lastError_; }
+
     bool stagePending();
     bool swapStaged();
 
@@ -28,6 +31,7 @@ struct GameModuleLoader
     bool loadStaged();
     void unload();
 
+    std::string lastError_;
     std::filesystem::path sourcePath_;
     std::filesystem::path loadedPath_;
     std::filesystem::path stagedPath_;

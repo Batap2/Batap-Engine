@@ -59,6 +59,8 @@ struct RigidBody_C
     float angularDamping_ = 0.05f;
     float gravityFactor_ = 1.f;
     bool sensor_ = false;
+    
+    v3f centerOfMassOffset_ = v3f::Zero();
 
     uint32_t bodyId_ = kInvalidBodyId;
     v3f shapeScale_ = {1.f, 1.f, 1.f};
@@ -77,6 +79,7 @@ static_assert(refl::fieldName<RigidBody_C, 6>() == "linearDamping");
 static_assert(refl::fieldName<RigidBody_C, 7>() == "angularDamping");
 static_assert(refl::fieldName<RigidBody_C, 8>() == "gravityFactor");
 static_assert(refl::fieldName<RigidBody_C, 9>() == "sensor");
+static_assert(refl::fieldName<RigidBody_C, 10>() == "centerOfMassOffset");
 
 BATAP_COMPONENT(RigidBody_C, "rigidBody", ComponentMeta{.color = ComponentColor::Green},
                 fieldSkip<&RigidBody_C::bodyId_>(),
@@ -87,6 +90,7 @@ BATAP_COMPONENT(RigidBody_C, "rigidBody", ComponentMeta{.color = ComponentColor:
                 fieldMeta<&RigidBody_C::restitution_>({.speed = 0.01f, .min = 0.f, .max = 1.f}),
                 fieldMeta<&RigidBody_C::linearDamping_>({.speed = 0.01f, .min = 0.f, .max = 1.f}),
                 fieldMeta<&RigidBody_C::angularDamping_>({.speed = 0.01f, .min = 0.f, .max = 1.f}),
-                fieldMeta<&RigidBody_C::gravityFactor_>({.speed = 0.01f, .min = 0.f, .max = 10.f}));
+                fieldMeta<&RigidBody_C::gravityFactor_>({.speed = 0.01f, .min = 0.f, .max = 10.f}),
+                fieldMeta<&RigidBody_C::centerOfMassOffset_>({.speed = 0.01f, .min = -100.f, .max = 100.f}));
 
 }  // namespace batap
