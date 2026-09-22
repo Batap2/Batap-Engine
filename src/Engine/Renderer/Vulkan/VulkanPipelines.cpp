@@ -94,6 +94,24 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::topology(VkPrimitiveTopology t
     return *this;
 }
 
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::depthOnly()
+{
+    depthOnly_ = true;
+    return *this;
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::depthClamp()
+{
+    depthClamp_ = true;
+    return *this;
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::dynamicDepthBias()
+{
+    dynamicDepthBias_ = true;
+    return *this;
+}
+
 VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layout) const
 {
     VkPipelineShaderStageCreateInfo stages[2]{};
@@ -128,6 +146,8 @@ VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layo
     raster.cullMode = cullMode_;
     raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     raster.lineWidth = 1.0f;
+    raster.depthClampEnable = depthClamp_ ? VK_TRUE : VK_FALSE;
+    raster.depthBiasEnable = dynamicDepthBias_ ? VK_TRUE : VK_FALSE;
 
     VkPipelineMultisampleStateCreateInfo multisample{};
     multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -145,25 +165,26 @@ VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layo
 
     VkPipelineColorBlendStateCreateInfo blend{};
     blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    blend.attachmentCount = 1;
-    blend.pAttachments = &blendAttachment;
+    blend.attachmentCount = depthOnly_ ? 0u : 1u;
+    blend.pAttachments = depthOnly_ ? nullptr : &blendAttachment;
 
-    const VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    const VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+                                            VK_DYNAMIC_STATE_DEPTH_BIAS};
     VkPipelineDynamicStateCreateInfo dynamic{};
     dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamic.dynamicStateCount = 2;
+    dynamic.dynamicStateCount = dynamicDepthBias_ ? 3u : 2u;
     dynamic.pDynamicStates = dynamicStates;
 
     VkPipelineRenderingCreateInfo rendering{};
     rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    rendering.colorAttachmentCount = 1;
-    rendering.pColorAttachmentFormats = &colorFormat_;
+    rendering.colorAttachmentCount = depthOnly_ ? 0u : 1u;
+    rendering.pColorAttachmentFormats = depthOnly_ ? nullptr : &colorFormat_;
     rendering.depthAttachmentFormat = depthFormat_;
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.pNext = &rendering;
-    pipelineInfo.stageCount = 2;
+    pipelineInfo.stageCount = depthOnly_ ? 1u : 2u;
     pipelineInfo.pStages = stages;
     pipelineInfo.pVertexInputState = &vertexInput;
     pipelineInfo.pInputAssemblyState = &inputAssembly;
