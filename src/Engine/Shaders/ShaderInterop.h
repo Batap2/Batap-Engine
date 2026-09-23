@@ -157,6 +157,9 @@ static const uint BillboardFixed = 4u;
 
 struct DrawPush
 {
+    // First, so the 16-byte alignment HLSL gives a matrix needs no padding.
+    // Step 4a moves it into ShadowGPUData and this field goes away.
+    float4x4 shadowViewProj_;
     uint cameraIndex_;
     uint instanceIndex_;
     uint submeshIndex_;
@@ -172,7 +175,7 @@ static_assert(sizeof(StaticMeshGPUData) == 96);
 static_assert(sizeof(PointLightGPUData) == 48);
 static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
-static_assert(sizeof(DrawPush) == 24);
+static_assert(sizeof(DrawPush) == 88);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);

@@ -7,6 +7,7 @@
 #include "Renderer/Vulkan/Passes/DebugPass.h"
 #include "Renderer/Vulkan/Passes/GeometryPass.h"
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
+#include "Renderer/Vulkan/Passes/ShadowPass.h"
 #include "Renderer/Vulkan/Passes/SkyPass.h"
 #include "Renderer/Vulkan/VulkanRenderTargets.h"
 
@@ -52,8 +53,9 @@ struct ScenePasses
     std::vector<VkDescriptorSet> frameSets_;
     VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
 
-    GPUResourceHandle shadowAtlas_;
+    GPUResourceHandle localAtlas_;
 
+    ShadowPass shadow_;
     GeometryPass geometry_;
     BillboardPass billboards_;
     SkyPass sky_;

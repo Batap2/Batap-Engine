@@ -203,6 +203,22 @@ VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layo
     return pipeline;
 }
 
+void setViewportYUpRect(VkCommandBuffer cmd, uint32_t x, uint32_t y, uint32_t width,
+                        uint32_t height)
+{
+    VkViewport viewport{};
+    viewport.x = static_cast<float>(x);
+    viewport.y = static_cast<float>(y + height);
+    viewport.width = static_cast<float>(width);
+    viewport.height = -static_cast<float>(height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    VkRect2D scissor{{static_cast<int32_t>(x), static_cast<int32_t>(y)}, {width, height}};
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+}
+
 void setViewportYUp(VkCommandBuffer cmd, uint32_t width, uint32_t height)
 {
     VkViewport viewport{};

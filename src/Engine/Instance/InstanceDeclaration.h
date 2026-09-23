@@ -30,6 +30,7 @@
 #include "Components/ShadowSphere_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
+#include "Flatten.h"
 #include "EigenTypes.h"
 #include "Engine.h"
 #include "Handles.h"
@@ -103,22 +104,6 @@ using AccessOf = typename detail::AccessOfList<List>::type;
 template <class Instance>
 using MarkerOf = typename detail::HeadOfList<typename Instance::Uses>::type;
 
-// Every GPU field is a plain float array; going through here turns a size
-// mismatch into a build error. A value shorter than the field leaves the
-// padding at the zero fill() received.
-template <size_t N, class Derived>
-void store(float (&dst)[N], const Eigen::MatrixBase<Derived>& src)
-{
-    constexpr int rows = Derived::RowsAtCompileTime;
-    constexpr int cols = Derived::ColsAtCompileTime;
-    static_assert(size_t(rows) * size_t(cols) <= N, "GPU field too small for this value");
-
-    // Materialised: src may be a block or an expression, whose data is not
-    // contiguous.
-    const Eigen::Matrix<float, rows, cols> value = src;
-    std::memcpy(dst, value.data(), sizeof(float) * size_t(rows) * size_t(cols));
-}
-
 // ----------- Instances -----------------------------------------------------
 
 struct StaticMeshInstance
@@ -131,7 +116,7 @@ struct StaticMeshInstance
     static void fill(AccessOf<Uses> in, GPUData& out)
     {
         if (auto* t = in.get<Transform_C>())
-            store(out.world_, t->worldMatrix());
+            flatten(out.world_, t->worldMatrix());
 
         auto indices = std::span{out.materialIndices_};
         std::fill(indices.begin(), indices.end(), InvalidGPUIndex);
@@ -163,16 +148,16 @@ struct CameraInstance
             return;
 
         const auto world = trans->world();
-        store(out.view_, cam.make_view(world));
+        flatten(out.view_, cam.make_view(world));
 
         const auto frameSize = in.ctx.getFrameSize();
         const auto aspect = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
-        store(out.proj_, cam.make_proj(aspect));
+        flatten(out.proj_, cam.make_proj(aspect));
 
-        store(out.pos_, world.translation());
-        store(out.right_, world.linear().col(0).normalized());
-        store(out.up_, world.linear().col(1).normalized());
-        store(out.fwd_, -world.linear().col(2).normalized());
+        flatten(out.pos_, world.translation());
+        flatten(out.right_, world.linear().col(0).normalized());
+        flatten(out.up_, world.linear().col(1).normalized());
+        flatten(out.fwd_, -world.linear().col(2).normalized());
     }
 };
 
@@ -187,10 +172,10 @@ struct PointLightInstance
     static void fill(AccessOf<Uses> in, GPUData& out)
     {
         if (auto* trans = in.get<Transform_C>())
-            store(out.pos_, trans->world().translation());
+            flatten(out.pos_, trans->world().translation());
 
         const PointLight_C& light = in.marker();
-        store(out.color_, light.color_);
+        flatten(out.color_, light.color_);
         out.intensity_ = light.intensity_;
         out.radius_ = light.radius_;
         out.falloff_ = light.falloff_;
@@ -231,13 +216,13 @@ struct SkyboxInstance
 
         auto outSH = std::span{out.sh};
         for (size_t i = 0; i < outSH.size(); ++i)
-            store(outSH[i], sh.c[i] * sky.intensity_);
+            flatten(outSH[i], sh.c[i] * sky.intensity_);
 
         out.mode = static_cast<uint32_t>(sky.mode_);
         out.intensity = sky.intensity_;
-        store(out.color1, sky.color1_);
-        store(out.color2, sky.color2_);
-        store(out.color3, sky.color3_);
+        flatten(out.color1, sky.color1_);
+        flatten(out.color2, sky.color2_);
+        flatten(out.color3, sky.color3_);
         out.horizonWidth = sky.horizonWidth_;
     }
 };
@@ -266,7 +251,7 @@ struct ShadowSphereInstance
             return;
 
         const auto world = trans->world();
-        store(out.center_, world.translation());
+        flatten(out.center_, world.translation());
 
         if (const float radiusOverride = in.marker().radius_; radiusOverride > 0.f)
         {
@@ -283,7 +268,7 @@ struct ShadowSphereInstance
             return;
 
         const AABB bounds = mesh->localBounds_.transformed(world);
-        store(out.center_, bounds.center());
+        flatten(out.center_, bounds.center());
 
         out.radius_ = bounds.halfSize().maxCoeff();
     }

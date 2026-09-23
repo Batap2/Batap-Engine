@@ -6,6 +6,7 @@
 
 #include "Assets/AssetManager.h"
 #include "Components/Camera_C.h"
+#include "Components/PointLight_C.h"
 #include "Components/Transform_C.h"
 #include "DebugUtils.h"
 #include "Engine.h"
@@ -99,6 +100,47 @@ VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout tex
     return layout;
 }
 
+// Step 3 scaffold: the first casting light, aimed straight down, square 90-degree
+// frustum. Step 7 turns this into the six faces of a cube and step 13 derives
+// which light gets it.
+std::optional<m4f> firstLightViewProj(entt::registry& reg)
+{
+    for (auto [e, light, trans] : reg.view<PointLight_C, Transform_C>().each())
+    {
+        if (!light.castShadows_)
+            continue;
+
+        const v3f eye = trans.world().translation();
+        // A right-handed camera looks along -Z, so looking down -Y puts world +Y
+        // on the view's Z.
+        const v3f xaxis{1.f, 0.f, 0.f};
+        const v3f yaxis{0.f, 0.f, -1.f};
+        const v3f zaxis{0.f, 1.f, 0.f};
+
+        m4f view = m4f::Identity();
+        view.block<1, 3>(0, 0) = xaxis.transpose();
+        view.block<1, 3>(1, 0) = yaxis.transpose();
+        view.block<1, 3>(2, 0) = zaxis.transpose();
+        view(0, 3) = -xaxis.dot(eye);
+        view(1, 3) = -yaxis.dot(eye);
+        view(2, 3) = -zaxis.dot(eye);
+
+        const float znear = 0.05f;
+        const float zfar = std::max(light.radius_, znear + 1.f);
+        const float nf = 1.f / (znear - zfar);
+
+        m4f proj = m4f::Zero();
+        proj(0, 0) = 1.f;
+        proj(1, 1) = 1.f;
+        proj(2, 2) = zfar * nf;
+        proj(2, 3) = zfar * znear * nf;
+        proj(3, 2) = -1.f;
+
+        return m4f{proj * view};
+    }
+    return std::nullopt;
+}
+
 }  // namespace
 
 // Declaration order matters: a pass captures the pipeline layout by value, so
@@ -112,13 +154,14 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
       frameSets_(allocFrameSets(ctx.device_, framePool_, frameSetLayout_)),
       pipelineLayout_(
           createPipelineLayout(ctx.device_, resources.textureSetLayout(), frameSetLayout_)),
+      shadow_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       geometry_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       billboards_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       sky_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       debug_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat})
 {
-    shadowAtlas_ = resources_.createTarget(ShadowAtlasSize, ShadowAtlasSize,
-                                           ResourceFormat::D32_FLOAT, "shadow atlas");
+    localAtlas_ = resources_.createTarget(LocalAtlasSize, LocalAtlasSize,
+                                          ResourceFormat::D32_FLOAT, "local shadow atlas");
 
     const std::string shaderDir = resolveEngineFile("shaders", "shaders");
 
@@ -141,6 +184,7 @@ ScenePasses::~ScenePasses()
 
 void ScenePasses::buildPipelines(const ShaderModules& modules)
 {
+    shadow_.buildPipelines(modules);
     geometry_.buildPipelines(modules);
     billboards_.buildPipelines(modules);
     sky_.buildPipelines(modules);
@@ -296,10 +340,6 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame,
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &color;
     renderingInfo.pDepthAttachment = &depth;
-    vkCmdBeginRendering(cmd, &renderingInfo);
-
-    setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
-
     const VkDescriptorSet sets[2] = {resources_.textureSet(), frameSets_[frame]};
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 2, sets, 0,
                             nullptr);
@@ -318,6 +358,15 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame,
             if constexpr (requires { InstanceT::CountField; })
                 pass.push_.*InstanceT::CountField = static_cast<uint32_t>(pool.size());
         });
+
+    if (const auto shadowViewProj = firstLightViewProj(*reg))
+    {
+        shadow_.record(pass, resources_.imageFor(localAtlas_), resources_.viewFor(localAtlas_),
+                       *shadowViewProj);
+    }
+
+    vkCmdBeginRendering(cmd, &renderingInfo);
+    setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
 
     geometry_.record(pass);
     // Before the sky, like the geometry: they write depth, so the sky's

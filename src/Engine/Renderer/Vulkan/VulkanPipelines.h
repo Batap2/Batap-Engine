@@ -57,4 +57,8 @@ struct GraphicsPipelineBuilder
 };
 
 void setViewportYUp(VkCommandBuffer cmd, uint32_t width, uint32_t height);
+// Same Y-down flip on a sub-rectangle, so an atlas tile derives its UV exactly
+// like a full target does.
+void setViewportYUpRect(VkCommandBuffer cmd, uint32_t x, uint32_t y, uint32_t width,
+                        uint32_t height);
 }  // namespace batap
