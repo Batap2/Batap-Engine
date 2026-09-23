@@ -48,7 +48,8 @@ enum FrameSetBinding : uint
     DebugShapesBinding = 6,
     BillboardsBinding = 7,
     SphereOccludersBinding = 8,
-    FrameSetBindingCount = 9,
+    ShadowsBinding = 9,
+    FrameSetBindingCount = 10,
 };
 
 enum ShadingModel : uint
@@ -86,9 +87,33 @@ struct PointLightGPUData
     float3 color_;
     float radius_;
     float falloff_;
-    uint castShadows_;
+    // Low 24 bits: index of this light's FIRST ShadowGPUData entry, its views
+    // being contiguous. High 8: which ShadowFamily, hence how many follow and
+    // which atlas they address. InvalidGPUIndex when the light has no shadow.
+    uint shadowIndex_;
     float sourceRadius_;    // 0 = a point light: penumbras of zero width
     float shadowDistance_;  // cascade range; occluders take over beyond it
+};
+
+enum ShadowFamily : uint
+{
+    ShadowLocalSingle = 0,   // atlas B, one tile
+    ShadowLocalCube = 1,     // atlas B, six tiles
+    ShadowCascadeFamily = 2, // atlas A, ShadowCascadeCount quadrants
+};
+
+static const uint ShadowIndexMask = 0xFFFFFFu;
+static const uint ShadowFamilyShift = 24u;
+
+struct ShadowGPUData
+{
+    float4x4 viewProj_;
+    uint atlasIndex_;
+    // Texel world size per unit of distance from the light, this view being a
+    // perspective one. A cascade is orthographic and will store an absolute
+    // size here instead.
+    float texelWorld_;
+    float pad_[2];
 };
 
 struct SphereOccluderGPUData
@@ -177,6 +202,7 @@ static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(DrawPush) == 88);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
+static_assert(sizeof(ShadowGPUData) == 80);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);
@@ -190,7 +216,8 @@ inline constexpr bool gpuStrideOk = sizeof(T) % 16 == 0;
 static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
               gpuStrideOk<PointLightGPUData> && gpuStrideOk<Material> &&
               gpuStrideOk<SkyboxGPUData> && gpuStrideOk<DebugVertexGPUData> &&
-              gpuStrideOk<DebugShapeGPUData> && gpuStrideOk<BillboardGPUData>);
+              gpuStrideOk<DebugShapeGPUData> && gpuStrideOk<BillboardGPUData> &&
+              gpuStrideOk<ShadowGPUData>);
 
 static_assert(offsetof(CameraGPUData, pos_) == 128 && offsetof(CameraGPUData, znear_) == 140);
 static_assert(offsetof(SkyboxGPUData, color1) == 160);

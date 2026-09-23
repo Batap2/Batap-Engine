@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EigenTypes.h"
+#include "Handles.h"
 #include "Renderer/Vulkan/Passes/Pass.h"
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
 
@@ -8,7 +9,7 @@ namespace batap
 {
 struct ShadowPass
 {
-    explicit ShadowPass(const PassSetup& setup) : setup_(setup) {}
+    explicit ShadowPass(const PassSetup& setup);
     ~ShadowPass();
 
     ShadowPass(const ShadowPass&) = delete;
@@ -21,8 +22,11 @@ struct ShadowPass
     void record(const PassContext& pass, VkImage atlas, VkImageView atlasView,
                 const m4f& viewProj);
 
+    GPUResourceHandle buffer() const { return buffer_; }
+
    private:
     PassSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
+    GPUResourceHandle buffer_;
 };
 }  // namespace batap

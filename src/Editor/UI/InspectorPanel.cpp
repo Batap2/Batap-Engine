@@ -8,6 +8,7 @@
 #include "App.h"
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
+#include "Components/Camera_C.h"
 #include "Components/Materials_C.h"
 #include "Components/Name_C.h"
 #include "Components/Mesh_C.h"
@@ -341,6 +342,7 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
         bool changed = false;
         ui::ComponentSection section(prettyLabel(t.name).c_str(), t.meta.color, removable);
         if (section)
+        {
             if (auto fields = ui::BeginFields(t.name.c_str()))
                 for (const Field& f : t.fields)
                     if (f.type->drawUI)
@@ -350,6 +352,10 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
                                              [&] { return f.type->drawUI(f.ptrIn(c), f, fieldCtx); });
                     }
 
+            if (t.mask() == componentMask<Camera_C>())
+                drawCameraActions(ent, app);
+        }
+
         if (section.removeClicked())
             removeComponent(world, ent, t);
         else if (changed)
@@ -358,6 +364,22 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
                 t.patch(*ent.reg_, ent.entity_);
             world.instances().markDirty(ent, t.mask());
         }
+    }
+}
+
+void InspectorPanel::drawCameraActions(EntityHandle ent, App& app)
+{
+    EntityHandle editorCam = app.editorCamera();
+    if (!editorCam.valid() || editorCam == ent)
+        return;
+
+    ImGui::Spacing();
+    if (ImGui::Button(ICON_MD_VIDEOCAM "  Align to editor view",
+                      {ImGui::GetContentRegionAvail().x, 0.0f}))
+    {
+        const Transform_C& view = editorCam.get<Transform_C>();
+        ent.setPosition(view.worldPos(), Space::World);
+        ent.setRotation(view.worldRot(), Space::World);
     }
 }
 

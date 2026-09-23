@@ -179,7 +179,9 @@ struct PointLightInstance
         out.intensity_ = light.intensity_;
         out.radius_ = light.radius_;
         out.falloff_ = light.falloff_;
-        out.castShadows_ = static_cast<uint32_t>(light.castShadows_);
+        out.shadowIndex_ = light.castShadows_
+                               ? (0u | (uint32_t(ShadowLocalSingle) << ShadowFamilyShift))
+                               : InvalidGPUIndex;
         out.sourceRadius_ = light.sourceRadius_;
         out.shadowDistance_ = light.shadowDistance_;
     }

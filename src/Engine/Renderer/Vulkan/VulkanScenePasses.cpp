@@ -278,6 +278,7 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     claim(DebugShapeVertsBinding, resources_.bufferFor(debug_.vertsBuffer()));
     claim(DebugShapesBinding, resources_.bufferFor(debug_.shapesBuffer()));
     claim(BillboardsBinding, resources_.bufferFor(billboards_.buffer()));
+    claim(ShadowsBinding, resources_.bufferFor(shadow_.buffer()));
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
     std::array<VkWriteDescriptorSet, FrameSetBindingCount> writes{};

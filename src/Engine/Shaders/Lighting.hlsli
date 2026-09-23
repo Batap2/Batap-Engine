@@ -98,7 +98,7 @@ float3 F_Schlick(float HdotV, float3 F0)
 // directional would fit as-is; only rL would be obtained differently.
 float ShadowVisibility(float3 P, float3 L, float dL, PointLightGPUData light, float3 camPos)
 {
-    if (light.castShadows_ == 0)
+    if (light.shadowIndex_ == InvalidGPUIndex)
         return 1.0f;
 
     // The floor keeps smoothstep defined when sourceRadius_ is 0, where the

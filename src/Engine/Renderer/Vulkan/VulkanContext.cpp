@@ -50,6 +50,7 @@ VulkanContext::VulkanContext()
     features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     features13.dynamicRendering = VK_TRUE;
     features13.synchronization2 = VK_TRUE;
+    features13.shaderDemoteToHelperInvocation = VK_TRUE;
 
     VkPhysicalDeviceVulkan12Features features12{};
     features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;

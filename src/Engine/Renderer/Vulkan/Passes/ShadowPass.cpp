@@ -9,8 +9,23 @@
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
 
+#include <cstring>
+
 namespace batap
 {
+namespace
+{
+// Room for the views of step 8 (a 4096 atlas holds at most 1024 tiles of 128)
+// without resizing on the way there.
+constexpr uint32_t kMaxShadowViews = 256;
+}  // namespace
+
+ShadowPass::ShadowPass(const PassSetup& setup) : setup_(setup)
+{
+    buffer_ = setup_.resources_.createPerFrameBuffer(sizeof(ShadowGPUData) * kMaxShadowViews,
+                                                     "shadows");
+}
+
 ShadowPass::~ShadowPass()
 {
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
@@ -37,6 +52,13 @@ void ShadowPass::record(const PassContext& pass, VkImage atlas, VkImageView atla
 {
     PassContext shadowPass = pass;
     flatten(shadowPass.push_.shadowViewProj_, viewProj);
+
+    ShadowGPUData entry{};
+    flatten(entry.viewProj_, viewProj);
+    entry.atlasIndex_ = 0;
+    entry.texelWorld_ = 2.f / static_cast<float>(LocalTileMax);
+    std::memcpy(setup_.resources_.requestUpload(buffer_, sizeof(entry)).data(), &entry,
+                sizeof(entry));
 
     // Discard: the scope clears the whole atlas, so only last frame's reads have
     // to finish — its contents do not have to survive. Also covers the first
