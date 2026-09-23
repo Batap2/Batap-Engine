@@ -15,10 +15,10 @@ using float3 = float[3];
 using float4 = float[4];
 using float4x4 = float[16];
 
-#define BATAP_INIT(...) = __VA_ARGS__
+#define INIT(...) = __VA_ARGS__
 
 #else
-#define BATAP_INIT(...)
+#define INIT(...)
 #endif
 
 enum DescriptorSetIndex : uint
@@ -97,9 +97,9 @@ struct PointLightGPUData
 
 enum ShadowFamily : uint
 {
-    ShadowLocalSingle = 0,   // atlas B, one tile
-    ShadowLocalCube = 1,     // atlas B, six tiles
-    ShadowCascadeFamily = 2, // atlas A, ShadowCascadeCount quadrants
+    ShadowLocalSingle = 0,    // atlas B, one tile
+    ShadowLocalCube = 1,      // atlas B, six tiles
+    ShadowCascadeFamily = 2,  // atlas A, ShadowCascadeCount quadrants
 };
 
 static const uint ShadowIndexMask = 0xFFFFFFu;
@@ -113,6 +113,13 @@ struct ShadowGPUData
     // perspective one. A cascade is orthographic and will store an absolute
     // size here instead.
     float texelWorld_;
+    // Bindless slot of the atlas image this view lives in.
+    uint atlasTexture_;
+    // The view's tile as a rectangle in atlas UV. A rectangle rather than
+    // something derived from atlasIndex_, because the shelf packing of step 8
+    // gives tiles of several sizes at arbitrary positions.
+    float uvScale_;
+    float uvOffset_[2];
     float pad_[2];
 };
 
@@ -125,15 +132,15 @@ struct SphereOccluderGPUData
 // Also the material asset: it is uploaded to its arena as-is.
 struct Material
 {
-    float4 albedo BATAP_INIT({1.f, 1.f, 1.f, 1.f});
-    float roughness BATAP_INIT(0.3f);
-    float metallic BATAP_INIT(0.f);
-    float reflectivity BATAP_INIT(0.f);
-    uint albedoTexIdx_ BATAP_INIT(InvalidGPUIndex);
-    uint normalTexIdx_ BATAP_INIT(InvalidGPUIndex);
-    uint roughnessTexIdx_ BATAP_INIT(InvalidGPUIndex);
-    uint metallicTexIdx_ BATAP_INIT(InvalidGPUIndex);
-    uint shadingModel_ BATAP_INIT(0u);  // ShadingModel
+    float4 albedo INIT({1.f, 1.f, 1.f, 1.f});
+    float roughness INIT(0.3f);
+    float metallic INIT(0.f);
+    float reflectivity INIT(0.f);
+    uint albedoTexIdx_ INIT(InvalidGPUIndex);
+    uint normalTexIdx_ INIT(InvalidGPUIndex);
+    uint roughnessTexIdx_ INIT(InvalidGPUIndex);
+    uint metallicTexIdx_ INIT(InvalidGPUIndex);
+    uint shadingModel_ INIT(0u);  // ShadingModel
 };
 
 struct SkyboxGPUData
@@ -182,15 +189,15 @@ static const uint BillboardFixed = 4u;
 
 struct DrawPush
 {
-    // First, so the 16-byte alignment HLSL gives a matrix needs no padding.
-    // Step 4a moves it into ShadowGPUData and this field goes away.
-    float4x4 shadowViewProj_;
     uint cameraIndex_;
     uint instanceIndex_;
     uint submeshIndex_;
     uint pointLightCount_;
     uint skyboxCount_;
     uint sphereOccluderCount_;
+    // Which ShadowGPUData the shadow pass is drawing into. One view per draw,
+    // so the six faces of step 7 differ only by this.
+    uint shadowViewIndex_;
 };
 
 #ifdef __cplusplus
@@ -200,9 +207,9 @@ static_assert(sizeof(StaticMeshGPUData) == 96);
 static_assert(sizeof(PointLightGPUData) == 48);
 static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
-static_assert(sizeof(DrawPush) == 88);
+static_assert(sizeof(DrawPush) == 28);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(ShadowGPUData) == 80);
+static_assert(sizeof(ShadowGPUData) == 96);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);

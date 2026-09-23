@@ -58,6 +58,12 @@ struct ResourceManager
     std::span<std::byte> requestTextureUpload(GPUResourceHandle dest, uint32_t width,
                                               uint32_t height, ResourceFormat format);
 
+    // Writes in place in the command stream, in order with the commands around
+    // it, rather than through the staging ring that flushUploads empties at the
+    // top of the frame
+    void recordBufferWrite(VkCommandBuffer cmd, GPUResourceHandle dest, const void* data,
+                           uint64_t sizeBytes, uint64_t destOffset = 0);
+
     void beginFrame();
     void flushUploads(VkCommandBuffer cmd);
 

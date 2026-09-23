@@ -19,8 +19,7 @@ struct ShadowPass
 
     // Opens its own rendering scope: it writes the atlas the scene pass reads,
     // so it cannot sit inside the scene's.
-    void record(const PassContext& pass, VkImage atlas, VkImageView atlasView,
-                const m4f& viewProj);
+    void record(const PassContext& pass, GPUResourceHandle atlas, const m4f& viewProj);
 
     GPUResourceHandle buffer() const { return buffer_; }
 

@@ -567,6 +567,16 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
     oversizeStaging_.clear();
 }
 
+void ResourceManager::recordBufferWrite(VkCommandBuffer cmd, GPUResourceHandle dest,
+                                       const void* data, uint64_t sizeBytes, uint64_t destOffset)
+{
+    // The data travels inside the command buffer itself, whence the spec caps.
+    if (sizeBytes == 0 || sizeBytes > 65536 || sizeBytes % 4 != 0 || destOffset % 4 != 0)
+        throw std::runtime_error("ResourceManager(vk) : recordBufferWrite out of range");
+
+    vkCmdUpdateBuffer(cmd, bufferFor(dest), destOffset, sizeBytes, data);
+}
+
 void ResourceManager::beginFrame()
 {
     // Ne recycle le ring que si tout ce qui y a été écrit a été flushé —

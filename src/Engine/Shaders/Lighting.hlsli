@@ -2,6 +2,7 @@
 #define BATAP_LIGHTING_HLSLI
 
 #include "ShaderInterop.h"
+#include "Shadows.hlsli"
 
 [[vk::binding(CamerasBinding, FrameSet)]]
 StructuredBuffer<CameraGPUData> CameraInstancebuffer;
@@ -92,10 +93,13 @@ float3 F_Schlick(float HdotV, float3 F0)
     return F0 + (1.0f - F0) * pow(saturate(1.0f - HdotV), 5.0f);
 }
 
-// The light's visibility from P, multiplying the direct term only. Cascades go
-// inside this function when they arrive, not beside it. Current body: the far
-// field, through analytic sphere occluders. The test is angular, so a spot or a
-// directional would fit as-is; only rL would be obtained differently.
+// The light's visibility from P, multiplying the direct term only. L points from
+// P toward the light, normalized; dL is the distance it was divided by.
+//
+// Two methods partition space and both live here, never beside it: a depth map
+// near the light, analytic sphere occluders beyond. The occluder test is
+// angular, so a spot or a directional would fit as-is; only rL would be
+// obtained differently.
 float ShadowVisibility(float3 P, float3 L, float dL, PointLightGPUData light, float3 camPos)
 {
     if (light.shadowIndex_ == InvalidGPUIndex)
@@ -106,6 +110,9 @@ float ShadowVisibility(float3 P, float3 L, float dL, PointLightGPUData light, fl
     float rL = max(asin(clamp(light.sourceRadius_ / max(dL, 1e-4f), 0.0f, 1.0f)), 1e-5f);
 
     float vis = 1.0f;
+
+    if ((light.shadowIndex_ >> ShadowFamilyShift) == ShadowLocalSingle)
+        vis *= ShadowMapVisibility(P, light.shadowIndex_ & ShadowIndexMask);
 
     [loop]
     for (uint i = 0; i < g_draw.sphereOccluderCount_; ++i)

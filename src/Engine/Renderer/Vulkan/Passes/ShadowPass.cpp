@@ -9,8 +9,6 @@
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
 
-#include <cstring>
-
 namespace batap
 {
 namespace
@@ -47,29 +45,34 @@ void ShadowPass::buildPipelines(const ShaderModules& modules)
                     .build(setup_.ctx_.device_, setup_.layout_);
 }
 
-void ShadowPass::record(const PassContext& pass, VkImage atlas, VkImageView atlasView,
-                        const m4f& viewProj)
+void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas, const m4f& viewProj)
 {
+    const VkImage atlasImage = setup_.resources_.imageFor(atlas);
+
     PassContext shadowPass = pass;
-    flatten(shadowPass.push_.shadowViewProj_, viewProj);
+    shadowPass.push_.shadowViewIndex_ = 0;
 
     ShadowGPUData entry{};
     flatten(entry.viewProj_, viewProj);
     entry.atlasIndex_ = 0;
     entry.texelWorld_ = 2.f / static_cast<float>(LocalTileMax);
-    std::memcpy(setup_.resources_.requestUpload(buffer_, sizeof(entry)).data(), &entry,
-                sizeof(entry));
+    entry.atlasTexture_ = setup_.resources_.textureIndex(atlas);
+    entry.uvScale_ = static_cast<float>(LocalTileMax) / static_cast<float>(LocalAtlasSize);
+    entry.uvOffset_[0] = 0.f;
+    entry.uvOffset_[1] = 0.f;
+    setup_.resources_.recordBufferWrite(pass.cmd_, buffer_, &entry, sizeof(entry));
 
     // Discard: the scope clears the whole atlas, so only last frame's reads have
     // to finish — its contents do not have to survive. Also covers the first
     // frame, where the image has no layout yet.
     BarrierBatch{}
-        .image(atlas, Usage::ShaderRead, Usage::DepthAttachment, depthRange(), Discard::Yes)
+        .memory(Usage::TransferDst, Usage::ShaderRead)
+        .image(atlasImage, Usage::ShaderRead, Usage::DepthAttachment, depthRange(), Discard::Yes)
         .flush(pass.cmd_);
 
     VkRenderingAttachmentInfo depth{};
     depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth.imageView = atlasView;
+    depth.imageView = setup_.resources_.viewFor(atlas);
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -93,7 +96,7 @@ void ShadowPass::record(const PassContext& pass, VkImage atlas, VkImageView atla
     vkCmdEndRendering(pass.cmd_);
 
     BarrierBatch{}
-        .image(atlas, Usage::DepthAttachment, Usage::ShaderRead, depthRange())
+        .image(atlasImage, Usage::DepthAttachment, Usage::ShaderRead, depthRange())
         .flush(pass.cmd_);
 }
 }  // namespace batap

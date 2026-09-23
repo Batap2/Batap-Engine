@@ -362,8 +362,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame,
 
     if (const auto shadowViewProj = firstLightViewProj(*reg))
     {
-        shadow_.record(pass, resources_.imageFor(localAtlas_), resources_.viewFor(localAtlas_),
-                       *shadowViewProj);
+        shadow_.record(pass, localAtlas_, *shadowViewProj);
     }
 
     vkCmdBeginRendering(cmd, &renderingInfo);
