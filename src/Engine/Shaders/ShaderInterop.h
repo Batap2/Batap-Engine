@@ -120,7 +120,11 @@ struct ShadowGPUData
     // gives tiles of several sizes at arbitrary positions.
     float uvScale_;
     float uvOffset_[2];
-    float pad_[2];
+    // Side of one atlas texel in UV, for the PCF kernel: the tile is a
+    // sub-rectangle at native resolution, so a texel of it is a texel of the
+    // atlas whatever uvScale_ says.
+    float texelUV_;
+    float pad_;
 };
 
 struct SphereOccluderGPUData

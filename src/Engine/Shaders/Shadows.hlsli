@@ -41,7 +41,17 @@ float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowInd
     float2 uv = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f);
     uv = uv * sh.uvScale_ + float2(sh.uvOffset_[0], sh.uvOffset_[1]);
 
-    return g_depthTextures[sh.atlasTexture_].SampleCmpLevelZero(g_shadowSampler, uv, ndc.z);
+    // PCF 3x3
+    float sum = 0.0f;
+    [unroll]
+    for (int y = -1; y <= 1; ++y)
+    {
+        [unroll]
+        for (int x = -1; x <= 1; ++x)
+            sum += g_depthTextures[sh.atlasTexture_].SampleCmpLevelZero(
+                g_shadowSampler, uv + float2(x, y) * sh.texelUV_, ndc.z);
+    }
+    return sum / 9.0f;
 }
 
 #endif

@@ -63,6 +63,7 @@ void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas, const 
     entry.uvScale_ = static_cast<float>(LocalTileMax) / static_cast<float>(LocalAtlasSize);
     entry.uvOffset_[0] = 0.f;
     entry.uvOffset_[1] = 0.f;
+    entry.texelUV_ = 1.f / static_cast<float>(LocalAtlasSize);
     setup_.resources_.recordBufferWrite(pass.cmd_, buffer_, &entry, sizeof(entry));
 
     // Discard: the scope clears the whole atlas, so only last frame's reads have
