@@ -5,6 +5,7 @@
 #include "Components/Camera_C.h"
 #include "Components/EditorOnly_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
 #include "Engine.h"
 #include "Paths.h"
@@ -180,13 +181,19 @@ void EditorIcons::draw(World& world, Engine& ctx)
     Billboards& out = world.billboards();
     const uint32_t materialIdx = material_ ? material_.index : InvalidGPUIndex;
 
-    for (auto [e, light, tc] : world.registry_.view<PointLight_C, Transform_C>().each())
+    const auto lightIcon = [&](const Transform_C& tc, const col3& tint)
+    {
         out.add({.pos_ = tc.world().translation(),
                  .size_ = {kIconSize, kIconSize},
-                 .tint_ = light.color_,
+                 .tint_ = tint,
                  .textureIdx_ = light_.bindlessIndex_,
                  .materialIdx_ = materialIdx,
                  .sizeMode_ = Billboards::SizeMode::Screen});
+    };
+    for (auto [e, light, tc] : world.registry_.view<PointLight_C, Transform_C>().each())
+        lightIcon(tc, light.color_);
+    for (auto [e, spot, tc] : world.registry_.view<SpotLight_C, Transform_C>().each())
+        lightIcon(tc, spot.color_);
 
     const entt::entity eye = world.renderCamera();
     for (entt::entity e : world.registry_.view<Camera_C, Transform_C>())
@@ -208,7 +215,7 @@ namespace
 bool hasIcon(World& world, entt::entity e)
 {
     auto& reg = world.registry_;
-    if (reg.all_of<PointLight_C, Transform_C>(e))
+    if (reg.all_of<PointLight_C, Transform_C>(e) || reg.all_of<SpotLight_C, Transform_C>(e))
         return true;
     return reg.all_of<Camera_C, Transform_C>(e) && !reg.all_of<EditorOnly_C>(e) &&
            e != world.renderCamera();
@@ -263,6 +270,8 @@ RayHit EditorIcons::raycast(World& world, const Ray& ray, float maxT) const
     };
 
     for (auto [e, light, tc] : world.registry_.view<PointLight_C, Transform_C>().each())
+        test(e, tc.world().translation());
+    for (auto [e, spot, tc] : world.registry_.view<SpotLight_C, Transform_C>().each())
         test(e, tc.world().translation());
 
     for (entt::entity e : world.registry_.view<Camera_C, Transform_C>())

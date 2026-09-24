@@ -7,6 +7,7 @@
 #include "Assets/AssetManager.h"
 #include "Components/Camera_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
 #include "DebugUtils.h"
 #include "Engine.h"
@@ -117,10 +118,23 @@ constexpr std::array<CubeFace, 6> kCubeFaces{{
     {{0.f, 0.f, -1.f}, {0.f, 1.f, 0.f}},
 }};
 
-m4f faceViewProj(const v3f& eye, const CubeFace& face, float fov, float znear, float zfar)
+// A view is drawn a few texels wider than the angle it owns. A receiver sitting
+// on a face boundary otherwise lands on the tile's outermost texel, where
+// neither the PCF clamp nor the normal offset can still reach the caster, and
+// light leaks in a hairline along the cube's edges. In texels, so it follows
+// the tile: step 8 will pass sizes other than LocalTileMax.
+constexpr float kFaceGuardTexels = 4.f;
+
+float guardedFov(float fov, uint32_t tileSize)
 {
-    const v3f zaxis{-face.forward_[0], -face.forward_[1], -face.forward_[2]};
-    const v3f up{face.up_[0], face.up_[1], face.up_[2]};
+    const float half = static_cast<float>(tileSize) * 0.5f;
+    return 2.f * std::atan(std::tan(fov * 0.5f) * (half + kFaceGuardTexels) / half);
+}
+
+m4f axisViewProj(const v3f& eye, const v3f& forward, const v3f& up, float fov, float znear,
+                 float zfar)
+{
+    const v3f zaxis = -forward;
     const v3f xaxis = up.cross(zaxis).normalized();
     const v3f yaxis = zaxis.cross(xaxis);
 
@@ -145,40 +159,55 @@ m4f faceViewProj(const v3f& eye, const CubeFace& face, float fov, float znear, f
     return m4f{proj * view};
 }
 
-// Step 7 scaffold: the first casting light gets the whole cube, in tiles laid
-// out in reading order. Step 8 allocates the tiles by class and step 13 derives
+// Step 7 scaffold: the first casting light gets its views, cube faces laid out
+// in reading order. Step 8 allocates the tiles by class and step 13 derives
 // which light gets any at all.
 bool firstLightShadowViews(entt::registry& reg, std::vector<ShadowView>& views)
 {
     views.clear();
+    const float znear = 0.05f;
+
     for (auto [e, light, trans] : reg.view<PointLight_C, Transform_C>().each())
     {
         if (!light.castShadows_)
             continue;
 
         const v3f eye = trans.world().translation();
-        const float znear = 0.05f;
         const float zfar = std::max(light.radius_, znear + 1.f);
-        // Six 90-degree faces close the sphere exactly, but each is drawn a few
-        // texels wider than the share it owns. A receiver sitting on a face
-        // boundary otherwise lands on the tile's outermost texel, where neither
-        // the PCF clamp nor the normal offset can still reach the caster, and
-        // light leaks in a hairline along the cube's edges. A spot will bring
-        // its own cone angle here instead.
-        constexpr float kFaceGuardTexels = 4.f;
-        const float half = static_cast<float>(LocalTileMax) * 0.5f;
-        const float fov = 2.f * std::atan((half + kFaceGuardTexels) / half);
+        // Six 90-degree faces close the sphere exactly.
+        const float fov = guardedFov(std::numbers::pi_v<float> * 0.5f, LocalTileMax);
         const uint32_t perRow = LocalAtlasSize / LocalTileMax;
 
         for (uint32_t i = 0; i < kCubeFaces.size(); ++i)
         {
             ShadowView& view = views.emplace_back();
-            view.viewProj_ = faceViewProj(eye, kCubeFaces[i], fov, znear, zfar);
+            const CubeFace& fc = kCubeFaces[i];
+            view.viewProj_ =
+                axisViewProj(eye, {fc.forward_[0], fc.forward_[1], fc.forward_[2]},
+                             {fc.up_[0], fc.up_[1], fc.up_[2]}, fov, znear, zfar);
             view.texelWorld_ = 2.f * std::tan(fov * 0.5f) / static_cast<float>(LocalTileMax);
             view.x_ = (i % perRow) * LocalTileMax;
             view.y_ = (i / perRow) * LocalTileMax;
             view.size_ = LocalTileMax;
         }
+        return true;
+    }
+
+    for (auto [e, spot, trans] : reg.view<SpotLight_C, Transform_C>().each())
+    {
+        if (!spot.castShadows_)
+            continue;
+
+        const float zfar = std::max(spot.radius_, znear + 1.f);
+        const float fov = guardedFov(spot.outerAngle_, LocalTileMax);
+        const v3f forward = -trans.world().linear().col(2).normalized();
+        const v3f up = std::abs(forward.y()) > 0.99f ? v3f{0.f, 0.f, 1.f} : v3f{0.f, 1.f, 0.f};
+
+        ShadowView& view = views.emplace_back();
+        view.viewProj_ =
+            axisViewProj(trans.world().translation(), forward, up, fov, znear, zfar);
+        view.texelWorld_ = 2.f * std::tan(fov * 0.5f) / static_cast<float>(LocalTileMax);
+        view.size_ = LocalTileMax;
         return true;
     }
     return false;

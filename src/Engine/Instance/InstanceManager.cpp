@@ -22,9 +22,12 @@ GPUInstanceManager::~GPUInstanceManager()
         [&](auto& pool)
         {
             using InstanceT = typename std::remove_reference_t<decltype(pool)>::InstanceType;
-            using Marker = MarkerOf<InstanceT>;
-            registry_->on_construct<Marker>().disconnect(this);
-            registry_->on_destroy<Marker>().disconnect(this);
+            [&]<class... Ms>(TypeList<Ms...>*)
+            {
+                ((registry_->on_construct<Ms>().disconnect(this),
+                  registry_->on_destroy<Ms>().disconnect(this)),
+                 ...);
+            }(static_cast<MarkersOf<InstanceT>*>(nullptr));
         });
 }
 
@@ -35,11 +38,14 @@ void GPUInstanceManager::connectHooks(entt::registry& reg)
         [&](auto& pool)
         {
             using InstanceT = typename std::remove_reference_t<decltype(pool)>::InstanceType;
-            using Marker = MarkerOf<InstanceT>;
-            reg.on_construct<Marker>()
-                .template connect<&GPUInstanceManager::onMarkerCreated<InstanceT>>(*this);
-            reg.on_destroy<Marker>()
-                .template connect<&GPUInstanceManager::onMarkerDestroyed<InstanceT>>(*this);
+            [&]<class... Ms>(TypeList<Ms...>*)
+            {
+                ((reg.on_construct<Ms>()
+                      .template connect<&GPUInstanceManager::onMarkerCreated<InstanceT>>(*this),
+                  reg.on_destroy<Ms>()
+                      .template connect<&GPUInstanceManager::onMarkerDestroyed<InstanceT>>(*this)),
+                 ...);
+            }(static_cast<MarkersOf<InstanceT>*>(nullptr));
         });
 }
 

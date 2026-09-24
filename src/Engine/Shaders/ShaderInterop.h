@@ -41,7 +41,7 @@ enum FrameSetBinding : uint
 {
     CamerasBinding = 0,
     InstancesBinding = 1,
-    PointLightsBinding = 2,
+    LightsBinding = 2,
     MaterialsBinding = 3,
     SkyboxBinding = 4,
     DebugShapeVertsBinding = 5,
@@ -80,19 +80,35 @@ struct StaticMeshGPUData
     uint materialIndices_[8];  // GPU arena slot per submesh
 };
 
-struct PointLightGPUData
+// Every kind of light, in one buffer and one shading loop. Each field means
+// one thing, and a kind leaves the ones it has no use for at zero.
+enum LightType : uint
+{
+    LightPoint = 0,
+    LightSpot = 1,
+    LightDirectional = 2,  // step 11b
+    LightRect = 3,         // step 15
+};
+
+struct LightGPUData
 {
     float3 pos_;
     float intensity_;
     float3 color_;
     float radius_;
+    float3 direction_;
     float falloff_;
+    uint type_;
     // Low 24 bits: index of this light's FIRST ShadowGPUData entry, its views
     // being contiguous. High 8: which ShadowFamily, hence how many follow and
     // which atlas they address. InvalidGPUIndex when the light has no shadow.
     uint shadowIndex_;
-    float sourceRadius_;    // 0 = a point light: penumbras of zero width
-    float shadowDistance_;  // cascade range; occluders take over beyond it
+    float cosInner_;
+    float cosOuter_;
+    float3 halfWidth_;
+    float sourceRadius_;  // metres, or an angular radius in radians for a directional
+    float3 halfHeight_;
+    float pad_;
 };
 
 enum ShadowFamily : uint
@@ -101,6 +117,11 @@ enum ShadowFamily : uint
     ShadowLocalCube = 1,      // atlas B, six tiles
     ShadowCascadeFamily = 2,  // atlas A, ShadowCascadeCount quadrants
 };
+
+// Range the cascades are configured for, the partition line between the two
+// shadow methods. A renderer setting rather than a per-light one since 7c.
+// Step 12 replaces the test with the cascades' real coverage, and this goes.
+static const float CascadeRange = 2000.0f;
 
 static const uint ShadowIndexMask = 0xFFFFFFu;
 static const uint ShadowFamilyShift = 24u;
@@ -196,7 +217,7 @@ struct DrawPush
     uint cameraIndex_;
     uint instanceIndex_;
     uint submeshIndex_;
-    uint pointLightCount_;
+    uint lightCount_;
     uint skyboxCount_;
     uint sphereOccluderCount_;
     // Which ShadowGPUData the shadow pass is drawing into. One view per draw,
@@ -208,7 +229,7 @@ struct DrawPush
 
 static_assert(sizeof(CameraGPUData) == 192);
 static_assert(sizeof(StaticMeshGPUData) == 96);
-static_assert(sizeof(PointLightGPUData) == 48);
+static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(DrawPush) == 28);
@@ -225,7 +246,7 @@ static_assert(sizeof(BillboardGPUData) == 64);
 template <class T>
 inline constexpr bool gpuStrideOk = sizeof(T) % 16 == 0;
 static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
-              gpuStrideOk<PointLightGPUData> && gpuStrideOk<Material> &&
+              gpuStrideOk<LightGPUData> && gpuStrideOk<Material> &&
               gpuStrideOk<SkyboxGPUData> && gpuStrideOk<DebugVertexGPUData> &&
               gpuStrideOk<DebugShapeGPUData> && gpuStrideOk<BillboardGPUData> &&
               gpuStrideOk<ShadowGPUData>);

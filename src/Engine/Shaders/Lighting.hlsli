@@ -6,8 +6,8 @@
 
 [[vk::binding(CamerasBinding, FrameSet)]]
 StructuredBuffer<CameraGPUData> CameraInstancebuffer;
-[[vk::binding(PointLightsBinding, FrameSet)]]
-StructuredBuffer<PointLightGPUData> PointLightBuffer;
+[[vk::binding(LightsBinding, FrameSet)]]
+StructuredBuffer<LightGPUData> LightBuffer;
 [[vk::binding(MaterialsBinding, FrameSet)]]
 StructuredBuffer<Material> MaterialBuffer;
 [[vk::binding(SkyboxBinding, FrameSet)]]
@@ -100,7 +100,7 @@ float3 F_Schlick(float HdotV, float3 F0)
 // near the light, analytic sphere occluders beyond. The occluder test is
 // angular, so a spot or a directional would fit as-is; only rL would be
 // obtained differently.
-float ShadowVisibility(float3 P, float3 N, float3 L, float dL, PointLightGPUData light,
+float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData light,
                        float3 camPos)
 {
     if (light.shadowIndex_ == InvalidGPUIndex)
@@ -128,7 +128,7 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, PointLightGPUData
 
         // What the cascades cover does not come through here, or the caster
         // would be shadowed twice.
-        if (length(occ.center_ - camPos) + occ.radius_ < light.shadowDistance_)
+        if (length(occ.center_ - camPos) + occ.radius_ < CascadeRange)
             continue;
 
         float3 S  = occ.center_ - P;
@@ -192,9 +192,9 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     }
 
     [loop]
-    for (uint lightIndex = 0; lightIndex < g_draw.pointLightCount_; ++lightIndex)
+    for (uint lightIndex = 0; lightIndex < g_draw.lightCount_; ++lightIndex)
     {
-        PointLightGPUData light = PointLightBuffer[lightIndex];
+        LightGPUData light = LightBuffer[lightIndex];
 
         float3 toLight = light.pos_ - s.posWS_;
         float  dist    = length(toLight);
@@ -203,6 +203,12 @@ float3 ShadeSurface(uint shadingModel, Surface s)
             continue;
 
         float3 L = toLight / dist;
+
+        float cone = 1.0f;
+        if (light.type_ == LightSpot)
+            cone = smoothstep(light.cosOuter_, light.cosInner_, dot(-L, light.direction_));
+        if (cone <= 0.0f)
+            continue;
 
         float shadow = ShadowVisibility(s.posWS_, s.N_, L, dist, light, cam.pos_);
         if (shadow <= 0.0f)
@@ -230,7 +236,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         float3 diffuse = kD_light * s.albedo_ / PI;
 
         // Direct term only: the ambient does not see shadows.
-        color += (diffuse + specular) * radiance * NdotL * shadow;
+        color += (diffuse + specular) * radiance * NdotL * shadow * cone;
     }
 
     return color;

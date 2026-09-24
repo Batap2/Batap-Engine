@@ -9,8 +9,9 @@
 //   Binding         its frame set slot
 //   fill()          how one entity is turned into one GPUData
 //
-// and optionally InitialCapacity (default 1) and CountField, to push the pool
-// size to the shaders. Adding it to GPUInstances at the bottom gives it its
+// and optionally InitialCapacity (default 1), CountField, to push the pool
+// size to the shaders, and Markers, below. Adding it to GPUInstances at the
+// bottom gives it its
 // pool, its upload pass, its dirty routing, its frame set binding and its
 // entt hooks.
 //
@@ -19,6 +20,9 @@
 // stops updating. The head is guaranteed present — the entity is in the pool
 // only while it exists — so in.marker() hands it out by reference; the rest
 // may be absent and come back as pointers through in.get<C>().
+//
+// Markers lists several components when kinds of entity that are nothing alike
+// share one buffer: presence of any one of them puts the entity in the pool.
 
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
@@ -29,6 +33,7 @@
 #include "Components/PointLight_C.h"
 #include "Components/ShadowSphere_C.h"
 #include "Components/Skybox_C.h"
+#include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
 #include "Flatten.h"
 #include "EigenTypes.h"
@@ -42,6 +47,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <span>
@@ -104,6 +110,25 @@ using AccessOf = typename detail::AccessOfList<List>::type;
 template <class Instance>
 using MarkerOf = typename detail::HeadOfList<typename Instance::Uses>::type;
 
+namespace detail
+{
+template <class Instance>
+struct MarkersOfInstance
+{
+    using type = TypeList<MarkerOf<Instance>>;
+};
+
+template <class Instance>
+    requires requires { typename Instance::Markers; }
+struct MarkersOfInstance<Instance>
+{
+    using type = typename Instance::Markers;
+};
+}  // namespace detail
+
+template <class Instance>
+using MarkersOf = typename detail::MarkersOfInstance<Instance>::type;
+
 // ----------- Instances -----------------------------------------------------
 
 struct StaticMeshInstance
@@ -161,29 +186,50 @@ struct CameraInstance
     }
 };
 
-struct PointLightInstance
+struct LightInstance
 {
-    using GPUData = PointLightGPUData;
-    using Uses = TypeList<PointLight_C, Transform_C>;
-    static constexpr uint32_t Binding = PointLightsBinding;
+    using GPUData = LightGPUData;
+    using Markers = TypeList<PointLight_C, SpotLight_C>;
+    using Uses = TypeList<PointLight_C, SpotLight_C, Transform_C>;
+    static constexpr uint32_t Binding = LightsBinding;
     static constexpr size_t InitialCapacity = 32;
-    static constexpr uint32_t DrawPush::* CountField = &DrawPush::pointLightCount_;
+    static constexpr uint32_t DrawPush::* CountField = &DrawPush::lightCount_;
 
     static void fill(AccessOf<Uses> in, GPUData& out)
     {
-        if (auto* trans = in.get<Transform_C>())
+        auto* trans = in.get<Transform_C>();
+        if (trans)
             flatten(out.pos_, trans->world().translation());
 
-        const PointLight_C& light = in.marker();
+        if (const auto* spot = in.get<SpotLight_C>())
+        {
+            out.type_ = LightSpot;
+            fillRadiometry(*spot, ShadowLocalSingle, out);
+            out.cosInner_ = std::cos(spot->innerAngle_ * 0.5f);
+            out.cosOuter_ = std::cos(spot->outerAngle_ * 0.5f);
+            if (trans)
+                flatten(out.direction_, -trans->world().linear().col(2).normalized());
+        }
+        else if (const auto* point = in.get<PointLight_C>())
+        {
+            out.type_ = LightPoint;
+            fillRadiometry(*point, ShadowLocalCube, out);
+            out.sourceRadius_ = point->sourceRadius_;
+        }
+    }
+
+   private:
+    template <class Light>
+    static void fillRadiometry(const Light& light, ShadowFamily family, GPUData& out)
+    {
         flatten(out.color_, light.color_);
         out.intensity_ = light.intensity_;
         out.radius_ = light.radius_;
         out.falloff_ = light.falloff_;
-        out.shadowIndex_ = light.castShadows_
-                               ? (0u | (uint32_t(ShadowLocalCube) << ShadowFamilyShift))
-                               : InvalidGPUIndex;
-        out.sourceRadius_ = light.sourceRadius_;
-        out.shadowDistance_ = light.shadowDistance_;
+        // Entry 0 whatever the light, while a single casting light is all the
+        // pass builds; step 13 hands out the real index.
+        out.shadowIndex_ =
+            light.castShadows_ ? (0u | (uint32_t(family) << ShadowFamilyShift)) : InvalidGPUIndex;
     }
 };
 
@@ -278,7 +324,7 @@ struct ShadowSphereInstance
 
 // ----------- GPUInstances : the one list the plumbing reads -----------------
 
-using GPUInstances = TypeList<StaticMeshInstance, CameraInstance, PointLightInstance,
+using GPUInstances = TypeList<StaticMeshInstance, CameraInstance, LightInstance,
                               SkyboxInstance, ShadowSphereInstance>;
 
 // What the plumbing assumes of an instance, checked where it is declared
@@ -340,11 +386,18 @@ constexpr bool isAdditiveInstance()
 // component.
 namespace detail
 {
+template <class... Ms>
+ComponentMask maskOfMarkers(TypeList<Ms...>*)
+{
+    return (ComponentMask{0} | ... | componentMask<Ms>());
+}
+
 template <class... Is>
 ComponentMask markerMaskOfList(TypeList<Is...>*)
 {
     return (ComponentMask{0} | ... |
-            (isAdditiveInstance<Is>() ? ComponentMask{0} : componentMask<MarkerOf<Is>>()));
+            (isAdditiveInstance<Is>() ? ComponentMask{0}
+                                      : maskOfMarkers(static_cast<MarkersOf<Is>*>(nullptr))));
 }
 }  // namespace detail
 

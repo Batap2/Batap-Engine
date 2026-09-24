@@ -4,6 +4,7 @@
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/Skybox_C.h"
+#include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
 #include "UI/IconsMaterialDesign.h"
 
@@ -48,6 +49,7 @@ inline constexpr Spawnable Spawnables[] = {
     spawnable<Mesh_C, Transform_C>("mesh", "Static Mesh", ICON_MD_HVAC),
     spawnable<Camera_C, Transform_C>("camera", "Camera", ICON_MD_VIDEOCAM),
     spawnable<PointLight_C, Transform_C>("pointLight", "Point Light", ICON_MD_LIGHTBULB),
+    spawnable<SpotLight_C, Transform_C>("spotLight", "Spot Light", ICON_MD_FLASHLIGHT_ON),
     spawnable<Skybox_C>("skybox", "Skybox", ICON_MD_PANORAMA),
 };
 
