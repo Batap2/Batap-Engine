@@ -11,11 +11,20 @@ StructuredBuffer<ShadowGPUData> ShadowBuffer;
 // wants a single-channel texture.
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float> g_depthTextures[];
 
+// Offset along the normal at a fully grazing incidence, counted in texels of
+// the map
+static const float ShadowNormalOffsetTexels = 2.0f;
+
 // 1 where the light reaches P, 0 where a caster is in the way. Reading the
 // matrix the pass rendered with is what keeps the two in step.
-float ShadowMapVisibility(float3 P, uint shadowIndex)
+float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowIndex)
 {
     ShadowGPUData sh = ShadowBuffer[shadowIndex];
+
+    // fix shadows acnee
+    float NdotL = saturate(dot(N, L));
+    P += N * (sh.texelWorld_ * dL * ShadowNormalOffsetTexels
+              * sqrt(saturate(1.0f - NdotL * NdotL)));
 
     float4 clip = mul(sh.viewProj_, float4(P, 1.0f));
     if (clip.w <= 0.0f)

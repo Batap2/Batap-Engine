@@ -100,7 +100,8 @@ float3 F_Schlick(float HdotV, float3 F0)
 // near the light, analytic sphere occluders beyond. The occluder test is
 // angular, so a spot or a directional would fit as-is; only rL would be
 // obtained differently.
-float ShadowVisibility(float3 P, float3 L, float dL, PointLightGPUData light, float3 camPos)
+float ShadowVisibility(float3 P, float3 N, float3 L, float dL, PointLightGPUData light,
+                       float3 camPos)
 {
     if (light.shadowIndex_ == InvalidGPUIndex)
         return 1.0f;
@@ -112,7 +113,7 @@ float ShadowVisibility(float3 P, float3 L, float dL, PointLightGPUData light, fl
     float vis = 1.0f;
 
     if ((light.shadowIndex_ >> ShadowFamilyShift) == ShadowLocalSingle)
-        vis *= ShadowMapVisibility(P, light.shadowIndex_ & ShadowIndexMask);
+        vis *= ShadowMapVisibility(P, N, L, dL, light.shadowIndex_ & ShadowIndexMask);
 
     [loop]
     for (uint i = 0; i < g_draw.sphereOccluderCount_; ++i)
@@ -199,7 +200,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
         float3 L = toLight / dist;
 
-        float shadow = ShadowVisibility(s.posWS_, L, dist, light, cam.pos_);
+        float shadow = ShadowVisibility(s.posWS_, s.N_, L, dist, light, cam.pos_);
         if (shadow <= 0.0f)
             continue;
 
