@@ -159,9 +159,15 @@ bool firstLightShadowViews(entt::registry& reg, std::vector<ShadowView>& views)
         const v3f eye = trans.world().translation();
         const float znear = 0.05f;
         const float zfar = std::max(light.radius_, znear + 1.f);
-        // Square 90-degree faces: six of them close the sphere exactly. A spot
-        // will bring its own cone angle here instead.
-        const float fov = std::numbers::pi_v<float> * 0.5f;
+        // Six 90-degree faces close the sphere exactly, but each is drawn a few
+        // texels wider than the share it owns. A receiver sitting on a face
+        // boundary otherwise lands on the tile's outermost texel, where neither
+        // the PCF clamp nor the normal offset can still reach the caster, and
+        // light leaks in a hairline along the cube's edges. A spot will bring
+        // its own cone angle here instead.
+        constexpr float kFaceGuardTexels = 4.f;
+        const float half = static_cast<float>(LocalTileMax) * 0.5f;
+        const float fov = 2.f * std::atan((half + kFaceGuardTexels) / half);
         const uint32_t perRow = LocalAtlasSize / LocalTileMax;
 
         for (uint32_t i = 0; i < kCubeFaces.size(); ++i)

@@ -180,7 +180,7 @@ struct PointLightInstance
         out.radius_ = light.radius_;
         out.falloff_ = light.falloff_;
         out.shadowIndex_ = light.castShadows_
-                               ? (0u | (uint32_t(ShadowLocalSingle) << ShadowFamilyShift))
+                               ? (0u | (uint32_t(ShadowLocalCube) << ShadowFamilyShift))
                                : InvalidGPUIndex;
         out.sourceRadius_ = light.sourceRadius_;
         out.shadowDistance_ = light.shadowDistance_;

@@ -17,7 +17,6 @@ namespace
 // without resizing on the way there.
 constexpr uint32_t kMaxShadowViews = 256;
 
-constexpr float kDepthBiasConstant = 2.f;
 constexpr float kDepthBiasSlope = 2.f;
 }  // namespace
 
@@ -102,7 +101,7 @@ void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas,
 
     vkCmdBeginRendering(pass.cmd_, &info);
     vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-    vkCmdSetDepthBias(pass.cmd_, kDepthBiasConstant, 0.f, kDepthBiasSlope);
+    vkCmdSetDepthBias(pass.cmd_, 0.f, 0.f, kDepthBiasSlope);
 
     PassContext shadowPass = pass;
     for (size_t i = 0; i < views.size(); ++i)

@@ -112,8 +112,12 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, PointLightGPUData
 
     float vis = 1.0f;
 
-    if ((light.shadowIndex_ >> ShadowFamilyShift) == ShadowLocalSingle)
-        vis *= ShadowMapVisibility(P, N, L, dL, light.shadowIndex_ & ShadowIndexMask);
+    uint family = light.shadowIndex_ >> ShadowFamilyShift;
+    uint firstView = light.shadowIndex_ & ShadowIndexMask;
+    if (family == ShadowLocalSingle)
+        vis *= ShadowMapVisibility(P, N, L, dL, firstView);
+    else if (family == ShadowLocalCube)
+        vis *= ShadowMapVisibility(P, N, L, dL, firstView + CubeFaceIndex(-L));
 
     [loop]
     for (uint i = 0; i < g_draw.sphereOccluderCount_; ++i)
