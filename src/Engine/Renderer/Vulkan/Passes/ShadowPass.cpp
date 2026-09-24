@@ -48,23 +48,33 @@ void ShadowPass::buildPipelines(const ShaderModules& modules)
                     .build(setup_.ctx_.device_, setup_.layout_);
 }
 
-void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas, const m4f& viewProj)
+void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas,
+                        std::span<const ShadowView> views)
 {
+    if (views.empty() || views.size() > kMaxShadowViews)
+        return;
+
     const VkImage atlasImage = setup_.resources_.imageFor(atlas);
+    const uint32_t atlasTexture = setup_.resources_.textureIndex(atlas);
+    const float atlasSize = static_cast<float>(LocalAtlasSize);
 
-    PassContext shadowPass = pass;
-    shadowPass.push_.shadowViewIndex_ = 0;
-
-    ShadowGPUData entry{};
-    flatten(entry.viewProj_, viewProj);
-    entry.atlasIndex_ = 0;
-    entry.texelWorld_ = 2.f / static_cast<float>(LocalTileMax);
-    entry.atlasTexture_ = setup_.resources_.textureIndex(atlas);
-    entry.uvScale_ = static_cast<float>(LocalTileMax) / static_cast<float>(LocalAtlasSize);
-    entry.uvOffset_[0] = 0.f;
-    entry.uvOffset_[1] = 0.f;
-    entry.texelUV_ = 1.f / static_cast<float>(LocalAtlasSize);
-    setup_.resources_.recordBufferWrite(pass.cmd_, buffer_, &entry, sizeof(entry));
+    entries_.resize(views.size());
+    for (size_t i = 0; i < views.size(); ++i)
+    {
+        const ShadowView& view = views[i];
+        ShadowGPUData& entry = entries_[i];
+        entry = ShadowGPUData{};
+        flatten(entry.viewProj_, view.viewProj_);
+        entry.atlasIndex_ = static_cast<uint32_t>(i);
+        entry.texelWorld_ = view.texelWorld_;
+        entry.atlasTexture_ = atlasTexture;
+        entry.uvScale_ = static_cast<float>(view.size_) / atlasSize;
+        entry.uvOffset_[0] = static_cast<float>(view.x_) / atlasSize;
+        entry.uvOffset_[1] = static_cast<float>(view.y_) / atlasSize;
+        entry.texelUV_ = 1.f / atlasSize;
+    }
+    setup_.resources_.recordBufferWrite(pass.cmd_, buffer_, entries_.data(),
+                                        entries_.size() * sizeof(ShadowGPUData));
 
     // Discard: the scope clears the whole atlas, so only last frame's reads have
     // to finish — its contents do not have to survive. Also covers the first
@@ -93,9 +103,14 @@ void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas, const 
     vkCmdBeginRendering(pass.cmd_, &info);
     vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
     vkCmdSetDepthBias(pass.cmd_, kDepthBiasConstant, 0.f, kDepthBiasSlope);
-    setViewportYUpRect(pass.cmd_, 0, 0, LocalTileMax, LocalTileMax);
 
-    recordMeshDraws(shadowPass, setup_.resources_, 1);
+    PassContext shadowPass = pass;
+    for (size_t i = 0; i < views.size(); ++i)
+    {
+        shadowPass.push_.shadowViewIndex_ = static_cast<uint32_t>(i);
+        setViewportYUpRect(pass.cmd_, views[i].x_, views[i].y_, views[i].size_, views[i].size_);
+        recordMeshDraws(shadowPass, setup_.resources_, 1);
+    }
 
     vkCmdEndRendering(pass.cmd_);
 

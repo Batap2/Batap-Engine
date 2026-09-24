@@ -54,6 +54,7 @@ struct ScenePasses
     VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
 
     GPUResourceHandle localAtlas_;
+    std::vector<ShadowView> shadowViews_;
 
     ShadowPass shadow_;
     GeometryPass geometry_;
