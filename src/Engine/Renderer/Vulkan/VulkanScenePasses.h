@@ -3,6 +3,7 @@
 #include <volk.h>
 
 #include "Renderer/SceneBinding.h"
+#include "Renderer/Vulkan/LocalShadowAllocator.h"
 #include "Renderer/Vulkan/Passes/BillboardPass.h"
 #include "Renderer/Vulkan/Passes/DebugPass.h"
 #include "Renderer/Vulkan/Passes/GeometryPass.h"
@@ -54,6 +55,7 @@ struct ScenePasses
     VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
 
     GPUResourceHandle localAtlas_;
+    LocalShadowAllocator localShadowsAlloc_;
     std::vector<ShadowView> shadowViews_;
 
     ShadowPass shadow_;

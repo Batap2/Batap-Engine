@@ -31,6 +31,8 @@ uint CubeFaceIndex(float3 d)
 float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowIndex)
 {
     ShadowGPUData sh = ShadowBuffer[shadowIndex];
+    if (sh.strength_ <= 0.0f)
+        return 1.0f;
 
     // fix shadows acnee
     float NdotL = saturate(dot(N, L));
@@ -69,7 +71,7 @@ float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowInd
             sum += g_depthTextures[sh.atlasTexture_].SampleCmpLevelZero(
                 g_shadowSampler, clamp(uv + float2(x, y) * sh.texelUV_, lo, hi), ndc.z);
     }
-    return sum / 9.0f;
+    return lerp(1.0f, sum / 9.0f, sh.strength_);
 }
 
 #endif

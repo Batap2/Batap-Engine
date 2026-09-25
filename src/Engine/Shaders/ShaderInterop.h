@@ -123,22 +123,28 @@ enum ShadowFamily : uint
 // Step 12 replaces the test with the cascades' real coverage, and this goes.
 static const float CascadeRange = 2000.0f;
 
+// A cube's six faces, the most any light draws. Every casting light reserves
+// that many entries from its shadowIndex_ on, at a slot fixed by its pool
+// index, so fill() can write the index once while the allocation changes
+// every frame.
+static const uint MaxShadowViewsPerLight = 6u;
+
 static const uint ShadowIndexMask = 0xFFFFFFu;
 static const uint ShadowFamilyShift = 24u;
 
 struct ShadowGPUData
 {
     float4x4 viewProj_;
-    uint atlasIndex_;
+    // 0 when the view has no map this frame, which reads as lit. Below 1 while
+    // the light fades out with distance.
+    float strength_;
     // Texel world size per unit of distance from the light, this view being a
     // perspective one. A cascade is orthographic and will store an absolute
     // size here instead.
     float texelWorld_;
     // Bindless slot of the atlas image this view lives in.
     uint atlasTexture_;
-    // The view's tile as a rectangle in atlas UV. A rectangle rather than
-    // something derived from atlasIndex_, because the shelf packing of step 8
-    // gives tiles of several sizes at arbitrary positions.
+    // The view's tile as a rectangle in atlas UV: tiles come in several sizes.
     float uvScale_;
     float uvOffset_[2];
     // Side of one atlas texel in UV, for the PCF kernel: the tile is a

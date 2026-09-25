@@ -78,7 +78,7 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
 
             // Built on the stack so staging is only ever written linearly.
             GPUData data{};
-            InstanceT::fill({ctx, *entityHandle.reg_, entityHandle.entity_}, data);
+            InstanceT::fill({ctx, *entityHandle.reg_, entityHandle.entity_, id}, data);
 
             auto span = resourceManager_.requestUpload(frameInstancePool.instancePoolHandle_,
                                                        sizeof(GPUData), id * sizeof(GPUData));

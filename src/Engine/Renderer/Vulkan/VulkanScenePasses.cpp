@@ -6,8 +6,6 @@
 
 #include "Assets/AssetManager.h"
 #include "Components/Camera_C.h"
-#include "Components/PointLight_C.h"
-#include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
 #include "DebugUtils.h"
 #include "Engine.h"
@@ -16,9 +14,7 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <iostream>
-#include <numbers>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -101,116 +97,6 @@ VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout tex
     if (vkCreatePipelineLayout(device, &info, nullptr, &layout) != VK_SUCCESS)
         throw std::runtime_error("ScenePasses : pipeline layout");
     return layout;
-}
-
-struct CubeFace
-{
-    float forward_[3];
-    float up_[3];
-};
-
-constexpr std::array<CubeFace, 6> kCubeFaces{{
-    {{1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}},
-    {{-1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}},
-    {{0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}},
-    {{0.f, -1.f, 0.f}, {0.f, 0.f, -1.f}},
-    {{0.f, 0.f, 1.f}, {0.f, 1.f, 0.f}},
-    {{0.f, 0.f, -1.f}, {0.f, 1.f, 0.f}},
-}};
-
-// A view is drawn a few texels wider than the angle it owns. A receiver sitting
-// on a face boundary otherwise lands on the tile's outermost texel, where
-// neither the PCF clamp nor the normal offset can still reach the caster, and
-// light leaks in a hairline along the cube's edges. In texels, so it follows
-// the tile: step 8 will pass sizes other than LocalTileMax.
-constexpr float kFaceGuardTexels = 4.f;
-
-float guardedFov(float fov, uint32_t tileSize)
-{
-    const float half = static_cast<float>(tileSize) * 0.5f;
-    return 2.f * std::atan(std::tan(fov * 0.5f) * (half + kFaceGuardTexels) / half);
-}
-
-m4f axisViewProj(const v3f& eye, const v3f& forward, const v3f& up, float fov, float znear,
-                 float zfar)
-{
-    const v3f zaxis = -forward;
-    const v3f xaxis = up.cross(zaxis).normalized();
-    const v3f yaxis = zaxis.cross(xaxis);
-
-    m4f view = m4f::Identity();
-    view.block<1, 3>(0, 0) = xaxis.transpose();
-    view.block<1, 3>(1, 0) = yaxis.transpose();
-    view.block<1, 3>(2, 0) = zaxis.transpose();
-    view(0, 3) = -xaxis.dot(eye);
-    view(1, 3) = -yaxis.dot(eye);
-    view(2, 3) = -zaxis.dot(eye);
-
-    const float f = 1.f / std::tan(fov * 0.5f);
-    const float nf = 1.f / (znear - zfar);
-
-    m4f proj = m4f::Zero();
-    proj(0, 0) = f;
-    proj(1, 1) = f;
-    proj(2, 2) = zfar * nf;
-    proj(2, 3) = zfar * znear * nf;
-    proj(3, 2) = -1.f;
-
-    return m4f{proj * view};
-}
-
-// Step 7 scaffold: the first casting light gets its views, cube faces laid out
-// in reading order. Step 8 allocates the tiles by class and step 13 derives
-// which light gets any at all.
-bool firstLightShadowViews(entt::registry& reg, std::vector<ShadowView>& views)
-{
-    views.clear();
-    const float znear = 0.05f;
-
-    for (auto [e, light, trans] : reg.view<PointLight_C, Transform_C>().each())
-    {
-        if (!light.castShadows_)
-            continue;
-
-        const v3f eye = trans.world().translation();
-        const float zfar = std::max(light.radius_, znear + 1.f);
-        // Six 90-degree faces close the sphere exactly.
-        const float fov = guardedFov(std::numbers::pi_v<float> * 0.5f, LocalTileMax);
-        const uint32_t perRow = LocalAtlasSize / LocalTileMax;
-
-        for (uint32_t i = 0; i < kCubeFaces.size(); ++i)
-        {
-            ShadowView& view = views.emplace_back();
-            const CubeFace& fc = kCubeFaces[i];
-            view.viewProj_ =
-                axisViewProj(eye, {fc.forward_[0], fc.forward_[1], fc.forward_[2]},
-                             {fc.up_[0], fc.up_[1], fc.up_[2]}, fov, znear, zfar);
-            view.texelWorld_ = 2.f * std::tan(fov * 0.5f) / static_cast<float>(LocalTileMax);
-            view.x_ = (i % perRow) * LocalTileMax;
-            view.y_ = (i / perRow) * LocalTileMax;
-            view.size_ = LocalTileMax;
-        }
-        return true;
-    }
-
-    for (auto [e, spot, trans] : reg.view<SpotLight_C, Transform_C>().each())
-    {
-        if (!spot.castShadows_)
-            continue;
-
-        const float zfar = std::max(spot.radius_, znear + 1.f);
-        const float fov = guardedFov(spot.outerAngle_, LocalTileMax);
-        const v3f forward = -trans.world().linear().col(2).normalized();
-        const v3f up = std::abs(forward.y()) > 0.99f ? v3f{0.f, 0.f, 1.f} : v3f{0.f, 1.f, 0.f};
-
-        ShadowView& view = views.emplace_back();
-        view.viewProj_ =
-            axisViewProj(trans.world().translation(), forward, up, fov, znear, zfar);
-        view.texelWorld_ = 2.f * std::tan(fov * 0.5f) / static_cast<float>(LocalTileMax);
-        view.size_ = LocalTileMax;
-        return true;
-    }
-    return false;
 }
 
 }  // namespace
@@ -387,6 +273,11 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     if (!camID.valid())
         return false;
 
+    localShadowsAlloc_.allocate(*reg, *instanceM, args.camera_, ctx.getFrameSize(), shadowViews_);
+    const size_t shadowEntries =
+        instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
+    shadow_.reserve(shadowEntries);
+
     writeFrameSet(frame, args, ctx);
 
     VkRenderingAttachmentInfo color{};
@@ -431,8 +322,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
                 pass.push_.*InstanceT::CountField = static_cast<uint32_t>(pool.size());
         });
 
-    if (firstLightShadowViews(*reg, shadowViews_))
-        shadow_.record(pass, localAtlas_, shadowViews_);
+    shadow_.record(pass, localAtlas_, shadowViews_, shadowEntries);
 
     vkCmdBeginRendering(cmd, &renderingInfo);
     setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);

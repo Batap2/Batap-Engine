@@ -68,6 +68,7 @@ struct Access
     Engine& ctx;
     const entt::registry& reg;
     entt::entity entity;
+    uint32_t gpuIndex;
 
     // The marker component, by reference: pool membership *is* its presence.
     const Head& marker() const { return reg.get<Head>(entity); }
@@ -204,7 +205,7 @@ struct LightInstance
         if (const auto* spot = in.get<SpotLight_C>())
         {
             out.type_ = LightSpot;
-            fillRadiometry(*spot, ShadowLocalSingle, out);
+            fillRadiometry(*spot, ShadowLocalSingle, in.gpuIndex, out);
             out.cosInner_ = std::cos(spot->innerAngle_ * 0.5f);
             out.cosOuter_ = std::cos(spot->outerAngle_ * 0.5f);
             if (trans)
@@ -213,23 +214,23 @@ struct LightInstance
         else if (const auto* point = in.get<PointLight_C>())
         {
             out.type_ = LightPoint;
-            fillRadiometry(*point, ShadowLocalCube, out);
+            fillRadiometry(*point, ShadowLocalCube, in.gpuIndex, out);
             out.sourceRadius_ = point->sourceRadius_;
         }
     }
 
    private:
     template <class Light>
-    static void fillRadiometry(const Light& light, ShadowFamily family, GPUData& out)
+    static void fillRadiometry(const Light& light, ShadowFamily family, uint32_t gpuIndex,
+                               GPUData& out)
     {
         flatten(out.color_, light.color_);
         out.intensity_ = light.intensity_;
         out.radius_ = light.radius_;
         out.falloff_ = light.falloff_;
-        // Entry 0 whatever the light, while a single casting light is all the
-        // pass builds; step 13 hands out the real index.
-        out.shadowIndex_ =
-            light.castShadows_ ? (0u | (uint32_t(family) << ShadowFamilyShift)) : InvalidGPUIndex;
+        out.shadowIndex_ = light.castShadows_ ? ((gpuIndex * MaxShadowViewsPerLight) |
+                                                 (uint32_t(family) << ShadowFamilyShift))
+                                              : InvalidGPUIndex;
     }
 };
 
