@@ -28,6 +28,14 @@ function(batap_add_game name)
       RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
   endforeach()
 
+  # A dylib exports every symbol by default, and dyld merges the module's weak
+  # ones (inline statics such as fieldTypeSlot<T>) into the host's: the module
+  # would then overwrite the editor's field types with its own code. Export
+  # only the entry point, as a Windows DLL does (GameModuleEntryName).
+  if(APPLE)
+    target_link_options(${name}_Game PRIVATE "LINKER:-exported_symbol,_batapGameEntry")
+  endif()
+
   add_custom_command(TARGET ${name}_Game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:${name}_Game>

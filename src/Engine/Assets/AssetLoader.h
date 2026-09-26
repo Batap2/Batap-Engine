@@ -18,6 +18,17 @@ inline bool isBuiltinAsset(std::string_view path)
     return path.starts_with("__");
 }
 
+// Asset keys always use '/'. Scenes saved on Windows before that rule can
+// still hold backslashes, which no other platform resolves.
+inline std::string normalizeAssetPath(std::string_view path)
+{
+    std::string out(path);
+    for (char& c : out)
+        if (c == '\\')
+            c = '/';
+    return out;
+}
+
 struct Engine;
 struct AssetManager;
 

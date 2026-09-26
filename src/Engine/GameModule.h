@@ -28,12 +28,14 @@
 // only contributes code. Traps: game_module.cpp must include
 // GameComponents.h (the include *is* the registration); App::gameModule_ is
 // declared before game_ (~Game is DLL code, must run before FreeLibrary);
-// and it must call adoptHostImGui(*out) or the game draws no UI (see below).
+// and it must call adoptHostImGui(*out) and adoptHostVulkan(*out), or the game
+// draws no UI and crashes on its first Vulkan call (see below).
 
 #include "Game.h"
 #include "Reflection/ComponentRegistry.h"
 
 #include <cstddef>
+#include <volk.h>
 
 struct ImGuiContext;
 
@@ -50,12 +52,19 @@ struct GameModuleAPI
     void* (*imguiAlloc_)(size_t, void*) = nullptr;
     void (*imguiFree_)(void*, void*) = nullptr;
     void* imguiUserData_ = nullptr;
+    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr_ = nullptr;
+    VkInstance vkInstance_ = VK_NULL_HANDLE;
+    VkDevice vkDevice_ = VK_NULL_HANDLE;
 };
 
 // ImGui keeps its context and its allocator in globals, and the DLL links its
 // own copy of both: without this the game's widgets go into a context nobody
 // draws, and its allocations cross heaps.
 void adoptHostImGui(const GameModuleAPI& api);
+
+// Same for volk: its vk* function pointers are globals, and the DLL's copies
+// stay null until loaded from the host's instance and device.
+void adoptHostVulkan(const GameModuleAPI& api);
 
 // Debug links the debug CRT and Joltd.dll, release the plain ones, and a
 // module's dependencies are resolved from the *host's* directory, never from
@@ -73,3 +82,9 @@ inline constexpr const char* GameModuleFileName =
 inline constexpr const char* GameModuleEntryName = "batapGameEntry";
 using GameModuleEntryFn = void (*)(GameModuleAPI*);
 }  // namespace batap
+
+#if defined(_WIN32)
+#define BATAP_GAME_EXPORT __declspec(dllexport)
+#else
+#define BATAP_GAME_EXPORT __attribute__((visibility("default")))
+#endif

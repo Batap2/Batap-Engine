@@ -90,50 +90,106 @@ add_subdirectory("${include_dir}/vk-bootstrap")
 add_subdirectory("${include_dir}/assimp")
 add_subdirectory("${include_dir}/tracy")
 add_subdirectory("${include_dir}/JoltPhysics/Build")
-# Jolt publishes its headers as non-SYSTEM includes; -Weverything -Werror would
-# turn every one of its warnings into our build error.
-get_target_property(_jolt_includes Jolt INTERFACE_INCLUDE_DIRECTORIES)
-set_target_properties(Jolt PROPERTIES
-  INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_jolt_includes}")
+# These publish their headers as non-SYSTEM includes; our warnings + -Werror
+# would turn every one of their warnings into our build error. A pragma around
+# the #include is not enough: -Wunsafe-buffer-usage ignores it.
+foreach(_dep IN ITEMS Jolt vk-bootstrap)
+  get_target_property(_dep_includes ${_dep} INTERFACE_INCLUDE_DIRECTORIES)
+  set_target_properties(${_dep} PROPERTIES
+    INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_dep_includes}")
+endforeach()
 
 # ------------------------------------------------------------------------------
 # Common warnings target
 # ------------------------------------------------------------------------------
+# An explicit list, never -Weverything: under -Werror, every clang release that
+# adds a warning to -Weverything would break a build whose code did not change.
+option(BATAP_WERROR "Treat warnings as errors" ON)
+
+# clang-cl reads -Wall as MSVC's /Wall, which it maps to -Weverything;
+# /W4 is its spelling of -Wall -Wextra.
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  set(batap_base_warnings /W4)
+else()
+  set(batap_base_warnings -Wall -Wextra)
+endif()
+
 add_library(batap_warnings INTERFACE)
 target_compile_options(batap_warnings INTERFACE
-  -Weverything
-  -Werror
-  -Wno-c++98-compat
-  -Wno-c++98-compat-pedantic
-  -Wno-c++20-compat
-  -Wno-reserved-macro-identifier
-  -Wno-nonportable-system-include-path
-  -Wno-microsoft-enum-value
-  -Wno-reserved-identifier
-  -Wno-language-extension-token
-  -Wno-switch-enum
-  -Wno-switch-default
+  ${batap_base_warnings}
+  -Wpedantic
+  -Wconversion
+  -Wdouble-promotion
+  -Wfloat-equal
+  -Wshadow-all
+  -Wold-style-cast
+  -Wcast-align
+  -Wcast-qual
+  -Wnon-virtual-dtor
+  -Wsuggest-override
+  -Winconsistent-missing-destructor-override
+  -Wdeprecated
+  -Wimplicit-fallthrough
+  -Wnull-dereference
+  -Wundef
+  -Wformat=2
+  -Wmissing-noreturn
+  -Wunreachable-code-aggressive
+  -Wcomma
+  -Wzero-as-null-pointer-constant
+  -Wmissing-variable-declarations
+  -Wunused-member-function
+  -Wunused-template
+  -Wunused-exception-parameter
+  -Wloop-analysis
+  -Wheader-hygiene
+  -Wduplicate-enum
+  -Wnewline-eof
+  -Wextra-semi
+  -Wextra-semi-stmt
+  -Wcovered-switch-default
+  -Wdocumentation
+  -Wdocumentation-unknown-command
+  -Wweak-vtables
+  -Wexit-time-destructors
+  -Wglobal-constructors
+  -Wctad-maybe-unsupported
+  -Wundefined-func-template
   -Wno-unused-parameter
   -Wno-unused-variable
-  -Wno-unsafe-buffer-usage-in-libc-call
-  -Wno-missing-prototypes
-  # -Wpadded fires on nearly any struct mixing types, in the engine as in the
-  # game: silencing it is the only option short of reordering every struct for
-  # a diagnostic that says nothing about correctness. It was already off on
-  # Apple; the clang shipped with VS 18 emits it too.
-  -Wno-padded
-  # -Wnrvo fires on the idiomatic `return {}` on failure, `return local` on
-  # success: clang gives up NRVO as soon as two return statements disagree.
-  # Forcing a single exit would make four functions worse to save one move on
-  # an error path. It is a codegen hint, not a correctness diagnostic.
-  -Wno-nrvo
-  -Wno-missing-designated-field-initializers
+  -Wno-microsoft-enum-value
+  -Wno-language-extension-token
+  $<$<BOOL:${BATAP_WERROR}>:-Werror>
 )
+
+# Warnings younger than the oldest supported clang:
+# passed only when the compiler knows them, since -Werror turns an unknown
+# warning option into an error. A "no-" entry is probed through its positive
+# form, which is the one clang reports as unknown.
+include(CheckCXXCompilerFlag)
+function(batap_optional_warnings)
+  foreach(warning IN LISTS ARGN)
+    string(REGEX REPLACE "^no-" "" probed "${warning}")
+    string(MAKE_C_IDENTIFIER "BATAP_HAS_W${probed}" has_warning)
+    set(CMAKE_REQUIRED_FLAGS "-Werror=unknown-warning-option")
+    check_cxx_compiler_flag("-W${probed}" ${has_warning})
+    if(${has_warning})
+      target_compile_options(batap_warnings INTERFACE "-W${warning}")
+    endif()
+  endforeach()
+endfunction()
+batap_optional_warnings(
+  unsafe-buffer-usage
+  no-unsafe-buffer-usage-in-libc-call
+  cast-function-type-strict
+  unique-object-duplication
+  no-missing-designated-field-initializers
+)
+
 if(APPLE)
   # Parité avec tools/compile-check : diagnostics que le build Windows
-  # n'applique pas, ou spécifiques à AppleClang
+  # applique mais pas encore le build macOS
   target_compile_options(batap_warnings INTERFACE
-    -Wno-poison-system-directories
     -Wno-weak-vtables
     -Wno-exit-time-destructors
     -Wno-global-constructors
@@ -155,7 +211,6 @@ if(APPLE)
     -Wno-extra-semi
     -Wno-extra-semi-stmt
     -Wno-ctad-maybe-unsupported
-    -Wno-switch-default
     -Wno-c++20-extensions
   )
 endif()

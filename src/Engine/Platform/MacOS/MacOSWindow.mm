@@ -194,6 +194,22 @@ void feedMouseClick(batap::InputManager& input, NSEvent* event, batap::MouseButt
     input.feed(e);
 }
 
+// The app draws its own title bar over the top titleBarHeight_ points, like
+// WM_NCHITTEST's HTCAPTION on Win32: dragging it moves the window, except over
+// an ImGui item (known one frame late).
+bool isOnTitleBar(NSEvent* event)
+{
+    NSWindow* window = event.window;
+    if (!window || !g_engine || g_engine->titleBarHeight_ <= 0.0f)
+        return false;
+    NSView* view = window.contentView;
+    const NSPoint p = [view convertPoint:event.locationInWindow fromView:nil];
+    if (view.bounds.size.height - p.y >= g_engine->titleBarHeight_)
+        return false;
+    return !ImGui::GetCurrentContext() ||
+           !(ImGui::IsAnyItemHovered() || ImGui::IsAnyItemActive());
+}
+
 // true si l'événement est consommé par le moteur (ne pas le rendre à NSApp)
 bool decodeEvent(batap::InputManager& input, NSEvent* event)
 {
@@ -343,8 +359,12 @@ void platformInit()
 
 void* platformCreateWindow(const WindowDesc& desc)
 {
+    // Titled, not borderless: a borderless window loses resizing, miniaturize:,
+    // the rounded corners and the shadow, and cannot become key. The title bar
+    // is hidden instead, the app draws its own (see isOnTitleBar).
     const NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                                    NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
+                                    NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable |
+                                    NSWindowStyleMaskFullSizeContentView;
 
     NSWindow* window = [[NSWindow alloc]
         initWithContentRect:NSMakeRect(0, 0, desc.width, desc.height)
@@ -355,6 +375,11 @@ void* platformCreateWindow(const WindowDesc& desc)
         return nullptr;
 
     [window setTitle:[NSString stringWithUTF8String:desc.title.c_str()]];
+    window.titlebarAppearsTransparent = YES;
+    window.titleVisibility = NSWindowTitleHidden;
+    for (NSWindowButton button :
+         {NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton})
+        [window standardWindowButton:button].hidden = YES;
     [window center];
 
     NSView* view = window.contentView;
@@ -436,6 +461,55 @@ void platformImGuiShutdown()
     ImGui_ImplOSX_Shutdown();
 }
 
+void platformSetCursorPos(void* nativeHandle, int clientX, int clientY)
+{
+    NSWindow* window = (__bridge NSWindow*)nativeHandle;
+    NSView* view = window.contentView;
+    const double scale = window.backingScaleFactor;
+    const NSPoint inView = NSMakePoint(clientX / scale, view.bounds.size.height - clientY / scale);
+    const NSPoint onScreen =
+        [window convertPointToScreen:[view convertPoint:inView toView:nil]];
+    // Cocoa screen space is bottom-up from the primary screen, CG's is top-down.
+    const CGFloat primaryHeight = NSScreen.screens[0].frame.size.height;
+    CGWarpMouseCursorPosition(CGPointMake(onScreen.x, primaryHeight - onScreen.y));
+    // Without this, mouse moves stay frozen for ~250 ms after every warp.
+    CGAssociateMouseAndMouseCursorPosition(true);
+}
+
+void platformShowCursor(bool show)
+{
+    // NSCursor hide/unhide keeps a counter, so the calls have to be paired.
+    static bool visible = true;
+    if (visible == show)
+        return;
+    visible = show;
+    if (show)
+        [NSCursor unhide];
+    else
+        [NSCursor hide];
+}
+
+void platformMinimizeWindow(void* nativeHandle)
+{
+    [(__bridge NSWindow*)nativeHandle miniaturize:nil];
+}
+
+void platformToggleMaximizeWindow(void* nativeHandle)
+{
+    [(__bridge NSWindow*)nativeHandle zoom:nil];
+}
+
+void platformCloseWindow(void* nativeHandle)
+{
+    // Goes through windowShouldClose, like the close button.
+    [(__bridge NSWindow*)nativeHandle performClose:nil];
+}
+
+bool platformIsWindowMaximized(void* nativeHandle)
+{
+    return ((__bridge NSWindow*)nativeHandle).isZoomed;
+}
+
 bool platformPumpMessages()
 {
     @autoreleasepool
@@ -446,6 +520,16 @@ bool platformPumpMessages()
                                               inMode:NSDefaultRunLoopMode
                                              dequeue:YES]))
         {
+            // Not sent to NSApp: ImGui's event monitor only sees what goes
+            // through sendEvent, so it never gets a press without its release.
+            if (event.type == NSEventTypeLeftMouseDown && isOnTitleBar(event))
+            {
+                if (event.clickCount == 2)
+                    [event.window zoom:nil];
+                else
+                    [event.window performWindowDragWithEvent:event];
+                continue;
+            }
             if (g_engine && decodeEvent(*g_engine->inputManager_, event))
                 continue;
             [NSApp sendEvent:event];

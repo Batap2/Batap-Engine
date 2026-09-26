@@ -64,7 +64,7 @@ Shape shapeFromJson(const nlohmann::json& j, const Engine& ctx)
         s.localRotDeg_ = vecFromJson(j["localRotDeg"], s.localRotDeg_);
     if (j.contains("mesh") && j["mesh"].is_string())
     {
-        const std::string path = j["mesh"].get<std::string>();
+        const std::string path = normalizeAssetPath(j["mesh"].get<std::string>());
         const auto found = ctx.assetManager_->getHandle<Mesh>(path);
         s.mesh_ = found ? *found : loadAsset<Mesh>(path, ctx);
         if (!s.mesh_)

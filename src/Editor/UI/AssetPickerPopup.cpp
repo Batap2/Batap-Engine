@@ -198,7 +198,7 @@ bool applyToField(App& app, EntityHandle ent, const std::string& componentName, 
 
 bool AssetPickerPopup::applyPath(App& app, const std::filesystem::path& path)
 {
-    const auto relPath = std::filesystem::relative(path, app.projectDir_).string();
+    const auto relPath = std::filesystem::relative(path, app.projectDir_).generic_string();
     auto handle = loadAsset(relPath, *app.ctx_);
     if (!handle)
         return false;
@@ -289,7 +289,7 @@ bool AssetPickerPopup::draw(App& app)
             {
                 // Assets are addressed by a project-relative path, so one saved
                 // outside the project would not resolve on the next load.
-                const auto rel = std::filesystem::relative(outPath, app.projectDir_).string();
+                const auto rel = std::filesystem::relative(outPath, app.projectDir_).generic_string();
                 if (rel.empty() || rel.rfind("..", 0) == 0)
                     app.showToast("Material must be saved inside the project");
                 else if (writeBmat(Material{}, outPath))

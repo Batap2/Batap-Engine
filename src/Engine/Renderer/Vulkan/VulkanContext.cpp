@@ -3,14 +3,7 @@
 #define VMA_IMPLEMENTATION
 #include "VulkanMemory.h"
 
-#if defined(__clang__)
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Weverything"
-#endif
 #include "VkBootstrap.h"
-#if defined(__clang__)
-  #pragma clang diagnostic pop
-#endif
 
 #include <iostream>
 #include <stdexcept>

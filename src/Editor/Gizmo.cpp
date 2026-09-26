@@ -526,7 +526,12 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
         return giveUp();
 
     GizmoFrame f;
+    // The projector and the mouse come in framebuffer pixels, ImGui draws in
+    // points: they differ by the Retina scale on macOS. Everything below works
+    // in points; pixels only come back for rayFromScreen and the cursor warp.
+    const float pixelsPerPoint = ImGui::GetIO().DisplayFramebufferScale.x;
     f.proj_ = *proj;
+    f.proj_.frameSize_ /= pixelsPerPoint;
 
     if (dragId_ != kNone)
     {
@@ -588,7 +593,8 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
     InputManager& input = *ctx.inputManager_;
     const ImGuiIO& io = ImGui::GetIO();
     const v2i mousePx = input.mousePos();
-    const v2f rawMouse(static_cast<float>(mousePx.x()), static_cast<float>(mousePx.y()));
+    const v2f rawMouse =
+        v2f(static_cast<float>(mousePx.x()), static_cast<float>(mousePx.y())) / pixelsPerPoint;
 
     const float precision = input.down(Key::LShift) ? kPrecision : 1.f;
 
@@ -597,7 +603,7 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
     else
         virtualMouse_ += v2f(static_cast<float>(input.mouseDelta().x()),
                              static_cast<float>(input.mouseDelta().y())) *
-                         precision;
+                         (precision / pixelsPerPoint);
 
     const v2f mouse = virtualMouse_;
     const bool pressed = input.pressed(MouseButton::Left);
@@ -673,7 +679,7 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
         }
     }
 
-    const Ray ray = rayFromScreen(world, ctx, mouse);
+    const Ray ray = rayFromScreen(world, ctx, v2f(mouse * pixelsPerPoint));
 
     const auto handleAxis = [&f](int id)
     { return id >= kScreenId ? -f.viewDir_ : f.axes_[idAxis(id)]; };
@@ -1128,12 +1134,12 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
             const float span = f.proj_.frameSize_[i];
             if (rawMouse[i] < kWrapMargin)
             {
-                warp[i] = static_cast<int>(span - kWrapMargin);
+                warp[i] = static_cast<int>((span - kWrapMargin) * pixelsPerPoint);
                 wrap = true;
             }
             else if (rawMouse[i] > span - kWrapMargin)
             {
-                warp[i] = static_cast<int>(kWrapMargin);
+                warp[i] = static_cast<int>(kWrapMargin * pixelsPerPoint);
                 wrap = true;
             }
         }

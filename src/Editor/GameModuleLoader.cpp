@@ -105,6 +105,9 @@ bool GameModuleLoader::loadStaged()
     api_ = {};
     api_.imguiContext_ = ImGui::GetCurrentContext();
     ImGui::GetAllocatorFunctions(&api_.imguiAlloc_, &api_.imguiFree_, &api_.imguiUserData_);
+    api_.vkGetInstanceProcAddr_ = vkGetInstanceProcAddr;
+    api_.vkInstance_ = volkGetLoadedInstance();
+    api_.vkDevice_ = volkGetLoadedDevice();
     entry(&api_);
     ComponentRegistry::instance().importFrom(*api_.registry_);
 

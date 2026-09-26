@@ -36,7 +36,7 @@ AssetHandle<A> handleFromJson(const nlohmann::json& in, const Engine& ctx)
     if (!in.is_string())
         return {};
 
-    const std::string path = in.get<std::string>();
+    const std::string path = normalizeAssetPath(in.get<std::string>());
     auto found = ctx.assetManager_->getHandle<A>(path);
     if (!found)
         if (auto any = loadAsset(path, ctx))

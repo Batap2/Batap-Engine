@@ -10,16 +10,7 @@
 #include <dlfcn.h>
 #endif
 
-// dxc resolves out of /usr/local/include, which clang does not treat as a
-// system dir here (WinAdapter.h trips -Wnon-virtual-dtor on IUnknown).
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
-#endif
 #include <dxc/dxcapi.h>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 
 #include <filesystem>
 #include <fstream>

@@ -145,6 +145,11 @@ endif()
 # BATAP_DXC_LIB_DIR sert de chemin de secours quand DYLD/PATH ne la couvre pas).
 get_filename_component(_dxc_bin_dir "${DXC_EXE}" DIRECTORY)
 target_include_directories(Batap_Engine SYSTEM PRIVATE "${Vulkan_INCLUDE_DIR}")
+# The macOS SDK installer also copies dxc/ into /usr/local/include, which clang
+# searches before any -isystem dir yet does not treat as a system dir.
+if(NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  target_compile_options(Batap_Engine PRIVATE --system-header-prefix=dxc/)
+endif()
 if(WIN32)
   # la DLL vit dans Bin/, pas dans Lib/ (qui n'a que l'import lib)
   target_compile_definitions(Batap_Engine PRIVATE BATAP_DXC_LIB_DIR="${_dxc_bin_dir}")
