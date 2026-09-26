@@ -38,6 +38,10 @@ inspector draw — it renders nothing without a selection. A running editor hold
   code (an invariant held elsewhere, a constraint from another system). Never:
   API docs on declarations, file headers, purpose notes, restating the code.
   Re-scan every diff and strip the rest before finishing.
+- Screen coordinates are framebuffer pixels everywhere (input, frame size,
+  projection, picking, cursor warp); ImGui draws in points, which differ on
+  macOS Retina. Convert only at the ImGui boundary, via `UI/ScreenSpace.h`.
+  Sizes a human picks (`WindowDesc`, UI metrics) are logical units.
 - Warnings are errors; `-Wunsafe-buffer-usage` stays on globally. Suppress it
   locally at API boundaries (push/ignore/pop), never globally.
 - Naming: components `Foo_C` (plain data), systems `Foo_S` (logic), one file

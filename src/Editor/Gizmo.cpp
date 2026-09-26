@@ -6,6 +6,7 @@
 #include "Platform/PlatformWindow.h"
 #include "Spatial/SpatialIndex.h"
 #include "Systems/Hierarchy_S.h"
+#include "UI/ScreenSpace.h"
 #include "World.h"
 
 #include <imgui.h>
@@ -526,12 +527,8 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
         return giveUp();
 
     GizmoFrame f;
-    // The projector and the mouse come in framebuffer pixels, ImGui draws in
-    // points: they differ by the Retina scale on macOS. Everything below works
-    // in points; pixels only come back for rayFromScreen and the cursor warp.
-    const float pixelsPerPoint = ImGui::GetIO().DisplayFramebufferScale.x;
     f.proj_ = *proj;
-    f.proj_.frameSize_ /= pixelsPerPoint;
+    f.proj_.frameSize_ = toPoints(f.proj_.frameSize_);
 
     if (dragId_ != kNone)
     {
@@ -594,16 +591,16 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
     const ImGuiIO& io = ImGui::GetIO();
     const v2i mousePx = input.mousePos();
     const v2f rawMouse =
-        v2f(static_cast<float>(mousePx.x()), static_cast<float>(mousePx.y())) / pixelsPerPoint;
+        toPoints(v2f(static_cast<float>(mousePx.x()), static_cast<float>(mousePx.y())));
 
     const float precision = input.down(Key::LShift) ? kPrecision : 1.f;
 
     if (dragId_ == kNone)
         virtualMouse_ = rawMouse;
     else
-        virtualMouse_ += v2f(static_cast<float>(input.mouseDelta().x()),
-                             static_cast<float>(input.mouseDelta().y())) *
-                         (precision / pixelsPerPoint);
+        virtualMouse_ += toPoints(v2f(static_cast<float>(input.mouseDelta().x()),
+                                      static_cast<float>(input.mouseDelta().y()))) *
+                         precision;
 
     const v2f mouse = virtualMouse_;
     const bool pressed = input.pressed(MouseButton::Left);
@@ -679,7 +676,7 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
         }
     }
 
-    const Ray ray = rayFromScreen(world, ctx, v2f(mouse * pixelsPerPoint));
+    const Ray ray = rayFromScreen(world, ctx, toPixels(mouse));
 
     const auto handleAxis = [&f](int id)
     { return id >= kScreenId ? -f.viewDir_ : f.axes_[idAxis(id)]; };
@@ -1134,12 +1131,12 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
             const float span = f.proj_.frameSize_[i];
             if (rawMouse[i] < kWrapMargin)
             {
-                warp[i] = static_cast<int>((span - kWrapMargin) * pixelsPerPoint);
+                warp[i] = static_cast<int>((span - kWrapMargin) * pixelsPerPoint());
                 wrap = true;
             }
             else if (rawMouse[i] > span - kWrapMargin)
             {
-                warp[i] = static_cast<int>(kWrapMargin * pixelsPerPoint);
+                warp[i] = static_cast<int>(kWrapMargin * pixelsPerPoint());
                 wrap = true;
             }
         }

@@ -436,7 +436,12 @@ void* platformCreateWindow(const WindowDesc& desc)
     const wchar_t* className = L"BatapWindow";
     registerWindowClass(hInst, className);
 
-    RECT windowRect{0, 0, static_cast<LONG>(desc.width), static_cast<LONG>(desc.height)};
+    // WindowDesc is in logical units, like a Cocoa window's points: the same
+    // size on screen at any scaling. Being DPI aware, Win32 wants pixels.
+    const UINT dpi = ::GetDpiForSystem();
+    RECT windowRect{0, 0,
+                    ::MulDiv(static_cast<int>(desc.width), static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI),
+                    ::MulDiv(static_cast<int>(desc.height), static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI)};
     // No caption: the editor draws its own bar. WS_THICKFRAME keeps resizing,
     // snapping and the animations WS_POPUP alone loses.
     constexpr DWORD kWindowStyle =

@@ -19,6 +19,7 @@ struct Engine;
 struct WindowDesc
 {
     std::string title  = "Batap";
+    // Logical units, not pixels: the framebuffer is larger on a HiDPI screen.
     uint32_t    width  = 1280;
     uint32_t    height = 720;
     bool        fpsInTitle = false;
@@ -82,7 +83,7 @@ struct Engine
 
     float deltaTime_ = 0;
 
-    // Read by the Win32 hit test to know what drags the window.
+    // ImGui points. Read by the platform layer to know what drags the window.
     float titleBarHeight_ = 0.0f;
 
     void* nativeWindow() const { return window_; }
