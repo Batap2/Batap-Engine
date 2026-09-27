@@ -9,7 +9,7 @@
 namespace batap
 {
 GPUInstanceManager::GPUInstanceManager(Engine& ctx)
-    : resourceManager_(*ctx.renderer_->resourceManager_) {};
+    : resourceManager_(*ctx.renderer_->resourceManager_) {}
 
 // The registry usually outlives the manager, so the hooks must go before the
 // pools they would call into.
