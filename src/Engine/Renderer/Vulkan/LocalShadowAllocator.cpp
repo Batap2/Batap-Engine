@@ -171,6 +171,8 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
             return nullptr;
 
         const float d = std::max((eye - camPos).norm(), radius);
+        // res is the estimation of the influence of a light for a camera
+        // the best world is to have a ratio of 1:1 between shadowmap texel and screen pixel
         const float res = radius * std::tan(fov * 0.5f) * pixelsPerTan / d;
         if (res <= fadeLow)
             return nullptr;

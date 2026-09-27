@@ -205,7 +205,7 @@ struct LightInstance
         if (const auto* spot = in.get<SpotLight_C>())
         {
             out.type_ = LightSpot;
-            fillRadiometry(*spot, ShadowLocalSingle, in.gpuIndex, out);
+            fillLocalLightCommon(*spot, ShadowLocalSingle, in.gpuIndex, out);
             out.cosInner_ = std::cos(spot->innerAngle_ * 0.5f);
             out.cosOuter_ = std::cos(spot->outerAngle_ * 0.5f);
             if (trans)
@@ -214,15 +214,15 @@ struct LightInstance
         else if (const auto* point = in.get<PointLight_C>())
         {
             out.type_ = LightPoint;
-            fillRadiometry(*point, ShadowLocalCube, in.gpuIndex, out);
+            fillLocalLightCommon(*point, ShadowLocalCube, in.gpuIndex, out);
             out.sourceRadius_ = point->sourceRadius_;
         }
     }
 
    private:
     template <class Light>
-    static void fillRadiometry(const Light& light, ShadowFamily family, uint32_t gpuIndex,
-                               GPUData& out)
+    static void fillLocalLightCommon(const Light& light, ShadowFamily family, uint32_t gpuIndex,
+                                     GPUData& out)
     {
         flatten(out.color_, light.color_);
         out.intensity_ = light.intensity_;
