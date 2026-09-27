@@ -13,4 +13,5 @@ constexpr uint32_t LocalTileMax = 1024;
 constexpr uint32_t LocalTileFade = 64;
 constexpr float LocalClassHysteresis = 1.2f;
 constexpr uint32_t ShadowCascadeCount = 4;
+constexpr uint32_t CascadeTileSize = 2048;
 }  // namespace batap
