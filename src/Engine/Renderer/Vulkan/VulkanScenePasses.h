@@ -44,6 +44,8 @@ struct ScenePasses
 
    private:
     void writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engine& ctx);
+    void fitCascades(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
+                     v2i frameSize);
     void buildPipelines(const ShaderModules& modules);
 
     VulkanContext& ctx_;
@@ -57,6 +59,10 @@ struct ScenePasses
     GPUResourceHandle localAtlas_;
     LocalShadowAllocator localShadowsAlloc_;
     std::vector<ShadowView> shadowViews_;
+    GPUResourceHandle cascadeAtlas_;
+    std::vector<ShadowView> cascadeViews_;
+    // Bit c: cascade c was last reported too close. The log speaks on a change.
+    uint32_t warnedCascades_ = 0;
 
     ShadowPass shadow_;
     GeometryPass geometry_;

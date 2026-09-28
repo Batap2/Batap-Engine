@@ -28,6 +28,7 @@
 #include "Assets/Mesh.h"
 #include "Assets/Texture.h"
 #include "Components/Camera_C.h"
+#include "Components/FarPointLight_C.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
@@ -190,8 +191,8 @@ struct CameraInstance
 struct LightInstance
 {
     using GPUData = LightGPUData;
-    using Markers = TypeList<PointLight_C, SpotLight_C>;
-    using Uses = TypeList<PointLight_C, SpotLight_C, Transform_C>;
+    using Markers = TypeList<PointLight_C, SpotLight_C, FarPointLight_C>;
+    using Uses = TypeList<PointLight_C, SpotLight_C, FarPointLight_C, Transform_C>;
     static constexpr uint32_t Binding = LightsBinding;
     static constexpr size_t InitialCapacity = 32;
     static constexpr uint32_t DrawPush::* CountField = &DrawPush::lightCount_;
@@ -205,7 +206,7 @@ struct LightInstance
         if (const auto* spot = in.get<SpotLight_C>())
         {
             out.type_ = LightSpot;
-            fillLocalLightCommon(*spot, ShadowLocalSingle, in.gpuIndex, out);
+            fillLightCommon(*spot, ShadowLocalSingle, in.gpuIndex, out);
             out.cosInner_ = std::cos(spot->innerAngle_ * 0.5f);
             out.cosOuter_ = std::cos(spot->outerAngle_ * 0.5f);
             if (trans)
@@ -214,14 +215,20 @@ struct LightInstance
         else if (const auto* point = in.get<PointLight_C>())
         {
             out.type_ = LightPoint;
-            fillLocalLightCommon(*point, ShadowLocalCube, in.gpuIndex, out);
+            fillLightCommon(*point, ShadowLocalCube, in.gpuIndex, out);
             out.sourceRadius_ = point->sourceRadius_;
+        }
+        else if (const auto* far = in.get<FarPointLight_C>())
+        {
+            out.type_ = LightFarPoint;
+            fillLightCommon(*far, ShadowCascadeFamily, in.gpuIndex, out);
+            out.sourceRadius_ = far->sourceRadius_;
         }
     }
 
    private:
     template <class Light>
-    static void fillLocalLightCommon(const Light& light, ShadowFamily family, uint32_t gpuIndex,
+    static void fillLightCommon(const Light& light, ShadowFamily family, uint32_t gpuIndex,
                                      GPUData& out)
     {
         flatten(out.color_, light.color_);

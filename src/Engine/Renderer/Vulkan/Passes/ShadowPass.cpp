@@ -61,30 +61,32 @@ void ShadowPass::buildPipelines(const ShaderModules& modules)
                     .build(setup_.ctx_.device_, setup_.layout_);
 }
 
-void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas,
-                        std::span<const ShadowView> views, size_t entryCount)
+void ShadowPass::record(const PassContext& pass, std::span<const ShadowAtlasViews> atlases,
+                        size_t entryCount)
 {
     if (entryCount == 0 || entryCount > capacity_)
         return;
 
-    const VkImage atlasImage = setup_.resources_.imageFor(atlas);
-    const uint32_t atlasTexture = setup_.resources_.textureIndex(atlas);
-    const float atlasSize = static_cast<float>(LocalAtlasSize);
-
     entries_.assign(entryCount, ShadowGPUData{});
-    for (const ShadowView& view : views)
+    for (const ShadowAtlasViews& atlas : atlases)
     {
-        if (view.entry_ >= entryCount)
-            continue;
-        ShadowGPUData& entry = entries_[view.entry_];
-        flatten(entry.viewProj_, view.viewProj_);
-        entry.strength_ = view.strength_;
-        entry.texelWorld_ = view.texelWorld_;
-        entry.atlasTexture_ = atlasTexture;
-        entry.uvScale_ = static_cast<float>(view.size_) / atlasSize;
-        entry.uvOffset_[0] = static_cast<float>(view.x_) / atlasSize;
-        entry.uvOffset_[1] = static_cast<float>(view.y_) / atlasSize;
-        entry.texelUV_ = 1.f / atlasSize;
+        const uint32_t atlasTexture = setup_.resources_.textureIndex(atlas.atlas_);
+        const float atlasSize = static_cast<float>(atlas.size_);
+        for (const ShadowView& view : atlas.views_)
+        {
+            if (view.entry_ >= entryCount)
+                continue;
+            ShadowGPUData& entry = entries_[view.entry_];
+            flatten(entry.viewProj_, view.viewProj_);
+            flatten(entry.sphere_, view.sphere_);
+            entry.strength_ = view.strength_;
+            entry.texelWorld_ = view.texelWorld_;
+            entry.atlasTexture_ = atlasTexture;
+            entry.uvScale_ = static_cast<float>(view.size_) / atlasSize;
+            entry.uvOffset_[0] = static_cast<float>(view.x_) / atlasSize;
+            entry.uvOffset_[1] = static_cast<float>(view.y_) / atlasSize;
+            entry.texelUV_ = 1.f / atlasSize;
+        }
     }
     const std::span<const ShadowGPUData> all{entries_};
     for (size_t first = 0; first < all.size(); first += kEntriesPerWrite)
@@ -94,23 +96,27 @@ void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas,
                                             first * sizeof(ShadowGPUData));
     }
 
-    if (views.empty())
-    {
-        BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderRead).flush(pass.cmd_);
-        return;
-    }
+    BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderRead).flush(pass.cmd_);
+
+    for (const ShadowAtlasViews& atlas : atlases)
+        if (!atlas.views_.empty())
+            recordAtlas(pass, atlas);
+}
+
+void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas)
+{
+    const VkImage atlasImage = setup_.resources_.imageFor(atlas.atlas_);
 
     // Discard: the scope clears the whole atlas, so only last frame's reads have
     // to finish — its contents do not have to survive. Also covers the first
     // frame, where the image has no layout yet.
     BarrierBatch{}
-        .memory(Usage::TransferDst, Usage::ShaderRead)
         .image(atlasImage, Usage::ShaderRead, Usage::DepthAttachment, depthRange(), Discard::Yes)
         .flush(pass.cmd_);
 
     VkRenderingAttachmentInfo depth{};
     depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth.imageView = setup_.resources_.viewFor(atlas);
+    depth.imageView = setup_.resources_.viewFor(atlas.atlas_);
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -120,7 +126,7 @@ void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas,
 
     VkRenderingInfo info{};
     info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    info.renderArea = {{0, 0}, {LocalAtlasSize, LocalAtlasSize}};
+    info.renderArea = {{0, 0}, {atlas.size_, atlas.size_}};
     info.layerCount = 1;
     info.pDepthAttachment = &depth;
 
@@ -129,7 +135,7 @@ void ShadowPass::record(const PassContext& pass, GPUResourceHandle atlas,
     vkCmdSetDepthBias(pass.cmd_, 0.f, 0.f, kDepthBiasSlope);
 
     PassContext shadowPass = pass;
-    for (const ShadowView& view : views)
+    for (const ShadowView& view : atlas.views_)
     {
         shadowPass.push_.shadowViewIndex_ = view.entry_;
         setViewportYUpRect(pass.cmd_, view.x_, view.y_, view.size_, view.size_);

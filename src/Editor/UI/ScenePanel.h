@@ -10,13 +10,14 @@
 
 namespace batap
 {
+struct App;
 struct World;
 
 struct ScenePanel
 {
     // The caller reserves what it draws below the tree; nesting the panel in a
     // child of its own would count the window padding twice.
-    void draw(World& world, Selection& selection, float bottomReserve = 0.0f);
+    void draw(World& world, App& app, Selection& selection, float bottomReserve = 0.0f);
 
   private:
     static constexpr float kRowMargin = 4.0f;

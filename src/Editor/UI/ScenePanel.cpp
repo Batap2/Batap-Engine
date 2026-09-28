@@ -1,5 +1,6 @@
 #include "ScenePanel.h"
 
+#include "App.h"
 #include "Components/EditorOnly_C.h"
 #include "Components/Hierarchy_C.h"
 #include "Components/Name_C.h"
@@ -54,7 +55,7 @@ std::vector<entt::entity> sortedChildren(EntityHandle parent)
     return children;
 }
 
-EntityHandle duplicateEntity(World& world, EntityHandle src)
+EntityHandle duplicateEntity(World& world, App& app, EntityHandle src)
 {
     auto& reg = *src.reg_;
     EntityHandle dst = world.spawn(Spawnables[0]);
@@ -65,13 +66,18 @@ EntityHandle duplicateEntity(World& world, EntityHandle src)
         if (!t.tryGet || !t.tryGet(reg, src.entity_))
             continue;
         t.copy(reg, src.entity_, dst.entity_);
+        if (!t.tryGet(reg, dst.entity_))
+        {
+            app.showToast(t.refusal(reg, dst.entity_));
+            continue;
+        }
         if (t.meta.onDeserialized)
             t.meta.onDeserialized(dst, world);
         world.instances().markDirty(dst, t.mask());
     }
 
     for (entt::entity child : sortedChildren(src))
-        Hierarchy_S::attach(dst, duplicateEntity(world, {&reg, child}));
+        Hierarchy_S::attach(dst, duplicateEntity(world, app, {&reg, child}));
 
     if (auto* hc = reg.try_get<Hierarchy_C>(src.entity_); hc && hc->parent != entt::null)
         Hierarchy_S::attach({&reg, hc->parent}, dst);
@@ -277,7 +283,7 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selecti
     ImGui::TreePop();
 }
 
-void ScenePanel::draw(World& world, Selection& selection, float bottomReserve)
+void ScenePanel::draw(World& world, App& app, Selection& selection, float bottomReserve)
 {
     auto& reg = world.registry_;
     rowOrder_.clear();
@@ -328,8 +334,8 @@ void ScenePanel::draw(World& world, Selection& selection, float bottomReserve)
         for (const Spawnable& s : Spawnables)
         {
             const std::string label = std::string(s.icon) + " " + s.label;
-            if (ImGui::MenuItem(label.c_str()))
-                world.spawn(s);
+            if (ImGui::MenuItem(label.c_str()) && !world.spawn(s).valid() && s.refusal)
+                app.showToast(s.refusal(reg, entt::null));
         }
         ImGui::EndPopup();
     }
@@ -346,7 +352,7 @@ void ScenePanel::draw(World& world, Selection& selection, float bottomReserve)
     }
     if (pendingDuplicate_)
     {
-        selection.set(duplicateEntity(world, *pendingDuplicate_));
+        selection.set(duplicateEntity(world, app, *pendingDuplicate_));
         pendingDuplicate_.reset();
     }
     if (pendingDelete_)

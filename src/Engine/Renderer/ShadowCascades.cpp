@@ -8,9 +8,6 @@ namespace batap
 namespace
 {
 constexpr float kSplitNear = 1.6f;
-// Closer than this, the light has no single direction to light the sphere
-// from: the cascade switches off instead of producing a wrong matrix.
-constexpr float kMinLightDistanceInRadii = 4.f;
 
 m3f lightFrame(const v3f& dir)
 {
@@ -58,15 +55,16 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
         s.far_ = far;
         near = far;
 
-        if ((in.lightPos_ - center).norm() < r * kMinLightDistanceInRadii)
+        // Inside the sphere the light sits between casters and receivers: no
+        // projection is right.
+        s.lightDistance_ = (in.lightPos_ - center).norm() / r;
+        if (s.lightDistance_ <= 1.f)
             continue;
 
-        // Per cascade, from the sphere to the light: what lets a positional
-        // light drive cascades. A directional light is the constant case.
-        // Taken from the centre rounded to a world grid of one radius, so the
-        // frame only turns when the sphere changes cell: the snapping grid
-        // below is anchored at the world origin, and a frame turning at every
-        // step would swing it under the camera by distance-to-origin * angle.
+        // From the centre rounded to a world grid of one radius: the snapping
+        // grid below is anchored at the world origin, so a frame turning at
+        // every step would swing it under the camera by distance-to-origin *
+        // angle. It only turns when the sphere changes cell.
         const v3f zone = (center / r).array().round().matrix() * r;
         const m3f frame = lightFrame((in.lightPos_ - zone).normalized());
         const float texel = 2.f * r / static_cast<float>(CascadeTileSize);
@@ -82,5 +80,24 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
     }
     fit.count_ = count;
     return fit;
+}
+
+m4f cascadeViewProj(const CascadeSphere& s)
+{
+    const float r = s.radius_;
+    const v3f eye = s.center_ + s.lightFrame_.row(2).transpose() * r;
+
+    m4f view = m4f::Identity();
+    view.block<3, 3>(0, 0) = s.lightFrame_;
+    view.block<3, 1>(0, 3) = -(s.lightFrame_ * eye);
+
+    // Near at the sphere's edge: casters between it and the light land on depth
+    // 0 through depth clamp, they are not clipped.
+    m4f proj = m4f::Zero();
+    proj(0, 0) = 1.f / r;
+    proj(1, 1) = 1.f / r;
+    proj(2, 2) = -1.f / (2.f * r);
+    proj(3, 3) = 1.f;
+    return m4f{proj * view};
 }
 }  // namespace batap

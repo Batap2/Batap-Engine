@@ -6,11 +6,15 @@
 
 #include "Assets/AssetManager.h"
 #include "Components/Camera_C.h"
+#include "Components/FarPointLight_C.h"
+#include "Components/Name_C.h"
 #include "Components/Transform_C.h"
 #include "DebugUtils.h"
 #include "Engine.h"
 #include "Instance/InstanceManager.h"
 #include "Paths.h"
+#include "Renderer/ShadowCascades.h"
+#include "Systems/CascadeLight_S.h"
 
 #include <algorithm>
 #include <array>
@@ -120,6 +124,8 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
 {
     localAtlas_ = resources_.createTarget(LocalAtlasSize, LocalAtlasSize, ResourceFormat::D32_FLOAT,
                                           "local shadow atlas");
+    cascadeAtlas_ = resources_.createTarget(CascadeAtlasSize, CascadeAtlasSize,
+                                            ResourceFormat::D32_FLOAT, "cascade shadow atlas");
 
     const std::string shaderDir = resolveEngineFile("shaders", "shaders");
 
@@ -258,6 +264,63 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     vkUpdateDescriptorSets(ctx_.device_, FrameSetBindingCount, writes.data(), 0, nullptr);
 }
 
+void ScenePasses::fitCascades(entt::registry& reg, GPUInstanceManager& instances,
+                              entt::entity camera, v2i frameSize)
+{
+    cascadeViews_.clear();
+    const entt::entity light = CascadeLight_S::find(reg);
+    const auto* far = light == entt::null ? nullptr : reg.try_get<FarPointLight_C>(light);
+    const auto* lightTrans = light == entt::null ? nullptr : reg.try_get<Transform_C>(light);
+    if (!far || !far->castShadows_ || !lightTrans || frameSize.y() <= 0)
+        return;
+    const GPUInstanceID id = instances.pool<LightInstance>().getGPUIndex(EntityHandle{&reg, light});
+    if (!id.valid())
+        return;
+
+    const transform camWorld = reg.get<Transform_C>(camera).world();
+    ShadowFitInput in;
+    in.camPos_ = camWorld.translation();
+    in.camFwd_ = -camWorld.linear().col(2).normalized();
+    in.fovY_ = reg.get<Camera_C>(camera).fov_;
+    in.aspect_ = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
+    in.range_ = CascadeRange;
+    in.lightPos_ = lightTrans->world().translation();
+    const ShadowFit fit = fitShadowCascades(in);
+
+    uint32_t tooClose = 0;
+    for (uint32_t c = 0; c < fit.count_; ++c)
+    {
+        const CascadeSphere& s = fit.cascades_[c];
+        if (s.lightDistance_ < CascadeLightMinRadii)
+            tooClose |= 1u << c;
+        if (s.radius_ <= 0.f)
+            continue;
+
+        ShadowView& view = cascadeViews_.emplace_back();
+        view.viewProj_ = cascadeViewProj(s);
+        view.sphere_ = v4f{s.center_.x(), s.center_.y(), s.center_.z(), s.radius_};
+        view.texelWorld_ = s.texelWorld_;
+        view.x_ = (c % 2) * CascadeTileSize;
+        view.y_ = (c / 2) * CascadeTileSize;
+        view.size_ = CascadeTileSize;
+        view.entry_ = id * MaxShadowViewsPerLight + c;
+    }
+
+    if (tooClose != 0 && tooClose != warnedCascades_)
+    {
+        const auto* name = reg.try_get<Name_C>(light);
+        std::cerr << "[Shadows] FarPointLight_C '" << (name ? name->name_ : std::string{})
+                  << "' is too close to the cascades it drives: a positional light needs "
+                  << CascadeLightMinRadii << " radii of a cascade for its shadows to hold.";
+        for (uint32_t c = 0; c < fit.count_; ++c)
+            if (tooClose & (1u << c))
+                std::cerr << " Cascade " << c << ": " << fit.cascades_[c].lightDistance_
+                          << " radii" << (fit.cascades_[c].radius_ <= 0.f ? ", inside, off." : ".");
+        std::cerr << "\n";
+    }
+    warnedCascades_ = tooClose;
+}
+
 bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTargets& targets,
                          const SceneRenderArgs& args, Engine& ctx)
 {
@@ -274,6 +337,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
         return false;
 
     localShadowsAlloc_.allocate(*reg, *instanceM, args.camera_, ctx.getFrameSize(), shadowViews_);
+    fitCascades(*reg, *instanceM, args.camera_, ctx.getFrameSize());
     const size_t shadowEntries =
         instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
     shadow_.reserve(shadowEntries);
@@ -322,7 +386,11 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
                 pass.push_.*InstanceT::CountField = static_cast<uint32_t>(pool.size());
         });
 
-    shadow_.record(pass, localAtlas_, shadowViews_, shadowEntries);
+    const std::array<ShadowAtlasViews, 2> shadowAtlases{{
+        {localAtlas_, LocalAtlasSize, shadowViews_},
+        {cascadeAtlas_, CascadeAtlasSize, cascadeViews_},
+    }};
+    shadow_.record(pass, shadowAtlases, shadowEntries);
 
     vkCmdBeginRendering(cmd, &renderingInfo);
     setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);

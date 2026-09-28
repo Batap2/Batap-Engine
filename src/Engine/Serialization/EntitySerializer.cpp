@@ -198,6 +198,8 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
             }
 
             void* c = ct->getOrEmplace(reg, h.entity_);
+            if (!c)
+                continue;
             for (const Field& f : ct->fields)
                 if (cj.contains(f.name))
                     f.type->fromJson(f.ptrIn(c), cj[f.name], ctx);

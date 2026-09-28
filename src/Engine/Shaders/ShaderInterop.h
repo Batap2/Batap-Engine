@@ -88,6 +88,7 @@ enum LightType : uint
     LightSpot = 1,
     LightDirectional = 2,  // step 11b
     LightRect = 3,         // step 15
+    LightFarPoint = 4,     // shaded as a point light; takes the cascades
 };
 
 struct LightGPUData
@@ -129,6 +130,10 @@ static const float CascadeRange = 2000.0f;
 // every frame.
 static const uint MaxShadowViewsPerLight = 6u;
 
+// The cascade light's views, from its shadowIndex_ on, one quadrant of atlas A
+// each.
+static const uint ShadowCascadeCount = 4u;
+
 static const uint ShadowIndexMask = 0xFFFFFFu;
 static const uint ShadowFamilyShift = 24u;
 
@@ -138,9 +143,9 @@ struct ShadowGPUData
     // 0 when the view has no map this frame, which reads as lit. Below 1 while
     // the light fades out with distance.
     float strength_;
-    // Texel world size per unit of distance from the light, this view being a
-    // perspective one. A cascade is orthographic and will store an absolute
-    // size here instead.
+    // Texel world size per unit of distance from the light for a local view,
+    // which is a perspective one; an absolute size for a cascade, which is
+    // orthographic.
     float texelWorld_;
     // Bindless slot of the atlas image this view lives in.
     uint atlasTexture_;
@@ -152,6 +157,8 @@ struct ShadowGPUData
     // atlas whatever uvScale_ says.
     float texelUV_;
     float pad_;
+    // Cascades only: the shader picks the cascade by it; w = 0 when off.
+    float4 sphere_;
 };
 
 struct SphereOccluderGPUData
@@ -240,7 +247,8 @@ static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(DrawPush) == 28);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(ShadowGPUData) == 96);
+static_assert(sizeof(ShadowGPUData) == 112);
+static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);

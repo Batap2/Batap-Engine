@@ -12,6 +12,6 @@ constexpr uint32_t LocalTileMax = 1024;
 // The light's shadow is gone at this resolution, full at LocalTileMin.
 constexpr uint32_t LocalTileFade = 64;
 constexpr float LocalClassHysteresis = 1.2f;
-constexpr uint32_t ShadowCascadeCount = 4;
+constexpr uint32_t CascadeAtlasSize = 4096;
 constexpr uint32_t CascadeTileSize = 2048;
 }  // namespace batap

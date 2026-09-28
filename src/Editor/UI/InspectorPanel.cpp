@@ -92,7 +92,7 @@ void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
     drawMaterials(ent, app);
     drawSkybox(ent, app);
     drawReflected(ent, world, app);
-    drawAddComponent(ent, world);
+    drawAddComponent(ent, world, app);
 
     // One picker serves every section above; OpenPopup and BeginPopup both run
     // inside this call, so they see the same ID stack whatever opened it.
@@ -383,7 +383,7 @@ void InspectorPanel::drawCameraActions(EntityHandle ent, App& app)
     }
 }
 
-void InspectorPanel::drawAddComponent(EntityHandle ent, World& world)
+void InspectorPanel::drawAddComponent(EntityHandle ent, World& world, App& app)
 {
     ImGui::Spacing();
     if (ui::AddButton(ICON_MD_ADD "  Add component"))
@@ -401,15 +401,18 @@ void InspectorPanel::drawAddComponent(EntityHandle ent, World& world)
         if (!t.tryGet || t.tryGet(*ent.reg_, ent.entity_))
             continue;
 
-        if (ImGui::MenuItem(prettyLabel(t.name).c_str()))
+        if (!ImGui::MenuItem(prettyLabel(t.name).c_str()))
+            continue;
+        if (!t.getOrEmplace(*ent.reg_, ent.entity_))
         {
-            t.getOrEmplace(*ent.reg_, ent.entity_);
-            // Same contract as the load path: some components rebuild derived
-            // state after their fields exist.
-            if (t.meta.onDeserialized)
-                t.meta.onDeserialized(ent, world);
-            world.instances().markDirty(ent, t.mask());
+            app.showToast(t.refusal(*ent.reg_, ent.entity_));
+            continue;
         }
+        // Same contract as the load path: some components rebuild derived
+        // state after their fields exist.
+        if (t.meta.onDeserialized)
+            t.meta.onDeserialized(ent, world);
+        world.instances().markDirty(ent, t.mask());
     }
     ImGui::EndPopup();
 }

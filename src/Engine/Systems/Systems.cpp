@@ -5,6 +5,7 @@
 #include "Billboard_S.h"
 #include "Bounds_S.h"
 #include "Camera_S.h"
+#include "CascadeLight_S.h"
 #include "Character_S.h"
 #include "Physics_S.h"
 #include "Transform_S.h"
@@ -36,5 +37,6 @@ Systems::Systems()
     cameras_ = std::make_unique<Camera_S>();
     billboards_ = std::make_unique<Billboard_S>();
     bounds_ = std::make_unique<Bounds_S>();
+    cascadeLights_ = std::make_unique<CascadeLight_S>();
 }
 }  // namespace batap

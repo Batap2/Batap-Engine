@@ -27,17 +27,13 @@ uint CubeFaceIndex(float3 d)
 }
 
 // 1 where the light reaches P, 0 where a caster is in the way. Reading the
-// matrix the pass rendered with is what keeps the two in step.
-float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowIndex)
+// matrix the pass rendered with is what keeps the two in step. texelAtP is the
+// world size of one of the view's texels where P stands.
+float SampleShadowView(ShadowGPUData sh, float3 P, float3 N, float3 L, float texelAtP)
 {
-    ShadowGPUData sh = ShadowBuffer[shadowIndex];
-    if (sh.strength_ <= 0.0f)
-        return 1.0f;
-
     // fix shadows acnee
     float NdotL = saturate(dot(N, L));
-    P += N * (sh.texelWorld_ * dL * ShadowNormalOffsetTexels
-              * sqrt(saturate(1.0f - NdotL * NdotL)));
+    P += N * (texelAtP * ShadowNormalOffsetTexels * sqrt(saturate(1.0f - NdotL * NdotL)));
 
     float4 clip = mul(sh.viewProj_, float4(P, 1.0f));
     if (clip.w <= 0.0f)
@@ -72,6 +68,29 @@ float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowInd
                 g_shadowSampler, clamp(uv + float2(x, y) * sh.texelUV_, lo, hi), ndc.z);
     }
     return lerp(1.0f, sum / 9.0f, sh.strength_);
+}
+
+float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowIndex)
+{
+    ShadowGPUData sh = ShadowBuffer[shadowIndex];
+    if (sh.strength_ <= 0.0f)
+        return 1.0f;
+    return SampleShadowView(sh, P, N, L, sh.texelWorld_ * dL);
+}
+
+// The first sphere that holds P, not a split on view depth: the fit is
+// spherical. Past the last one, the analytic occluders take over (R8).
+float CascadeVisibility(float3 P, float3 N, float3 L, uint firstView)
+{
+    [loop]
+    for (uint c = 0; c < ShadowCascadeCount; ++c)
+    {
+        ShadowGPUData sh = ShadowBuffer[firstView + c];
+        if (sh.strength_ <= 0.0f || distance(P, sh.sphere_.xyz) > sh.sphere_.w)
+            continue;
+        return SampleShadowView(sh, P, N, L, sh.texelWorld_);
+    }
+    return 1.0f;
 }
 
 #endif

@@ -137,11 +137,13 @@ struct ComponentType
 
     // entt ops, type-erased at registration
     void* (*tryGet)(entt::registry&, entt::entity) = nullptr;
+    // Null when ComponentAdmission<T> refuses the entity; copy then does nothing.
     void* (*getOrEmplace)(entt::registry&, entt::entity) = nullptr;
     void (*remove)(entt::registry&, entt::entity) = nullptr;
     void (*copy)(entt::registry&, entt::entity from, entt::entity to) = nullptr;
     // entt's on_update; undefined behaviour on an entity without the component.
     void (*patch)(entt::registry&, entt::entity) = nullptr;
+    std::string (*refusal)(const entt::registry&, entt::entity) = nullptr;
 
     // The componentBitSlot<T> this type was registered from. importFrom
     // copies the host's bit through it so componentMask<T> agrees across
@@ -256,6 +258,27 @@ Field field(std::string name, FieldMeta m = {})
     return Field{std::move(name), fieldTypeFor<M>(), detail::memberOffset<Member>(), m};
 }
 
+// Specialized by a component ruled scene-wide (FarPointLight_C): the reason e
+// is refused, worded for the user, or empty. Must not log — refused() does, and
+// the editor shows the same words as a toast.
+template <class T>
+struct ComponentAdmission
+{
+    static std::string refusal(const entt::registry&, entt::entity) { return {}; }
+};
+
+void logRefusal(std::string_view why);
+
+template <class T>
+bool refused(const entt::registry& r, entt::entity e)
+{
+    const std::string why = ComponentAdmission<T>::refusal(r, e);
+    if (why.empty())
+        return false;
+    logRefusal(why);
+    return true;
+}
+
 template <class T>
 void addComponentType(std::string_view name, ComponentMeta meta, std::vector<Field> fields)
 {
@@ -266,11 +289,20 @@ void addComponentType(std::string_view name, ComponentMeta meta, std::vector<Fie
 
     t.tryGet = [](entt::registry& r, entt::entity e) -> void* { return r.try_get<T>(e); };
     t.getOrEmplace = [](entt::registry& r, entt::entity e) -> void*
-    { return &r.get_or_emplace<T>(e); };
+    {
+        if (!r.all_of<T>(e) && refused<T>(r, e))
+            return nullptr;
+        return &r.get_or_emplace<T>(e);
+    };
     t.remove = [](entt::registry& r, entt::entity e) { r.remove<T>(e); };
     t.copy = [](entt::registry& r, entt::entity from, entt::entity to)
-    { r.emplace_or_replace<T>(to, r.get<T>(from)); };
+    {
+        if (r.all_of<T>(to) || !refused<T>(r, to))
+            r.emplace_or_replace<T>(to, r.get<T>(from));
+    };
     t.patch = [](entt::registry& r, entt::entity e) { r.patch<T>(e); };
+    t.refusal = [](const entt::registry& r, entt::entity e)
+    { return ComponentAdmission<T>::refusal(r, e); };
     t.bitSlot_ = &componentBitSlot<T>();
 
     ComponentRegistry::instance().add(std::move(t));

@@ -25,7 +25,7 @@ struct InspectorPanel
     void drawReflected(EntityHandle ent, World& world, App& app);
     void drawCameraActions(EntityHandle ent, App& app);
     // add menu: registry components minus markers and those already present
-    void drawAddComponent(EntityHandle ent, World& world);
+    void drawAddComponent(EntityHandle ent, World& world, App& app);
 
     bool worldSpace_ = false;
 

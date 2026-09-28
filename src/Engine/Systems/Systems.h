@@ -17,6 +17,7 @@ struct Character_S;
 struct Camera_S;
 struct Billboard_S;
 struct Bounds_S;
+struct CascadeLight_S;
 
 struct Systems
 {
@@ -32,5 +33,6 @@ struct Systems
     std::unique_ptr<Camera_S> cameras_;
     std::unique_ptr<Billboard_S> billboards_;
     std::unique_ptr<Bounds_S> bounds_;
+    std::unique_ptr<CascadeLight_S> cascadeLights_;
 };
 }  // namespace batap

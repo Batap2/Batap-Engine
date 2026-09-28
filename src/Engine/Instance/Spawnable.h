@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components/Camera_C.h"
+#include "Components/FarPointLight_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/Skybox_C.h"
@@ -10,6 +11,7 @@
 
 #include <entt/entt.hpp>
 
+#include <string>
 #include <string_view>
 
 namespace batap
@@ -25,11 +27,21 @@ struct Spawnable
     const char* icon;
     bool (*matches)(const entt::registry&, entt::entity);
     void (*emplace)(entt::registry&, entt::entity);
+    std::string (*refusal)(const entt::registry&, entt::entity) = nullptr;
 };
 
+template <class... Cs>
+std::string firstRefusal(const entt::registry& r, entt::entity e)
+{
+    std::string why;
+    // && stops at the first non-empty answer, which is then the one in why.
+    (void)((why = ComponentAdmission<Cs>::refusal(r, e)).empty() && ...);
+    return why;
+}
+
 // The head component identifies the entity — it is the one an instance pool
-// keys on — and the rest come along. The two callbacks follow from the list;
-// the id is spelled out, not derived from Head's type name, so a class rename
+// keys on — and the rest come along. The callbacks follow from the list; the
+// id is spelled out, not derived from Head's type name, so a class rename
 // cannot silently change what spawnableFor("camera") looks up.
 template <class Head, class... Rest>
 constexpr Spawnable spawnable(std::string_view id, const char* label, const char* icon)
@@ -40,16 +52,18 @@ constexpr Spawnable spawnable(std::string_view id, const char* label, const char
             {
                 r.emplace<Head>(e);
                 (r.emplace<Rest>(e), ...);
-            }};
+            },
+            +[](const entt::registry& r, entt::entity e) { return firstRefusal<Head, Rest...>(r, e); }};
 }
 
 inline constexpr Spawnable Spawnables[] = {
-    {"empty", "Entity", ICON_MD_CATEGORY, nullptr, nullptr},
+    {"empty", "Entity", ICON_MD_CATEGORY, nullptr, nullptr, nullptr},
 
     spawnable<Mesh_C, Transform_C>("mesh", "Static Mesh", ICON_MD_HVAC),
     spawnable<Camera_C, Transform_C>("camera", "Camera", ICON_MD_VIDEOCAM),
     spawnable<PointLight_C, Transform_C>("pointLight", "Point Light", ICON_MD_LIGHTBULB),
     spawnable<SpotLight_C, Transform_C>("spotLight", "Spot Light", ICON_MD_FLASHLIGHT_ON),
+    spawnable<FarPointLight_C, Transform_C>("farPointLight", "Far Point Light", ICON_MD_WB_SUNNY),
     spawnable<Skybox_C>("skybox", "Skybox", ICON_MD_PANORAMA),
 };
 

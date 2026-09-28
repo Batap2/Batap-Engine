@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include <bit>
+#include <iostream>
 #include <string>
 #include <unordered_set>
 
@@ -93,9 +94,16 @@ void ComponentRegistry::importFrom(ComponentRegistry& module)
             t.getOrEmplace = nullptr;
             t.remove = nullptr;
             t.copy = nullptr;
+            t.patch = nullptr;
+            t.refusal = nullptr;
             t.bitSlot_ = nullptr;
             t.fields.clear();
         }
+}
+
+void logRefusal(std::string_view why)
+{
+    std::cerr << "[Admission] " << why << '\n';
 }
 
 const ComponentType* ComponentRegistry::find(std::string_view name) const

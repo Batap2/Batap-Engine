@@ -534,7 +534,7 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
 
     const float outlinerX = vp->Pos.x + railWidth;
     beginDockedPanel("##Outliner", outlinerX, outlinerWidth_);
-    scenePanel_.draw(world, selection_, optionsHeight_ + kOptionsGripHeight);
+    scenePanel_.draw(world, app, selection_, optionsHeight_ + kOptionsGripHeight);
     drawEditorOptions(world, app);
     resizeGrip("##resizeOutliner", outlinerX + outlinerWidth_, outlinerWidth_, 1.0f);
     drawVerticalEdge(ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 1.0f);

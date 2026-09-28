@@ -26,6 +26,7 @@
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
 #include "Systems/Camera_S.h"
+#include "Systems/CascadeLight_S.h"
 #include "Systems/Character_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
@@ -46,6 +47,7 @@ World::World(Engine& ctx) : ctx_(&ctx)
     systems_->physics_->connectHooks(registry_);
     systems_->characters_->connectHooks(registry_);
     systems_->cameras_->connectHooks(registry_);
+    systems_->cascadeLights_->connectHooks(registry_);
     spatialIndex_->connectHooks(registry_);
 
     // refresh camera ratio on window resize
@@ -133,12 +135,14 @@ v3f World::gravity() const
 
 void World::update()
 {
+    systems_->cascadeLights_->enforce(registry_);
     systems_->update(ctx_->deltaTime_, *ctx_, *this);
     instanceManager_->uploadRemainingFrameDirty(*ctx_);
 }
 
 void World::update(Game& game)
 {
+    systems_->cascadeLights_->enforce(registry_);
     const float dt = time_.paused_ ? 0.f : ctx_->deltaTime_ * time_.scale_;
     time_.accumulator_ += std::min(dt, 0.25f);
     while (time_.accumulator_ >= time_.fixedDt_)
@@ -204,6 +208,7 @@ void World::resetScene()
     systems_->physics_->connectHooks(reg);
     systems_->characters_->connectHooks(reg);
     systems_->cameras_->connectHooks(reg);
+    systems_->cascadeLights_->connectHooks(reg);
     spatialIndex_->connectHooks(reg);
     spatialIndex_->markDirty();
 
