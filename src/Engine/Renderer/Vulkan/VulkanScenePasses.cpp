@@ -375,6 +375,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     pass.cmd_ = cmd;
     pass.layout_ = pipelineLayout_;
     pass.push_.cameraIndex_ = camID;
+    pass.push_.debugFlags_ = args.showShadowCascades_ ? DebugShadowCascades : 0u;
     pass.reg_ = reg;
     pass.instanceManager_ = instanceM;
     pass.assetManager_ = ctx.assetManager_.get();

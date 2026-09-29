@@ -122,7 +122,7 @@ enum ShadowFamily : uint
 // Range the cascades are configured for, the partition line between the two
 // shadow methods. A renderer setting rather than a per-light one since 7c.
 // Step 12 replaces the test with the cascades' real coverage, and this goes.
-static const float CascadeRange = 2000.0f;
+static const float CascadeRange = 200.0f;
 
 // A cube's six faces, the most any light draws. Every casting light reserves
 // that many entries from its shadowIndex_ on, at a slot fixed by its pool
@@ -236,7 +236,10 @@ struct DrawPush
     // Which ShadowGPUData the shadow pass is drawing into. One view per draw,
     // so the six faces of step 7 differ only by this.
     uint shadowViewIndex_;
+    uint debugFlags_;
 };
+
+static const uint DebugShadowCascades = 1u;
 
 #ifdef __cplusplus
 
@@ -245,7 +248,7 @@ static_assert(sizeof(StaticMeshGPUData) == 96);
 static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
-static_assert(sizeof(DrawPush) == 28);
+static_assert(sizeof(DrawPush) == 32);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);

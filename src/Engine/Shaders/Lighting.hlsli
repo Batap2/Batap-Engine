@@ -193,6 +193,9 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         color = kD * EvalSH9(s.N_) * s.albedo_ + specIBL;
     }
 
+    uint debugCascade = ShadowCascadeCount;
+    float debugLit = 0.0f;
+
     [loop]
     for (uint lightIndex = 0; lightIndex < g_draw.lightCount_; ++lightIndex)
     {
@@ -213,6 +216,12 @@ float3 ShadeSurface(uint shadingModel, Surface s)
             continue;
 
         float shadow = ShadowVisibility(s.posWS_, s.N_, L, dist, light, cam.pos_);
+        if ((g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
+            (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
+        {
+            debugCascade = CascadeIndexAt(s.posWS_, light.shadowIndex_ & ShadowIndexMask);
+            debugLit = dot(s.N_, L) > 0.0f ? shadow : 0.0f;
+        }
         if (shadow <= 0.0f)
             continue;
 
@@ -240,6 +249,10 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         // Direct term only: the ambient does not see shadows.
         color += (diffuse + specular) * radiance * NdotL * shadow * cone;
     }
+
+    // Shadowed dark, lit bright, in the colour of the cascade that shaded it.
+    if (debugCascade < ShadowCascadeCount)
+        color = CascadeDebugTint(debugCascade) * lerp(0.2f, 1.0f, debugLit);
 
     return color;
 }

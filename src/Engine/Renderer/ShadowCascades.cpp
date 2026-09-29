@@ -24,10 +24,17 @@ m3f lightFrame(const v3f& dir)
 ShadowFit fitShadowCascades(const ShadowFitInput& in)
 {
     ShadowFit fit{};
-    if (in.range_ <= kSplitNear || in.fovY_ <= 0.f || in.aspect_ <= 0.f || in.count_ == 0)
+    if (in.fovY_ <= 0.f || in.aspect_ <= 0.f || in.count_ == 0)
         return fit;
 
     const uint32_t count = std::min(in.count_, ShadowCascadeCount);
+    const auto farOf = [&](uint32_t i)
+    {
+        const float t = static_cast<float>(i + 1) / static_cast<float>(count);
+        return in.range_ * t * t;
+    };
+    if (farOf(0) <= kSplitNear)
+        return fit;
     const v3f fwd = in.camFwd_.normalized();
 
     // Squared distance from the axis to a frustum corner, per unit of depth.
@@ -38,11 +45,7 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
     float near = kSplitNear;
     for (uint32_t i = 0; i < count; ++i)
     {
-        const float far =
-            i + 1 == count
-                ? in.range_
-                : kSplitNear * std::pow(in.range_ / kSplitNear,
-                                        static_cast<float>(i + 1) / static_cast<float>(count));
+        const float far = farOf(i);
 
         const float c = std::min((near + far) * 0.5f * (1.f + k2), far);
         const float r = std::sqrt(std::max((near - c) * (near - c) + near * near * k2,

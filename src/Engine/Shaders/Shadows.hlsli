@@ -80,17 +80,32 @@ float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowInd
 
 // The first sphere that holds P, not a split on view depth: the fit is
 // spherical. Past the last one, the analytic occluders take over (R8).
-float CascadeVisibility(float3 P, float3 N, float3 L, uint firstView)
+uint CascadeIndexAt(float3 P, uint firstView)
 {
     [loop]
     for (uint c = 0; c < ShadowCascadeCount; ++c)
     {
         ShadowGPUData sh = ShadowBuffer[firstView + c];
-        if (sh.strength_ <= 0.0f || distance(P, sh.sphere_.xyz) > sh.sphere_.w)
-            continue;
-        return SampleShadowView(sh, P, N, L, sh.texelWorld_);
+        if (sh.strength_ > 0.0f && distance(P, sh.sphere_.xyz) <= sh.sphere_.w)
+            return c;
     }
-    return 1.0f;
+    return ShadowCascadeCount;
+}
+
+float CascadeVisibility(float3 P, float3 N, float3 L, uint firstView)
+{
+    uint c = CascadeIndexAt(P, firstView);
+    if (c >= ShadowCascadeCount)
+        return 1.0f;
+    ShadowGPUData sh = ShadowBuffer[firstView + c];
+    return SampleShadowView(sh, P, N, L, sh.texelWorld_);
+}
+
+float3 CascadeDebugTint(uint c)
+{
+    const float3 tints[4] = {float3(1.0f, 0.3f, 0.3f), float3(0.3f, 1.0f, 0.3f),
+                             float3(0.35f, 0.5f, 1.0f), float3(1.0f, 0.9f, 0.3f)};
+    return tints[min(c, 3u)];
 }
 
 #endif

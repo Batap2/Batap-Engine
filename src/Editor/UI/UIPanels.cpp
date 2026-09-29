@@ -379,6 +379,7 @@ void UIPanels::drawViewMenu(World& world, App& app)
 {
     ImGui::MenuItem("Colliders", nullptr, &world.systems().physics_->showColliders_);
     ImGui::MenuItem("Bounds", nullptr, &world.systems().bounds_->showBounds_);
+    ImGui::MenuItem("Shadow cascades", nullptr, &world.showShadowCascades_);
     ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
 }
 
