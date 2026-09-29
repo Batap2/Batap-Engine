@@ -20,7 +20,6 @@ constexpr size_t kInitialEntries = 256;
 // vkCmdUpdateBuffer's cap.
 constexpr size_t kEntriesPerWrite = 65536 / sizeof(ShadowGPUData);
 
-constexpr float kDepthBiasSlope = 2.f;
 }  // namespace
 
 ShadowPass::ShadowPass(const PassSetup& setup) : setup_(setup)
@@ -56,8 +55,7 @@ void ShadowPass::buildPipelines(const ShaderModules& modules)
                     .depth(VK_FORMAT_D32_SFLOAT, true, VK_COMPARE_OP_LESS)
                     .depthOnly()
                     .depthClamp()
-                    .dynamicDepthBias()
-                    .cullBack()
+                    .cullFront()
                     .build(setup_.ctx_.device_, setup_.layout_);
 }
 
@@ -132,7 +130,6 @@ void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& at
 
     vkCmdBeginRendering(pass.cmd_, &info);
     vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-    vkCmdSetDepthBias(pass.cmd_, 0.f, 0.f, kDepthBiasSlope);
 
     PassContext shadowPass = pass;
     for (const ShadowView& view : atlas.views_)

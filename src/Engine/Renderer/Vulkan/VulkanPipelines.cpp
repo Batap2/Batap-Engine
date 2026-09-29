@@ -88,6 +88,12 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::cullBack()
     return *this;
 }
 
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::cullFront()
+{
+    cullMode_ = VK_CULL_MODE_FRONT_BIT;
+    return *this;
+}
+
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::topology(VkPrimitiveTopology topology)
 {
     topology_ = topology;

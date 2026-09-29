@@ -162,6 +162,9 @@ struct Surface
     float  metallic_;
     float  reflectivity_;
     float3 N_;
+    // The vertex normal, before any normal map: the shadow lookup wants the
+    // receiver's geometric plane.
+    float3 Ngeom_;
     float3 posWS_;
 };
 
@@ -215,7 +218,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         if (cone <= 0.0f)
             continue;
 
-        float shadow = ShadowVisibility(s.posWS_, s.N_, L, dist, light, cam.pos_);
+        float shadow = ShadowVisibility(s.posWS_, s.Ngeom_, L, dist, light, cam.pos_);
         if ((g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
             (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
         {

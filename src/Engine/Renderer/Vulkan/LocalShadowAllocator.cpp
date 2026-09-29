@@ -33,7 +33,7 @@ constexpr std::array<CubeFace, 6> kCubeFaces{{
 
 // A view is drawn a few texels wider than the angle it owns. A receiver sitting
 // on a face boundary otherwise lands on the tile's outermost texel, where
-// neither the PCF clamp nor the normal offset can still reach the caster, and
+// neither the PCF clamp nor the depth bias can still reach the caster, and
 // light leaks in a hairline along the cube's edges. In texels, so it follows
 // the tile.
 constexpr float kFaceGuardTexels = 4.f;

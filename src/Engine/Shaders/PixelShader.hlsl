@@ -37,6 +37,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.posWS_     = i.posWS_;
 
     float3 Ngeom = normalize(i.nrmWS_);
+    s.Ngeom_ = Ngeom;
     if (mat.normalTexIdx_ != InvalidGPUIndex)
     {
         float3 normalSample = g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).rgb;

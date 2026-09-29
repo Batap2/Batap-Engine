@@ -33,6 +33,7 @@ struct GraphicsPipelineBuilder
     GraphicsPipelineBuilder& colorFormat(VkFormat format);
     GraphicsPipelineBuilder& depth(VkFormat format, bool write, VkCompareOp compare);
     GraphicsPipelineBuilder& cullBack();
+    GraphicsPipelineBuilder& cullFront();
     GraphicsPipelineBuilder& topology(VkPrimitiveTopology topology);
     GraphicsPipelineBuilder& depthOnly();
     GraphicsPipelineBuilder& depthClamp();
