@@ -4,8 +4,9 @@
 
 namespace batap
 {
-// Past shadowDistance_ the cascades run out of resolution, so bodies marked
-// with this are shadowed as analytic spheres instead of through a depth map.
+// Where no depth map holds the receiver, past the cascades' spheres or out of
+// a local light's map, bodies marked with this are shadowed as analytic
+// spheres instead.
 // Additive: the marker sits on an entity that already has a Mesh_C, see
 // ShadowSphereInstance.
 struct ShadowSphere_C

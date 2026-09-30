@@ -119,11 +119,6 @@ enum ShadowFamily : uint
     ShadowCascadeFamily = 2,  // atlas A, ShadowCascadeCount quadrants
 };
 
-// Range the cascades are configured for, the partition line between the two
-// shadow methods. A renderer setting rather than a per-light one since 7c.
-// Step 12 replaces the test with the cascades' real coverage, and this goes.
-static const float CascadeRange = 200.0f;
-
 // A cube's six faces, the most any light draws. Every casting light reserves
 // that many entries from its shadowIndex_ on, at a slot fixed by its pool
 // index, so fill() can write the index once while the allocation changes

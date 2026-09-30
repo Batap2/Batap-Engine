@@ -14,4 +14,7 @@ constexpr uint32_t LocalTileFade = 64;
 constexpr float LocalClassHysteresis = 1.2f;
 constexpr uint32_t CascadeAtlasSize = 4096;
 constexpr uint32_t CascadeTileSize = 2048;
+// Range the cascades are fitted over. Only the fit reads it: the partition
+// with the analytic occluders follows the spheres the fit made (R8).
+constexpr float CascadeRange = 200.f;
 }  // namespace batap

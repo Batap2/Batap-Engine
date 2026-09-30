@@ -144,19 +144,26 @@ float SampleShadowView(ShadowGPUData sh, float3 P, float3 N, float3 L, float tex
     }
     float gate = saturate(10.0f - ShadowContactTaps - lit);
     lit = lerp(lit, pushed, gate);
-    return lerp(1.0f, lit / 9.0f, sh.strength_);
+    return lit / 9.0f;
 }
 
-float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowIndex)
+// coverage: the view's strength_, which the caller blends with, 0 when the
+// view has no map this frame.
+float ShadowMapVisibility(float3 P, float3 N, float3 L, float dL, uint shadowIndex,
+                          out float coverage)
 {
     ShadowGPUData sh = ShadowBuffer[shadowIndex];
-    if (sh.strength_ <= 0.0f)
+    coverage = saturate(sh.strength_);
+    if (coverage <= 0.0f)
         return 1.0f;
     return SampleShadowView(sh, P, N, L, sh.texelWorld_ * dL);
 }
 
 // The first sphere that holds P, not a split on view depth: the fit is
-// spherical. Past the last one, the analytic occluders take over (R8).
+// spherical. What the cascades really cover this frame is the union of these
+// spheres, a switched-off one (strength_ 0, as the pass leaves an entry it
+// did not write) holding nothing; outside it, the analytic occluders take over
+// (R8).
 uint CascadeIndexAt(float3 P, uint firstView)
 {
     [loop]
@@ -199,9 +206,12 @@ uint CascadeNextAt(float3 P, uint firstView, uint c)
 // Under a positional light a cascade is a perspective view from it too: its
 // texel grows with dTexel, the distance to the light, like a local view's.
 // Under a directional light the texel is in metres, and dTexel is 1.
-float CascadeVisibility(float3 P, float3 N, float3 L, float dTexel, uint firstView)
+// coverage: 1 where a cascade holds P, else 0.
+float CascadeVisibility(float3 P, float3 N, float3 L, float dTexel, uint firstView,
+                        out float coverage)
 {
     uint c = CascadeIndexAt(P, firstView);
+    coverage = c < ShadowCascadeCount ? 1.0f : 0.0f;
     if (c >= ShadowCascadeCount)
         return 1.0f;
     ShadowGPUData sh = ShadowBuffer[firstView + c];

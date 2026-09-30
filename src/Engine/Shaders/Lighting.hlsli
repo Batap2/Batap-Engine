@@ -96,12 +96,15 @@ float3 F_Schlick(float HdotV, float3 F0)
 // The light's visibility from P, multiplying the direct term only. L points from
 // P toward the light, normalized; dL is the distance it was divided by.
 //
-// Two methods partition space and both live here, never beside it: a depth map
-// near the light, analytic sphere occluders beyond. The occluder test is
-// angular, so a spot or a directional would fit as-is; only rL would be
-// obtained differently.
-float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData light,
-                       float3 camPos)
+// Two methods partition the receivers and both live here, never beside it: a
+// depth map where the light has one for P, analytic sphere occluders
+// elsewhere. The partition is on P, not on the occluder: every mesh is drawn
+// in every view, an occluder's own included, and depth clamp keeps the ones
+// between the view and the light, so a P the map holds already has every
+// occluder in it. Tested on the occluder instead, one inside the cascades
+// would shadow nothing past them, and one outside would shadow twice the P
+// inside them.
+float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData light)
 {
     if (light.shadowIndex_ == InvalidGPUIndex)
         return 1.0f;
@@ -114,27 +117,29 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
                            : asin(clamp(light.sourceRadius_ / max(dL, 1e-4f), 0.0f, 1.0f));
     rL = max(rL, 1e-5f);
 
-    float vis = 1.0f;
+    // How much of P's shadow the map holds: 1 inside a cascade, a local view's
+    // strength_ while it fades out with distance, 0 where there is no map.
+    float coverage = 0.0f;
+    float mapVis = 1.0f;
 
     uint family = light.shadowIndex_ >> ShadowFamilyShift;
     uint firstView = light.shadowIndex_ & ShadowIndexMask;
     if (family == ShadowLocalSingle)
-        vis *= ShadowMapVisibility(P, N, L, dL, firstView);
+        mapVis = ShadowMapVisibility(P, N, L, dL, firstView, coverage);
     else if (family == ShadowLocalCube)
-        vis *= ShadowMapVisibility(P, N, L, dL, firstView + CubeFaceIndex(-L));
+        mapVis = ShadowMapVisibility(P, N, L, dL, firstView + CubeFaceIndex(-L), coverage);
     else if (family == ShadowCascadeFamily)
-        vis *= CascadeVisibility(P, N, L, directional ? 1.0f : dL, firstView);
+        mapVis = CascadeVisibility(P, N, L, directional ? 1.0f : dL, firstView, coverage);
 
+    if (coverage >= 1.0f)
+        return mapVis;
+
+    float vis = 1.0f;
     [loop]
     for (uint i = 0; i < g_draw.sphereOccluderCount_; ++i)
     {
         SphereOccluderGPUData occ = SphereOccluderBuffer[i];
         if (occ.radius_ <= 0.0f)
-            continue;
-
-        // What the cascades cover does not come through here, or the caster
-        // would be shadowed twice.
-        if (length(occ.center_ - camPos) + occ.radius_ < CascadeRange)
             continue;
 
         float3 S  = occ.center_ - P;
@@ -156,7 +161,8 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
         vis *= smoothstep(-rL, rL, sep - rO);
     }
 
-    return vis;
+    // A local map fading out hands its receivers over to the occluders.
+    return lerp(vis, mapVis, coverage);
 }
 
 struct Surface
@@ -235,7 +241,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         if (cone <= 0.0f)
             continue;
 
-        float shadow = ShadowVisibility(s.posWS_, s.Ngeom_, L, dist, light, cam.pos_);
+        float shadow = ShadowVisibility(s.posWS_, s.Ngeom_, L, dist, light);
         if ((g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
             (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
         {
