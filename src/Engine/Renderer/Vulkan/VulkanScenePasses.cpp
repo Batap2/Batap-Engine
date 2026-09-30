@@ -14,11 +14,13 @@
 #include "Engine.h"
 #include "Instance/InstanceManager.h"
 #include "Paths.h"
+#include "Renderer/LtcTables.h"
 #include "Renderer/ShadowCascades.h"
 #include "Systems/CascadeLight_S.h"
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -127,6 +129,28 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
                                           "local shadow atlas");
     cascadeAtlas_ = resources_.createTarget(CascadeAtlasSize, CascadeAtlasSize,
                                             ResourceFormat::D32_FLOAT, "cascade shadow atlas");
+
+    // The rect lights' tables, uploaded once; the frame constants say where
+    // they are.
+    const auto uploadTable = [&](const std::array<uint16_t, LtcTableTexels * 4>& table,
+                                 const char* name)
+    {
+        const GPUResourceHandle image = resources_.createImage2D(
+            LtcTableSize, LtcTableSize, ResourceFormat::R16G16B16A16_FLOAT, name);
+        auto span = resources_.requestTextureUpload(image, LtcTableSize, LtcTableSize,
+                                                    ResourceFormat::R16G16B16A16_FLOAT);
+        std::memcpy(span.data(), table.data(), sizeof(table));
+        return image;
+    };
+    ltcMat_ = uploadTable(LtcMatTable, "ltc matrix table");
+    ltcAmp_ = uploadTable(LtcAmpTable, "ltc amplitude table");
+
+    FrameGPUData frameData{};
+    frameData.ltcMatTexture_ = resources_.textureIndex(ltcMat_);
+    frameData.ltcAmpTexture_ = resources_.textureIndex(ltcAmp_);
+    frameConstants_ = resources_.createStaticBuffer(sizeof(FrameGPUData), "frame constants");
+    std::memcpy(resources_.requestUpload(frameConstants_, sizeof(FrameGPUData)).data(), &frameData,
+                sizeof(FrameGPUData));
 
     const std::string shaderDir = resolveEngineFile("shaders", "shaders");
 
@@ -244,6 +268,7 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     claim(DebugShapesBinding, resources_.bufferFor(debug_.shapesBuffer()));
     claim(BillboardsBinding, resources_.bufferFor(billboards_.buffer()));
     claim(ShadowsBinding, resources_.bufferFor(shadow_.buffer()));
+    claim(FrameConstantsBinding, resources_.bufferFor(frameConstants_));
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
     std::array<VkWriteDescriptorSet, FrameSetBindingCount> writes{};

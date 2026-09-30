@@ -5,6 +5,7 @@
 #include "Components/FarPointLight_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/RectLight_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
@@ -64,6 +65,7 @@ inline constexpr Spawnable Spawnables[] = {
     spawnable<Camera_C, Transform_C>("camera", "Camera", ICON_MD_VIDEOCAM),
     spawnable<PointLight_C, Transform_C>("pointLight", "Point Light", ICON_MD_LIGHTBULB),
     spawnable<SpotLight_C, Transform_C>("spotLight", "Spot Light", ICON_MD_FLASHLIGHT_ON),
+    spawnable<RectLight_C, Transform_C>("rectLight", "Rect Light", ICON_MD_RECTANGLE),
     spawnable<FarPointLight_C, Transform_C>("farPointLight", "Far Point Light", ICON_MD_WB_SUNNY),
     spawnable<DirectionalLight_C, Transform_C>("directionalLight", "Directional Light",
                                                ICON_MD_LIGHT_MODE),

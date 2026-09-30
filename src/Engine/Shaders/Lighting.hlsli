@@ -14,6 +14,8 @@ StructuredBuffer<Material> MaterialBuffer;
 StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
 [[vk::binding(SphereOccludersBinding, FrameSet)]]
 StructuredBuffer<SphereOccluderGPUData> SphereOccluderBuffer;
+[[vk::binding(FrameConstantsBinding, FrameSet)]]
+StructuredBuffer<FrameGPUData> FrameBuffer;
 
 [[vk::binding(SamplerBinding, BindlessSet)]]  SamplerState      g_sampler;
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
@@ -165,6 +167,130 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
     return lerp(vis, mapVis, coverage);
 }
 
+// ---- Rect lights: linearly transformed cosines (Heitz et al. 2016), as
+// three.js writes them. A cosine lobe, transformed by a 3x3 matrix, fits the
+// GGX lobe for a roughness and a view angle; its integral over a polygon has a
+// closed form. The polygon goes through the inverse transform, and the result
+// is the integral of the cosine lobe over it.
+
+// The tables are indexed by (roughness, sqrt(1 - N.V)), at texel centres.
+float2 LtcUv(float NdotV, float roughness)
+{
+    const float size = 64.0f;
+    return float2(roughness, sqrt(1.0f - NdotV)) * ((size - 1.0f) / size) + 0.5f / size;
+}
+
+// Integral of the edge v1 -> v2 of a polygon projected on the unit sphere, as
+// a vector: the sum over the edges is the polygon's vector form factor.
+// Rational fit of theta / sin(theta), accurate to float and free of acos.
+float3 LtcEdgeFormFactor(float3 v1, float3 v2)
+{
+    float x = dot(v1, v2);
+    float y = abs(x);
+    float a = 0.8543985f + (0.4965155f + 0.0145206f * y) * y;
+    float b = 3.4175940f + (4.1616724f + y) * y;
+    float v = a / b;
+    float thetaSinTheta = x > 0.0f ? v : 0.5f * rsqrt(max(1.0f - x * x, 1e-7f)) - v;
+    return cross(v1, v2) * thetaSinTheta;
+}
+
+// The horizon clips the polygon; the table's sphere approximation does it from
+// the form factor alone, which is what keeps a quad at four edges.
+float LtcClippedSphere(float3 f)
+{
+    float l = length(f);
+    return max((l * l + f.z) / (l + 1.0f), 0.0f);
+}
+
+// Integral over the rectangle of the cosine lobe transformed by mInv, in the
+// frame of N and the tangent toward V. The corners wind so that their normal
+// is the light's direction; from behind the light, 0.
+float LtcEvaluate(float3 N, float3 V, float3 P, float3x3 mInv, float3 corners[4])
+{
+    float3 T1 = normalize(V - N * dot(V, N));
+    float3 T2 = -cross(N, T1);
+    float3x3 m = mul(mInv, float3x3(T1, T2, N));
+
+    float3 c0 = normalize(mul(m, corners[0] - P));
+    float3 c1 = normalize(mul(m, corners[1] - P));
+    float3 c2 = normalize(mul(m, corners[2] - P));
+    float3 c3 = normalize(mul(m, corners[3] - P));
+
+    float3 f = LtcEdgeFormFactor(c0, c1) + LtcEdgeFormFactor(c1, c2) +
+               LtcEdgeFormFactor(c2, c3) + LtcEdgeFormFactor(c3, c0);
+    return LtcClippedSphere(f);
+}
+
+// Diffuse plus specular of one rect light at P, before any shadow. radiance is
+// the face's: the integrals are fractions of the hemisphere, so a Lambertian
+// surface under a face that fills its sky receives the radiance times its
+// albedo, and no 1/pi appears.
+float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, float NdotV,
+                             float3 albedo, float roughness, float metallic, float3 F0)
+{
+    float3 toP = P - light.pos_;
+    float h = dot(toP, light.direction_);
+    if (h <= 0.0f)
+        return float3(0.0f, 0.0f, 0.0f);
+
+    // P in the rectangle's frame, u along its width, v along its height.
+    float hw = length(light.halfWidth_);
+    float hh = length(light.halfHeight_);
+    float3 ax = light.halfWidth_ / max(hw, 1e-6f);
+    float3 ay = light.halfHeight_ / max(hh, 1e-6f);
+    float u = dot(toP, ax);
+    float v = dot(toP, ay);
+
+    // Range window on the distance to the rectangle itself, not its centre: a
+    // long tube light reaches as far from its ends as from its middle.
+    float2 outside = max(abs(float2(u, v)) - float2(hw, hh), 0.0f);
+    float d = sqrt(dot(outside, outside) + h * h) / max(light.radius_, 1e-4f);
+    if (d >= 1.0f)
+        return float3(0.0f, 0.0f, 0.0f);
+    float d2 = d * d;
+    float window = (1.0f - d2 * d2);
+    window *= window;
+    if (light.falloff_ > 0.0f)
+        window *= pow(1.0f - d, light.falloff_);
+
+    // Barn doors: along each axis, only the part of the face within the
+    // spread of P's side emits toward P. Per axis the part is an interval, so
+    // what P sees is still a rectangle and the integral stays exact.
+    float2 lo = float2(-hw, -hh);
+    float2 hi = float2(hw, hh);
+    if (light.cosOuter_ > 0.0f)
+    {
+        float reach = h * sqrt(max(1.0f - light.cosOuter_ * light.cosOuter_, 0.0f)) / light.cosOuter_;
+        lo = max(lo, float2(u, v) - reach);
+        hi = min(hi, float2(u, v) + reach);
+        if (any(hi <= lo))
+            return float3(0.0f, 0.0f, 0.0f);
+    }
+
+    float3 corners[4];
+    corners[0] = light.pos_ + ax * hi.x + ay * lo.y;
+    corners[1] = light.pos_ + ax * lo.x + ay * lo.y;
+    corners[2] = light.pos_ + ax * lo.x + ay * hi.y;
+    corners[3] = light.pos_ + ax * hi.x + ay * hi.y;
+
+    FrameGPUData frame = FrameBuffer[0];
+    float2 uv = LtcUv(NdotV, roughness);
+    float4 t1 = g_textures[frame.ltcMatTexture_].SampleLevel(g_sampler, uv, 0.0f);
+    float4 t2 = g_textures[frame.ltcAmpTexture_].SampleLevel(g_sampler, uv, 0.0f);
+    float3x3 mInv = float3x3(t1.x, 0.0f, t1.z,
+                             0.0f, 1.0f, 0.0f,
+                             t1.y, 0.0f, t1.w);
+    float3x3 identity = float3x3(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+
+    // Hill's split of the Fresnel term over the lobe: F0 scaled by the GGX
+    // albedo, and the rest toward F90 = 1.
+    float3 fresnel = F0 * t2.x + (1.0f - F0) * t2.y;
+    float3 specular = fresnel * LtcEvaluate(N, V, P, mInv, corners);
+    float3 diffuse = albedo * (1.0f - metallic) * LtcEvaluate(N, V, P, identity, corners);
+
+    return (diffuse + specular) * light.color_ * (light.intensity_ * window);
+}
+
 struct Surface
 {
     float3 albedo_;
@@ -214,6 +340,13 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     for (uint lightIndex = 0; lightIndex < g_draw.lightCount_; ++lightIndex)
     {
         LightGPUData light = LightBuffer[lightIndex];
+
+        if (light.type_ == LightRect)
+        {
+            color += RectLightContribution(light, s.posWS_, s.N_, V, NdotV, s.albedo_,
+                                           s.roughness_, s.metallic_, F0);
+            continue;
+        }
 
         // A directional light has no position and no range: radius_ is 0 for
         // it, and it reaches everything.

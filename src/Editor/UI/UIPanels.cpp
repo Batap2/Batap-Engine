@@ -4,6 +4,7 @@
 #include "Assets/AssetManager.h"
 #include "Engine.h"
 #include "InputManager.h"
+#include "LightGizmos.h"
 #include "Renderer/DebugDraw.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
@@ -491,9 +492,14 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
 {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
 
-    if (!gizmo_.draw(world, ctx, selection_))
+    // The gizmo sits on the light's origin and the handles away from it: the
+    // gizmo goes first, and the handles only take the mouse it leaves.
+    const bool gizmoBusy = gizmo_.draw(world, ctx, selection_);
+    const bool handlesBusy = lightHandles_.draw(world, ctx, selection_, !gizmoBusy);
+    if (!gizmoBusy && !handlesBusy)
         pickOnClick(world, app, ctx);
     drawSelectionBounds(world, app, ctx);
+    drawLightGizmos(world, selection_);
     drawTopBar(app, ctx);
 
     const float bodyTop = vp->Pos.y + kTopBarHeight;

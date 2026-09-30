@@ -2,6 +2,7 @@
 
 #include "Components/EntityHandle.h"
 #include "Gizmo.h"
+#include "LightHandles.h"
 #include "Selection.h"
 
 #include <imgui.h>
@@ -56,6 +57,7 @@ struct UIPanels
 
     Selection selection_;
     Gizmo gizmo_;
+    LightHandles lightHandles_;
     ScenePanel scenePanel_;
     InspectorPanel inspectorPanel_;
     MaterialEditorPanel materialEditor_;

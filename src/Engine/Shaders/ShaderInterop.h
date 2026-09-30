@@ -49,7 +49,8 @@ enum FrameSetBinding : uint
     BillboardsBinding = 7,
     SphereOccludersBinding = 8,
     ShadowsBinding = 9,
-    FrameSetBindingCount = 10,
+    FrameConstantsBinding = 10,
+    FrameSetBindingCount = 11,
 };
 
 enum ShadingModel : uint
@@ -87,7 +88,7 @@ enum LightType : uint
     LightPoint = 0,
     LightSpot = 1,
     LightDirectional = 2,  // shines along direction_; takes the cascades
-    LightRect = 3,         // step 15
+    LightRect = 3,         // pos_ the centre, direction_ the normal, halfWidth_/halfHeight_
     LightFarPoint = 4,     // shaded as a point light; takes the cascades
 };
 
@@ -154,6 +155,17 @@ struct ShadowGPUData
     float pad_;
     // Cascades only: the shader picks the cascade by it; w = 0 when off.
     float4 sphere_;
+};
+
+// What the whole frame shares and no pool owns: one element, written once by
+// the renderer.
+struct FrameGPUData
+{
+    // Bindless slots of the two LTC tables (Renderer/LtcTables.h).
+    uint ltcMatTexture_;
+    uint ltcAmpTexture_;
+    uint pad0_;
+    uint pad1_;
 };
 
 struct SphereOccluderGPUData
@@ -245,6 +257,7 @@ static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(DrawPush) == 32);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
+static_assert(sizeof(FrameGPUData) == 16);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);

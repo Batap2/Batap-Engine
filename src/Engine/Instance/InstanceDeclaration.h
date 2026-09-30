@@ -33,6 +33,7 @@
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/RectLight_C.h"
 #include "Components/ShadowSphere_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/SpotLight_C.h"
@@ -194,9 +195,10 @@ struct CameraInstance
 struct LightInstance
 {
     using GPUData = LightGPUData;
-    using Markers = TypeList<PointLight_C, SpotLight_C, FarPointLight_C, DirectionalLight_C>;
-    using Uses =
-        TypeList<PointLight_C, SpotLight_C, FarPointLight_C, DirectionalLight_C, Transform_C>;
+    using Markers =
+        TypeList<PointLight_C, SpotLight_C, FarPointLight_C, DirectionalLight_C, RectLight_C>;
+    using Uses = TypeList<PointLight_C, SpotLight_C, FarPointLight_C, DirectionalLight_C,
+                          RectLight_C, Transform_C>;
     static constexpr uint32_t Binding = LightsBinding;
     static constexpr size_t InitialCapacity = 32;
     static constexpr uint32_t DrawPush::* CountField = &DrawPush::lightCount_;
@@ -237,6 +239,25 @@ struct LightInstance
             out.sourceRadius_ = sun->sourceAngle_ * 0.5f * (std::numbers::pi_v<float> / 180.f);
             if (trans)
                 flatten(out.direction_, -trans->world().linear().col(2).normalized());
+        }
+        else if (const auto* rect = in.get<RectLight_C>())
+        {
+            // No shadow before step 15b.
+            out.type_ = LightRect;
+            flatten(out.color_, rect->color_);
+            out.intensity_ = rect->intensity_;
+            out.radius_ = rect->radius_;
+            out.falloff_ = rect->falloff_;
+            // The emission cone's edge, as for a spot; 0 or below, no cone.
+            out.cosOuter_ = std::cos(std::clamp(rect->spreadAngle_, 0.f, 3.14159265f) * 0.5f);
+            out.shadowIndex_ = InvalidGPUIndex;
+            if (trans)
+            {
+                const auto axes = trans->world().linear();
+                flatten(out.halfWidth_, v3f{axes.col(0).normalized() * (rect->width_ * 0.5f)});
+                flatten(out.halfHeight_, v3f{axes.col(1).normalized() * (rect->height_ * 0.5f)});
+                flatten(out.direction_, -axes.col(2).normalized());
+            }
         }
     }
 

@@ -60,6 +60,9 @@ struct ScenePasses
     LocalShadowAllocator localShadowsAlloc_;
     std::vector<ShadowView> shadowViews_;
     GPUResourceHandle cascadeAtlas_;
+    GPUResourceHandle ltcMat_;
+    GPUResourceHandle ltcAmp_;
+    GPUResourceHandle frameConstants_;
     std::vector<ShadowView> cascadeViews_;
     // Bit c: cascade c was last reported too close. The log speaks on a change.
     uint32_t warnedCascades_ = 0;
