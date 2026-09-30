@@ -169,6 +169,33 @@ uint CascadeIndexAt(float3 P, uint firstView)
     return ShadowCascadeCount;
 }
 
+// The outer part of each sphere, as a fraction of its radius, where the
+// cascade fades into the next one. Across a boundary the
+// texel grows by x4, x2.25 or x1.78 at once, and an edge rasterised on both
+// sides shows the step as a line; blended over the band, the step is a ramp.
+static const float CascadeFadeBand = 0.1f;
+
+// 0 inside the sphere, rising to 1 at its surface over the fade band.
+float CascadeFadeAt(float3 P, ShadowGPUData sh)
+{
+    float d = distance(P, sh.sphere_.xyz) / sh.sphere_.w;
+    return saturate((d - (1.0f - CascadeFadeBand)) / CascadeFadeBand);
+}
+
+// The cascade after c, if it is on and holds P; else ShadowCascadeCount. Past
+// the last sphere the analytic occluders take over (R8), and a point the next
+// sphere does not hold keeps its cascade whole: fading toward "outside the
+// map", which reads as lit, would leak light.
+uint CascadeNextAt(float3 P, uint firstView, uint c)
+{
+    if (c + 1 >= ShadowCascadeCount)
+        return ShadowCascadeCount;
+    ShadowGPUData next = ShadowBuffer[firstView + c + 1];
+    if (next.strength_ <= 0.0f || distance(P, next.sphere_.xyz) > next.sphere_.w)
+        return ShadowCascadeCount;
+    return c + 1;
+}
+
 // A cascade is a perspective view from the light too: its texel grows with the
 // distance to the light, like a local view's.
 float CascadeVisibility(float3 P, float3 N, float3 L, float dL, uint firstView)
@@ -177,7 +204,19 @@ float CascadeVisibility(float3 P, float3 N, float3 L, float dL, uint firstView)
     if (c >= ShadowCascadeCount)
         return 1.0f;
     ShadowGPUData sh = ShadowBuffer[firstView + c];
-    return SampleShadowView(sh, P, N, L, sh.texelWorld_ * dL);
+    float vis = SampleShadowView(sh, P, N, L, sh.texelWorld_ * dL);
+
+    float t = CascadeFadeAt(P, sh);
+    if (t > 0.0f)
+    {
+        uint n = CascadeNextAt(P, firstView, c);
+        if (n < ShadowCascadeCount)
+        {
+            ShadowGPUData next = ShadowBuffer[firstView + n];
+            vis = lerp(vis, SampleShadowView(next, P, N, L, next.texelWorld_ * dL), t);
+        }
+    }
+    return vis;
 }
 
 float3 CascadeDebugTint(uint c)
@@ -185,6 +224,21 @@ float3 CascadeDebugTint(uint c)
     const float3 tints[4] = {float3(1.0f, 0.3f, 0.3f), float3(0.3f, 1.0f, 0.3f),
                              float3(0.35f, 0.5f, 1.0f), float3(1.0f, 0.9f, 0.3f)};
     return tints[min(c, 3u)];
+}
+
+// The tint of the cascade that shades P, blended like its visibility across
+// the fade band; black past the cascades.
+float3 CascadeDebugTintAt(float3 P, uint firstView)
+{
+    uint c = CascadeIndexAt(P, firstView);
+    if (c >= ShadowCascadeCount)
+        return float3(0.0f, 0.0f, 0.0f);
+    float3 tint = CascadeDebugTint(c);
+    float t = CascadeFadeAt(P, ShadowBuffer[firstView + c]);
+    uint n = CascadeNextAt(P, firstView, c);
+    if (t > 0.0f && n < ShadowCascadeCount)
+        tint = lerp(tint, CascadeDebugTint(n), t);
+    return tint;
 }
 
 #endif

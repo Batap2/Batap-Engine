@@ -197,6 +197,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     }
 
     uint debugCascade = ShadowCascadeCount;
+    float3 debugTint = float3(0.0f, 0.0f, 0.0f);
     float debugLit = 0.0f;
 
     [loop]
@@ -223,6 +224,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
             (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
         {
             debugCascade = CascadeIndexAt(s.posWS_, light.shadowIndex_ & ShadowIndexMask);
+            debugTint = CascadeDebugTintAt(s.posWS_, light.shadowIndex_ & ShadowIndexMask);
             debugLit = dot(s.N_, L) > 0.0f ? shadow : 0.0f;
         }
         if (shadow <= 0.0f)
@@ -253,9 +255,10 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         color += (diffuse + specular) * radiance * NdotL * shadow * cone;
     }
 
-    // Shadowed dark, lit bright, in the colour of the cascade that shaded it.
+    // Shadowed dark, lit bright, in the colour of the cascade that shaded it,
+    // blended across a fade band like the shadow itself.
     if (debugCascade < ShadowCascadeCount)
-        color = CascadeDebugTint(debugCascade) * lerp(0.2f, 1.0f, debugLit);
+        color = debugTint * lerp(0.2f, 1.0f, debugLit);
 
     return color;
 }
