@@ -119,7 +119,7 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
     else if (family == ShadowLocalCube)
         vis *= ShadowMapVisibility(P, N, L, dL, firstView + CubeFaceIndex(-L));
     else if (family == ShadowCascadeFamily)
-        vis *= CascadeVisibility(P, N, L, firstView);
+        vis *= CascadeVisibility(P, N, L, dL, firstView);
 
     [loop]
     for (uint i = 0; i < g_draw.sphereOccluderCount_; ++i)

@@ -143,9 +143,8 @@ struct ShadowGPUData
     // 0 when the view has no map this frame, which reads as lit. Below 1 while
     // the light fades out with distance.
     float strength_;
-    // Texel world size per unit of distance from the light for a local view,
-    // which is a perspective one; an absolute size for a cascade, which is
-    // orthographic.
+    // Texel world size per unit of distance from the light: every view, local
+    // or cascade, is a perspective one from its light.
     float texelWorld_;
     // Bindless slot of the atlas image this view lives in.
     uint atlasTexture_;
