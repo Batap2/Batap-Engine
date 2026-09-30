@@ -11,9 +11,8 @@
 //
 // and optionally InitialCapacity (default 1), CountField, to push the pool
 // size to the shaders, and Markers, below. Adding it to GPUInstances at the
-// bottom gives it its
-// pool, its upload pass, its dirty routing, its frame set binding and its
-// entt hooks.
+// bottom gives it its pool, its upload pass, its dirty routing, its frame set
+// binding and its entt hooks.
 //
 // Uses is checked: fill() sees only the components it lists, so reading one
 // that is missing from it is a build error rather than a buffer that silently
@@ -21,8 +20,7 @@
 // only while it exists — so in.marker() hands it out by reference; the rest
 // may be absent and come back as pointers through in.get<C>().
 //
-// Markers lists several components when kinds of entity that are nothing alike
-// share one buffer: presence of any one of them puts the entity in the pool.
+// Markers: several components, any one of which puts the entity in the pool.
 
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
@@ -242,15 +240,19 @@ struct LightInstance
         }
         else if (const auto* rect = in.get<RectLight_C>())
         {
-            // No shadow before step 15b.
             out.type_ = LightRect;
             flatten(out.color_, rect->color_);
             out.intensity_ = rect->intensity_;
             out.radius_ = rect->radius_;
             out.falloff_ = rect->falloff_;
-            // The emission cone's edge, as for a spot; 0 or below, no cone.
+            // The shader applies no cone when this is 0 or below.
             out.cosOuter_ = std::cos(std::clamp(rect->spreadAngle_, 0.f, 3.14159265f) * 0.5f);
-            out.shadowIndex_ = InvalidGPUIndex;
+            out.shadowIndex_ = shadowIndexFor(
+                rect->castShadows_,
+                rect->spreadAngle_ <= RectShadowSingleViewMaxAngle ? ShadowLocalSingle
+                                                                   : ShadowLocalCube,
+                in.gpuIndex);
+            out.sourceRadius_ = 0.5f * std::hypot(rect->width_, rect->height_);
             if (trans)
             {
                 const auto axes = trans->world().linear();

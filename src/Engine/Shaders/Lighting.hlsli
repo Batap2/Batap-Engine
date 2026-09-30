@@ -95,32 +95,22 @@ float3 F_Schlick(float HdotV, float3 F0)
     return F0 + (1.0f - F0) * pow(saturate(1.0f - HdotV), 5.0f);
 }
 
-// The light's visibility from P, multiplying the direct term only. L points from
-// P toward the light, normalized; dL is the distance it was divided by.
-//
-// Two methods partition the receivers and both live here, never beside it: a
-// depth map where the light has one for P, analytic sphere occluders
+// A depth map where the light has one for P, analytic sphere occluders
 // elsewhere. The partition is on P, not on the occluder: every mesh is drawn
-// in every view, an occluder's own included, and depth clamp keeps the ones
-// between the view and the light, so a P the map holds already has every
-// occluder in it. Tested on the occluder instead, one inside the cascades
-// would shadow nothing past them, and one outside would shadow twice the P
-// inside them.
+// in every view and depth clamp keeps the casters between the view and the
+// light, so a P the map holds already has every occluder in it.
 float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData light)
 {
     if (light.shadowIndex_ == InvalidGPUIndex)
         return 1.0f;
 
     // The floor keeps smoothstep defined when sourceRadius_ is 0, where the
-    // transition collapses to a hard step. A directional light carries its
-    // angular radius already.
+    // transition collapses to a hard step.
     bool directional = light.type_ == LightDirectional;
     float rL = directional ? light.sourceRadius_
                            : asin(clamp(light.sourceRadius_ / max(dL, 1e-4f), 0.0f, 1.0f));
     rL = max(rL, 1e-5f);
 
-    // How much of P's shadow the map holds: 1 inside a cascade, a local view's
-    // strength_ while it fades out with distance, 0 where there is no map.
     float coverage = 0.0f;
     float mapVis = 1.0f;
 
@@ -167,21 +157,15 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
     return lerp(vis, mapVis, coverage);
 }
 
-// ---- Rect lights: linearly transformed cosines (Heitz et al. 2016), as
-// three.js writes them. A cosine lobe, transformed by a 3x3 matrix, fits the
-// GGX lobe for a roughness and a view angle; its integral over a polygon has a
-// closed form. The polygon goes through the inverse transform, and the result
-// is the integral of the cosine lobe over it.
+// Rect lights: linearly transformed cosines (Heitz et al. 2016), as three.js
+// writes them.
 
-// The tables are indexed by (roughness, sqrt(1 - N.V)), at texel centres.
 float2 LtcUv(float NdotV, float roughness)
 {
     const float size = 64.0f;
     return float2(roughness, sqrt(1.0f - NdotV)) * ((size - 1.0f) / size) + 0.5f / size;
 }
 
-// Integral of the edge v1 -> v2 of a polygon projected on the unit sphere, as
-// a vector: the sum over the edges is the polygon's vector form factor.
 // Rational fit of theta / sin(theta), accurate to float and free of acos.
 float3 LtcEdgeFormFactor(float3 v1, float3 v2)
 {
@@ -194,17 +178,15 @@ float3 LtcEdgeFormFactor(float3 v1, float3 v2)
     return cross(v1, v2) * thetaSinTheta;
 }
 
-// The horizon clips the polygon; the table's sphere approximation does it from
-// the form factor alone, which is what keeps a quad at four edges.
+// Horizon clipping from the form factor alone, via the sphere approximation:
+// it keeps a quad at four edges.
 float LtcClippedSphere(float3 f)
 {
     float l = length(f);
     return max((l * l + f.z) / (l + 1.0f), 0.0f);
 }
 
-// Integral over the rectangle of the cosine lobe transformed by mInv, in the
-// frame of N and the tangent toward V. The corners wind so that their normal
-// is the light's direction; from behind the light, 0.
+// The corners must wind so that their normal is the light's direction.
 float LtcEvaluate(float3 N, float3 V, float3 P, float3x3 mInv, float3 corners[4])
 {
     float3 T1 = normalize(V - N * dot(V, N));
@@ -221,10 +203,8 @@ float LtcEvaluate(float3 N, float3 V, float3 P, float3x3 mInv, float3 corners[4]
     return LtcClippedSphere(f);
 }
 
-// Diffuse plus specular of one rect light at P, before any shadow. radiance is
-// the face's: the integrals are fractions of the hemisphere, so a Lambertian
-// surface under a face that fills its sky receives the radiance times its
-// albedo, and no 1/pi appears.
+// intensity_ is the face's radiance: the integrals are fractions of the
+// hemisphere, so no 1/pi appears.
 float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, float NdotV,
                              float3 albedo, float roughness, float metallic, float3 F0)
 {
@@ -233,7 +213,6 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
     if (h <= 0.0f)
         return float3(0.0f, 0.0f, 0.0f);
 
-    // P in the rectangle's frame, u along its width, v along its height.
     float hw = length(light.halfWidth_);
     float hh = length(light.halfHeight_);
     float3 ax = light.halfWidth_ / max(hw, 1e-6f);
@@ -253,8 +232,7 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
     if (light.falloff_ > 0.0f)
         window *= pow(1.0f - d, light.falloff_);
 
-    // Barn doors: along each axis, only the part of the face within the
-    // spread of P's side emits toward P. Per axis the part is an interval, so
+    // Barn doors: per axis only an interval of the face emits toward P, so
     // what P sees is still a rectangle and the integral stays exact.
     float2 lo = float2(-hw, -hh);
     float2 hi = float2(hw, hh);
@@ -291,6 +269,23 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
     return (diffuse + specular) * light.color_ * (light.intensity_ * window);
 }
 
+// Read from where the maps were drawn: the apex of the doors' pyramid for one
+// view, the face's centre for a cube.
+float RectLightShadow(LightGPUData light, float3 P, float3 Ngeom)
+{
+    float3 origin = light.pos_;
+    if ((light.shadowIndex_ >> ShadowFamilyShift) == ShadowLocalSingle)
+    {
+        float tanHalf = sqrt(max(1.0f - light.cosOuter_ * light.cosOuter_, 0.0f)) /
+                        max(light.cosOuter_, 1e-4f);
+        float half = max(length(light.halfWidth_), length(light.halfHeight_));
+        origin -= light.direction_ * (half / max(tanHalf, 1e-4f));
+    }
+    float3 toOrigin = origin - P;
+    float dL = length(toOrigin);
+    return ShadowVisibility(P, Ngeom, toOrigin / max(dL, 1e-6f), dL, light);
+}
+
 struct Surface
 {
     float3 albedo_;
@@ -298,8 +293,6 @@ struct Surface
     float  metallic_;
     float  reflectivity_;
     float3 N_;
-    // The vertex normal, before any normal map: the shadow lookup wants the
-    // receiver's geometric plane.
     float3 Ngeom_;
     float3 posWS_;
 };
@@ -343,13 +336,14 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
         if (light.type_ == LightRect)
         {
-            color += RectLightContribution(light, s.posWS_, s.N_, V, NdotV, s.albedo_,
-                                           s.roughness_, s.metallic_, F0);
+            float3 lit = RectLightContribution(light, s.posWS_, s.N_, V, NdotV, s.albedo_,
+                                               s.roughness_, s.metallic_, F0);
+            if (any(lit > 0.0f))
+                lit *= RectLightShadow(light, s.posWS_, s.Ngeom_);
+            color += lit;
             continue;
         }
 
-        // A directional light has no position and no range: radius_ is 0 for
-        // it, and it reaches everything.
         float3 L;
         float  dist;
         float  rangeAtt = 1.0f;
@@ -408,8 +402,6 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         color += (diffuse + specular) * radiance * NdotL * shadow * cone;
     }
 
-    // Shadowed dark, lit bright, in the colour of the cascade that shaded it,
-    // blended across a fade band like the shadow itself.
     if (debugCascade < ShadowCascadeCount)
         color = debugTint * lerp(0.2f, 1.0f, debugLit);
 

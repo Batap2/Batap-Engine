@@ -173,7 +173,6 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
     const ImVec2 vpPos = ImGui::GetMainViewport()->Pos;
     ImDrawList* dl = ImGui::GetForegroundDrawList();
 
-    // The nearest handle under the mouse, when nothing is dragged.
     int hovered = -1;
     std::vector<std::optional<v2f>> screen(handles.size());
     float best = kGrabPixels;

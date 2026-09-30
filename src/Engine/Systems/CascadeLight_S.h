@@ -14,9 +14,8 @@ struct CascadeLight_S
 
     static entt::entity find(const entt::registry& reg);
 
-    // Backstop for code that emplaces directly: entt cannot refuse a
-    // construction from its signal, so the extra light is logged there and
-    // removed by enforce(), at the start of the next frame.
+    // Backstop for direct emplaces: entt cannot refuse from its signal, so the
+    // extra light is removed by enforce() at the start of the next frame.
     void connectHooks(entt::registry& reg);
     void enforce(entt::registry& reg);
 

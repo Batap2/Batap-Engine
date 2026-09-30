@@ -10,23 +10,15 @@ namespace
 {
 constexpr float kSplitNear = 1.6f;
 
-// The lattice axis is the direction from the light to the sphere's centre,
-// rounded on a grid of this step on the face of the cube it points through:
-// cells 5 degrees wide at a face's centre, narrower toward its edges, and no
-// pole where a polar grid would turn at every step under a light overhead.
-// Coarse, so it turns rarely: every 370 m of sideways travel under a light
-// 4.2 km away, never under a sun. Every turn re-lays the texels, and every
-// edge may move by half a texel at once; the shadow itself does not move.
+// Grid on a cube face, not polar: no pole to spin at every step under a light
+// overhead. Each turn re-lays the texels; 5 deg turns every 370 m sideways
+// under a light 4.2 km away.
 constexpr double kAxisStep = 0.087488663525924;  // tan(5 deg)
-// The lattice step follows the distance to the light on a geometric grid of
-// this many steps per octave, 4.4 % apart: one change per 190 m of approach
-// at 4.2 km, with the same re-laying.
+// 4.4 % apart: one re-lay per 190 m of approach at 4.2 km.
 constexpr double kTexelStepsPerOctave = 16.0;
-// Depth range about the sphere, in radii.
 constexpr double kDepthMargin = 1.05;
-// The gnomonic plane cannot hold a cone that reaches its own horizon: capped
-// there, a light almost inside the sphere gets a huge texel, not a NaN. R7
-// already reports it.
+// Short of the gnomonic horizon: a light almost inside the sphere gets a huge
+// texel, not a NaN.
 constexpr double kMaxHalfAngle = 89.0 * 3.14159265358979323846 / 180.0;
 
 m3f lightFrame(const v3f& dir)
@@ -53,10 +45,7 @@ v3d quantizedAxis(const v3d& a)
     return q.normalized();
 }
 
-// One direction for every cascade and every frame: the frame never turns, and
-// the window, rounded to the texel on its three axes, only ever moves the grid
-// by whole texels. The window holds the sphere plus the half texel its centre
-// is rounded by.
+// The window holds the sphere plus the half texel its centre is rounded by.
 void fitDirectional(CascadeSphere& s, const m3f& frame, double radius)
 {
     const double halfTile = static_cast<double>(CascadeTileSize) * 0.5;
@@ -111,8 +100,7 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
     {
         const float far = farOf(i);
 
-        // Distance along the view axis to the smallest sphere holding the
-        // slice, and its radius.
+        // Smallest sphere holding the slice.
         const float c = std::min((near + far) * 0.5f * (1.f + k2), far);
         const float r = std::sqrt(std::max((near - c) * (near - c) + near * near * k2,
                                            (far - c) * (far - c) + far * far * k2));
@@ -131,13 +119,10 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
             continue;
         }
 
-        // Everything measured from the light is in double: at a star's
-        // distance, a float step is longer than the sphere.
         const v3d toCenter = center.cast<double>() - in.lightPos_.cast<double>();
         const double dist = toCenter.norm();
         s.lightDistance_ = static_cast<float>(dist / rd);
-        // Inside the sphere the light sits between casters and receivers: no
-        // projection is right.
+        // The light sits between casters and receivers: no projection is right.
         if (s.lightDistance_ <= 1.f)
             continue;
 
@@ -146,17 +131,16 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
         const v3d p = frame.cast<double>() * toCenter;
         const double depth = -p.z();
 
-        // The sphere is a cone of half-angle alpha from the light. On the
-        // gnomonic plane, with its axis up to betaMax off the lattice axis, it
-        // reaches this far from its centre's own image; the window must hold
-        // that plus the half step the centre is rounded by.
+        // Cone of half-angle alpha, its axis up to betaMax off the lattice
+        // axis: its reach on the gnomonic plane, plus the half step the centre
+        // is rounded by.
         const double alpha = std::asin(std::min(rd / dist, 1.0));
         const double edge = std::min(betaMax + alpha, kMaxHalfAngle);
         const double halfNeeded = std::tan(edge) - std::tan(betaMax);
         const double texelNeeded = halfNeeded / (halfTile - 0.5);
         const float texel = static_cast<float>(std::exp2(
             std::ceil(std::log2(texelNeeded) * kTexelStepsPerOctave) / kTexelStepsPerOctave));
-        // The step the GPU sees: the window is a whole number of these.
+        // From the float: the window must be whole steps of what the GPU sees.
         const double texelD = static_cast<double>(texel);
 
         s.radius_ = r;
@@ -178,8 +162,7 @@ m4d cascadeViewProjExact(const CascadeSphere& s)
 
     if (s.directional_)
     {
-        // Orthographic: x = (p - window) / halfWidth in the light's frame, the
-        // sphere's side facing the light at depth 0, the far side at 1.
+        // x = (p - window) / halfWidth; depth 0 on the light's side.
         const double depthSpan = s.depthNear_ - s.depthFar_;
         m4d vp = m4d::Zero();
         vp.block<1, 3>(0, 0) = frame.row(0) / halfWidth;
@@ -196,8 +179,7 @@ m4d cascadeViewProjExact(const CascadeSphere& s)
     view.block<3, 3>(0, 0) = frame;
     view.block<3, 1>(0, 3) = -(frame * s.lightPos_.cast<double>());
 
-    // Off-centre perspective: x = (u - window) / halfWidth with u = x / depth,
-    // the sphere's side facing the light at depth 0, the far side at 1.
+    // x = (x / depth - window) / halfWidth; depth 0 on the light's side.
     const double nf = 1.0 / (s.depthNear_ - s.depthFar_);
     m4d proj = m4d::Zero();
     proj(0, 0) = 1.0 / halfWidth;
@@ -212,9 +194,7 @@ m4d cascadeViewProjExact(const CascadeSphere& s)
 
 m4f cascadeViewProj(const CascadeSphere& s)
 {
-    // Rounded once at the end: the entries then hold to a hundredth of a texel
-    // on the GPU under a light 4 km away. Ten times farther, ten times worse;
-    // a sun is a DirectionalLight_C.
+    // Rounded last: a hundredth of a texel at 4 km, ten times worse at 40 km.
     return m4f{cascadeViewProjExact(s).cast<float>()};
 }
 }  // namespace batap

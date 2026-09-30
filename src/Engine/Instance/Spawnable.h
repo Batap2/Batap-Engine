@@ -36,7 +36,7 @@ template <class... Cs>
 std::string firstRefusal(const entt::registry& r, entt::entity e)
 {
     std::string why;
-    // && stops at the first non-empty answer, which is then the one in why.
+    // && stops at the first non-empty refusal.
     (void)((why = ComponentAdmission<Cs>::refusal(r, e)).empty() && ...);
     return why;
 }

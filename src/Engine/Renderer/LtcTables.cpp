@@ -1,6 +1,4 @@
-// Generated from the fitted tables of ltc_code (fit/results/ltc.js), as shipped
-// by three.js in RectAreaLightUniformsLib, converted to half floats. Do not
-// edit by hand.
+// Generated, do not edit by hand: ltc_code fit/results/ltc.js (via three.js), as halves.
 //
 // Real-Time Polygonal-Light Shading with Linearly Transformed Cosines.
 // Eric Heitz, Jonathan Dupuy, Stephen Hill and David Neubelt.

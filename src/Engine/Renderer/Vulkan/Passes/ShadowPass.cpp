@@ -105,9 +105,7 @@ void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& at
 {
     const VkImage atlasImage = setup_.resources_.imageFor(atlas.atlas_);
 
-    // Discard: the scope clears the whole atlas, so only last frame's reads have
-    // to finish — its contents do not have to survive. Also covers the first
-    // frame, where the image has no layout yet.
+    // Discard: the clear rewrites all of it, and the first frame has no layout.
     BarrierBatch{}
         .image(atlasImage, Usage::ShaderRead, Usage::DepthAttachment, depthRange(), Discard::Yes)
         .flush(pass.cmd_);
@@ -118,8 +116,7 @@ void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& at
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    // 1 = the light sees infinitely far, so an untouched texel lights whatever
-    // samples it.
+    // An untouched texel lights whatever samples it.
     depth.clearValue.depthStencil = {1.0f, 0};
 
     VkRenderingInfo info{};

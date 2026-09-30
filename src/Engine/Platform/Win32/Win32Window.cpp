@@ -436,8 +436,7 @@ void* platformCreateWindow(const WindowDesc& desc)
     const wchar_t* className = L"BatapWindow";
     registerWindowClass(hInst, className);
 
-    // WindowDesc is in logical units, like a Cocoa window's points: the same
-    // size on screen at any scaling. Being DPI aware, Win32 wants pixels.
+    // WindowDesc is in logical units; DPI-aware Win32 wants pixels.
     const UINT dpi = ::GetDpiForSystem();
     RECT windowRect{0, 0,
                     ::MulDiv(static_cast<int>(desc.width), static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI),

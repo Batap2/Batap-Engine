@@ -31,18 +31,17 @@ struct LocalShadowAllocator
     {
         entt::entity entity_ = entt::null;
         v3f eye_;
+        float znear_ = 0.f;
         float zfar_ = 0.f;
         float fov_ = 0.f;
         float strength_ = 0.f;
         float priority_ = 0.f;
-        // Lowered for a light the budget already shrank last frame, so two
-        // lights of close priority do not trade their classes every frame.
+        // Lowered once shrunk, so close lights do not trade classes every frame.
         float shrinkPriority_ = 0.f;
         uint32_t requested_ = 0;
         uint32_t size_ = 0;
         uint32_t firstEntry_ = 0;
-        // What the budget counts: every view, visible or not, so that turning
-        // the camera never changes a class. Only the visible ones are drawn.
+        // Budgeted, visible or not: turning the camera must not change a class.
         uint32_t viewTotal_ = 0;
         uint32_t viewCount_ = 0;
         std::array<LightView, 6> views_{};
@@ -62,7 +61,6 @@ struct LocalShadowAllocator
 
     std::vector<Candidate> candidates_;
     std::vector<Tile> tiles_;
-    // The only state that outlives a frame, for the two hystereses.
     std::unordered_map<entt::entity, History> history_;
     std::unordered_map<entt::entity, History> nextHistory_;
 };

@@ -54,9 +54,7 @@ ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFra
     if (vkCreateSampler(ctx_.device_, &samplerInfo, nullptr, &textureSampler_) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : sampler");
 
-    // Compare-enabled twin, for shadow atlases. Clamp to a white border: a
-    // lookup that lands outside the atlas reads depth 1, which compares as
-    // "nothing in front of me" — outside the cascades, it is lit.
+    // White border: lookups outside the atlas compare as lit.
     VkSamplerCreateInfo shadowSamplerInfo{};
     shadowSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     shadowSamplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -570,7 +568,7 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
 void ResourceManager::recordBufferWrite(VkCommandBuffer cmd, GPUResourceHandle dest,
                                        const void* data, uint64_t sizeBytes, uint64_t destOffset)
 {
-    // The data travels inside the command buffer itself, whence the spec caps.
+    // vkCmdUpdateBuffer's spec limits.
     if (sizeBytes == 0 || sizeBytes > 65536 || sizeBytes % 4 != 0 || destOffset % 4 != 0)
         throw std::runtime_error("ResourceManager(vk) : recordBufferWrite out of range");
 

@@ -130,8 +130,6 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
     cascadeAtlas_ = resources_.createTarget(CascadeAtlasSize, CascadeAtlasSize,
                                             ResourceFormat::D32_FLOAT, "cascade shadow atlas");
 
-    // The rect lights' tables, uploaded once; the frame constants say where
-    // they are.
     const auto uploadTable = [&](const std::array<uint16_t, LtcTableTexels * 4>& table,
                                  const char* name)
     {

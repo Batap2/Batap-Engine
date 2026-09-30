@@ -194,9 +194,7 @@ void feedMouseClick(batap::InputManager& input, NSEvent* event, batap::MouseButt
     input.feed(e);
 }
 
-// The app draws its own title bar over the top titleBarHeight_ points, like
-// WM_NCHITTEST's HTCAPTION on Win32: dragging it moves the window, except over
-// an ImGui item (known one frame late).
+// ImGui's hover state is one frame late here.
 bool isOnTitleBar(NSEvent* event)
 {
     NSWindow* window = event.window;
@@ -359,9 +357,8 @@ void platformInit()
 
 void* platformCreateWindow(const WindowDesc& desc)
 {
-    // Titled, not borderless: a borderless window loses resizing, miniaturize:,
-    // the rounded corners and the shadow, and cannot become key. The title bar
-    // is hidden instead, the app draws its own (see isOnTitleBar).
+    // Not borderless: that loses resizing, miniaturize:, rounded corners, shadow
+    // and key status.
     const NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                                     NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable |
                                     NSWindowStyleMaskFullSizeContentView;
@@ -501,7 +498,6 @@ void platformToggleMaximizeWindow(void* nativeHandle)
 
 void platformCloseWindow(void* nativeHandle)
 {
-    // Goes through windowShouldClose, like the close button.
     [(__bridge NSWindow*)nativeHandle performClose:nil];
 }
 
@@ -520,8 +516,7 @@ bool platformPumpMessages()
                                               inMode:NSDefaultRunLoopMode
                                              dequeue:YES]))
         {
-            // Not sent to NSApp: ImGui's event monitor only sees what goes
-            // through sendEvent, so it never gets a press without its release.
+            // Not sent to NSApp, or ImGui would see the press but never its release.
             if (event.type == NSEventTypeLeftMouseDown && isOnTitleBar(event))
             {
                 if (event.clickCount == 2)

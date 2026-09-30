@@ -42,9 +42,8 @@ struct ShadowPass
     // Before the frame set is written: growing replaces the buffer it binds.
     void reserve(size_t entryCount);
 
-    // Opens its own rendering scopes, one per atlas: it writes the atlases the
-    // scene pass reads, so it cannot sit inside the scene's. Every entry up to
-    // entryCount is rewritten, those no view claims with a zero strength.
+    // Outside the scene's rendering scope: it writes the atlases the scene
+    // reads. Entries no view claims get a zero strength.
     void record(const PassContext& pass, std::span<const ShadowAtlasViews> atlases,
                 size_t entryCount);
 

@@ -30,8 +30,6 @@ enum DescriptorSetIndex : uint
 enum BindlessBinding : uint
 {
     SamplerBinding = 0,
-    // Compare-enabled sampler: SampleCmp returns the filtered result of the
-    // depth test, which is what makes a PCF tap one instruction.
     ShadowSamplerBinding = 1,
     // Must stay the HIGHEST binding of the set: VARIABLE_DESCRIPTOR_COUNT
     TexturesBinding = 2,
@@ -81,14 +79,13 @@ struct StaticMeshGPUData
     uint materialIndices_[8];  // GPU arena slot per submesh
 };
 
-// Every kind of light, in one buffer and one shading loop. Each field means
-// one thing, and a kind leaves the ones it has no use for at zero.
+// A kind leaves the fields it has no use for at zero.
 enum LightType : uint
 {
     LightPoint = 0,
     LightSpot = 1,
-    LightDirectional = 2,  // shines along direction_; takes the cascades
-    LightRect = 3,         // pos_ the centre, direction_ the normal, halfWidth_/halfHeight_
+    LightDirectional = 2,  // takes the cascades
+    LightRect = 3,         // pos_ the centre, direction_ the normal
     LightFarPoint = 4,     // shaded as a point light; takes the cascades
 };
 
@@ -101,9 +98,8 @@ struct LightGPUData
     float3 direction_;
     float falloff_;
     uint type_;
-    // Low 24 bits: index of this light's FIRST ShadowGPUData entry, its views
-    // being contiguous. High 8: which ShadowFamily, hence how many follow and
-    // which atlas they address. InvalidGPUIndex when the light has no shadow.
+    // Low 24 bits: the first of the light's contiguous ShadowGPUData entries.
+    // High 8: its ShadowFamily.
     uint shadowIndex_;
     float cosInner_;
     float cosOuter_;
@@ -120,14 +116,17 @@ enum ShadowFamily : uint
     ShadowCascadeFamily = 2,  // atlas A, ShadowCascadeCount quadrants
 };
 
-// A cube's six faces, the most any light draws. Every casting light reserves
-// that many entries from its shadowIndex_ on, at a slot fixed by its pool
-// index, so fill() can write the index once while the allocation changes
-// every frame.
+// Up to this full door angle, one view from the apex of the doors' pyramid:
+// every ray from it to a lit point crosses the face. Wider, the pyramid
+// flattens toward a half-space no view holds, and a cube takes over.
+static const float RectShadowSingleViewMaxAngle = 2.6179939f;  // 150 degrees
+
+// Every casting light reserves this many entries at a slot fixed by its pool
+// index, so fill() writes shadowIndex_ once while the allocation changes every
+// frame.
 static const uint MaxShadowViewsPerLight = 6u;
 
-// The cascade light's views, from its shadowIndex_ on, one quadrant of atlas A
-// each.
+// One quadrant of atlas A each.
 static const uint ShadowCascadeCount = 4u;
 
 static const uint ShadowIndexMask = 0xFFFFFFu;
@@ -136,32 +135,24 @@ static const uint ShadowFamilyShift = 24u;
 struct ShadowGPUData
 {
     float4x4 viewProj_;
-    // 0 when the view has no map this frame, which reads as lit. Below 1 while
-    // the light fades out with distance.
+    // 0 when the view has no map this frame, which reads as lit.
     float strength_;
-    // Texel world size per unit of distance from the light: every view, local
-    // or cascade, is a perspective one from its light — except a directional
-    // light's cascades, orthographic, whose texel is in metres.
+    // Per unit of distance from the light, except a directional light's
+    // orthographic cascades: in metres.
     float texelWorld_;
-    // Bindless slot of the atlas image this view lives in.
     uint atlasTexture_;
-    // The view's tile as a rectangle in atlas UV: tiles come in several sizes.
     float uvScale_;
     float uvOffset_[2];
-    // Side of one atlas texel in UV, for the PCF kernel: the tile is a
-    // sub-rectangle at native resolution, so a texel of it is a texel of the
-    // atlas whatever uvScale_ says.
+    // Tiles are at native resolution: an atlas texel whatever uvScale_ says.
     float texelUV_;
     float pad_;
-    // Cascades only: the shader picks the cascade by it; w = 0 when off.
+    // Cascades only.
     float4 sphere_;
 };
 
-// What the whole frame shares and no pool owns: one element, written once by
-// the renderer.
 struct FrameGPUData
 {
-    // Bindless slots of the two LTC tables (Renderer/LtcTables.h).
+    // Renderer/LtcTables.h
     uint ltcMatTexture_;
     uint ltcAmpTexture_;
     uint pad0_;
@@ -240,8 +231,6 @@ struct DrawPush
     uint lightCount_;
     uint skyboxCount_;
     uint sphereOccluderCount_;
-    // Which ShadowGPUData the shadow pass is drawing into. One view per draw,
-    // so the six faces of step 7 differ only by this.
     uint shadowViewIndex_;
     uint debugFlags_;
 };

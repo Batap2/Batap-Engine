@@ -32,8 +32,7 @@ struct ScenePasses
     ScenePasses(const ScenePasses&) = delete;
     ScenePasses& operator=(const ScenePasses&) = delete;
 
-    // Returns false without recording anything when the scene has
-    // no camera to draw from the caller then owns the clear.
+    // False without a camera: nothing recorded, the caller owns the clear.
     bool record(VkCommandBuffer cmd, uint32_t frame, const RenderTargets& targets,
                 const SceneRenderArgs& args, Engine& ctx);
 
@@ -64,7 +63,7 @@ struct ScenePasses
     GPUResourceHandle ltcAmp_;
     GPUResourceHandle frameConstants_;
     std::vector<ShadowView> cascadeViews_;
-    // Bit c: cascade c was last reported too close. The log speaks on a change.
+    // Bit c: cascade c last reported too close; logged on change only.
     uint32_t warnedCascades_ = 0;
 
     ShadowPass shadow_;

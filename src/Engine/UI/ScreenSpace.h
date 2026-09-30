@@ -4,11 +4,8 @@
 
 #include <imgui.h>
 
-// Two screen spaces, which only coincide on Windows:
-// - pixels: the framebuffer. InputManager::mousePos(), Engine::getFrameSize(),
-//   ScreenProjector, rayFromScreen, platformSetCursorPos all use them.
-// - points: what ImGui draws in. On macOS Retina a point is 2 pixels.
-// Screen math stays in pixels; convert here, at the ImGui boundary only.
+// Screen math is in framebuffer pixels; ImGui draws in points, 2 pixels on
+// Retina. Convert only at the ImGui boundary.
 namespace batap
 {
 

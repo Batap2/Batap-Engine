@@ -2,6 +2,7 @@
 
 #include "Components/Camera_C.h"
 #include "Components/PointLight_C.h"
+#include "Components/RectLight_C.h"
 #include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
 #include "Instance/InstanceManager.h"
@@ -31,11 +32,8 @@ constexpr std::array<CubeFace, 6> kCubeFaces{{
     {{0.f, 0.f, -1.f}, {0.f, 1.f, 0.f}},
 }};
 
-// A view is drawn a few texels wider than the angle it owns. A receiver sitting
-// on a face boundary otherwise lands on the tile's outermost texel, where
-// neither the PCF clamp nor the depth bias can still reach the caster, and
-// light leaks in a hairline along the cube's edges. In texels, so it follows
-// the tile.
+// Without it, a receiver on a face boundary reads the outermost texel, out of
+// reach of the PCF clamp and the bias: light leaks along the cube's edges.
 constexpr float kFaceGuardTexels = 4.f;
 
 constexpr float kZNear = 0.05f;
@@ -100,8 +98,6 @@ bool sphereOutside(const Frustum& frustum, const v3f& centre, float radius)
                                { return distanceTo(plane, centre) < -radius; });
 }
 
-// The view's pyramid cut at range along its axis, which holds the part of the
-// bubble the view covers: out when its five corners are behind one plane.
 bool pyramidOutside(const Frustum& frustum, const v3f& apex, const v3f& forward, const v3f& up,
                     float tanHalfFov, float range)
 {
@@ -128,7 +124,7 @@ uint32_t tileClass(float res, uint32_t last)
         std::clamp(nearest, static_cast<float>(LocalTileMin), static_cast<float>(LocalTileMax)));
 }
 
-// A Morton code's even bits, packed: x from the code, y from the code shifted by one.
+// Morton decode: x = evenBits(k), y = evenBits(k >> 1).
 uint32_t evenBits(uint32_t k)
 {
     k &= 0x55555555u;
@@ -171,8 +167,7 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
             return nullptr;
 
         const float d = std::max((eye - camPos).norm(), radius);
-        // res is the estimation of the influence of a light for a camera
-        // the best world is to have a ratio of 1:1 between shadowmap texel and screen pixel
+        // Tile size for one shadow texel per screen pixel.
         const float res = radius * std::tan(fov * 0.5f) * pixelsPerTan / d;
         if (res <= fadeLow)
             return nullptr;
@@ -183,6 +178,7 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
         Candidate& c = candidates_.emplace_back();
         c.entity_ = e;
         c.eye_ = eye;
+        c.znear_ = kZNear;
         c.zfar_ = std::max(radius, kZNear + 1.f);
         c.fov_ = fov;
         c.strength_ = std::min((res - fadeLow) / (fadeHigh - fadeLow), 1.f);
@@ -209,8 +205,7 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
             const CubeFace& fc = kCubeFaces[face];
             const v3f forward{fc.forward_[0], fc.forward_[1], fc.forward_[2]};
             const v3f up{fc.up_[0], fc.up_[1], fc.up_[2]};
-            // The shader picks the face from the receiver's own position, which
-            // is visible: a face outside the frustum is never read.
+            // The shader picks the face from a visible receiver: never this one.
             if (!pyramidOutside(frustum, eye, forward, up, 1.f, c->zfar_))
                 c->views_[c->viewCount_++] = {forward, up, c->firstEntry_ + face};
         }
@@ -229,6 +224,49 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
             c->views_[c->viewCount_++] = {forward, up, c->firstEntry_};
     }
 
+    for (auto [e, rect, trans] : reg.view<RectLight_C, Transform_C>().each())
+    {
+        if (!rect.castShadows_)
+            continue;
+        const transform xf = trans.world();
+        const v3f centre = xf.translation();
+        const v3f forward = -xf.linear().col(2).normalized();
+        const v3f up = xf.linear().col(1).normalized();
+        const float halfDiagonal = 0.5f * std::hypot(rect.width_, rect.height_);
+        if (sphereOutside(frustum, centre, rect.radius_ + halfDiagonal))
+            continue;
+
+        if (rect.spreadAngle_ <= RectShadowSingleViewMaxAngle)
+        {
+            // Apex behind the face, so the near plane is the face itself.
+            const float spread = std::max(rect.spreadAngle_, 0.01f);
+            const float tanHalf = std::tan(spread * 0.5f);
+            const float apex = 0.5f * std::max(rect.width_, rect.height_) / tanHalf;
+            const v3f eye = centre - forward * apex;
+            Candidate* c = consider(e, eye, apex + rect.radius_, spread, 1);
+            if (!c)
+                continue;
+            c->znear_ = std::max(apex, kZNear);
+            if (!pyramidOutside(frustum, eye, forward, up, tanHalf, c->zfar_))
+                c->views_[c->viewCount_++] = {forward, up, c->firstEntry_};
+            continue;
+        }
+
+        Candidate* c = consider(e, centre, rect.radius_ + halfDiagonal,
+                                std::numbers::pi_v<float> * 0.5f,
+                                static_cast<uint32_t>(kCubeFaces.size()));
+        if (!c)
+            continue;
+        for (uint32_t face = 0; face < kCubeFaces.size(); ++face)
+        {
+            const CubeFace& fc = kCubeFaces[face];
+            const v3f faceForward{fc.forward_[0], fc.forward_[1], fc.forward_[2]};
+            const v3f faceUp{fc.up_[0], fc.up_[1], fc.up_[2]};
+            if (!pyramidOutside(frustum, centre, faceForward, faceUp, 1.f, c->zfar_))
+                c->views_[c->viewCount_++] = {faceForward, faceUp, c->firstEntry_ + face};
+        }
+    }
+
     std::ranges::stable_sort(candidates_, std::ranges::greater{}, &Candidate::priority_);
     constexpr uint64_t budget = uint64_t{LocalAtlasSize} * LocalAtlasSize;
     auto cost = [](const Candidate& c) { return uint64_t{c.viewTotal_} * c.size_ * c.size_; };
@@ -236,9 +274,6 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
     for (const Candidate& c : candidates_)
         total += cost(c);
 
-    // Over budget, the largest tiles halve first, the least important light
-    // among them first: a shadow is only lost once every light is down to
-    // LocalTileMin.
     while (total > budget)
     {
         Candidate* victim = nullptr;
@@ -256,7 +291,7 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
         nextHistory_[c.entity_] = {c.requested_, c.size_ < c.requested_};
     std::swap(history_, nextHistory_);
 
-    // Still over: skipped rather than ending the list, the ones after may fit.
+    // Skipped, not the end: the ones after may still fit.
     uint64_t used = 0;
     for (const Candidate& c : candidates_)
     {
@@ -267,9 +302,8 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
             tiles_.push_back({&c, &c.views_[v]});
     }
 
-    // Largest first, each tile at the running total of those before it, read
-    // as a Morton code: the total is a multiple of the tile's own area, so the
-    // tile lands on an aligned square and the budget is exactly what fits.
+    // Largest first, the running area read as a Morton code: always a multiple
+    // of the tile's own area, so each lands on an aligned square, no gaps.
     std::ranges::stable_sort(tiles_, std::ranges::greater{},
                              [](const Tile& t) { return t.light_->size_; });
     uint32_t offset = 0;
@@ -281,7 +315,7 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
 
         ShadowView& view = views.emplace_back();
         view.viewProj_ =
-            axisViewProj(c.eye_, t.view_->forward_, t.view_->up_, fov, kZNear, c.zfar_);
+            axisViewProj(c.eye_, t.view_->forward_, t.view_->up_, fov, c.znear_, c.zfar_);
         view.texelWorld_ = 2.f * std::tan(fov * 0.5f) / static_cast<float>(c.size_);
         view.x_ = evenBits(offset) * LocalTileMin;
         view.y_ = evenBits(offset >> 1) * LocalTileMin;

@@ -296,7 +296,6 @@ void Renderer::render()
     // Alpha 0 when transparent: the desktop shows through where nothing is drawn
     targets.clearColor_ = {{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
 
-    // The scene needs to opens and closes its own scopes.
     const bool sceneCleared = sceneRecord_ && sceneRecord_(cmd, frame, targets);
 
     if (imguiFrameOpen_ || !sceneCleared)

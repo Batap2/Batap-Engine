@@ -33,9 +33,7 @@ void circle(DebugDraw& dbg, const v3f& center, const v3f& u, const v3f& v, float
     }
 }
 
-// The cone of a spot as the shading loop sees it: every point within
-// radius_ of the light and within half the angle of its axis, capped by
-// the sphere.
+// As the shading sees it: the cone is capped by the radius_ sphere.
 void cone(DebugDraw& dbg, const v3f& apex, const v3f& axis, const v3f& u, const v3f& v,
           float range, float fullAngle, const col3& color, bool spokes)
 {
@@ -108,8 +106,6 @@ void drawLightGizmos(World& world, const Selection& selection)
             rectangle(dbg, pos, halfU, halfV, color);
             dbg.arrow(pos, pos + fwd * std::max(rect->width_, rect->height_) * 0.5f, color);
 
-            // The volume the barn doors let through, out to the range: the
-            // face grown by range * tan(half spread) along each axis.
             const float half = rect->spreadAngle_ * 0.5f;
             if (half < std::numbers::pi_v<float> * 0.5f - 1e-3f)
             {

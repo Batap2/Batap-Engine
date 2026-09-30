@@ -58,8 +58,7 @@ VulkanContext::VulkanContext()
 
     VkPhysicalDeviceFeatures features10{};
     features10.samplerAnisotropy = VK_TRUE;
-    // For the shadow pass: a caster in front of a shadow view's near plane must
-    // flatten onto it rather than be clipped away, or its shadow vanishes.
+    // Shadow pass: a caster before the near plane flattens onto it, not clipped.
     features10.depthClamp = VK_TRUE;
 
     auto selection = vkb::PhysicalDeviceSelector(vkbInstance)

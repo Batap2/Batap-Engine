@@ -258,9 +258,7 @@ Field field(std::string name, FieldMeta m = {})
     return Field{std::move(name), fieldTypeFor<M>(), detail::memberOffset<Member>(), m};
 }
 
-// Specialized by a component ruled scene-wide (FarPointLight_C): the reason e
-// is refused, worded for the user, or empty. Must not log — refused() does, and
-// the editor shows the same words as a toast.
+// Worded for the user: the editor shows it as a toast. Must not log, refused() does.
 template <class T>
 struct ComponentAdmission
 {
@@ -364,8 +362,7 @@ bool registerComponent(std::string_view name, Extra&&... extra)
 // Registers T at static init. Place after the struct, in its header —
 // `inline` collapses the multiple inclusions into one registration.
 // Registration at static init is the point: silence -Wglobal-constructors.
-// Ends on a declaration so the semicolon after the call is not an extra one
-// (-Wextra-semi).
+// The trailing static_assert takes the caller's semicolon (-Wextra-semi).
 #define BATAP_COMPONENT(T, ...)                                              \
     _Pragma("clang diagnostic push")                                         \
     _Pragma("clang diagnostic ignored \"-Wglobal-constructors\"")            \
