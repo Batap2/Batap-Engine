@@ -1,10 +1,12 @@
 #include "Systems/CascadeLight_S.h"
 
+#include "Components/DirectionalLight_C.h"
 #include "Components/FarPointLight_C.h"
 #include "Components/Name_C.h"
 
 #include <iostream>
 #include <string>
+#include <type_traits>
 
 namespace batap
 {
@@ -24,11 +26,15 @@ entt::entity holderOtherThan(const entt::registry& reg, entt::entity e)
     for (entt::entity other : reg.view<const FarPointLight_C>())
         if (other != e)
             return other;
+    for (entt::entity other : reg.view<const DirectionalLight_C>())
+        if (other != e)
+            return other;
     return entt::null;
 }
 }  // namespace
 
-std::string CascadeLight_S::refusal(const entt::registry& reg, entt::entity e, std::string_view type)
+std::string CascadeLight_S::refusal(const entt::registry& reg, entt::entity e,
+                                    std::string_view type)
 {
     const entt::entity holder = holderOtherThan(reg, e);
     if (holder == entt::null)
@@ -45,25 +51,31 @@ entt::entity CascadeLight_S::find(const entt::registry& reg)
 
 void CascadeLight_S::connectHooks(entt::registry& reg)
 {
-    reg.on_construct<FarPointLight_C>().connect<&CascadeLight_S::onConstruct>(*this);
+    reg.on_construct<FarPointLight_C>().connect<&CascadeLight_S::onConstruct<FarPointLight_C>>(
+        *this);
+    reg.on_construct<DirectionalLight_C>()
+        .connect<&CascadeLight_S::onConstruct<DirectionalLight_C>>(*this);
 }
 
+template <class Light>
 void CascadeLight_S::onConstruct(entt::registry& reg, entt::entity e)
 {
     const entt::entity holder = holderOtherThan(reg, e);
     if (holder == entt::null)
         return;
-    std::cerr << "[CascadeLight] FarPointLight_C emplaced on " << describe(reg, e)
+    const char* type = std::is_same_v<Light, FarPointLight_C> ? "FarPointLight_C"
+                                                              : "DirectionalLight_C";
+    std::cerr << "[CascadeLight] " << type << " emplaced on " << describe(reg, e)
               << " without going through the engine's checks, while " << describe(reg, holder)
               << " already drives the cascades: removed at the start of the next frame.\n";
-    refused_.push_back(e);
+    refused_.push_back({e, [](entt::registry& r, entt::entity x) { r.remove<Light>(x); }});
 }
 
 void CascadeLight_S::enforce(entt::registry& reg)
 {
-    for (entt::entity e : refused_)
-        if (reg.valid(e))
-            reg.remove<FarPointLight_C>(e);
+    for (const Refused& r : refused_)
+        if (reg.valid(r.entity_))
+            r.remove_(reg, r.entity_);
     refused_.clear();
 }
 }  // namespace batap

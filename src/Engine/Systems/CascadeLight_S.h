@@ -21,8 +21,14 @@ struct CascadeLight_S
     void enforce(entt::registry& reg);
 
    private:
+    template <class Light>
     void onConstruct(entt::registry& reg, entt::entity e);
 
-    std::vector<entt::entity> refused_;
+    struct Refused
+    {
+        entt::entity entity_;
+        void (*remove_)(entt::registry&, entt::entity);
+    };
+    std::vector<Refused> refused_;
 };
 }  // namespace batap

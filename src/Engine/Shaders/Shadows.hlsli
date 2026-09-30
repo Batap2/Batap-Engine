@@ -196,15 +196,16 @@ uint CascadeNextAt(float3 P, uint firstView, uint c)
     return c + 1;
 }
 
-// A cascade is a perspective view from the light too: its texel grows with the
-// distance to the light, like a local view's.
-float CascadeVisibility(float3 P, float3 N, float3 L, float dL, uint firstView)
+// Under a positional light a cascade is a perspective view from it too: its
+// texel grows with dTexel, the distance to the light, like a local view's.
+// Under a directional light the texel is in metres, and dTexel is 1.
+float CascadeVisibility(float3 P, float3 N, float3 L, float dTexel, uint firstView)
 {
     uint c = CascadeIndexAt(P, firstView);
     if (c >= ShadowCascadeCount)
         return 1.0f;
     ShadowGPUData sh = ShadowBuffer[firstView + c];
-    float vis = SampleShadowView(sh, P, N, L, sh.texelWorld_ * dL);
+    float vis = SampleShadowView(sh, P, N, L, sh.texelWorld_ * dTexel);
 
     float t = CascadeFadeAt(P, sh);
     if (t > 0.0f)
@@ -213,7 +214,7 @@ float CascadeVisibility(float3 P, float3 N, float3 L, float dL, uint firstView)
         if (n < ShadowCascadeCount)
         {
             ShadowGPUData next = ShadowBuffer[firstView + n];
-            vis = lerp(vis, SampleShadowView(next, P, N, L, next.texelWorld_ * dL), t);
+            vis = lerp(vis, SampleShadowView(next, P, N, L, next.texelWorld_ * dTexel), t);
         }
     }
     return vis;

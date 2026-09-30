@@ -22,6 +22,7 @@ struct ShadowFitInput
     float aspect_ = 1.f;
     float range_ = 0.f;
     v3f lightPos_{v3f::Zero()};
+    v3f lightDir_{v3f::Zero()};
     uint32_t count_ = ShadowCascadeCount;
 };
 
@@ -31,6 +32,10 @@ struct ShadowFitInput
 // lattice fixed around the light. The lattice's axis and its step change on
 // coarse grids, so the rasterisation holds still between two changes, and a
 // change re-lays the texels without moving the shadow.
+//
+// Under a directional light, the view is orthographic along one fixed
+// direction, and the window moves by whole texels on all three axes of the
+// light's frame: the grid is pinned to the world, and nothing ever re-lays it.
 struct CascadeSphere
 {
     v3f center_{v3f::Zero()};
@@ -39,16 +44,20 @@ struct CascadeSphere
     float near_ = 0.f;
     float far_ = 0.f;
     // Step of the lattice on the gnomonic plane at unit distance from the
-    // light: a texel is texelWorld_ * d wide at distance d from it.
+    // light: a texel is texelWorld_ * d wide at distance d from it. Under a
+    // directional light, the texel itself, in metres.
     float texelWorld_ = 0.f;
-    float lightDistance_ = 0.f;  // in radii
+    float lightDistance_ = 0.f;  // in radii; infinite for a directional light
+    bool directional_ = false;
     // World to light rotation, rows x, y, then the lattice axis pointing at
     // the light: the view looks down -z, from the light.
     m3f lightFrame_{m3f::Identity()};
     v3f lightPos_{v3f::Zero()};
     // The window's centre on the gnomonic plane, a whole number of steps, and
     // the depth range along the axis, from the light. Double: at a star's
-    // distance a float step is longer than the sphere.
+    // distance a float step is longer than the sphere. Under a directional
+    // light, the window's centre in the light's frame, in metres, and the
+    // depth range as z in that frame: depthNear_ the higher, toward the light.
     v2d window_{v2d::Zero()};
     double depthNear_ = 0.0;
     double depthFar_ = 0.0;

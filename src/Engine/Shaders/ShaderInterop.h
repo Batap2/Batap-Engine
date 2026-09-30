@@ -86,7 +86,7 @@ enum LightType : uint
 {
     LightPoint = 0,
     LightSpot = 1,
-    LightDirectional = 2,  // step 11b
+    LightDirectional = 2,  // shines along direction_; takes the cascades
     LightRect = 3,         // step 15
     LightFarPoint = 4,     // shaded as a point light; takes the cascades
 };
@@ -144,7 +144,8 @@ struct ShadowGPUData
     // the light fades out with distance.
     float strength_;
     // Texel world size per unit of distance from the light: every view, local
-    // or cascade, is a perspective one from its light.
+    // or cascade, is a perspective one from its light — except a directional
+    // light's cascades, orthographic, whose texel is in metres.
     float texelWorld_;
     // Bindless slot of the atlas image this view lives in.
     uint atlasTexture_;

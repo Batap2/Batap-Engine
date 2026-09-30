@@ -107,8 +107,12 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
         return 1.0f;
 
     // The floor keeps smoothstep defined when sourceRadius_ is 0, where the
-    // transition collapses to a hard step.
-    float rL = max(asin(clamp(light.sourceRadius_ / max(dL, 1e-4f), 0.0f, 1.0f)), 1e-5f);
+    // transition collapses to a hard step. A directional light carries its
+    // angular radius already.
+    bool directional = light.type_ == LightDirectional;
+    float rL = directional ? light.sourceRadius_
+                           : asin(clamp(light.sourceRadius_ / max(dL, 1e-4f), 0.0f, 1.0f));
+    rL = max(rL, 1e-5f);
 
     float vis = 1.0f;
 
@@ -119,7 +123,7 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
     else if (family == ShadowLocalCube)
         vis *= ShadowMapVisibility(P, N, L, dL, firstView + CubeFaceIndex(-L));
     else if (family == ShadowCascadeFamily)
-        vis *= CascadeVisibility(P, N, L, dL, firstView);
+        vis *= CascadeVisibility(P, N, L, directional ? 1.0f : dL, firstView);
 
     [loop]
     for (uint i = 0; i < g_draw.sphereOccluderCount_; ++i)
@@ -205,13 +209,25 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     {
         LightGPUData light = LightBuffer[lightIndex];
 
-        float3 toLight = light.pos_ - s.posWS_;
-        float  dist    = length(toLight);
-
-        if (dist > light.radius_ || dist <= 0.0001f)
-            continue;
-
-        float3 L = toLight / dist;
+        // A directional light has no position and no range: radius_ is 0 for
+        // it, and it reaches everything.
+        float3 L;
+        float  dist;
+        float  rangeAtt = 1.0f;
+        if (light.type_ == LightDirectional)
+        {
+            L = -light.direction_;
+            dist = 0.0f;
+        }
+        else
+        {
+            float3 toLight = light.pos_ - s.posWS_;
+            dist = length(toLight);
+            if (dist > light.radius_ || dist <= 0.0001f)
+                continue;
+            L = toLight / dist;
+            rangeAtt = pow(saturate(1.0f - dist / light.radius_), max(light.falloff_, 0.0001f));
+        }
 
         float cone = 1.0f;
         if (light.type_ == LightSpot)
@@ -232,9 +248,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
         float3 H = normalize(V + L);
 
-        float rangeAtt   = saturate(1.0f - dist / light.radius_);
-        float attenuation = pow(rangeAtt, max(light.falloff_, 0.0001f)) * light.intensity_;
-        float3 radiance   = light.color_ * attenuation;
+        float3 radiance = light.color_ * (rangeAtt * light.intensity_);
 
         float NdotL = saturate(dot(s.N_, L));
         float NdotH = saturate(dot(s.N_, H));

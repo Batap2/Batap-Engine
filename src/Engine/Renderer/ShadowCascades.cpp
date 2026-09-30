@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace batap
 {
@@ -51,6 +52,28 @@ v3d quantizedAxis(const v3d& a)
             q[i] = std::round(q[i] / kAxisStep) * kAxisStep;
     return q.normalized();
 }
+
+// One direction for every cascade and every frame: the frame never turns, and
+// the window, rounded to the texel on its three axes, only ever moves the grid
+// by whole texels. The window holds the sphere plus the half texel its centre
+// is rounded by.
+void fitDirectional(CascadeSphere& s, const m3f& frame, double radius)
+{
+    const double halfTile = static_cast<double>(CascadeTileSize) * 0.5;
+    const float texel = static_cast<float>(radius / (halfTile - 0.5));
+    const double texelD = static_cast<double>(texel);
+    const v3d p = frame.cast<double>() * s.center_.cast<double>();
+    const v3d snapped = (p / texelD).array().round().matrix() * texelD;
+
+    s.radius_ = static_cast<float>(radius);
+    s.texelWorld_ = texel;
+    s.lightDistance_ = std::numeric_limits<float>::infinity();
+    s.directional_ = true;
+    s.lightFrame_ = frame;
+    s.window_ = snapped.head<2>();
+    s.depthNear_ = snapped.z() + radius * kDepthMargin;
+    s.depthFar_ = snapped.z() - radius * kDepthMargin;
+}
 }  // namespace
 
 ShadowFit fitShadowCascades(const ShadowFitInput& in)
@@ -79,6 +102,10 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
     const double betaMax = std::atan(kAxisStep / std::sqrt(2.0));
     const double halfTile = static_cast<double>(CascadeTileSize) * 0.5;
 
+    const bool directional = in.lightDir_ != v3f::Zero();
+    const m3f sunFrame = directional ? lightFrame(v3f{-in.lightDir_.normalized()})
+                                     : m3f{m3f::Identity()};
+
     float near = kSplitNear;
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -97,6 +124,12 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
         s.near_ = near;
         s.far_ = far;
         near = far;
+
+        if (directional)
+        {
+            fitDirectional(s, sunFrame, static_cast<double>(r));
+            continue;
+        }
 
         // Everything measured from the light is in double: at a star's
         // distance, a float step is longer than the sphere.
@@ -141,13 +174,30 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
 m4d cascadeViewProjExact(const CascadeSphere& s)
 {
     const m3d frame = s.lightFrame_.cast<double>();
+    const double halfWidth = static_cast<double>(s.texelWorld_) * CascadeTileSize * 0.5;
+
+    if (s.directional_)
+    {
+        // Orthographic: x = (p - window) / halfWidth in the light's frame, the
+        // sphere's side facing the light at depth 0, the far side at 1.
+        const double depthSpan = s.depthNear_ - s.depthFar_;
+        m4d vp = m4d::Zero();
+        vp.block<1, 3>(0, 0) = frame.row(0) / halfWidth;
+        vp(0, 3) = -s.window_.x() / halfWidth;
+        vp.block<1, 3>(1, 0) = frame.row(1) / halfWidth;
+        vp(1, 3) = -s.window_.y() / halfWidth;
+        vp.block<1, 3>(2, 0) = -frame.row(2) / depthSpan;
+        vp(2, 3) = s.depthNear_ / depthSpan;
+        vp(3, 3) = 1.0;
+        return vp;
+    }
+
     m4d view = m4d::Identity();
     view.block<3, 3>(0, 0) = frame;
     view.block<3, 1>(0, 3) = -(frame * s.lightPos_.cast<double>());
 
     // Off-centre perspective: x = (u - window) / halfWidth with u = x / depth,
     // the sphere's side facing the light at depth 0, the far side at 1.
-    const double halfWidth = static_cast<double>(s.texelWorld_) * CascadeTileSize * 0.5;
     const double nf = 1.0 / (s.depthNear_ - s.depthFar_);
     m4d proj = m4d::Zero();
     proj(0, 0) = 1.0 / halfWidth;

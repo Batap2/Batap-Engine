@@ -28,6 +28,7 @@
 #include "Assets/Mesh.h"
 #include "Assets/Texture.h"
 #include "Components/Camera_C.h"
+#include "Components/DirectionalLight_C.h"
 #include "Components/FarPointLight_C.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
@@ -36,13 +37,14 @@
 #include "Components/Skybox_C.h"
 #include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
-#include "Flatten.h"
 #include "EigenTypes.h"
 #include "Engine.h"
+#include "Flatten.h"
 #include "Handles.h"
 #include "Reflection/ComponentRegistry.h"
 #include "Renderer/SkyIrradiance.h"
 #include "Shaders/ShaderInterop.h"
+
 
 #include "entt/entt.hpp"
 
@@ -51,6 +53,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <numbers>
 #include <span>
 #include <type_traits>
 
@@ -191,8 +194,9 @@ struct CameraInstance
 struct LightInstance
 {
     using GPUData = LightGPUData;
-    using Markers = TypeList<PointLight_C, SpotLight_C, FarPointLight_C>;
-    using Uses = TypeList<PointLight_C, SpotLight_C, FarPointLight_C, Transform_C>;
+    using Markers = TypeList<PointLight_C, SpotLight_C, FarPointLight_C, DirectionalLight_C>;
+    using Uses =
+        TypeList<PointLight_C, SpotLight_C, FarPointLight_C, DirectionalLight_C, Transform_C>;
     static constexpr uint32_t Binding = LightsBinding;
     static constexpr size_t InitialCapacity = 32;
     static constexpr uint32_t DrawPush::* CountField = &DrawPush::lightCount_;
@@ -224,20 +228,35 @@ struct LightInstance
             fillLightCommon(*far, ShadowCascadeFamily, in.gpuIndex, out);
             out.sourceRadius_ = far->sourceRadius_;
         }
+        else if (const auto* sun = in.get<DirectionalLight_C>())
+        {
+            out.type_ = LightDirectional;
+            flatten(out.color_, sun->color_);
+            out.intensity_ = sun->intensity_;
+            out.shadowIndex_ = shadowIndexFor(sun->castShadows_, ShadowCascadeFamily, in.gpuIndex);
+            out.sourceRadius_ = sun->sourceAngle_ * 0.5f * (std::numbers::pi_v<float> / 180.f);
+            if (trans)
+                flatten(out.direction_, -trans->world().linear().col(2).normalized());
+        }
     }
 
    private:
     template <class Light>
     static void fillLightCommon(const Light& light, ShadowFamily family, uint32_t gpuIndex,
-                                     GPUData& out)
+                                GPUData& out)
     {
         flatten(out.color_, light.color_);
         out.intensity_ = light.intensity_;
         out.radius_ = light.radius_;
         out.falloff_ = light.falloff_;
-        out.shadowIndex_ = light.castShadows_ ? ((gpuIndex * MaxShadowViewsPerLight) |
-                                                 (uint32_t(family) << ShadowFamilyShift))
-                                              : InvalidGPUIndex;
+        out.shadowIndex_ = shadowIndexFor(light.castShadows_, family, gpuIndex);
+    }
+
+    static uint32_t shadowIndexFor(bool castShadows, ShadowFamily family, uint32_t gpuIndex)
+    {
+        return castShadows
+                   ? ((gpuIndex * MaxShadowViewsPerLight) | (uint32_t(family) << ShadowFamilyShift))
+                   : InvalidGPUIndex;
     }
 };
 
@@ -332,8 +351,8 @@ struct ShadowSphereInstance
 
 // ----------- GPUInstances : the one list the plumbing reads -----------------
 
-using GPUInstances = TypeList<StaticMeshInstance, CameraInstance, LightInstance,
-                              SkyboxInstance, ShadowSphereInstance>;
+using GPUInstances = TypeList<StaticMeshInstance, CameraInstance, LightInstance, SkyboxInstance,
+                              ShadowSphereInstance>;
 
 // What the plumbing assumes of an instance, checked where it is declared
 // rather than deep in a pool instantiation.

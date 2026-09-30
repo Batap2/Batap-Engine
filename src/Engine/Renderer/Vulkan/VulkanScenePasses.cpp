@@ -6,6 +6,7 @@
 
 #include "Assets/AssetManager.h"
 #include "Components/Camera_C.h"
+#include "Components/DirectionalLight_C.h"
 #include "Components/FarPointLight_C.h"
 #include "Components/Name_C.h"
 #include "Components/Transform_C.h"
@@ -270,8 +271,10 @@ void ScenePasses::fitCascades(entt::registry& reg, GPUInstanceManager& instances
     cascadeViews_.clear();
     const entt::entity light = CascadeLight_S::find(reg);
     const auto* far = light == entt::null ? nullptr : reg.try_get<FarPointLight_C>(light);
+    const auto* sun = light == entt::null ? nullptr : reg.try_get<DirectionalLight_C>(light);
     const auto* lightTrans = light == entt::null ? nullptr : reg.try_get<Transform_C>(light);
-    if (!far || !far->castShadows_ || !lightTrans || frameSize.y() <= 0)
+    const bool casts = (far && far->castShadows_) || (sun && sun->castShadows_);
+    if (!casts || !lightTrans || frameSize.y() <= 0)
         return;
     const GPUInstanceID id = instances.pool<LightInstance>().getGPUIndex(EntityHandle{&reg, light});
     if (!id.valid())
@@ -285,6 +288,8 @@ void ScenePasses::fitCascades(entt::registry& reg, GPUInstanceManager& instances
     in.aspect_ = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
     in.range_ = CascadeRange;
     in.lightPos_ = lightTrans->world().translation();
+    if (sun)
+        in.lightDir_ = -lightTrans->world().linear().col(2).normalized();
     const ShadowFit fit = fitShadowCascades(in);
 
     uint32_t tooClose = 0;
@@ -314,8 +319,8 @@ void ScenePasses::fitCascades(entt::registry& reg, GPUInstanceManager& instances
                   << CascadeLightMinRadii << " radii of a cascade for its shadows to hold.";
         for (uint32_t c = 0; c < fit.count_; ++c)
             if (tooClose & (1u << c))
-                std::cerr << " Cascade " << c << ": " << fit.cascades_[c].lightDistance_
-                          << " radii" << (fit.cascades_[c].radius_ <= 0.f ? ", inside, off." : ".");
+                std::cerr << " Cascade " << c << ": " << fit.cascades_[c].lightDistance_ << " radii"
+                          << (fit.cascades_[c].radius_ <= 0.f ? ", inside, off." : ".");
         std::cerr << "\n";
     }
     warnedCascades_ = tooClose;
@@ -338,8 +343,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
 
     localShadowsAlloc_.allocate(*reg, *instanceM, args.camera_, ctx.getFrameSize(), shadowViews_);
     fitCascades(*reg, *instanceM, args.camera_, ctx.getFrameSize());
-    const size_t shadowEntries =
-        instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
+    const size_t shadowEntries = instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
     shadow_.reserve(shadowEntries);
 
     writeFrameSet(frame, args, ctx);

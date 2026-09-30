@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components/Camera_C.h"
+#include "Components/DirectionalLight_C.h"
 #include "Components/FarPointLight_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
@@ -64,6 +65,8 @@ inline constexpr Spawnable Spawnables[] = {
     spawnable<PointLight_C, Transform_C>("pointLight", "Point Light", ICON_MD_LIGHTBULB),
     spawnable<SpotLight_C, Transform_C>("spotLight", "Spot Light", ICON_MD_FLASHLIGHT_ON),
     spawnable<FarPointLight_C, Transform_C>("farPointLight", "Far Point Light", ICON_MD_WB_SUNNY),
+    spawnable<DirectionalLight_C, Transform_C>("directionalLight", "Directional Light",
+                                               ICON_MD_LIGHT_MODE),
     spawnable<Skybox_C>("skybox", "Skybox", ICON_MD_PANORAMA),
 };
 
