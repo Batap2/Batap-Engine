@@ -113,6 +113,7 @@ struct EntityHandle
     void setVelocity(const v3f& v);
     v3f angularVelocity() const;
     void setAngularVelocity(const v3f& v);
+    v3f angularMomentum() const;
 };
 }  // namespace batap
 

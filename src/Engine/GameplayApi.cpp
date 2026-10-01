@@ -242,6 +242,32 @@ void EntityHandle::setAngularVelocity(const v3f& v)
         b.bodies_->SetAngularVelocity(b.id_, toJolt(v));
 }
 
+v3f EntityHandle::angularMomentum() const
+{
+    const BodyRef b = bodyOf(*this);
+    if (!b)
+        return v3f::Zero();
+
+    JPH::BodyLockRead lock(worldOf(*this).physics().system().GetBodyLockInterface(), b.id_);
+    if (!lock.Succeeded() || !lock.GetBody().IsDynamic())
+        return v3f::Zero();
+    const JPH::Body& body = lock.GetBody();
+    const JPH::MotionProperties* mp = body.GetMotionProperties();
+
+    // Jolt keeps the inverse inertia as a diagonal D in a frame R of body
+    // space (I_body^-1 = R D R^T): L = Q R D^-1 R^T Q^T w, where the inverse
+    // of D is three divisions. A zero on the diagonal is an axis locked
+    // against rotation, which carries no momentum.
+    const JPH::Quat frame = body.GetRotation() * mp->GetInertiaRotation();
+    const JPH::Vec3 wd = frame.Conjugated() * body.GetAngularVelocity();
+    const JPH::Vec3 invD = mp->GetInverseInertiaDiagonal();
+    JPH::Vec3 ld = JPH::Vec3::sZero();
+    for (JPH::uint i = 0; i < 3; ++i)
+        if (invD[i] > 0.f)
+            ld.SetComponent(i, wd[i] / invD[i]);
+    return toEigen(frame * ld);
+}
+
 EntityHandle World::spawn(std::string_view spawnableId)
 {
     return spawn(spawnableFor(spawnableId));
