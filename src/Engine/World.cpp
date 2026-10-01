@@ -147,6 +147,7 @@ void World::update(Game& game)
     time_.accumulator_ += std::min(dt, 0.25f);
     while (time_.accumulator_ >= time_.fixedDt_)
     {
+        time_.simTime_ += static_cast<double>(time_.fixedDt_);
         game.fixedUpdate(*this, time_.fixedDt_);
         systems_->physics_->fixedUpdate(*this, time_.fixedDt_);
         systems_->characters_->fixedUpdate(*this, time_.fixedDt_);
@@ -213,6 +214,7 @@ void World::resetScene()
     spatialIndex_->markDirty();
 
     physics_->clear();
+    time_.simTime_ = 0.0;
 }
 
 bool World::loadScene(const std::string& path)

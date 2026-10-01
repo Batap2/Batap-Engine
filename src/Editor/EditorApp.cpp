@@ -37,6 +37,9 @@ int runEditor(const EditorConfig& cfg)
             else if (args[i] == "--select")
                 app.uiPanels_.selectByName(world, args[i + 1]);
         }
+        for (const auto& arg : args)
+            if (arg == "--play")
+                app.startPlay();
 
         while (Frame frame = engine.nextFrame())
             app.update();

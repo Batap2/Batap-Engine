@@ -33,6 +33,7 @@ struct Time
     bool paused_ = false;
     float fixedDt_ = 1.f / 60.f;
     float accumulator_ = 0.f;
+    double simTime_ = 0.0;
 };
 
 struct World

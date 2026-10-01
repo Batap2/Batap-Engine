@@ -232,8 +232,9 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
 
         {
             const ImGuiIO& io = ImGui::GetIO();
-            char stats[32];
-            ImFormatString(stats, sizeof(stats), "%d fps   %.2f ms", static_cast<int>(io.Framerate),
+            char stats[64];
+            ImFormatString(stats, sizeof(stats), "t %.1f s   %d fps   %.2f ms",
+                           app.world_->time_.simTime_, static_cast<int>(io.Framerate),
                            static_cast<double>(io.DeltaTime) * 1000.0);
 
             ui::ScopedFont small{ui::smallFont};

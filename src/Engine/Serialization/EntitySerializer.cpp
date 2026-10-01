@@ -90,6 +90,7 @@ static nlohmann::json sceneToJson(World& world, const Engine& ctx)
     }
 
     nlohmann::json root;
+    root["time"] = world.time_.simTime_;
     std::unordered_set<std::string> usedTypes;
     auto& entitiesJ = root["entities"] = nlohmann::json::array();
 
@@ -262,6 +263,7 @@ void EntitySerializer::clearSceneAndLoad(World& world, const Engine& ctx, const 
 
     clearScene(world);
     populateWorld(world, ctx, root);
+    world.time_.simTime_ = root.value("time", 0.0);
 }
 
 std::string EntitySerializer::toBuffer(World& world, const Engine& ctx)
@@ -284,6 +286,7 @@ void EntitySerializer::clearSceneAndLoadBuffer(World& world, const Engine& ctx,
 
     clearScene(world);
     populateWorld(world, ctx, root);
+    world.time_.simTime_ = root.value("time", 0.0);
 }
 
 void EntitySerializer::instantiate(World& world, const Engine& ctx, const std::string& path)
