@@ -8,6 +8,7 @@
 #include <shellapi.h>  // CommandLineToArgvW
 #include <windowsx.h>  // GET_X_LPARAM
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <chrono>
@@ -15,6 +16,7 @@
 #include <iostream>
 #include <span>
 #include <string>
+#include <vector>
 #if defined(_DEBUG)
 #include <cstdio>
 #endif
@@ -429,6 +431,85 @@ void platformInit()
     ::SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 }
 
+namespace
+{
+BOOL CALLBACK collectMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM user)
+{
+    MONITORINFO info{};
+    info.cbSize = sizeof(info);
+    if (!::GetMonitorInfoW(monitor, &info))
+        return TRUE;
+
+    MonitorInfo m;
+    m.x = info.rcMonitor.left;
+    m.y = info.rcMonitor.top;
+    m.width = info.rcMonitor.right - info.rcMonitor.left;
+    m.height = info.rcMonitor.bottom - info.rcMonitor.top;
+    m.workX = info.rcWork.left;
+    m.workY = info.rcWork.top;
+    m.workWidth = info.rcWork.right - info.rcWork.left;
+    m.workHeight = info.rcWork.bottom - info.rcWork.top;
+    m.primary = (info.dwFlags & MONITORINFOF_PRIMARY) != 0;
+    reinterpret_cast<std::vector<MonitorInfo>*>(user)->push_back(m);
+    return TRUE;
+}
+
+// The work area of the chosen monitor, the primary's when the index is out
+// of range.
+MonitorInfo monitorOf(int screen)
+{
+    const std::vector<MonitorInfo> monitors = platformMonitors();
+    if (monitors.empty())
+    {
+        MonitorInfo whole;
+        whole.workWidth = whole.width = ::GetSystemMetrics(SM_CXSCREEN);
+        whole.workHeight = whole.height = ::GetSystemMetrics(SM_CYSCREEN);
+        whole.primary = true;
+        return whole;
+    }
+    const size_t index = screen >= 0 && static_cast<size_t>(screen) < monitors.size()
+                             ? static_cast<size_t>(screen)
+                             : 0u;
+    return monitors[index];
+}
+
+// Top-left corner that centres a window of that size on the monitor's work
+// area, kept inside it when the window is larger.
+POINT centredOn(const MonitorInfo& m, int width, int height)
+{
+    return POINT{m.workX + std::max(0, (m.workWidth - width) / 2),
+                 m.workY + std::max(0, (m.workHeight - height) / 2)};
+}
+}  // namespace
+
+std::vector<MonitorInfo> platformMonitors()
+{
+    std::vector<MonitorInfo> monitors;
+    ::EnumDisplayMonitors(nullptr, nullptr, &collectMonitor, reinterpret_cast<LPARAM>(&monitors));
+    std::stable_partition(monitors.begin(), monitors.end(),
+                          [](const MonitorInfo& m) { return m.primary; });
+    return monitors;
+}
+
+void platformMoveWindowToMonitor(void* nativeHandle, int screen)
+{
+    HWND hwnd = static_cast<HWND>(nativeHandle);
+    // A maximised window is restored for the move and maximised again on its
+    // new monitor; WM_SIZE in the middle of a frame is fine since the renderer
+    // only retires its targets on a resize.
+    const bool maximized = platformIsWindowMaximized(nativeHandle);
+    if (maximized)
+        ::ShowWindow(hwnd, SW_RESTORE);
+
+    RECT window{};
+    ::GetWindowRect(hwnd, &window);
+    const POINT at = centredOn(monitorOf(screen), window.right - window.left, window.bottom - window.top);
+    ::SetWindowPos(hwnd, nullptr, at.x, at.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+    if (maximized)
+        ::ShowWindow(hwnd, SW_MAXIMIZE);
+}
+
 void* platformCreateWindow(const WindowDesc& desc)
 {
     HINSTANCE hInst = ::GetModuleHandleW(nullptr);
@@ -450,10 +531,12 @@ void* platformCreateWindow(const WindowDesc& desc)
     const int windowWidth  = windowRect.right - windowRect.left;
     const int windowHeight = windowRect.bottom - windowRect.top;
 
-    const int screenWidth  = ::GetSystemMetrics(SM_CXSCREEN);
-    const int screenHeight = ::GetSystemMetrics(SM_CYSCREEN);
-    const int windowX      = std::max(0, (screenWidth - windowWidth) / 2);
-    const int windowY      = std::max(0, (screenHeight - windowHeight) / 2);
+    // Centred on the monitor the configuration names, the primary by default:
+    // a scripted test run goes to the second one without ever appearing on
+    // the one being used.
+    const POINT at = centredOn(monitorOf(desc.screen), windowWidth, windowHeight);
+    const int windowX = at.x;
+    const int windowY = at.y;
 
     const std::wstring wtitle(desc.title.begin(), desc.title.end());
 
@@ -537,7 +620,7 @@ void platformBindContext(void* nativeHandle, Engine* ctx)
                         reinterpret_cast<LONG_PTR>(ctx));
 }
 
-void platformShowWindow(void* nativeHandle)
+void platformShowWindow(void* nativeHandle, bool activate)
 {
     HWND hwnd = static_cast<HWND>(nativeHandle);
     // The frame was computed before WM_NCCALCSIZE could answer, so ask again:
@@ -545,7 +628,9 @@ void platformShowWindow(void* nativeHandle)
     ::SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                    SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                        SWP_NOACTIVATE);
-    ::ShowWindow(hwnd, SW_SHOW);
+    // Not activated: the focus stays where it was. Posted key messages reach
+    // the window all the same.
+    ::ShowWindow(hwnd, activate ? SW_SHOW : SW_SHOWNOACTIVATE);
 }
 
 void platformSetWindowTitle(void* nativeHandle, const std::string& title)

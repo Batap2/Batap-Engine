@@ -25,6 +25,8 @@ struct WindowDesc
     uint32_t height = 720;
     bool fpsInTitle = false;
     bool transparent = false;
+    int screen = 0;
+    bool focusOnShow = true;
 };
 
 struct EngineSettings

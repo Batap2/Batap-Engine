@@ -2,8 +2,10 @@
 
 #include "App.h"
 #include "Assets/AssetManager.h"
+#include "EditorConfig.h"
 #include "Engine.h"
 #include "InputManager.h"
+#include "UserConfig.h"
 #include "LightGizmos.h"
 #include "Renderer/DebugDraw.h"
 #include "Serialization/EntitySerializer.h"
@@ -29,7 +31,10 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <filesystem>
+#include <string>
+#include <vector>
 
 namespace batap
 {
@@ -155,6 +160,100 @@ void UIPanels::drawWindowButtons(Engine& ctx, float height)
     }
 
     ImGui::PopStyleVar();
+}
+
+// Where each application opens its window and whether it takes the focus,
+// one section per user file: the editor's applies at once and is written to
+// its file, the game's is written to the game's own file for its next launch.
+void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
+{
+    const std::vector<MonitorInfo> monitors = platformMonitors();
+    const bool hasGame = !app.gameExeName_.empty();
+    const std::filesystem::path gameFile =
+        hasGame ? userConfig::path(app.gameExeName_, "config.json") : std::filesystem::path{};
+
+    if (ImGui::IsWindowAppearing())
+    {
+        WindowDesc editor;
+        editorConfig::readWindow(editor);
+        editorSettings_ = {editor.screen, editor.focusOnShow};
+
+        WindowDesc game;
+        if (hasGame)
+            userConfig::readWindow(userConfig::read(gameFile), game);
+        gameSettings_ = {game.screen, game.focusOnShow};
+    }
+
+    const auto screenLabel = [&](int screen)
+    {
+        char buf[64];
+        if (screen >= 0 && static_cast<size_t>(screen) < monitors.size())
+        {
+            const MonitorInfo& m = monitors[static_cast<size_t>(screen)];
+            if (m.primary)
+                std::snprintf(buf, sizeof buf, "Primary  %dx%d", m.width, m.height);
+            else
+                std::snprintf(buf, sizeof buf, "Screen %d  %dx%d", screen + 1, m.width, m.height);
+        }
+        else
+            std::snprintf(buf, sizeof buf, "Screen %d (not connected)", screen + 1);
+        return std::string(buf);
+    };
+
+    // Returns which of the two fields changed: the screen moves the editor's
+    // window at once, the focus flag only matters at the next launch.
+    enum Change
+    {
+        None,
+        Screen,
+        Focus
+    };
+    const auto section = [&](const char* title, const char* id, WindowSettings& s)
+    {
+        Change change = None;
+        ImGui::TextUnformatted(title);
+        ImGui::Indent();
+        ImGui::PushID(id);
+        ImGui::SetNextItemWidth(220.0f);
+        if (ImGui::BeginCombo("Screen", screenLabel(s.screen).c_str()))
+        {
+            for (size_t i = 0; i < monitors.size(); ++i)
+            {
+                const int screen = static_cast<int>(i);
+                if (ImGui::Selectable(screenLabel(screen).c_str(), screen == s.screen) &&
+                    screen != s.screen)
+                {
+                    s.screen = screen;
+                    change = Screen;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::Checkbox("Take the focus at launch", &s.focusOnShow))
+            change = Focus;
+        ImGui::PopID();
+        ImGui::Unindent();
+        return change;
+    };
+
+    const Change editorChange = section("Editor", "editor", editorSettings_);
+    if (editorChange != None)
+    {
+        editorConfig::writeWindow(editorSettings_.screen, editorSettings_.focusOnShow);
+        if (editorChange == Screen)
+            platformMoveWindowToMonitor(ctx.nativeWindow(), editorSettings_.screen);
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    const std::string gameTitle =
+        hasGame ? "Game  (" + app.gameExeName_ + ")" : std::string("Game  (no module loaded)");
+    ImGui::BeginDisabled(!hasGame);
+    if (section(gameTitle.c_str(), "game", gameSettings_) != None && hasGame)
+        userConfig::writeWindow(gameFile, gameSettings_.screen, gameSettings_.focusOnShow);
+    ImGui::EndDisabled();
 }
 
 // A plain window, not BeginMainMenuBar: its padding and safe area fight any
@@ -310,8 +409,21 @@ void UIPanels::drawRail(World& world, App& app, Engine& ctx, float top, float he
     }
 
     const float bottom = ImGui::GetWindowHeight() - kRailIconSize - kRailInset;
+    const float slot = kRailIconSize + kRailInset;
+
+    ImGui::SetCursorPos({kRailInset, bottom - 2.0f * slot});
+    if (ui::IconButton(ICON_MD_SETTINGS, kRailIconSize))
+        ImGui::OpenPopup("##railSettings");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Settings");
+    if (ImGui::BeginPopup("##railSettings"))
+    {
+        drawSettingsMenu(app, ctx);
+        ImGui::EndPopup();
+    }
+
     const bool light = app.theme_ == ui::Theme::Light;
-    ImGui::SetCursorPos({kRailInset, bottom - kRailIconSize - kRailInset});
+    ImGui::SetCursorPos({kRailInset, bottom - slot});
     if (ui::IconButton(light ? ICON_MD_DARK_MODE : ICON_MD_LIGHT_MODE, kRailIconSize))
         app.setTheme(light ? ui::Theme::Dark : ui::Theme::Light);
     if (ImGui::IsItemHovered())

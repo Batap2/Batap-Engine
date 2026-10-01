@@ -69,7 +69,7 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
     // The message procedure may talk to ImGui and the input manager as soon
     // as an Engine is bound — so only now.
     platformBindContext(window_, this);
-    platformShowWindow(window_);
+    platformShowWindow(window_, desc.focusOnShow);
 }
 
 Engine::~Engine()

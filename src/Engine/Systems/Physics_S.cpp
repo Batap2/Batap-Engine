@@ -493,6 +493,39 @@ void Physics_S::interpolate(World& world, float alpha)
         const EntityHandle h{&reg, e};
         transforms.setLocalPosition(h, rb.prevPos_ + (toEigen(pos) - rb.prevPos_) * alpha);
         transforms.setLocalRotation(h, rb.prevRot_.slerp(alpha, toEigen(rot)));
+        interpolated_ = true;
+    }
+}
+
+void Physics_S::restorePoses(World& world)
+{
+    if (!interpolated_)
+        return;
+    interpolated_ = false;
+
+    auto& reg = world.registry_;
+    JPH::BodyInterface& bi = world.physics().bodies();
+    Transform_S& transforms = *world.systems().transforms_;
+
+    auto view = reg.view<RigidBody_C, Transform_C>();
+    for (auto e : view)
+    {
+        const auto& rb = view.get<RigidBody_C>(e);
+        if (rb.motion_ != RigidBody_C::Motion::Dynamic || rb.bodyId_ == kInvalidBodyId ||
+            !rb.prevValid_)
+            continue;
+
+        const JPH::BodyID id{rb.bodyId_};
+        if (!bi.IsActive(id))
+            continue;
+
+        JPH::RVec3 pos;
+        JPH::Quat rot;
+        bi.GetPositionAndRotation(id, pos, rot);
+
+        const EntityHandle h{&reg, e};
+        transforms.setLocalPosition(h, toEigen(pos));
+        transforms.setLocalRotation(h, toEigen(rot));
     }
 }
 

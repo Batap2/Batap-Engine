@@ -20,9 +20,14 @@ struct Physics_S
 
     // After the frame's fixed steps: a dynamic body's transform gets the pose
     // alpha of the way from before the last step to after it, so the render
-    // does not jump once per step. A transform read in a fixedUpdate can thus
-    // lag Jolt by up to one step.
+    // does not jump once per step.
     void interpolate(World& world, float alpha);
+
+    // Before a fixed step: puts Jolt's own pose back into the transforms
+    // interpolate() moved, so a fixedUpdate reads the state the step starts
+    // from. Without it gravity is evaluated up to one step behind, which a
+    // predictor integrating the real scheme cannot reproduce.
+    void restorePoses(World& world);
 
     void drawColliders(World& world);
     bool showColliders_ = false;
@@ -38,5 +43,6 @@ struct Physics_S
 
     std::vector<RawContact> rawContacts_;
     std::vector<ContactEvent> events_;
+    bool interpolated_ = false;
 };
 }  // namespace batap

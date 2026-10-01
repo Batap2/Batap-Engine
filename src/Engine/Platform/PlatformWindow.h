@@ -20,7 +20,29 @@ void* platformCreateWindow(const WindowDesc& desc);
 // Engine is bound — only bind once the engine is fully initialised.
 void platformBindContext(void* nativeHandle, Engine* engine);
 
-void platformShowWindow(void* nativeHandle);
+// activate false shows the window without taking the focus (WindowDesc).
+void platformShowWindow(void* nativeHandle, bool activate);
+
+// A monitor as the OS lists it, the primary one first so that index 0 means
+// the same thing on every machine. `work` is the part a window may use (no
+// taskbar). Pixels on Windows, points on macOS.
+struct MonitorInfo
+{
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    int workX = 0;
+    int workY = 0;
+    int workWidth = 0;
+    int workHeight = 0;
+    bool primary = false;
+};
+std::vector<MonitorInfo> platformMonitors();
+
+// Centres the window on that monitor, same size, without activating it; an
+// index out of range means the primary one.
+void platformMoveWindowToMonitor(void* nativeHandle, int screen);
 
 void platformSetWindowTitle(void* nativeHandle, const std::string& title);
 

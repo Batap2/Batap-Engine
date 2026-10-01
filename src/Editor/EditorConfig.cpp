@@ -1,8 +1,9 @@
 #include "EditorConfig.h"
 
+#include "UserConfig.h"
+
 #include <nlohmann/json.hpp>
 
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <system_error>
@@ -13,37 +14,26 @@ namespace batap::editorConfig
 {
 namespace
 {
-// L'emplacement par-utilisateur de chaque OS : %APPDATA% / Application Support
+// The editor's own file; a game keeps its own under its own name
+// (UserConfig.h), the two never share one. It was recent.json until
+// 2026-10-01: an existing one is taken over, once, so recents, theme and
+// cameras follow.
 std::filesystem::path configPath()
 {
-#if defined(_WIN32)
-    char* appdata = nullptr;
-    size_t len = 0;
-    _dupenv_s(&appdata, &len, "APPDATA");
-    std::filesystem::path base = appdata ? appdata : ".";
-    free(appdata);
-#else
-    const char* home = std::getenv("HOME");
-    std::filesystem::path base = home ? std::filesystem::path(home) / "Library/Application Support"
-                                      : ".";
-#endif
-    return base / "BatapEngine" / "recent.json";
+    const auto file = userConfig::path("BatapEngine", "config.json");
+    std::error_code ec;
+    if (!std::filesystem::exists(file, ec))
+    {
+        const auto old = userConfig::path("BatapEngine", "recent.json");
+        if (std::filesystem::exists(old, ec))
+            std::filesystem::rename(old, file, ec);
+    }
+    return file;
 }
 
 nlohmann::json readFile()
 {
-    std::ifstream f(configPath());
-    if (!f.is_open())
-        return nlohmann::json::object();
-    try
-    {
-        auto j = nlohmann::json::parse(f);
-        if (j.is_object())
-            return j;
-    }
-    catch (...)
-    {}
-    return nlohmann::json::object();
+    return userConfig::read(configPath());
 }
 
 // json::value throws on anything but an object, and every lookup below walks
@@ -64,6 +54,16 @@ nlohmann::json& objectRef(nlohmann::json& j, const std::string& key)
     return child;
 }
 }  // namespace
+
+void readWindow(WindowDesc& io)
+{
+    userConfig::readWindow(readFile(), io);
+}
+
+void writeWindow(int screen, bool focusOnShow)
+{
+    userConfig::writeWindow(configPath(), screen, focusOnShow);
+}
 
 std::string pathKey(const std::string& path)
 {

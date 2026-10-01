@@ -6,8 +6,19 @@
 #include <string>
 #include <vector>
 
+namespace batap
+{
+struct WindowDesc;
+}
+
 namespace batap::editorConfig
 {
+// The editor's window section of the same file (UserConfig.h), read before
+// the window exists: a key the file lacks leaves `io` alone. The settings
+// menu writes it back, the rest of the file untouched.
+void readWindow(WindowDesc& io);
+void writeWindow(int screen, bool focusOnShow);
+
 // One spelling per path, or C:\Foo, C:/Foo and a relative argument key three
 // different projects.
 std::string pathKey(const std::string& path);

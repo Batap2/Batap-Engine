@@ -415,7 +415,45 @@ void platformBindContext(void* nativeHandle, Engine* engine)
     g_engine = engine;
 }
 
-void platformShowWindow(void* nativeHandle)
+// Written blind, not tried on a Mac: [NSScreen screens] lists the main screen
+// (menu bar) first, frames are in points with the origin at the bottom left.
+std::vector<MonitorInfo> platformMonitors()
+{
+    std::vector<MonitorInfo> monitors;
+    NSArray<NSScreen*>* screens = [NSScreen screens];
+    for (NSUInteger i = 0; i < screens.count; ++i)
+    {
+        const NSRect frame = screens[i].frame;
+        const NSRect work = screens[i].visibleFrame;
+        MonitorInfo m;
+        m.x = (int)frame.origin.x;
+        m.y = (int)frame.origin.y;
+        m.width = (int)frame.size.width;
+        m.height = (int)frame.size.height;
+        m.workX = (int)work.origin.x;
+        m.workY = (int)work.origin.y;
+        m.workWidth = (int)work.size.width;
+        m.workHeight = (int)work.size.height;
+        m.primary = i == 0;
+        monitors.push_back(m);
+    }
+    return monitors;
+}
+
+void platformMoveWindowToMonitor(void* nativeHandle, int screen)
+{
+    NSWindow* window = (__bridge NSWindow*)nativeHandle;
+    NSArray<NSScreen*>* screens = [NSScreen screens];
+    if (screens.count == 0)
+        return;
+    const NSUInteger index = screen >= 0 && (NSUInteger)screen < screens.count ? (NSUInteger)screen : 0;
+    const NSRect area = screens[index].visibleFrame;
+    const NSRect frame = window.frame;
+    [window setFrameOrigin:NSMakePoint(NSMidX(area) - frame.size.width / 2,
+                                       NSMidY(area) - frame.size.height / 2)];
+}
+
+void platformShowWindow(void* nativeHandle, bool activate)
 {
     NSWindow* window = (__bridge NSWindow*)nativeHandle;
 
@@ -424,6 +462,11 @@ void platformShowWindow(void* nativeHandle)
     {
         [NSApp finishLaunching];
         launched = true;
+    }
+    if (!activate)
+    {
+        [window orderFront:nil];
+        return;
     }
     [window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];

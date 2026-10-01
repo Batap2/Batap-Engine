@@ -1,6 +1,7 @@
 #include "EditorApp.h"
 
 #include "App.h"
+#include "EditorConfig.h"
 #include "Platform/PlatformWindow.h"
 #include "Serialization/EntitySerializer.h"
 #include "World.h"
@@ -14,7 +15,11 @@ int runEditor(const EditorConfig& cfg)
 {
     try
     {
-        Engine engine{cfg.window_};
+        // The editor's user file has the last word on where its window opens
+        // and whether it takes the focus.
+        WindowDesc window = cfg.window_;
+        editorConfig::readWindow(window);
+        Engine engine{window};
         World world{engine};
         App app{engine, world};
 
