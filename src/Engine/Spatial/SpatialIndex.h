@@ -45,9 +45,11 @@ struct SpatialIndex
 Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos);
 Ray rayFromScreen(World& world, Engine& ctx, const v2i& screenPos);
 
+// Window pixels in and out, like the mouse: origin_ is where the view starts.
 struct ScreenProjector
 {
     m4f viewProj_ = m4f::Identity();
+    v2f origin_ = v2f::Zero();
     v2f frameSize_ = v2f::Zero();
     v3f camPos_ = v3f::Zero();
     v3f camRight_ = v3f::UnitX();

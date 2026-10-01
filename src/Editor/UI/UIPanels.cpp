@@ -8,6 +8,7 @@
 #include "Renderer/DebugDraw.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
+#include "UI/ScreenSpace.h"
 #include "FileDialog.h"
 #include "Components/Camera_C.h"
 #include "Components/FreeCamController_C.h"
@@ -27,6 +28,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 
 namespace batap
@@ -492,6 +494,28 @@ void UIPanels::drawCameraOptions(World& world, App& app)
 void UIPanels::draw(World& world, App& app, Engine& ctx)
 {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const float bodyTop = vp->Pos.y + kTopBarHeight;
+    const float bodyHeight = vp->Size.y - kTopBarHeight;
+    const float railWidth = railOpen_ ? kRailWidth : 0.0f;
+    const float outlinerX = vp->Pos.x + railWidth;
+    const float inspectorX = vp->Pos.x + vp->Size.x - inspectorWidth_;
+
+    {
+        // The scene renders at the size of the hole between the panels and is
+        // shown here, first thing in the background list: the gizmo draws in
+        // that list too and must land on top of it.
+        const float viewX = outlinerX + outlinerWidth_;
+        const v2f pxMin = toPixels(v2f{viewX, bodyTop});
+        const v2f pxMax = toPixels(v2f{inspectorX, bodyTop + bodyHeight});
+        const v2i origin{static_cast<int>(std::lround(pxMin.x())),
+                         static_cast<int>(std::lround(pxMin.y()))};
+        const v2i size{static_cast<int>(std::lround(pxMax.x())) - origin.x(),
+                       static_cast<int>(std::lround(pxMax.y())) - origin.y()};
+        ctx.setViewRect({origin, size});
+        ImGui::GetBackgroundDrawList()->AddImage(static_cast<ImTextureID>(ctx.sceneTexture()),
+                                                 {viewX, bodyTop},
+                                                 {inspectorX, bodyTop + bodyHeight});
+    }
 
     // The gizmo sits on the light's origin and the handles away from it: the
     // gizmo goes first, and the handles only take the mouse it leaves.
@@ -502,11 +526,7 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     drawSelectionBounds(world, app, ctx);
     drawLightGizmos(world, selection_);
     drawTopBar(app, ctx);
-
-    const float bodyTop = vp->Pos.y + kTopBarHeight;
-    const float bodyHeight = vp->Size.y - kTopBarHeight;
     drawRail(world, app, ctx, bodyTop, bodyHeight);
-    const float railWidth = railOpen_ ? kRailWidth : 0.0f;
 
     const auto beginDockedPanel = [&](const char* id, float x, float width)
     {
@@ -540,7 +560,6 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{14.0f, 12.0f});
 
-    const float outlinerX = vp->Pos.x + railWidth;
     beginDockedPanel("##Outliner", outlinerX, outlinerWidth_);
     scenePanel_.draw(world, app, selection_, optionsHeight_ + kOptionsGripHeight);
     drawEditorOptions(world, app);
@@ -548,7 +567,6 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     drawVerticalEdge(ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 1.0f);
     ImGui::End();
 
-    const float inspectorX = vp->Pos.x + vp->Size.x - inspectorWidth_;
     beginDockedPanel("##Inspector", inspectorX, inspectorWidth_);
     if (selection_.size() > 1)
     {

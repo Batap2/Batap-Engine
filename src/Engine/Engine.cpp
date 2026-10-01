@@ -12,7 +12,6 @@
 #include "Serialization/AssetFieldTypes.h"
 #include "Serialization/PhysicsFieldTypes.h"
 
-
 #include <filesystem>
 #include <stdexcept>
 
@@ -103,6 +102,36 @@ void Engine::beginFrame()
 
     renderer_->beginFrame();
     inputManager_->DispatchEvents();
+
+    ++frameNumber_;
+    if (viewRectFrame_ + 1 < frameNumber_)
+        applyViewRect({v2i::Zero(), v2i(static_cast<int>(renderer_->width_),
+                                        static_cast<int>(renderer_->height_))});
+}
+
+ViewRect Engine::viewRect() const
+{
+    const VkExtent2D view = renderer_->viewExtent();
+    return {viewOrigin_, v2i(static_cast<int>(view.width), static_cast<int>(view.height))};
+}
+
+void Engine::setViewRect(const ViewRect& rect)
+{
+    viewRectFrame_ = frameNumber_;
+    applyViewRect(rect);
+}
+
+void Engine::applyViewRect(const ViewRect& rect)
+{
+    const v2i window(static_cast<int>(renderer_->width_), static_cast<int>(renderer_->height_));
+    viewOrigin_ = rect.origin_.cwiseMax(0).cwiseMin(window);
+    const v2i size = rect.size_.cwiseMin(window - viewOrigin_).cwiseMax(1);
+    renderer_->setViewExtent(static_cast<uint32_t>(size.x()), static_cast<uint32_t>(size.y()));
+}
+
+uint64_t Engine::sceneTexture()
+{
+    return static_cast<uint64_t>(renderer_->sceneTexture());
 }
 
 void Engine::endFrame()
@@ -151,7 +180,8 @@ void Engine::setProjectDir(const std::string& dir)
 
 v2i Engine::getFrameSize()
 {
-    return {renderer_->width_, renderer_->height_};
+    const VkExtent2D view = renderer_->viewExtent();
+    return {static_cast<int>(view.width), static_cast<int>(view.height)};
 }
 
 uint32_t Engine::getFrameindex()

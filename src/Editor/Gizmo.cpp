@@ -411,7 +411,8 @@ void drawGuide(ImDrawList* dl, const GizmoFrame& f, const v3f& axis)
 
     v2f a = v2f::Zero();
     v2f b = v2f::Zero();
-    if (!clipLineToRect(f.originScreen_, dir.normalized(), v2f::Zero(), f.proj_.frameSize_, a, b))
+    if (!clipLineToRect(f.originScreen_, dir.normalized(), f.proj_.origin_,
+                        f.proj_.origin_ + f.proj_.frameSize_, a, b))
         return;
 
     dashedLine(dl, at(f, a), at(f, b), ImGui::GetColorU32(kGuideColor), 1.4f);
@@ -528,6 +529,7 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
 
     GizmoFrame f;
     f.proj_ = *proj;
+    f.proj_.origin_ = toPoints(f.proj_.origin_);
     f.proj_.frameSize_ = toPoints(f.proj_.frameSize_);
 
     if (dragId_ != kNone)

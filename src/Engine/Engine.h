@@ -6,6 +6,7 @@
 #include <string>
 
 #include "EigenTypes.h"
+#include "ViewRect.h"
 
 namespace batap
 {
@@ -18,12 +19,12 @@ struct Engine;
 
 struct WindowDesc
 {
-    std::string title  = "Batap";
+    std::string title = "Batap";
     // Logical units, not pixels: the framebuffer is larger on a HiDPI screen.
-    uint32_t    width  = 1280;
-    uint32_t    height = 720;
-    bool        fpsInTitle = false;
-    bool        transparent = false;
+    uint32_t width = 1280;
+    uint32_t height = 720;
+    bool fpsInTitle = false;
+    bool transparent = false;
 };
 
 struct EngineSettings
@@ -34,10 +35,10 @@ struct EngineSettings
 
 struct Frame
 {
-    Frame(const Frame&)            = delete;
+    Frame(const Frame&) = delete;
     Frame& operator=(const Frame&) = delete;
-    Frame(Frame&&)                 = delete;
-    Frame& operator=(Frame&&)      = delete;
+    Frame(Frame&&) = delete;
+    Frame& operator=(Frame&&) = delete;
     ~Frame();
 
     explicit operator bool() const { return alive_; }
@@ -47,7 +48,7 @@ struct Frame
     Frame(Engine* engine, bool alive) : engine_(engine), alive_(alive) {}
 
     Engine* engine_;
-    bool    alive_;
+    bool alive_;
 };
 
 struct Engine
@@ -55,7 +56,7 @@ struct Engine
     explicit Engine(const WindowDesc& desc = {});
     ~Engine();
 
-    Engine(const Engine&)            = delete;
+    Engine(const Engine&) = delete;
     Engine& operator=(const Engine&) = delete;
 
     Frame nextFrame();
@@ -68,6 +69,16 @@ struct Engine
     DebugDraw& debug() { return *debugDraw_; }
     DebugDraw& debugOverlay() { return *debugOverlay_; }
     Billboards& billboards() { return *billboards_; }
+
+    // Where the scene is rendered, in pixels: the whole window unless a host
+    // sets it every frame (the editor, between its panels). getFrameSize() is
+    // its size.
+    ViewRect viewRect() const;
+    void setViewRect(const ViewRect& rect);
+
+    // The scene as an ImGui texture. Asking for it is what makes the renderer
+    // draw into an image instead of the window.
+    uint64_t sceneTexture();
 
     std::unique_ptr<Renderer> renderer_;
     std::unique_ptr<InputManager> inputManager_;
@@ -101,8 +112,13 @@ struct Engine
 
     void* window_ = nullptr;
     std::string title_;
-    bool        fpsInTitle_   = false;
-    uint32_t    frameCount_   = 0;
-    float       fpsElapsed_   = 0.f;
+    bool fpsInTitle_ = false;
+    uint32_t frameCount_ = 0;
+    float fpsElapsed_ = 0.f;
+
+    void applyViewRect(const ViewRect& rect);
+    v2i viewOrigin_ = v2i::Zero();
+    uint64_t frameNumber_ = 0;
+    uint64_t viewRectFrame_ = 0;
 };
 }  // namespace batap

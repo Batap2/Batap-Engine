@@ -158,6 +158,7 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
     auto proj = screenProjector(world, ctx);
     if (!proj)
         return false;
+    proj->origin_ = toPoints(proj->origin_);
     proj->frameSize_ = toPoints(proj->frameSize_);
 
     auto& reg = world.registry_;

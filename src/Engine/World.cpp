@@ -7,6 +7,7 @@
 #include "Assets/AssetManager.h"
 #include "Components/Camera_C.h"
 #include "Components/Hierarchy_C.h"
+#include "Components/RigidBody_C.h"
 #include "Components/Transform_C.h"
 #include "Engine.h"
 #include "Game.h"
@@ -15,6 +16,7 @@
 #include "Instance/InstanceManager.h"
 #include "Physics/PhysicsWorld.h"
 
+#include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/CastResult.h>
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
@@ -90,21 +92,33 @@ entt::entity World::renderCamera()
     return entt::null;
 }
 
+ViewRect World::viewRect() const
+{
+    return ctx_->viewRect();
+}
+
 const std::vector<ContactEvent>& World::contacts() const
 {
     return systems_->physics_->contacts();
 }
 
-RayHit World::raycastPhysics(const Ray& ray) const
+RayHit World::raycastPhysics(const Ray& ray, EntityHandle ignore) const
 {
     const float from = ray.tMin_;
     const float to = std::min(ray.tMax_, 1e7f);
     if (to <= from)
         return {};
 
+    JPH::BodyID ignored;
+    if (ignore.valid())
+        if (const auto* rb = ignore.reg_->try_get<RigidBody_C>(ignore.entity_);
+            rb && rb->bodyId_ != kInvalidBodyId)
+            ignored = JPH::BodyID{rb->bodyId_};
+    const JPH::IgnoreSingleBodyFilter bodyFilter{ignored};
+
     const JPH::RRayCast cast{toJolt(ray.origin_ + ray.dir_ * from), toJolt(ray.dir_ * (to - from))};
     JPH::RayCastResult result;
-    if (!physics_->system().GetNarrowPhaseQuery().CastRay(cast, result))
+    if (!physics_->system().GetNarrowPhaseQuery().CastRay(cast, result, {}, {}, bodyFilter))
         return {};
 
     const uint64_t user = physics_->bodies().GetUserData(result.mBodyID);

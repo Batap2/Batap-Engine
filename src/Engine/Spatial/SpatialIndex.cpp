@@ -98,8 +98,7 @@ RayHit SpatialIndex::raycast(const Ray& ray) const
     bvh_.raycast(ray,
                  [&](uint32_t prim, float tMax)
                  {
-                     const AABBHit h =
-                         rayAABB(ray.origin_, invDir, ray.tMin_, tMax, bounds_[prim]);
+                     const AABBHit h = rayAABB(ray.origin_, invDir, ray.tMin_, tMax, bounds_[prim]);
                      if (!h.hit_)
                          return tMax;
 
@@ -197,8 +196,9 @@ Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos)
 
     // The scene is drawn through a negative-height viewport, so NDC +Y is the
     // top of the screen.
-    const float ndcX = 2.f * screenPos.x() / static_cast<float>(frameSize.x()) - 1.f;
-    const float ndcY = 1.f - 2.f * screenPos.y() / static_cast<float>(frameSize.y());
+    const v2f local = screenPos - ctx.viewRect().origin_.cast<float>();
+    const float ndcX = 2.f * local.x() / static_cast<float>(frameSize.x()) - 1.f;
+    const float ndcY = 1.f - 2.f * local.y() / static_cast<float>(frameSize.y());
 
     const auto unproject = [&](float ndcZ)
     {
@@ -229,8 +229,8 @@ std::optional<v2f> ScreenProjector::project(const v3f& world) const
         return std::nullopt;
 
     const v2f ndc = clip.head<2>() / clip.w();
-    return v2f((ndc.x() * 0.5f + 0.5f) * frameSize_.x(),
-               (0.5f - ndc.y() * 0.5f) * frameSize_.y());
+    return v2f(origin_.x() + (ndc.x() * 0.5f + 0.5f) * frameSize_.x(),
+               origin_.y() + (0.5f - ndc.y() * 0.5f) * frameSize_.y());
 }
 
 std::optional<ScreenProjector> screenProjector(World& world, Engine& ctx)
@@ -251,6 +251,7 @@ std::optional<ScreenProjector> screenProjector(World& world, Engine& ctx)
 
     ScreenProjector out;
     out.viewProj_ = camC.make_proj(aspect) * camC.make_view(camT.world());
+    out.origin_ = ctx.viewRect().origin_.cast<float>();
     out.frameSize_ = v2f(static_cast<float>(frameSize.x()), static_cast<float>(frameSize.y()));
     out.camPos_ = camT.world().translation();
     out.camRight_ = camT.world().linear().col(0).normalized();

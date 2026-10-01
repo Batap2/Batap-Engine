@@ -15,6 +15,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -36,6 +37,7 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
     // client size is in points on a retina screen.
     width_ = swapchain_.extent_.width;
     height_ = swapchain_.extent_.height;
+    viewExtent_ = swapchain_.extent_;
     createDepthBuffer();
 
     resources_ = std::make_unique<ResourceManager>(ctx_);
@@ -129,7 +131,7 @@ void Renderer::createDepthBuffer()
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
     imageInfo.format = DepthFormat;
-    imageInfo.extent = {swapchain_.extent_.width, swapchain_.extent_.height, 1};
+    imageInfo.extent = {viewExtent_.width, viewExtent_.height, 1};
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -152,6 +154,79 @@ void Renderer::createDepthBuffer()
     viewInfo.subresourceRange = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
     if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &depthView_) != VK_SUCCESS)
         throw std::runtime_error("Renderer(vk) : depth view");
+}
+
+// Made on first use: only a host that narrows or shows the view ever needs it.
+void Renderer::ensureSceneImage()
+{
+    if (sceneImage_ != VK_NULL_HANDLE)
+        return;
+
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.format = swapchain_.format_;
+    imageInfo.extent = {viewExtent_.width, viewExtent_.height, 1};
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                      VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+    if (vmaCreateImage(ctx_.allocator_, &imageInfo, &allocInfo, &sceneImage_, &sceneAllocation_,
+                       nullptr) != VK_SUCCESS)
+        throw std::runtime_error("Renderer(vk) : scene image");
+
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = sceneImage_;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = swapchain_.format_;
+    viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &sceneView_) != VK_SUCCESS)
+        throw std::runtime_error("Renderer(vk) : scene view");
+    sceneLastUsage_ = Usage::None;
+}
+
+void Renderer::retireTargets()
+{
+    auto& slot = retired_[ctx_.frameIndex_];
+    if (depthImage_ != VK_NULL_HANDLE)
+        slot.push_back({depthImage_, depthAllocation_, depthView_, VK_NULL_HANDLE});
+    depthImage_ = VK_NULL_HANDLE;
+    depthAllocation_ = nullptr;
+    depthView_ = VK_NULL_HANDLE;
+
+    if (sceneImage_ != VK_NULL_HANDLE)
+        slot.push_back({sceneImage_, sceneAllocation_, sceneView_, sceneTextureSet_});
+    sceneImage_ = VK_NULL_HANDLE;
+    sceneAllocation_ = nullptr;
+    sceneView_ = VK_NULL_HANDLE;
+    sceneTextureSet_ = VK_NULL_HANDLE;
+    sceneLastUsage_ = Usage::None;
+}
+
+void Renderer::destroyRetired(uint32_t slot)
+{
+    for (const Retired& r : retired_[slot])
+    {
+        if (r.imguiSet_ != VK_NULL_HANDLE)
+            ImGui_ImplVulkan_RemoveTexture(r.imguiSet_);
+        vkDestroyImageView(ctx_.device_, r.view_, nullptr);
+        vmaDestroyImage(ctx_.allocator_, r.image_, r.allocation_);
+    }
+    retired_[slot].clear();
+}
+
+void Renderer::destroyAllRetired()
+{
+    for (uint32_t slot = 0; slot < FramesInFlight; ++slot)
+        destroyRetired(slot);
 }
 
 void Renderer::initImGui()
@@ -240,6 +315,7 @@ void Renderer::setSceneRecord(SceneRecordFn fn)
 void Renderer::beginFrame()
 {
     swapchain_.waitFrame();
+    destroyRetired(ctx_.frameIndex_);
     resources_->beginFrame();
 
     if (!imguiFrameOpen_)
@@ -275,42 +351,95 @@ void Renderer::render()
 
     resources_->flushUploads(cmd);
 
+    const bool shownByUi = sceneShownByUi_;
+    sceneShownByUi_ = false;
+    const bool fullView = viewExtent_.width == swapchain_.extent_.width &&
+                          viewExtent_.height == swapchain_.extent_.height;
+
+    VkImage swapImage = swapchain_.images_[imageIndex];
+    RenderTargets targets{};
+    targets.depth_ = depthView_;
+    targets.clearColor_ = {{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
+
     // Discard already drops the contents, so `from` here only says what must
     // finish before the transition — hence a real usage rather than None:
     //   swapchain: None means TOP_OF_PIPE, earlier than the stage where the
     //     acquire semaphore is waited (COLOR_ATTACHMENT_OUTPUT), so the
-    //     transition could overwrite an image the compositor is still reading.
+    //     transition could overwrite an image the compositor is still reading;
+    //   scene image: the ImGui pass that read it last frame;
     //   depth: one image for all frames in flight — wait on the depth tests of
     //     the previous frame before reusing it.
-    BarrierBatch{}
-        .image(swapchain_.images_[imageIndex], Usage::ColorAttachment, Usage::ColorAttachment,
-               colorRange(), Discard::Yes)
-        .image(depthImage_, Usage::DepthAttachment, Usage::DepthAttachment, depthRange(),
-               Discard::Yes)
-        .flush(cmd);
+    bool swapchainHasScene = false;
+    if (!shownByUi && fullView)
+    {
+        // Nobody narrows or shows the view: straight into the swapchain. The
+        // game never pays for the editor's scene image, not even its memory.
+        BarrierBatch{}
+            .image(swapImage, Usage::ColorAttachment, Usage::ColorAttachment, colorRange(),
+                   Discard::Yes)
+            .image(depthImage_, Usage::DepthAttachment, Usage::DepthAttachment, depthRange(),
+                   Discard::Yes)
+            .flush(cmd);
 
-    RenderTargets targets{};
-    targets.color_ = swapchain_.views_[imageIndex];
-    targets.depth_ = depthView_;
-    targets.extent_ = swapchain_.extent_;
-    // Alpha 0 when transparent: the desktop shows through where nothing is drawn
-    targets.clearColor_ = {{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
+        targets.color_ = swapchain_.views_[imageIndex];
+        targets.extent_ = swapchain_.extent_;
+        swapchainHasScene = sceneRecord_ && sceneRecord_(cmd, frame, targets);
+    }
+    else
+    {
+        // The host shows the image itself; a host that narrows the view
+        // without showing it simply sees no scene. The swapchain only gets
+        // the UI.
+        ensureSceneImage();
+        const Usage sceneFrom = sceneLastUsage_ == Usage::None ? Usage::ColorAttachment
+                                                               : sceneLastUsage_;
+        BarrierBatch{}
+            .image(sceneImage_, sceneFrom, Usage::ColorAttachment, colorRange(), Discard::Yes)
+            .image(depthImage_, Usage::DepthAttachment, Usage::DepthAttachment, depthRange(),
+                   Discard::Yes)
+            .image(swapImage, Usage::ColorAttachment, Usage::ColorAttachment, colorRange(),
+                   Discard::Yes)
+            .flush(cmd);
 
-    const bool sceneCleared = sceneRecord_ && sceneRecord_(cmd, frame, targets);
+        targets.color_ = sceneView_;
+        targets.extent_ = viewExtent_;
+        if (sceneRecord_ && sceneRecord_(cmd, frame, targets))
+        {
+            BarrierBatch{}
+                .image(sceneImage_, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
+                .flush(cmd);
+        }
+        else
+        {
+            // No camera: the image is shown anyway, so it gets the clear color.
+            BarrierBatch{}
+                .image(sceneImage_, Usage::ColorAttachment, Usage::TransferDst, colorRange(),
+                       Discard::Yes)
+                .flush(cmd);
+            const VkImageSubresourceRange range = colorRange();
+            vkCmdClearColorImage(cmd, sceneImage_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                 &targets.clearColor_, 1, &range);
+            BarrierBatch{}
+                .image(sceneImage_, Usage::TransferDst, Usage::ShaderRead, colorRange())
+                .flush(cmd);
+        }
+        sceneLastUsage_ = Usage::ShaderRead;
+    }
 
-    if (imguiFrameOpen_ || !sceneCleared)
+    if (imguiFrameOpen_ || !swapchainHasScene)
     {
         VkRenderingAttachmentInfo uiColor{};
         uiColor.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        uiColor.imageView = targets.color_;
+        uiColor.imageView = swapchain_.views_[imageIndex];
         uiColor.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        uiColor.loadOp = sceneCleared ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
+        uiColor.loadOp = swapchainHasScene ? VK_ATTACHMENT_LOAD_OP_LOAD
+                                           : VK_ATTACHMENT_LOAD_OP_CLEAR;
         uiColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         uiColor.clearValue.color = targets.clearColor_;
 
         VkRenderingInfo uiInfo{};
         uiInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-        uiInfo.renderArea = {{0, 0}, targets.extent_};
+        uiInfo.renderArea = {{0, 0}, swapchain_.extent_};
         uiInfo.layerCount = 1;
         uiInfo.colorAttachmentCount = 1;
         uiInfo.pColorAttachments = &uiColor;
@@ -357,15 +486,40 @@ void Renderer::resize(uint32_t w, uint32_t h)
 
     swapchain_.recreate();  // waits for GPU idle, follows the surface size
 
-    vkDestroyImageView(ctx_.device_, depthView_, nullptr);
-    vmaDestroyImage(ctx_.allocator_, depthImage_, depthAllocation_);
-    createDepthBuffer();
-
+    retireTargets();
+    destroyAllRetired();
     width_ = swapchain_.extent_.width;
     height_ = swapchain_.extent_.height;
+    viewExtent_ = swapchain_.extent_;
+    createDepthBuffer();
 
     for (auto& cb : resizeCallbacks_)
         cb(width_, height_);
+}
+
+void Renderer::setViewExtent(uint32_t w, uint32_t h)
+{
+    w = std::clamp(w, 1u, swapchain_.extent_.width);
+    h = std::clamp(h, 1u, swapchain_.extent_.height);
+    if (w == viewExtent_.width && h == viewExtent_.height)
+        return;
+    // The scene image comes back on its next use, at the new size.
+    retireTargets();
+    viewExtent_ = {w, h};
+    createDepthBuffer();
+    for (auto& cb : resizeCallbacks_)
+        cb(w, h);
+}
+
+ImTextureID Renderer::sceneTexture()
+{
+    ensureSceneImage();
+    if (sceneTextureSet_ == VK_NULL_HANDLE)
+        sceneTextureSet_ = ImGui_ImplVulkan_AddTexture(resourceManager_->textureSampler(),
+                                                       sceneView_,
+                                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    sceneShownByUi_ = true;
+    return reinterpret_cast<ImTextureID>(sceneTextureSet_);
 }
 
 void Renderer::setVsync(bool on)
@@ -402,11 +556,11 @@ ImTextureID Renderer::imguiTexture(GPUResourceHandle image)
 Renderer::~Renderer()
 {
     vkDeviceWaitIdle(ctx_.device_);
+    retireTargets();
+    destroyAllRetired();
     ImGui_ImplVulkan_Shutdown();
     platformImGuiShutdown();
     ImGui::DestroyContext();
-    vkDestroyImageView(ctx_.device_, depthView_, nullptr);
-    vmaDestroyImage(ctx_.allocator_, depthImage_, depthAllocation_);
     vkDestroyCommandPool(ctx_.device_, commandPool_, nullptr);
 }
 

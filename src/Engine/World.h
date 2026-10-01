@@ -7,8 +7,10 @@
 #include "Components/EntityHandle.h"
 #include "Instance/InstanceManager.h"
 #include "Physics/ContactEvent.h"
-#include "Spatial/Ray.h"
 #include "Renderer/SceneBinding.h"
+#include "Spatial/Ray.h"
+#include "ViewRect.h"
+
 
 #include <entt/entt.hpp>
 
@@ -52,9 +54,12 @@ struct World
     SceneRenderArgs renderArgs();
     void setRenderCamera(entt::entity e) { renderCamera_ = e; }
     entt::entity renderCamera();
+    // Where the scene is drawn, in framebuffer pixels: the game's UI goes there.
+    ViewRect viewRect() const;
     const std::vector<ContactEvent>& contacts() const;
     // Hits colliders, unlike spatialIndex().raycast() which hits render bounds.
-    RayHit raycastPhysics(const Ray& ray) const;
+    // ignore: a body the ray starts inside of, typically the caster itself.
+    RayHit raycastPhysics(const Ray& ray, EntityHandle ignore = {}) const;
     void setGravity(const v3f& g);
     v3f gravity() const;
     bool loadScene(const std::string& path);
