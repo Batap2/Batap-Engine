@@ -487,7 +487,6 @@ void Renderer::resize(uint32_t w, uint32_t h)
     swapchain_.recreate();  // waits for GPU idle, follows the surface size
 
     retireTargets();
-    destroyAllRetired();
     width_ = swapchain_.extent_.width;
     height_ = swapchain_.extent_.height;
     viewExtent_ = swapchain_.extent_;
