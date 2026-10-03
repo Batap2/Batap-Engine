@@ -30,6 +30,7 @@ inline std::string normalizeAssetPath(std::string_view path)
 
 struct Engine;
 struct AssetManager;
+struct BmeshData;
 
 // Loads an asset from disk into memory and registers it in the AssetManager.
 // Supported formats:
@@ -41,6 +42,10 @@ struct AssetManager;
 // Game code reaches the AssetManager through World::assets(), never the Engine.
 std::optional<AssetHandleAny> loadAsset(std::string_view path, AssetManager& assets);
 std::optional<AssetHandleAny> loadAsset(std::string_view path, const Engine& ctx);
+
+// A mesh built in memory, under a key no file has: a second call with the
+// same key replaces the geometry and keeps the handle.
+MeshHandle createMesh(const std::string& key, BmeshData data, AssetManager& assets);
 
 // Null handle if loading fails or the file is not a T.
 template <class T>

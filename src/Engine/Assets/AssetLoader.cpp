@@ -32,32 +32,22 @@ static std::string_view extractExtension(std::string_view path)
     return path.substr(dot + 1);
 }
 
-static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& mesh)
+static bool uploadMesh(const std::string& key, BmeshData& data, AssetManager& assetManager,
+                       Mesh& mesh)
 {
-    assert(!assetManager.baseDir().empty() &&
-           "AssetManager baseDir not set — call setBaseDir before loading assets");
-    const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / key).string();
-
-    auto data = readBmesh(absPath);
-    if (!data || data->vertices.empty())
-    {
-        std::cerr << "[AssetLoader] Failed to read bmesh: " << absPath << "\n";
-        return false;
-    }
-
     auto* rm = assetManager.resourceManager_;
 
     // All the streams of a mesh share one buffer, each at its own offset.
     // 16 bytes covers the index-buffer offset requirement (a multiple of the
     // index size) and every attribute format.
-    const size_t vcount = data->vertices.size();
+    const size_t vcount = data.vertices.size();
 
-    const bool sourceHasNormals = !data->normals.empty();
-    const bool sourceHasUVs = !data->uvs.empty();
+    const bool sourceHasNormals = !data.normals.empty();
+    const bool sourceHasUVs = !data.uvs.empty();
     if (!sourceHasNormals)
-        data->normals.assign(vcount, v3f::UnitY());
+        data.normals.assign(vcount, v3f::UnitY());
     if (!sourceHasUVs)
-        data->uvs.assign(vcount, v2f::Zero());
+        data.uvs.assign(vcount, v2f::Zero());
 
     uint64_t cursor = 0;
     auto place = [&cursor](size_t bytes)
@@ -67,7 +57,7 @@ static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& 
         return offset;
     };
 
-    const size_t indexBytes = sizeof(uint32_t) * data->indices.size();
+    const size_t indexBytes = sizeof(uint32_t) * data.indices.size();
     const size_t vertexBytes = sizeof(v3f) * vcount;
     const size_t normalBytes = sizeof(v3f) * vcount;
     const size_t uvBytes = sizeof(v2f) * vcount;
@@ -84,21 +74,21 @@ static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& 
 
     mesh.buffer_ = guid;
     mesh.streamOffsets_[Mesh::Index] = indexOffset;
-    mesh.indexCount_ = static_cast<uint32_t>(data->indices.size());
-    std::memcpy(rm->requestUpload(guid, indexBytes, indexOffset).data(), data->indices.data(),
+    mesh.indexCount_ = static_cast<uint32_t>(data.indices.size());
+    std::memcpy(rm->requestUpload(guid, indexBytes, indexOffset).data(), data.indices.data(),
                 indexBytes);
 
     mesh.streamOffsets_[Mesh::Position] = vertexOffset;
     mesh.vertexCount_ = static_cast<uint32_t>(vcount);
-    std::memcpy(rm->requestUpload(guid, vertexBytes, vertexOffset).data(), data->vertices.data(),
+    std::memcpy(rm->requestUpload(guid, vertexBytes, vertexOffset).data(), data.vertices.data(),
                 vertexBytes);
 
     mesh.streamOffsets_[Mesh::Normal] = normalOffset;
-    std::memcpy(rm->requestUpload(guid, normalBytes, normalOffset).data(), data->normals.data(),
+    std::memcpy(rm->requestUpload(guid, normalBytes, normalOffset).data(), data.normals.data(),
                 normalBytes);
 
     mesh.streamOffsets_[Mesh::UV0] = uvOffset;
-    std::memcpy(rm->requestUpload(guid, uvBytes, uvOffset).data(), data->uvs.data(), uvBytes);
+    std::memcpy(rm->requestUpload(guid, uvBytes, uvOffset).data(), data.uvs.data(), uvBytes);
 
     // Tangents need real UVs to mean anything; without them the value is unused
     // (no UVs means no normal map) and only has to stay well-formed.
@@ -109,16 +99,16 @@ static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& 
         std::vector<v3f> tanSum(vcount, v3f::Zero());
         std::vector<v3f> biSum(vcount, v3f::Zero());
 
-        for (size_t i = 0; i + 2 < data->indices.size(); i += 3)
+        for (size_t i = 0; i + 2 < data.indices.size(); i += 3)
         {
-            const uint32_t i0 = data->indices[i];
-            const uint32_t i1 = data->indices[i + 1];
-            const uint32_t i2 = data->indices[i + 2];
+            const uint32_t i0 = data.indices[i];
+            const uint32_t i1 = data.indices[i + 1];
+            const uint32_t i2 = data.indices[i + 2];
 
-            const v3f e1  = data->vertices[i1] - data->vertices[i0];
-            const v3f e2  = data->vertices[i2] - data->vertices[i0];
-            const v2f d1  = data->uvs[i1] - data->uvs[i0];
-            const v2f d2  = data->uvs[i2] - data->uvs[i0];
+            const v3f e1  = data.vertices[i1] - data.vertices[i0];
+            const v3f e2  = data.vertices[i2] - data.vertices[i0];
+            const v2f d1  = data.uvs[i1] - data.uvs[i0];
+            const v2f d2  = data.uvs[i2] - data.uvs[i0];
 
             const float det = d1.x() * d2.y() - d1.y() * d2.x();
             if (std::abs(det) < 1e-8f) continue;
@@ -133,7 +123,7 @@ static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& 
 
         for (size_t i = 0; i < vcount; ++i)
         {
-            const v3f N = data->normals[i].normalized();
+            const v3f N = data.normals[i].normalized();
             // Gram-Schmidt orthogonalize
             v3f T = (tanSum[i] - N * N.dot(tanSum[i]));
             const float tlen = T.norm();
@@ -149,13 +139,49 @@ static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& 
                 tangentBytes);
 
     mesh.indexFormat_ = ResourceFormat::R32_UINT;
-    for (const v3f& v : data->vertices)
+    for (const v3f& v : data.vertices)
         mesh.localBounds_.extend(v);
-    mesh.subMeshCount = static_cast<uint8_t>(std::min(data->subMeshes.size(), size_t(8)));
+    mesh.subMeshCount = static_cast<uint8_t>(std::min(data.subMeshes.size(), size_t(8)));
     for (uint8_t i = 0; i < mesh.subMeshCount; ++i)
-        mesh.subMeshes[i] = {data->subMeshes[i].indexOffset, data->subMeshes[i].indexCount};
+        mesh.subMeshes[i] = {data.subMeshes[i].indexOffset, data.subMeshes[i].indexCount};
 
     return true;
+}
+
+static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& mesh)
+{
+    assert(!assetManager.baseDir().empty() &&
+           "AssetManager baseDir not set — call setBaseDir before loading assets");
+    const std::string absPath = (std::filesystem::path(assetManager.baseDir()) / key).string();
+
+    auto data = readBmesh(absPath);
+    if (!data || data->vertices.empty())
+    {
+        std::cerr << "[AssetLoader] Failed to read bmesh: " << absPath << "\n";
+        return false;
+    }
+    return uploadMesh(key, *data, assetManager, mesh);
+}
+
+MeshHandle createMesh(const std::string& key, BmeshData data, AssetManager& assets)
+{
+    if (data.vertices.empty())
+        return {};
+    Mesh fresh{};
+    if (!uploadMesh(key, data, assets, fresh))
+        return {};
+
+    if (const auto existing = assets.getHandle<Mesh>(key))
+    {
+        Mesh* mesh = assets.get(*existing);
+        const GPUResourceHandle old = mesh->buffer_;
+        *mesh = fresh;
+        if (old.valid())
+            assets.resourceManager_->requestDestroy(old);
+        return *existing;
+    }
+    auto [handle, inserted] = assets.emplace<Mesh>(key, key, fresh);
+    return handle;
 }
 
 static std::optional<AssetHandleAny> loadMesh(std::string_view relPath,
