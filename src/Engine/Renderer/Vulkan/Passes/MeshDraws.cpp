@@ -18,7 +18,7 @@ void recordMeshDraws(const PassContext& pass, ResourceManager& resources, uint32
     pass.reg_->view<Mesh_C>().each(
         [&](entt::entity e, Mesh_C& meshC)
         {
-            if (!meshC.mesh_)
+            if (!meshC.mesh_ || !meshC.visible_)
                 return;
             auto* mesh = pass.assetManager_->get(meshC.mesh_);
             if (!mesh)

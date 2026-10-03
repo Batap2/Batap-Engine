@@ -205,12 +205,15 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
         return;
 
     if (auto fields = ui::BeginFields("mesh"))
+    {
         ui::Field("Asset",
                   [&]
                   {
                       if (ui::AssetRow(AssetType::Mesh, name))
                           assetPicker_.open(ent, AssetType::Mesh, app.projectDir_);
                   });
+        ui::Field("Visible", [&] { return ImGui::Checkbox("##visible", &meshC->visible_); });
+    }
 }
 
 void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
