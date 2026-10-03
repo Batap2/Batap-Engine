@@ -135,6 +135,13 @@ void UIPanels::drawSelectionBounds(World& world, App& app, Engine& ctx)
     }
 }
 
+void UIPanels::deleteSelection(World& world)
+{
+    for (const EntityHandle& ent : selection_.all())
+        world.destroy(ent);
+    selection_.clear();
+}
+
 void UIPanels::drawWindowButtons(Engine& ctx, float height)
 {
     const float w = kWindowButtonsWidth / 3.0f;
@@ -695,6 +702,10 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     ImGui::PopStyleVar(2);
 
     materialEditor_.draw(app);
+
+    if (!gizmoBusy && !handlesBusy && !ImGui::GetIO().WantTextInput &&
+        ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+        deleteSelection(world);
 }
 
 void UIPanels::drawStartupScreen(App& app, Engine& ctx)

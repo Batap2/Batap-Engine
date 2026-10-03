@@ -33,6 +33,7 @@ struct UIPanels
    private:
     void pickOnClick(World& world, App& app, Engine& ctx);
     void drawSelectionBounds(World& world, App& app, Engine& ctx);
+    void deleteSelection(World& world);
     void drawTopBar(App& app, Engine& ctx);
     void drawRail(World& world, App& app, Engine& ctx, float top, float height);
     void drawWindowButtons(Engine& ctx, float height);

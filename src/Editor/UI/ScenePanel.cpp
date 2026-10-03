@@ -287,6 +287,8 @@ void ScenePanel::draw(World& world, App& app, Selection& selection, float bottom
 {
     auto& reg = world.registry_;
     rowOrder_.clear();
+    if (renaming_ && !reg.valid(renaming_->entity_))
+        renaming_.reset();
 
     const ImGuiStyle& style = ImGui::GetStyle();
     const float reserve = ImGui::GetFrameHeight() + style.ItemSpacing.y + bottomReserve;
@@ -360,8 +362,6 @@ void ScenePanel::draw(World& world, App& app, Selection& selection, float bottom
         world.destroy(*pendingDelete_);
         pendingDelete_.reset();
         selection.prune();
-        if (renaming_ && !reg.valid(renaming_->entity_))
-            renaming_.reset();
     }
 }
 
