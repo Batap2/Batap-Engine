@@ -442,6 +442,18 @@ std::span<std::byte> ResourceManager::requestPartialUpload(GPUResourceHandle des
     return {ptr, sizeBytes};
 }
 
+void ResourceManager::requestCopy(GPUResourceHandle dest, GPUResourceHandle src,
+                                  uint64_t sizeBytes)
+{
+    UploadRequest req{};
+    req.dest = dest;
+    req.src = bufferFor(src);
+    req.size = sizeBytes;
+    req.isCopy = true;
+    if (req.src && sizeBytes > 0)
+        uploadRequests_.push_back(req);
+}
+
 std::span<std::byte> ResourceManager::requestTextureUpload(GPUResourceHandle dest, uint32_t width,
                                                            uint32_t height, ResourceFormat format)
 {
@@ -479,11 +491,15 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
             if (!target)
                 continue;
 
+            if (req.isCopy)
+                BarrierBatch{}.memory(Usage::TransferDst, Usage::TransferSrc).flush(cmd);
             VkBufferCopy region{};
             region.srcOffset = req.srcOffset;
             region.dstOffset = req.dstOffset;
             region.size = req.size;
             vkCmdCopyBuffer(cmd, req.src, target, 1, &region);
+            if (req.isCopy)
+                BarrierBatch{}.memory(Usage::TransferDst, Usage::TransferDst).flush(cmd);
             continue;
         }
 

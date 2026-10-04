@@ -10,6 +10,8 @@
 
 namespace batap
 {
+struct TerrainPass;
+
 struct ShadowView
 {
     m4f viewProj_;
@@ -45,12 +47,12 @@ struct ShadowPass
     // Outside the scene's rendering scope: it writes the atlases the scene
     // reads. Entries no view claims get a zero strength.
     void record(const PassContext& pass, std::span<const ShadowAtlasViews> atlases,
-                size_t entryCount);
+                size_t entryCount, TerrainPass& terrain);
 
     GPUResourceHandle buffer() const { return buffer_; }
 
    private:
-    void recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas);
+    void recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas, TerrainPass& terrain);
 
     PassSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;

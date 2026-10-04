@@ -57,6 +57,9 @@ struct ResourceManager
                                               uint64_t subSize);
     std::span<std::byte> requestTextureUpload(GPUResourceHandle dest, uint32_t width,
                                               uint32_t height, ResourceFormat format);
+    // Ordered with the uploads: it reads what those requested before it wrote,
+    // and those requested after it land on top of it.
+    void requestCopy(GPUResourceHandle dest, GPUResourceHandle src, uint64_t sizeBytes);
 
     void recordBufferWrite(VkCommandBuffer cmd, GPUResourceHandle dest, const void* data,
                            uint64_t sizeBytes, uint64_t destOffset = 0);
@@ -110,6 +113,8 @@ struct ResourceManager
         uint64_t srcOffset = 0;
         uint64_t size = 0;
         uint64_t dstOffset = 0;
+        // src is a resource of ours, not staging
+        bool isCopy = false;
         // images only
         bool isImage = false;
         uint32_t width = 0;

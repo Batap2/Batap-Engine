@@ -25,6 +25,7 @@ struct ResourceManager;
 struct ScenePasses;
 struct DebugDraw;
 struct Billboards;
+struct TerrainDraws;
 // Frame model (docs/vulkan.md §10):
 //   beginFrame: wait on the slot fence, recycle staging and pending destroys —
 //   the frame's uploads are written after that;
@@ -78,6 +79,7 @@ struct Renderer
 
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
     void uploadBillboards(const Billboards& billboards);
+    void uploadTerrain(TerrainDraws& draws);
 
     ResourceManager* resourceManager_ = nullptr;
     uint32_t width_ = 0;

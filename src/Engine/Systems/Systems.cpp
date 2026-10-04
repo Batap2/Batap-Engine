@@ -8,6 +8,7 @@
 #include "CascadeLight_S.h"
 #include "Character_S.h"
 #include "Physics_S.h"
+#include "Terrain_S.h"
 #include "Transform_S.h"
 #include "World.h"
 
@@ -38,5 +39,6 @@ Systems::Systems()
     billboards_ = std::make_unique<Billboard_S>();
     bounds_ = std::make_unique<Bounds_S>();
     cascadeLights_ = std::make_unique<CascadeLight_S>();
+    terrain_ = std::make_unique<Terrain_S>();
 }
 }  // namespace batap
