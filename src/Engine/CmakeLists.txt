@@ -164,8 +164,7 @@ file(MAKE_DIRECTORY "${engine_shader_out}")
 # passe éditée seule ne recompile rien du tout. Tout .hlsli va ici.
 set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Lighting.hlsli"
-                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Shadows.hlsli"
-                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Terrain.hlsli")
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Shadows.hlsli")
 
 function(batap_compile_shader src out target)
   add_custom_command(
@@ -189,9 +188,6 @@ batap_compile_shader(DebugPS.hlsl      DebugPS.spv      ps_6_6)
 batap_compile_shader(BillboardVS.hlsl  BillboardVS.spv  vs_6_6)
 batap_compile_shader(BillboardPS.hlsl  BillboardPS.spv  ps_6_6)
 batap_compile_shader(ShadowVS.hlsl     ShadowVS.spv     vs_6_6)
-batap_compile_shader(TerrainVS.hlsl    TerrainVS.spv    vs_6_6)
-batap_compile_shader(TerrainPS.hlsl    TerrainPS.spv    ps_6_6)
-batap_compile_shader(TerrainShadowVS.hlsl TerrainShadowVS.spv vs_6_6)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -202,10 +198,7 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/DebugPS.spv"
   "${engine_shader_out}/BillboardVS.spv"
   "${engine_shader_out}/BillboardPS.spv"
-  "${engine_shader_out}/ShadowVS.spv"
-  "${engine_shader_out}/TerrainVS.spv"
-  "${engine_shader_out}/TerrainPS.spv"
-  "${engine_shader_out}/TerrainShadowVS.spv")
+  "${engine_shader_out}/ShadowVS.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —

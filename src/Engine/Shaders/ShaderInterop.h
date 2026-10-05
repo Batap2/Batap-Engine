@@ -48,9 +48,7 @@ enum FrameSetBinding : uint
     SphereOccludersBinding = 8,
     ShadowsBinding = 9,
     FrameConstantsBinding = 10,
-    TerrainChunksBinding = 11,
-    TerrainVerticesBinding = 12,
-    FrameSetBindingCount = 13,
+    FrameSetBindingCount = 11,
 };
 
 enum ShadingModel : uint
@@ -80,36 +78,6 @@ struct StaticMeshGPUData
     float4x4 world_;
     uint materialIndices_[8];  // GPU arena slot per submesh
 };
-
-// The normals are octahedral, two snorm16 in a uint (Terrain.hlsli).
-struct TerrainVertexGPUData
-{
-    float3 position_;
-    uint normal_;
-    float3 target_;
-    uint targetNormal_;
-    float3 target2_;
-    uint target2Normal_;
-};
-
-struct TerrainChunkGPUData
-{
-    float4x4 world_;
-    uint materialIndices_[8];  // per stratum
-    // The first target's band; the second's is twice as far.
-    float morphStart_;
-    float morphEnd_;
-    uint cells_;
-    // Sides 0..3 (j = 0, i = cells_, j = cells_, i = 0) and corners 4..7
-    // ((0,0), (cells_,0), (cells_,cells_), (0,cells_)) pinned to the first target.
-    uint force_;
-    uint vertexBase_;
-    uint flags_;
-    uint pad0_;
-    uint pad1_;
-};
-
-static const uint TerrainMorphs = 1u;
 
 // A kind leaves the fields it has no use for at zero.
 enum LightType : uint
@@ -284,8 +252,6 @@ static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);
-static_assert(sizeof(TerrainVertexGPUData) == 48);
-static_assert(sizeof(TerrainChunkGPUData) == 128);
 
 // dxc lays a structured buffer out as std430: the array stride is the struct
 // size rounded up to 16. A C++ struct that is not a multiple of 16 therefore
@@ -297,8 +263,7 @@ static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
               gpuStrideOk<LightGPUData> && gpuStrideOk<Material> &&
               gpuStrideOk<SkyboxGPUData> && gpuStrideOk<DebugVertexGPUData> &&
               gpuStrideOk<DebugShapeGPUData> && gpuStrideOk<BillboardGPUData> &&
-              gpuStrideOk<ShadowGPUData> && gpuStrideOk<TerrainVertexGPUData> &&
-              gpuStrideOk<TerrainChunkGPUData>);
+              gpuStrideOk<ShadowGPUData>);
 
 static_assert(offsetof(CameraGPUData, pos_) == 128 && offsetof(CameraGPUData, znear_) == 140);
 static_assert(offsetof(SkyboxGPUData, color1) == 160);

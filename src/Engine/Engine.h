@@ -15,7 +15,6 @@ struct InputManager;
 struct AssetManager;
 struct DebugDraw;
 struct Billboards;
-struct TerrainDraws;
 struct Engine;
 
 struct WindowDesc
@@ -72,7 +71,6 @@ struct Engine
     DebugDraw& debug() { return *debugDraw_; }
     DebugDraw& debugOverlay() { return *debugOverlay_; }
     Billboards& billboards() { return *billboards_; }
-    TerrainDraws& terrainDraws() { return *terrainDraws_; }
 
     // Where the scene is rendered, in pixels: the whole window unless a host
     // sets it every frame (the editor, between its panels). getFrameSize() is
@@ -90,7 +88,6 @@ struct Engine
     std::unique_ptr<DebugDraw> debugDraw_;
     std::unique_ptr<DebugDraw> debugOverlay_;
     std::unique_ptr<Billboards> billboards_;
-    std::unique_ptr<TerrainDraws> terrainDraws_;
 
     const EngineSettings& settings() const { return settings_; }
     // 0 = uncapped. CPU sleep

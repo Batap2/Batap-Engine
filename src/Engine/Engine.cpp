@@ -2,7 +2,6 @@
 
 #include "Renderer/Billboards.h"
 #include "Renderer/DebugDraw.h"
-#include "Renderer/TerrainDraws.h"
 
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
@@ -50,7 +49,6 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
     debugDraw_ = std::make_unique<DebugDraw>();
     debugOverlay_ = std::make_unique<DebugDraw>();
     billboards_ = std::make_unique<Billboards>();
-    terrainDraws_ = std::make_unique<TerrainDraws>();
     createDefaultAssets(*this);
 
     // `--project <dir>` is how dev launch configs point a build-tree exe at
@@ -141,8 +139,6 @@ void Engine::endFrame()
     inputManager_->ClearFrameState();
     renderer_->uploadDebugDraw(*debugDraw_, *debugOverlay_);
     renderer_->uploadBillboards(*billboards_);
-    renderer_->uploadTerrain(*terrainDraws_);
-    terrainDraws_->chunks_.clear();
     debugDraw_->endFrame(deltaTime_);
     debugOverlay_->endFrame(deltaTime_);
     billboards_->endFrame(deltaTime_);

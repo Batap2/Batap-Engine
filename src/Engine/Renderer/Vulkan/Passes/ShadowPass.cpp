@@ -4,7 +4,6 @@
 #include "Flatten.h"
 #include "Renderer/EngineConfig.h"
 #include "Renderer/Vulkan/Passes/MeshDraws.h"
-#include "Renderer/Vulkan/Passes/TerrainPass.h"
 #include "Renderer/Vulkan/VulkanBarrier.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
@@ -61,7 +60,7 @@ void ShadowPass::buildPipelines(const ShaderModules& modules)
 }
 
 void ShadowPass::record(const PassContext& pass, std::span<const ShadowAtlasViews> atlases,
-                        size_t entryCount, TerrainPass& terrain)
+                        size_t entryCount)
 {
     if (entryCount == 0 || entryCount > capacity_)
         return;
@@ -99,11 +98,10 @@ void ShadowPass::record(const PassContext& pass, std::span<const ShadowAtlasView
 
     for (const ShadowAtlasViews& atlas : atlases)
         if (!atlas.views_.empty())
-            recordAtlas(pass, atlas, terrain);
+            recordAtlas(pass, atlas);
 }
 
-void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas,
-                             TerrainPass& terrain)
+void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas)
 {
     const VkImage atlasImage = setup_.resources_.imageFor(atlas.atlas_);
 
@@ -128,15 +126,14 @@ void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& at
     info.pDepthAttachment = &depth;
 
     vkCmdBeginRendering(pass.cmd_, &info);
+    vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
     PassContext shadowPass = pass;
     for (const ShadowView& view : atlas.views_)
     {
         shadowPass.push_.shadowViewIndex_ = view.entry_;
         setViewportYUpRect(pass.cmd_, view.x_, view.y_, view.size_, view.size_);
-        vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
         recordMeshDraws(shadowPass, setup_.resources_, 1);
-        terrain.recordShadow(shadowPass);
     }
 
     vkCmdEndRendering(pass.cmd_);

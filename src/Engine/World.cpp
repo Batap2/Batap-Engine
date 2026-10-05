@@ -32,7 +32,6 @@
 #include "Systems/Character_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
-#include "Systems/Terrain_S.h"
 #include "Systems/Transform_S.h"
 
 namespace batap
@@ -152,7 +151,6 @@ void World::update()
 {
     systems_->cascadeLights_->enforce(registry_);
     systems_->update(ctx_->deltaTime_, *ctx_, *this);
-    systems_->terrain_->publish(*this);
     instanceManager_->uploadRemainingFrameDirty(*ctx_);
 }
 
@@ -176,7 +174,6 @@ void World::update(Game& game)
     systems_->update(ctx_->deltaTime_, *ctx_, *this);
     game.lateUpdate(*this, dt);
     systems_->transforms_->update(registry_, *instanceManager_);
-    systems_->terrain_->publish(*this);
     instanceManager_->uploadRemainingFrameDirty(*ctx_);
 }
 
@@ -205,16 +202,6 @@ Billboards& World::billboards()
     return ctx_->billboards();
 }
 
-TerrainDraws& World::terrainDraws()
-{
-    return ctx_->terrainDraws();
-}
-
-Terrain_S& World::terrain()
-{
-    return *systems_->terrain_;
-}
-
 void World::resetScene()
 {
     auto& reg = registry_;
@@ -230,7 +217,6 @@ void World::resetScene()
     }
     for (auto e : roots)
         entityFactory_->destroy({&reg, e});
-    systems_->terrain_->clear(*this);
 
     reg = entt::registry{};
     reg.ctx().emplace<World*>(this);

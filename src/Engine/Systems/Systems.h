@@ -18,7 +18,6 @@ struct Camera_S;
 struct Billboard_S;
 struct Bounds_S;
 struct CascadeLight_S;
-struct Terrain_S;
 
 struct Systems
 {
@@ -35,6 +34,5 @@ struct Systems
     std::unique_ptr<Billboard_S> billboards_;
     std::unique_ptr<Bounds_S> bounds_;
     std::unique_ptr<CascadeLight_S> cascadeLights_;
-    std::unique_ptr<Terrain_S> terrain_;
 };
 }  // namespace batap

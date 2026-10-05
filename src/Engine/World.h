@@ -26,8 +26,6 @@ struct Spawnable;
 struct Game;
 struct DebugDraw;
 struct Billboards;
-struct TerrainDraws;
-struct Terrain_S;
 struct InputManager;
 struct PhysicsWorld;
 
@@ -53,8 +51,6 @@ struct World
     DebugDraw& debug();
     DebugDraw& debugOverlay();
     Billboards& billboards();
-    TerrainDraws& terrainDraws();
-    Terrain_S& terrain();
     SceneRenderArgs renderArgs();
     void setRenderCamera(entt::entity e) { renderCamera_ = e; }
     entt::entity renderCamera();

@@ -10,7 +10,6 @@
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
 #include "Renderer/Vulkan/Passes/ShadowPass.h"
 #include "Renderer/Vulkan/Passes/SkyPass.h"
-#include "Renderer/Vulkan/Passes/TerrainPass.h"
 #include "Renderer/Vulkan/VulkanRenderTargets.h"
 
 #include <cstdint>
@@ -23,7 +22,6 @@ struct VulkanContext;
 struct ResourceManager;
 struct DebugDraw;
 struct Billboards;
-struct TerrainDraws;
 
 struct ScenePasses
 {
@@ -40,7 +38,6 @@ struct ScenePasses
 
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
     void uploadBillboards(const Billboards& billboards);
-    void uploadTerrain(TerrainDraws& draws);
 
     void checkHotReload();
 
@@ -71,7 +68,6 @@ struct ScenePasses
 
     ShadowPass shadow_;
     GeometryPass geometry_;
-    TerrainPass terrain_;
     BillboardPass billboards_;
     SkyPass sky_;
     DebugPass debug_;
