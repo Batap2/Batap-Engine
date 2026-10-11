@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EigenTypes.h"
+#include "Shaders/ShaderInterop.h"
 #include "Terrain/TerrainShape.h"
 
 #include <array>
@@ -49,6 +50,18 @@ struct ChunkKey
     }
 };
 
+struct ChunkKeyHash
+{
+    size_t operator()(const ChunkKey& k) const noexcept
+    {
+        uint64_t h = static_cast<uint64_t>(static_cast<uint32_t>(k.face_));
+        h = h * 0x9E3779B97F4A7C15ull + static_cast<uint32_t>(k.level_);
+        h = h * 0x9E3779B97F4A7C15ull + static_cast<uint32_t>(k.x_);
+        h = h * 0x9E3779B97F4A7C15ull + static_cast<uint32_t>(k.y_);
+        return static_cast<size_t>(h ^ (h >> 29));
+    }
+};
+
 // Face frames: tangent x bitangent = outward normal, so the grid winds
 // counter-clockwise seen from outside and dP/du x dP/dv points out.
 v3d cubeDirection(int32_t face, double u, double v);
@@ -88,5 +101,9 @@ struct ChunkMesh
 };
 
 ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const ChunkKey& key);
+
+uint32_t packNormal(const v3f& n);
+v3f unpackNormal(uint32_t packed);
+std::vector<TerrainVertexGPUData> packVertices(const ChunkMesh& mesh);
 
 }  // namespace batap

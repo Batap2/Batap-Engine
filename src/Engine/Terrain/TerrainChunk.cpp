@@ -1,5 +1,6 @@
 #include "Terrain/TerrainChunk.h"
 
+#include "Flatten.h"
 #include "Terrain/TerrainRelief.h"
 
 #include <algorithm>
@@ -172,6 +173,47 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
         out.indices_[slot] = tris[t][0];
         out.indices_[slot + 1] = tris[t][1];
         out.indices_[slot + 2] = tris[t][2];
+    }
+    return out;
+}
+
+uint32_t packNormal(const v3f& n)
+{
+    const float l1 = std::abs(n.x()) + std::abs(n.y()) + std::abs(n.z());
+    v2f e{n.x() / l1, n.y() / l1};
+    if (n.z() < 0.f)
+        e = v2f{(1.f - std::abs(e.y())) * (e.x() >= 0.f ? 1.f : -1.f),
+                (1.f - std::abs(e.x())) * (e.y() >= 0.f ? 1.f : -1.f)};
+    const auto snorm = [](float v)
+    {
+        const auto q = static_cast<int16_t>(std::lround(std::clamp(v, -1.f, 1.f) * 32767.f));
+        return static_cast<uint32_t>(static_cast<uint16_t>(q));
+    };
+    return snorm(e.x()) | (snorm(e.y()) << 16);
+}
+
+v3f unpackNormal(uint32_t packed)
+{
+    const auto snorm = [](uint32_t bits)
+    {
+        const auto q = static_cast<int16_t>(static_cast<uint16_t>(bits & 0xFFFFu));
+        return std::max(static_cast<float>(q) / 32767.f, -1.f);
+    };
+    v3f n{snorm(packed), snorm(packed >> 16), 0.f};
+    n.z() = 1.f - std::abs(n.x()) - std::abs(n.y());
+    const float t = std::max(-n.z(), 0.f);
+    n.x() += n.x() >= 0.f ? -t : t;
+    n.y() += n.y() >= 0.f ? -t : t;
+    return n.normalized();
+}
+
+std::vector<TerrainVertexGPUData> packVertices(const ChunkMesh& mesh)
+{
+    std::vector<TerrainVertexGPUData> out(mesh.positions_.size());
+    for (size_t k = 0; k < out.size(); ++k)
+    {
+        flatten(out[k].position_, mesh.positions_[k]);
+        out[k].normal_ = packNormal(mesh.normals_[k]);
     }
     return out;
 }

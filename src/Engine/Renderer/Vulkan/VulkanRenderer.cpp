@@ -307,6 +307,12 @@ void Renderer::uploadBillboards(const Billboards& billboards)
         scenePasses_->uploadBillboards(billboards);
 }
 
+void Renderer::uploadTerrain(TerrainDraws& draws)
+{
+    if (scenePasses_)
+        scenePasses_->uploadTerrain(draws);
+}
+
 void Renderer::setSceneRecord(SceneRecordFn fn)
 {
     sceneRecord_ = std::move(fn);

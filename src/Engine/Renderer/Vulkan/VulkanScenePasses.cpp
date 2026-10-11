@@ -121,6 +121,7 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
           createPipelineLayout(ctx.device_, resources.textureSetLayout(), frameSetLayout_)),
       shadow_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       geometry_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
+      terrain_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       billboards_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       sky_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       debug_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat})
@@ -173,6 +174,7 @@ void ScenePasses::buildPipelines(const ShaderModules& modules)
 {
     shadow_.buildPipelines(modules);
     geometry_.buildPipelines(modules);
+    terrain_.buildPipelines(modules);
     billboards_.buildPipelines(modules);
     sky_.buildPipelines(modules);
     debug_.buildPipelines(modules);
@@ -186,6 +188,11 @@ void ScenePasses::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw&
 void ScenePasses::uploadBillboards(const Billboards& billboards)
 {
     billboards_.upload(billboards);
+}
+
+void ScenePasses::uploadTerrain(TerrainDraws& draws)
+{
+    terrain_.upload(draws);
 }
 
 void ScenePasses::checkHotReload()
@@ -267,6 +274,8 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     claim(BillboardsBinding, resources_.bufferFor(billboards_.buffer()));
     claim(ShadowsBinding, resources_.bufferFor(shadow_.buffer()));
     claim(FrameConstantsBinding, resources_.bufferFor(frameConstants_));
+    claim(TerrainChunksBinding, resources_.bufferFor(terrain_.chunkBuffer()));
+    claim(TerrainVerticesBinding, resources_.bufferFor(terrain_.vertexBuffer()));
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
     std::array<VkWriteDescriptorSet, FrameSetBindingCount> writes{};
@@ -424,6 +433,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
 
     geometry_.record(pass);
+    terrain_.record(pass);
     // Before the sky, like the geometry: they write depth, so the sky's
     // LESS_OR_EQUAL test then leaves their pixels alone.
     billboards_.record(pass);
