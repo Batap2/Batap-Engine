@@ -221,7 +221,7 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             TerrainDraws::Params params;
             params.materials_ = materials;
             params.force_ = chunk.force_;
-            params.outline_ = terrain.debug_;
+            params.outline_ = showChunks_;
             params.morphs_ = morphs && key.level_ > 0;
             if (params.morphs_)
             {
@@ -288,7 +288,7 @@ void Terrain_S::publish(World& world)
             draws.place(chunk.mesh_, m);
         }
 
-        if (const Terrain_C* terrain = reg.try_get<Terrain_C>(e); terrain && terrain->debug_)
+        if (showChunks_)
             debug(world, e, state);
     }
 }

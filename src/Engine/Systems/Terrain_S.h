@@ -25,6 +25,9 @@ struct Terrain_S
     void publish(World& world);
     void clear(World& world);
 
+    // Chunk outlines coloured by level, and a count on screen.
+    bool showChunks_ = false;
+
    private:
     struct Chunk
     {

@@ -21,7 +21,6 @@ struct Terrain_C
     // Triangles per chunk side; every level halves the cell. Powers of two
     // from 16 to 128, rounded down otherwise.
     int32_t cells_ = 32;
-    bool debug_ = false;
     // Metres. Sets the deepest level of the quadtree.
     float finestCell_ = 0.01f;
     // A node splits while the camera is closer than this many times its side.
@@ -37,10 +36,9 @@ static_assert(refl::fieldName<Terrain_C, 2>() == "face");
 static_assert(refl::fieldName<Terrain_C, 3>() == "x");
 static_assert(refl::fieldName<Terrain_C, 4>() == "y");
 static_assert(refl::fieldName<Terrain_C, 5>() == "cells");
-static_assert(refl::fieldName<Terrain_C, 6>() == "debug");
-static_assert(refl::fieldName<Terrain_C, 7>() == "finestCell");
-static_assert(refl::fieldName<Terrain_C, 8>() == "lodRatio");
-static_assert(refl::fieldName<Terrain_C, 9>() == "shape");
+static_assert(refl::fieldName<Terrain_C, 6>() == "finestCell");
+static_assert(refl::fieldName<Terrain_C, 7>() == "lodRatio");
+static_assert(refl::fieldName<Terrain_C, 8>() == "shape");
 
 BATAP_COMPONENT(Terrain_C, "terrain",
                 fieldMeta<&Terrain_C::level_>({.speed = 1.f, .min = 0.f, .max = 24.f}),

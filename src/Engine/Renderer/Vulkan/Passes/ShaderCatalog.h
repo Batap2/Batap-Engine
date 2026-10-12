@@ -20,6 +20,7 @@ enum ShaderId : size_t
     ShadowVS,
     TerrainVS,
     TerrainPS,
+    TerrainShadowVS,
     ShaderCount,
 };
 
@@ -43,6 +44,7 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"ShadowVS", "vs_6_6"},
     {"TerrainVS", "vs_6_6"},
     {"TerrainPS", "ps_6_6"},
+    {"TerrainShadowVS", "vs_6_6"},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

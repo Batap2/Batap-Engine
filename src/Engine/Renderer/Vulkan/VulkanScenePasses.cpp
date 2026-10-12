@@ -428,7 +428,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
         {localAtlas_, LocalAtlasSize, shadowViews_},
         {cascadeAtlas_, CascadeAtlasSize, cascadeViews_},
     }};
-    shadow_.record(pass, shadowAtlases, shadowEntries);
+    shadow_.record(pass, shadowAtlases, shadowEntries, terrain_);
 
     vkCmdBeginRendering(cmd, &renderingInfo);
     setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);

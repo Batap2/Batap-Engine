@@ -40,6 +40,7 @@ TerrainPass::TerrainPass(const PassSetup& setup) : setup_(setup)
 TerrainPass::~TerrainPass()
 {
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
     setup_.resources_.requestDestroy(chunks_);
     setup_.resources_.requestDestroy(worlds_);
     setup_.resources_.requestDestroy(vertices_.buffer_);
@@ -52,6 +53,8 @@ void TerrainPass::buildPipelines(const ShaderModules& modules)
 {
     if (pipeline_)
         vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
+    if (shadowPipeline_)
+        vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
 
     pipeline_ = GraphicsPipelineBuilder()
                     .shaders(modules[TerrainVS], modules[TerrainPS])
@@ -59,6 +62,15 @@ void TerrainPass::buildPipelines(const ShaderModules& modules)
                     .depth(setup_.depthFormat_, true, VK_COMPARE_OP_LESS)
                     .cullBack()
                     .build(setup_.ctx_.device_, setup_.layout_);
+
+    // ShadowPass's own settings.
+    shadowPipeline_ = GraphicsPipelineBuilder()
+                          .shaders(modules[TerrainShadowVS], VK_NULL_HANDLE)
+                          .depth(VK_FORMAT_D32_SFLOAT, true, VK_COMPARE_OP_LESS)
+                          .depthOnly()
+                          .depthClamp()
+                          .cullFront()
+                          .build(setup_.ctx_.device_, setup_.layout_);
 }
 
 void TerrainPass::reserve(Pool& pool, uint64_t elements)
@@ -250,12 +262,17 @@ void TerrainPass::upload(TerrainDraws& draws)
     {
         drawsDirty_ = false;
         draws_.clear();
+        shadowDraws_.clear();
         for (const auto& [id, slot] : slots_)
+        {
             for (size_t s = 0; s < kMaxTerrainStrata; ++s)
                 if (slot.ranges_[s].count_ > 0)
                     draws_.push_back({slot.instance_, static_cast<uint32_t>(s),
                                       static_cast<uint32_t>(slot.index_) + slot.ranges_[s].offset_,
                                       slot.ranges_[s].count_});
+            shadowDraws_.push_back({slot.instance_, 0, static_cast<uint32_t>(slot.index_),
+                                    static_cast<uint32_t>(slot.indices_)});
+        }
     }
 
     draws.lastUpload_ = {slots_.size(), stagedBytes_,
@@ -264,22 +281,33 @@ void TerrainPass::upload(TerrainDraws& draws)
                              .count()};
 }
 
-void TerrainPass::record(const PassContext& pass)
+void TerrainPass::recordDraws(const PassContext& pass, VkPipeline pipeline,
+                              const std::vector<Draw>& draws)
 {
-    if (draws_.empty())
+    if (draws.empty())
         return;
-    vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+    vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vkCmdBindIndexBuffer(pass.cmd_, setup_.resources_.bufferFor(indices_.buffer_), 0,
                          VK_INDEX_TYPE_UINT16);
     // The indices are local to a chunk: vertexOffset 0, and the vertex shader
     // adds vertexBase_ itself, so SV_VertexID is the grid index.
     DrawPush push = pass.push_;
-    for (const Draw& d : draws_)
+    for (const Draw& d : draws)
     {
         push.instanceIndex_ = d.instance_;
         push.submeshIndex_ = d.stratum_;
         pushDraw(pass, push);
         vkCmdDrawIndexed(pass.cmd_, d.count_, 1, d.firstIndex_, 0, 0);
     }
+}
+
+void TerrainPass::record(const PassContext& pass)
+{
+    recordDraws(pass, pipeline_, draws_);
+}
+
+void TerrainPass::recordShadow(const PassContext& pass)
+{
+    recordDraws(pass, shadowPipeline_, shadowDraws_);
 }
 }  // namespace batap

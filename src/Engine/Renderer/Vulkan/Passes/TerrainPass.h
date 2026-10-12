@@ -30,6 +30,8 @@ struct TerrainPass
     // at the top of the next render.
     void upload(TerrainDraws& draws);
     void record(const PassContext& pass);
+    // Inside a shadow view's rendering, its push constants set.
+    void recordShadow(const PassContext& pass);
 
     GPUResourceHandle chunkBuffer() const { return chunks_; }
     GPUResourceHandle vertexBuffer() const { return vertices_.buffer_; }
@@ -70,10 +72,12 @@ struct TerrainPass
     void reserve(Pool& pool, uint64_t elements);
     uint64_t allocate(Pool& pool, uint64_t elements);
     std::optional<uint32_t> allocateInstance();
+    void recordDraws(const PassContext& pass, VkPipeline pipeline, const std::vector<Draw>& draws);
     void writeChunk(uint32_t instance, const Slot& slot, const TerrainDraws::Params& params);
 
     PassSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
+    VkPipeline shadowPipeline_ = VK_NULL_HANDLE;
     GPUResourceHandle chunks_;
     GPUResourceHandle worlds_;
     Pool vertices_;
@@ -88,6 +92,8 @@ struct TerrainPass
     uint64_t frame_ = 0;
     std::vector<TerrainWorldGPUData> worldData_;
     std::vector<Draw> draws_;
+    // Depth only: one draw per chunk, its strata together.
+    std::vector<Draw> shadowDraws_;
     bool drawsDirty_ = false;
     uint64_t stagedBytes_ = 0;
     bool warnedFull_ = false;

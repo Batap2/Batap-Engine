@@ -24,6 +24,7 @@
 #include "Systems/Bounds_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
+#include "Systems/Terrain_S.h"
 #include "World.h"
 
 #include <imgui.h>
@@ -502,6 +503,7 @@ void UIPanels::drawViewMenu(World& world, App& app)
 {
     ImGui::MenuItem("Colliders", nullptr, &world.systems().physics_->showColliders_);
     ImGui::MenuItem("Bounds", nullptr, &world.systems().bounds_->showBounds_);
+    ImGui::MenuItem("Terrain chunks", nullptr, &world.systems().terrain_->showChunks_);
     ImGui::MenuItem("Shadow cascades", nullptr, &world.showShadowCascades_);
     ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
 }
