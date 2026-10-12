@@ -27,11 +27,13 @@ nlohmann::json read(const std::filesystem::path& file);
 
 // The "window" section: `screen` is the monitor the window opens centred on
 // (platformMonitors() order, 0 the primary), `focusOnShow` false shows it
-// without taking the focus. A key the file lacks leaves `io` alone.
+// without taking the focus, `behindOnShow` under every other window. A key the
+// file lacks leaves `io` alone.
 void readWindow(const nlohmann::json& config, WindowDesc& io);
 
 // Writes that section and nothing else: the file is read back first, so
 // whatever else it holds survives.
-void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow);
+void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow,
+                 bool behindOnShow);
 }  // namespace userConfig
 }  // namespace batap

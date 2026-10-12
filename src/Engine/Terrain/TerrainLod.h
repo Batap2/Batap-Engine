@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -57,6 +58,26 @@ std::vector<ChunkKey> selectChunks(const LodParams& params, const v3d& camera,
                                    const ChunkKeySet& existing, const NodeBoundsFn& bounds);
 std::vector<ChunkKey> rootChunks(const TerrainGrid& grid);
 
+// The selected leaves and all their ancestors.
+ChunkKeySet quadtreeOf(const std::vector<ChunkKey>& leaves);
+
+// The node beside `key` at its level, dx and dy in -1..1: across a cube edge
+// on the sphere, none past the plane's edge.
+std::optional<ChunkKey> neighbour(const TerrainGrid& grid, const ChunkKey& key, int32_t dx,
+                                  int32_t dy);
+
+using ChunkTest = std::function<bool(const ChunkKey&)>;
+
+// What to draw of `quadtree` (quadtreeOf a selection) while parts of it are
+// not built. A node splits once its four children are built and every node
+// beside it at its level is drawn or split too; until then it draws in their
+// place. So neighbours stay one level apart, which the morph needs.
+std::vector<ChunkKey> shownChunks(const TerrainGrid& grid, const ChunkKeySet& quadtree,
+                                  const ChunkTest& built);
+// The nodes of `quadtree` to build next: those whose parent is built, so that
+// a node arrives over a parent that can stand in for it.
+std::vector<ChunkKey> buildFrontier(const ChunkKeySet& quadtree, const ChunkTest& built);
+
 bool isAncestor(const ChunkKey& ancestor, const ChunkKey& key);
 
 // Face and (u, v) in [-1, 1] under a direction: the inverse of cubeDirection.
@@ -83,6 +104,12 @@ double morphStart(const TerrainGrid& grid, int32_t level, double ratio);
 // what the coarser chunk draws there, its own slide to its parent included.
 // The coarser side needs nothing, nor the edge of the plane.
 uint32_t morphForce(const TerrainGrid& grid, const ChunkKey& key, const ChunkKeySet& shown);
+
+// The chunks of `shown` among `keys` or touching one of them, `shown` being
+// one level apart at most: those whose morphForce changes when `keys` come or
+// go.
+std::vector<ChunkKey> chunksTouching(const TerrainGrid& grid, const std::vector<ChunkKey>& keys,
+                                     const ChunkKeySet& shown);
 
 // Shaders/Terrain.hlsli on the CPU: where the vertex shader puts vertex
 // (i, j) of a chunk. All in the terrain's frame.

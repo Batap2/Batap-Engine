@@ -453,7 +453,7 @@ void platformMoveWindowToMonitor(void* nativeHandle, int screen)
                                        NSMidY(area) - frame.size.height / 2)];
 }
 
-void platformShowWindow(void* nativeHandle, bool activate)
+void platformShowWindow(void* nativeHandle, const WindowDesc& desc)
 {
     NSWindow* window = (__bridge NSWindow*)nativeHandle;
 
@@ -463,7 +463,12 @@ void platformShowWindow(void* nativeHandle, bool activate)
         [NSApp finishLaunching];
         launched = true;
     }
-    if (!activate)
+    if (desc.behindOnShow)
+    {
+        [window orderBack:nil];
+        return;
+    }
+    if (!desc.focusOnShow)
     {
         [window orderFront:nil];
         return;

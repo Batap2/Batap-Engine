@@ -13,11 +13,12 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <array>
 #include <bit>
-#include <chrono>
-#include <iostream>
 #include <optional>
 #include <string>
+#include <thread>
+#include <tuple>
 #include <vector>
 
 namespace batap
@@ -25,8 +26,22 @@ namespace batap
 namespace
 {
 
-// Until the generation is asynchronous (OBJECTIF_TERRAIN.md step 6).
-constexpr size_t kBuildsPerFrame = 64;
+// A few milliseconds of copies at most: 64 chunks of 32 cells.
+constexpr uint64_t kUploadBytesPerFrame = uint64_t{4} << 20;
+// Per terrain, the chunks out of the quadtree kept on the GPU in case it
+// comes back.
+constexpr uint64_t kCacheBytes = uint64_t{64} << 20;
+
+int32_t builderThreads()
+{
+    return std::max(1, static_cast<int32_t>(std::thread::hardware_concurrency()) / 4);
+}
+
+uint64_t chunkBytes(int32_t cells)
+{
+    const auto c = static_cast<uint64_t>(cells);
+    return (c + 1) * (c + 1) * sizeof(TerrainVertexGPUData) + c * c * 6 * sizeof(uint16_t);
+}
 
 std::array<uint32_t, kMaxTerrainStrata> materialsOf(const entt::registry& reg, entt::entity e)
 {
@@ -41,16 +56,22 @@ std::array<uint32_t, kMaxTerrainStrata> materialsOf(const entt::registry& reg, e
 
 }  // namespace
 
+Terrain_S::Terrain_S() : builder_(builderThreads()) {}
+
 void Terrain_S::drop(World& world, State& state)
 {
     TerrainDraws& draws = world.terrainDraws();
     for (const auto& [key, chunk] : state.chunks_)
         draws.remove(chunk.mesh_);
     state.chunks_.clear();
+    state.wanted_.clear();
+    state.shown_.clear();
+    state.wishes_.clear();
 }
 
 void Terrain_S::clear(World& world)
 {
+    builder_.cancel();
     for (auto& [e, state] : states_)
         drop(world, state);
     states_.clear();
@@ -60,6 +81,7 @@ void Terrain_S::sync(World& world, TerrainSource& source)
 {
     auto& reg = world.registry_;
     TerrainDraws& draws = world.terrainDraws();
+    ++syncs_;
 
     for (auto it = states_.begin(); it != states_.end();)
     {
@@ -81,9 +103,12 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             cameraWorld = Hierarchy_S::getParent({&reg, cam}) == entt::null ? ct->pos()
                                                                             : ct->worldPos();
 
+    std::vector<ChunkBuilder::Result> arrivals = builder_.take(kUploadBytesPerFrame);
+    std::vector<Wish> wishes;
+
     for (auto [e, terrain, tc] : reg.view<Terrain_C, Transform_C>().each())
     {
-        EntityHandle owner{&reg, e};
+        const auto start = std::chrono::steady_clock::now();
         const TerrainSource::Ground ground = source.ground(world, e);
         if (!ground.relief_)
         {
@@ -112,10 +137,6 @@ void Terrain_S::sync(World& world, TerrainSource& source)
         const NodeBoundsFn bounds = [&](const ChunkKey& key)
         { return state.bounds_.get(key, relief, grid); };
 
-        ChunkKeySet existing;
-        for (const auto& [key, chunk] : state.chunks_)
-            existing.insert(key);
-
         std::vector<ChunkKey> wanted;
         std::optional<v3d> camera;
         if (terrain.oneChunk_)
@@ -132,97 +153,102 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             params.grid_ = grid;
             params.maxLevel_ = levelForCell(grid, static_cast<double>(terrain.finestCell_));
             params.ratio_ = static_cast<double>(terrain.lodRatio_);
-            wanted = selectChunks(params, *camera, existing, bounds);
+            wanted = selectChunks(params, *camera, state.shown_, bounds);
         }
         else
             wanted = rootChunks(grid);
-        const ChunkKeySet wantedSet(wanted.begin(), wanted.end());
+        // Mixed levels only come from the quadtree.
+        const bool nested = camera.has_value();
 
-        std::vector<ChunkKey> missing;
-        for (const ChunkKey& key : wanted)
-            if (!existing.contains(key))
-                missing.push_back(key);
-        if (camera)
-            std::sort(missing.begin(), missing.end(), [&](const ChunkKey& a, const ChunkKey& b)
-                      { return distanceTo(bounds(a), *camera) < distanceTo(bounds(b), *camera); });
-        if (missing.size() > kBuildsPerFrame)
-            missing.resize(kBuildsPerFrame);
+        state.arrived_ = 0;
+        state.evicted_ = 0;
+        const bool moved = wanted != state.wanted_;
+        ChunkKeySet tree;
+        if (moved || !arrivals.empty())
+            tree = nested ? quadtreeOf(wanted) : ChunkKeySet(wanted.begin(), wanted.end());
 
-        v3d lastCenter = v3d::Zero();
-        const auto start = std::chrono::steady_clock::now();
-        for (const ChunkKey& key : missing)
+        for (ChunkBuilder::Result& r : arrivals)
         {
-            ChunkMesh mesh = buildChunk(relief, grid, key);
-            lastCenter = mesh.center_;
-
-            TerrainDraws::Mesh gpu;
-            gpu.vertices_ = packVertices(mesh);
-            gpu.indices_ = std::move(mesh.indices_);
-            gpu.ranges_ = mesh.ranges_;
-            gpu.cells_ = static_cast<uint32_t>(grid.cells_);
-            gpu.level_ = static_cast<uint32_t>(key.level_);
-
-            Chunk& chunk = state.chunks_[key];
-            chunk.mesh_ = draws.add(std::move(gpu));
-            chunk.center_ = mesh.center_;
-            existing.insert(key);
-        }
-        const double buildMs =
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
-                .count();
-
-        // A chunk goes once what replaces it is there: the ancestor it merges
-        // into, or every leaf it splits into. Until then both show.
-        std::vector<ChunkKey> leaving;
-        for (const auto& [key, chunk] : state.chunks_)
-        {
-            if (wantedSet.contains(key))
+            if (r.owner_ != e || r.fingerprint_ != fingerprint || !tree.contains(r.key_) ||
+                state.chunks_.contains(r.key_))
                 continue;
-            bool covered = false;
-            bool splits = false;
-            bool allLeaves = true;
-            for (const ChunkKey& w : wanted)
+            Chunk& chunk = state.chunks_[r.key_];
+            chunk.center_ = r.center_;
+            chunk.used_ = syncs_;
+            chunk.mesh_ = draws.add(std::move(r.mesh_));
+            ++state.arrived_;
+            ++state.rateBuilt_;
+            state.rateBuildMs_ += r.ms_;
+        }
+
+        if (moved || state.arrived_ > 0)
+        {
+            const ChunkTest built = [&](const ChunkKey& key)
+            { return state.chunks_.contains(key); };
+            std::vector<ChunkKey> shownList;
+            std::vector<ChunkKey> frontier;
+            if (nested)
             {
-                if (isAncestor(w, key) && existing.contains(w))
+                shownList = shownChunks(grid, tree, built);
+                frontier = buildFrontier(tree, built);
+            }
+            else
+                for (const ChunkKey& key : wanted)
+                    (built(key) ? shownList : frontier).push_back(key);
+
+            ChunkKeySet shown(shownList.begin(), shownList.end());
+            std::vector<ChunkKey> changed;
+            for (auto& [key, chunk] : state.chunks_)
+                if (const bool show = shown.contains(key); chunk.shown_ != show)
                 {
-                    covered = true;
-                    break;
+                    draws.show(chunk.mesh_, show);
+                    chunk.shown_ = show;
+                    changed.push_back(key);
                 }
-                if (isAncestor(key, w))
+            // Which borders meet a coarser chunk changes with what is shown.
+            for (const ChunkKey& key : chunksTouching(grid, changed, shown))
+                state.chunks_[key].force_ = nested ? morphForce(grid, key, shown) : 0u;
+            state.shown_ = std::move(shown);
+
+            state.wishes_.clear();
+            for (const ChunkKey& key : frontier)
+                state.wishes_.push_back(
+                    {camera ? distanceTo(bounds(key), *camera) : 0.0,
+                     ChunkBuilder::Request{e, fingerprint, ground.relief_, grid, key}});
+
+            std::vector<std::pair<uint64_t, ChunkKey>> cached;
+            for (auto& [key, chunk] : state.chunks_)
+                if (tree.contains(key))
+                    chunk.used_ = syncs_;
+                else
+                    cached.emplace_back(chunk.used_, key);
+            const uint64_t keep = kCacheBytes / chunkBytes(grid.cells_);
+            if (cached.size() > keep)
+            {
+                const auto oldest = cached.end() - static_cast<std::ptrdiff_t>(keep);
+                std::nth_element(cached.begin(), oldest, cached.end(),
+                                 [](const auto& a, const auto& b) { return a.first < b.first; });
+                for (auto it = cached.begin(); it != oldest; ++it)
                 {
-                    splits = true;
-                    allLeaves = allLeaves && existing.contains(w);
+                    draws.remove(state.chunks_[it->second].mesh_);
+                    state.chunks_.erase(it->second);
+                    ++state.evicted_;
                 }
             }
-            if (covered || (splits && allLeaves) || terrain.oneChunk_)
-                leaving.push_back(key);
+            state.wanted_ = std::move(wanted);
         }
-        for (const ChunkKey& key : leaving)
-        {
-            draws.remove(state.chunks_[key].mesh_);
-            state.chunks_.erase(key);
-        }
+        wishes.insert(wishes.end(), state.wishes_.begin(), state.wishes_.end());
 
-        // Mixed levels only come from the quadtree. Which borders meet a
-        // coarser chunk changes with what is shown, so only then.
-        const bool morphs = camera.has_value();
-        if (!missing.empty() || !leaving.empty())
-        {
-            ChunkKeySet shown;
-            for (const auto& [key, chunk] : state.chunks_)
-                shown.insert(key);
-            for (auto& [key, chunk] : state.chunks_)
-                chunk.force_ = morphs ? morphForce(grid, key, shown) : 0u;
-        }
         const double ratio = static_cast<double>(terrain.lodRatio_);
         const std::array<uint32_t, kMaxTerrainStrata> materials = materialsOf(reg, e);
-        for (auto& [key, chunk] : state.chunks_)
+        for (const ChunkKey& key : state.shown_)
         {
+            Chunk& chunk = state.chunks_[key];
             TerrainDraws::Params params;
             params.materials_ = materials;
             params.force_ = chunk.force_;
             params.outline_ = showChunks_;
-            params.morphs_ = morphs && key.level_ > 0;
+            params.morphs_ = nested && key.level_ > 0;
             if (params.morphs_)
             {
                 params.morphStart_ = static_cast<float>(morphStart(grid, key.level_, ratio));
@@ -238,24 +264,34 @@ void Terrain_S::sync(World& world, TerrainSource& source)
         state.grid_ = grid;
         state.ratio_ = ratio;
         state.maxLevel_ = levelForCell(grid, static_cast<double>(terrain.finestCell_));
-        state.built_ = missing.size();
-        state.dropped_ = leaving.size();
-        state.totalBuilt_ += missing.size();
-        if (!missing.empty())
-            state.lastBuildMs_ = buildMs;
-
-        if (!missing.empty() || !leaving.empty())
+        state.totalBuilt_ += state.arrived_;
+        const auto now = std::chrono::steady_clock::now();
+        state.syncMs_ = std::chrono::duration<double, std::milli>(now - start).count();
+        if (const double seconds = std::chrono::duration<double>(now - state.rateStart_).count();
+            seconds >= 1.0)
         {
-            const Name_C* ownerName = owner.try_get<Name_C>();
-            std::cout << "[Terrain] " << (ownerName ? ownerName->name_ : std::string{"terrain"})
-                      << ": +" << missing.size() << " -" << leaving.size() << " chunks, now "
-                      << state.chunks_.size() << ", " << buildMs << " ms";
-            if (missing.size() == 1)
-                std::cout << ", centre (" << lastCenter.x() << ", " << lastCenter.y() << ", "
-                          << lastCenter.z() << ")";
-            std::cout << std::endl;
+            state.chunksPerSecond_ = static_cast<double>(state.rateBuilt_) / seconds;
+            state.msPerChunk_ = state.rateBuilt_ > 0
+                                    ? state.rateBuildMs_ / static_cast<double>(state.rateBuilt_)
+                                    : 0.0;
+            state.rateStart_ = now;
+            state.rateBuilt_ = 0;
+            state.rateBuildMs_ = 0.0;
         }
     }
+
+    // Nearest first; at equal distance, the camera inside both, the coarser.
+    std::sort(wishes.begin(), wishes.end(),
+              [](const Wish& a, const Wish& b)
+              {
+                  return std::tie(a.distance_, a.request_.key_.level_) <
+                         std::tie(b.distance_, b.request_.key_.level_);
+              });
+    std::vector<ChunkBuilder::Request> requests;
+    requests.reserve(wishes.size());
+    for (Wish& w : wishes)
+        requests.push_back(std::move(w.request_));
+    builder_.request(std::move(requests));
 }
 
 void Terrain_S::publish(World& world)
@@ -280,8 +316,9 @@ void Terrain_S::publish(World& world)
         const transform& ownerWorld = tc->world();
         const m3d linear = ownerWorld.linear().cast<double>();
         const v3d offset = ownerWorld.translation().cast<double>() - camera;
-        for (const auto& [key, chunk] : state.chunks_)
+        for (const ChunkKey& key : state.shown_)
         {
+            const Chunk& chunk = state.chunks_.at(key);
             m4f m = m4f::Identity();
             m.topLeftCorner<3, 3>() = ownerWorld.linear();
             m.topRightCorner<3, 1>() = (linear * chunk.center_ + offset).cast<float>();
@@ -297,13 +334,11 @@ void Terrain_S::debug(World& world, entt::entity owner, const State& state)
 {
     const TerrainDraws::Upload& upload = world.terrainDraws().lastUpload_;
     const auto* name = world.registry_.try_get<Name_C>(owner);
-    const size_t chunks = state.chunks_.size();
+    const size_t shown = state.shown_.size();
     const auto cells = static_cast<size_t>(state.grid_.cells_);
-    const size_t triangles = chunks * cells * cells * 2;
-    const size_t vertices = chunks * (cells + 1) * (cells + 1);
-    const double gpuMb = static_cast<double>(vertices * sizeof(TerrainVertexGPUData) +
-                                             triangles * 3 * sizeof(uint16_t)) /
-                         1048576.0;
+    const size_t triangles = shown * cells * cells * 2;
+    const size_t resident = state.chunks_.size();
+    const double gpuMb = static_cast<double>(resident * chunkBytes(state.grid_.cells_)) / 1048576.0;
 
     const ViewRect view = world.viewRect();
     const v2f corner = toPoints((view.origin_ + v2i{view.size_.x(), 0}).cast<float>());
@@ -311,14 +346,16 @@ void Terrain_S::debug(World& world, entt::entity owner, const State& state)
     ImGui::Begin(("Terrain " + (name ? name->name_ : std::string{"terrain"})).c_str(), nullptr,
                  ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse |
                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
-    ImGui::Text("%zu chunks, max level %d, ratio %.1f, %d cells", chunks, state.maxLevel_,
+    ImGui::Text("%zu chunks shown, max level %d, ratio %.1f, %d cells", shown, state.maxLevel_,
                 state.ratio_, state.grid_.cells_);
-    ImGui::Text("%zu k triangles, %.0f MB, %zu meshes on the GPU", triangles / 1000, gpuMb,
-                upload.meshes_);
-    ImGui::Text("+%zu -%zu this frame, %zu built in all, last %.1f ms", state.built_,
-                state.dropped_, state.totalBuilt_, state.lastBuildMs_);
-    ImGui::Text("upload %.1f KB, %.2f ms", static_cast<double>(upload.bytes_) / 1024.0,
-                upload.ms_);
+    ImGui::Text("%zu k triangles; on the GPU %zu chunks, %.0f MB, %zu meshes in all",
+                triangles / 1000, resident, gpuMb, upload.meshes_);
+    ImGui::Text("+%zu -%zu this frame, %zu built in all", state.arrived_, state.evicted_,
+                state.totalBuilt_);
+    ImGui::Text("%.0f chunks/s, %.2f ms each; %zu queued, %zu under way", state.chunksPerSecond_,
+                state.msPerChunk_, builder_.queued(), builder_.underWay());
+    ImGui::Text("sync %.2f ms, upload %.1f KB, %.2f ms", state.syncMs_,
+                static_cast<double>(upload.bytes_) / 1024.0, upload.ms_);
     ImGui::End();
 }
 

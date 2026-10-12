@@ -51,12 +51,15 @@ void readWindow(const nlohmann::json& config, WindowDesc& io)
 
     io.screen = it->value("screen", io.screen);
     io.focusOnShow = it->value("focusOnShow", io.focusOnShow);
+    io.behindOnShow = it->value("behindOnShow", io.behindOnShow);
 }
 
-void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow)
+void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow,
+                 bool behindOnShow)
 {
     nlohmann::json j = read(file);
-    j["window"] = {{"screen", screen}, {"focusOnShow", focusOnShow}};
+    j["window"] = {
+        {"screen", screen}, {"focusOnShow", focusOnShow}, {"behindOnShow", behindOnShow}};
     std::error_code ec;
     std::filesystem::create_directories(file.parent_path(), ec);
     std::ofstream(file) << j.dump(2);

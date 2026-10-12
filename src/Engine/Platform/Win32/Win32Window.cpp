@@ -421,8 +421,10 @@ void redirectIOToConsole()
 void platformInit()
 {
 #if defined(_DEBUG)
-    // Skip when a console is already attached (launched from a terminal).
-    if (::GetConsoleWindow() == nullptr)
+    // Skip when a console is already attached (launched from a terminal), or
+    // when the output already goes to a file or a pipe.
+    const DWORD output = ::GetFileType(::GetStdHandle(STD_OUTPUT_HANDLE));
+    if (::GetConsoleWindow() == nullptr && output != FILE_TYPE_DISK && output != FILE_TYPE_PIPE)
         redirectIOToConsole();
 #endif
 
@@ -620,17 +622,26 @@ void platformBindContext(void* nativeHandle, Engine* ctx)
                         reinterpret_cast<LONG_PTR>(ctx));
 }
 
-void platformShowWindow(void* nativeHandle, bool activate)
+void platformShowWindow(void* nativeHandle, const WindowDesc& desc)
 {
     HWND hwnd = static_cast<HWND>(nativeHandle);
     // The frame was computed before WM_NCCALCSIZE could answer, so ask again:
     // without this the system title bar stays.
+    if (desc.behindOnShow)
+    {
+        // Shown and sent to the bottom in one call, so never on top, even for
+        // a frame.
+        ::SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
+                       SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
+                           SWP_SHOWWINDOW);
+        return;
+    }
     ::SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                    SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                        SWP_NOACTIVATE);
     // Not activated: the focus stays where it was. Posted key messages reach
     // the window all the same.
-    ::ShowWindow(hwnd, activate ? SW_SHOW : SW_SHOWNOACTIVATE);
+    ::ShowWindow(hwnd, desc.focusOnShow ? SW_SHOW : SW_SHOWNOACTIVATE);
 }
 
 void platformSetWindowTitle(void* nativeHandle, const std::string& title)

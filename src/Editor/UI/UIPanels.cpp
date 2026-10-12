@@ -184,12 +184,12 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     {
         WindowDesc editor;
         editorConfig::readWindow(editor);
-        editorSettings_ = {editor.screen, editor.focusOnShow};
+        editorSettings_ = {editor.screen, editor.focusOnShow, editor.behindOnShow};
 
         WindowDesc game;
         if (hasGame)
             userConfig::readWindow(userConfig::read(gameFile), game);
-        gameSettings_ = {game.screen, game.focusOnShow};
+        gameSettings_ = {game.screen, game.focusOnShow, game.behindOnShow};
     }
 
     const auto screenLabel = [&](int screen)
@@ -208,13 +208,13 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         return std::string(buf);
     };
 
-    // Returns which of the two fields changed: the screen moves the editor's
-    // window at once, the focus flag only matters at the next launch.
+    // Returns what changed: the screen moves the editor's window at once, the
+    // two flags only matter at the next launch.
     enum Change
     {
         None,
         Screen,
-        Focus
+        Launch
     };
     const auto section = [&](const char* title, const char* id, WindowSettings& s)
     {
@@ -237,8 +237,12 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
             }
             ImGui::EndCombo();
         }
+        if (ImGui::Checkbox("Open behind the other windows", &s.behindOnShow))
+            change = Launch;
+        ImGui::BeginDisabled(s.behindOnShow);
         if (ImGui::Checkbox("Take the focus at launch", &s.focusOnShow))
-            change = Focus;
+            change = Launch;
+        ImGui::EndDisabled();
         ImGui::PopID();
         ImGui::Unindent();
         return change;
@@ -247,7 +251,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     const Change editorChange = section("Editor", "editor", editorSettings_);
     if (editorChange != None)
     {
-        editorConfig::writeWindow(editorSettings_.screen, editorSettings_.focusOnShow);
+        editorConfig::writeWindow(editorSettings_.screen, editorSettings_.focusOnShow,
+                                  editorSettings_.behindOnShow);
         if (editorChange == Screen)
             platformMoveWindowToMonitor(ctx.nativeWindow(), editorSettings_.screen);
     }
@@ -260,7 +265,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         hasGame ? "Game  (" + app.gameExeName_ + ")" : std::string("Game  (no module loaded)");
     ImGui::BeginDisabled(!hasGame);
     if (section(gameTitle.c_str(), "game", gameSettings_) != None && hasGame)
-        userConfig::writeWindow(gameFile, gameSettings_.screen, gameSettings_.focusOnShow);
+        userConfig::writeWindow(gameFile, gameSettings_.screen, gameSettings_.focusOnShow,
+                                gameSettings_.behindOnShow);
     ImGui::EndDisabled();
 }
 

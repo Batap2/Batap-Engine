@@ -20,8 +20,8 @@ void* platformCreateWindow(const WindowDesc& desc);
 // Engine is bound — only bind once the engine is fully initialised.
 void platformBindContext(void* nativeHandle, Engine* engine);
 
-// activate false shows the window without taking the focus (WindowDesc).
-void platformShowWindow(void* nativeHandle, bool activate);
+// Honours WindowDesc::focusOnShow and behindOnShow.
+void platformShowWindow(void* nativeHandle, const WindowDesc& desc);
 
 // A monitor as the OS lists it, the primary one first so that index 0 means
 // the same thing on every machine. `work` is the part a window may use (no

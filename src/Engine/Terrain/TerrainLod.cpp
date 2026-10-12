@@ -14,6 +14,22 @@ namespace
 
 constexpr double kMergeHysteresis = 1.2;
 
+ChunkKey parentOf(const ChunkKey& key)
+{
+    return {key.face_, key.level_ - 1, key.x_ >> 1, key.y_ >> 1};
+}
+
+std::array<ChunkKey, 4> childrenOf(const ChunkKey& key)
+{
+    const int32_t l = key.level_ + 1;
+    const int32_t x = key.x_ * 2;
+    const int32_t y = key.y_ * 2;
+    return {{{key.face_, l, x, y},
+             {key.face_, l, x + 1, y},
+             {key.face_, l, x, y + 1},
+             {key.face_, l, x + 1, y + 1}}};
+}
+
 void select(const ChunkKey& key, const LodParams& params, const v3d& camera,
             const ChunkKeySet& existing, const NodeBoundsFn& bounds, std::vector<ChunkKey>& out)
 {
@@ -97,6 +113,80 @@ std::vector<ChunkKey> rootChunks(const TerrainGrid& grid)
     for (int32_t face = 0; face < rootCount(grid); ++face)
         roots.push_back({face, 0, 0, 0});
     return roots;
+}
+
+ChunkKeySet quadtreeOf(const std::vector<ChunkKey>& leaves)
+{
+    ChunkKeySet tree;
+    tree.reserve(leaves.size() * 4 / 3 + 8);
+    for (ChunkKey key : leaves)
+        while (tree.insert(key).second && key.level_ > 0)
+            key = parentOf(key);
+    return tree;
+}
+
+std::optional<ChunkKey> neighbour(const TerrainGrid& grid, const ChunkKey& key, int32_t dx,
+                                  int32_t dy)
+{
+    const int32_t n = 1 << key.level_;
+    const int32_t x = key.x_ + dx;
+    const int32_t y = key.y_ + dy;
+    if (x >= 0 && x < n && y >= 0 && y < n)
+        return ChunkKey{key.face_, key.level_, x, y};
+    if (grid.shape_ == TerrainShape::Plane)
+        return std::nullopt;
+    // Just past the side or corner, onto the face that holds it.
+    const double span = std::ldexp(2.0, -key.level_);
+    const double reach = 0.5 * span + 1e-3 * span;
+    const FaceCoords fc =
+        cubeFaceCoords(cubeDirection(key.face_, -1.0 + span * (key.x_ + 0.5) + dx * reach,
+                                     -1.0 + span * (key.y_ + 0.5) + dy * reach));
+    return ChunkKey{fc.face_, key.level_,
+                    std::clamp(static_cast<int32_t>(std::floor((fc.u_ + 1.0) / span)), 0, n - 1),
+                    std::clamp(static_cast<int32_t>(std::floor((fc.v_ + 1.0) / span)), 0, n - 1)};
+}
+
+std::vector<ChunkKey> shownChunks(const TerrainGrid& grid, const ChunkKeySet& quadtree,
+                                  const ChunkTest& built)
+{
+    std::vector<ChunkKey> shown;
+    std::vector<ChunkKey> level = rootChunks(grid);
+    ChunkKeySet reached(level.begin(), level.end());
+    const auto besideReached = [&](const ChunkKey& key)
+    {
+        for (int32_t dy = -1; dy <= 1; ++dy)
+            for (int32_t dx = -1; dx <= 1; ++dx)
+                if (dx != 0 || dy != 0)
+                    if (const std::optional<ChunkKey> n = neighbour(grid, key, dx, dy);
+                        n && !reached.contains(*n))
+                        return false;
+        return true;
+    };
+    while (!level.empty())
+    {
+        std::vector<ChunkKey> next;
+        for (const ChunkKey& key : level)
+        {
+            const std::array<ChunkKey, 4> children = childrenOf(key);
+            if (quadtree.contains(children[0]) &&
+                std::all_of(children.begin(), children.end(), built) && besideReached(key))
+                next.insert(next.end(), children.begin(), children.end());
+            else if (built(key))
+                shown.push_back(key);
+        }
+        reached.insert(next.begin(), next.end());
+        level = std::move(next);
+    }
+    return shown;
+}
+
+std::vector<ChunkKey> buildFrontier(const ChunkKeySet& quadtree, const ChunkTest& built)
+{
+    std::vector<ChunkKey> frontier;
+    for (const ChunkKey& key : quadtree)
+        if (!built(key) && (key.level_ == 0 || built(parentOf(key))))
+            frontier.push_back(key);
+    return frontier;
 }
 
 bool isAncestor(const ChunkKey& ancestor, const ChunkKey& key)
@@ -210,6 +300,35 @@ uint32_t morphForce(const TerrainGrid& grid, const ChunkKey& key, const ChunkKey
             if (coarser(l))
                 force |= 1u << (4 + c);
     return force;
+}
+
+std::vector<ChunkKey> chunksTouching(const TerrainGrid& grid, const std::vector<ChunkKey>& keys,
+                                     const ChunkKeySet& shown)
+{
+    ChunkKeySet found;
+    const auto keep = [&](const ChunkKey& key)
+    {
+        if (shown.contains(key))
+            found.insert(key);
+    };
+    for (const ChunkKey& key : keys)
+    {
+        keep(key);
+        for (int32_t dy = -1; dy <= 1; ++dy)
+            for (int32_t dx = -1; dx <= 1; ++dx)
+            {
+                const std::optional<ChunkKey> n = dx != 0 || dy != 0 ? neighbour(grid, key, dx, dy)
+                                                                     : std::nullopt;
+                if (!n)
+                    continue;
+                keep(*n);
+                if (n->level_ > 0)
+                    keep(parentOf(*n));
+                for (const ChunkKey& child : childrenOf(*n))
+                    keep(child);
+            }
+    }
+    return {found.begin(), found.end()};
 }
 
 v3d morphVertex(int32_t cells, int32_t i, int32_t j, uint32_t force, double start, double end,

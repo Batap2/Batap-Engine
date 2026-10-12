@@ -59,6 +59,7 @@ struct TerrainPass
         uint32_t cells_ = 0;
         uint32_t level_ = 0;
         std::array<StratumRange, kMaxTerrainStrata> ranges_{};
+        bool shown_ = false;
     };
 
     struct Draw

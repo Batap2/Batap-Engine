@@ -17,7 +17,7 @@ namespace batap::editorConfig
 // the window exists: a key the file lacks leaves `io` alone. The settings
 // menu writes it back, the rest of the file untouched.
 void readWindow(WindowDesc& io);
-void writeWindow(int screen, bool focusOnShow);
+void writeWindow(int screen, bool focusOnShow, bool behindOnShow);
 
 // One spelling per path, or C:\Foo, C:/Foo and a relative argument key three
 // different projects.

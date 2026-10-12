@@ -28,6 +28,8 @@ struct WindowDesc
     bool transparent = false;
     int screen = 0;
     bool focusOnShow = true;
+    // Under every other window, so without the focus whatever focusOnShow says.
+    bool behindOnShow = false;
 };
 
 struct EngineSettings

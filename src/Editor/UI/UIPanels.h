@@ -45,6 +45,7 @@ struct UIPanels
     {
         int screen = 0;
         bool focusOnShow = true;
+        bool behindOnShow = false;
     };
     WindowSettings editorSettings_;
     WindowSettings gameSettings_;

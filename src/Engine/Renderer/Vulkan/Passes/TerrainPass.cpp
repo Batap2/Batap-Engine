@@ -151,9 +151,9 @@ void TerrainPass::upload(TerrainDraws& draws)
     for (const uint64_t id : draws.removed_)
         if (const auto it = slots_.find(id); it != slots_.end())
         {
+            drawsDirty_ = drawsDirty_ || it->second.shown_;
             retiredSlots_.emplace_back(frame_, it->second);
             slots_.erase(it);
-            drawsDirty_ = true;
         }
     draws.removed_.clear();
 
@@ -209,6 +209,7 @@ void TerrainPass::upload(TerrainDraws& draws)
         slot.vertices_ = mesh.vertices_.size();
         slot.indices_ = mesh.indices_.size();
         slot.ranges_ = mesh.ranges_;
+        slot.shown_ = mesh.shown_;
         slot.vertex_ = allocate(vertices_, slot.vertices_);
         slot.index_ = allocate(indices_, slot.indices_);
 
@@ -226,7 +227,7 @@ void TerrainPass::upload(TerrainDraws& draws)
         stagedBytes_ += vertexBytes + indexBytes;
         writeChunk(slot.instance_, slot, mesh.params_);
         slots_[id] = slot;
-        drawsDirty_ = true;
+        drawsDirty_ = drawsDirty_ || slot.shown_;
     }
     draws.added_.clear();
 
@@ -242,9 +243,17 @@ void TerrainPass::upload(TerrainDraws& draws)
         writeChunk(*instance, slot, params);
         retiredInstances_.emplace_back(frame_, slot.instance_);
         slot.instance_ = *instance;
-        drawsDirty_ = true;
+        drawsDirty_ = drawsDirty_ || slot.shown_;
     }
     draws.paramChanges_.clear();
+
+    for (const auto& [id, shown] : draws.shownChanges_)
+        if (const auto it = slots_.find(id); it != slots_.end() && it->second.shown_ != shown)
+        {
+            it->second.shown_ = shown;
+            drawsDirty_ = true;
+        }
+    draws.shownChanges_.clear();
 
     worldData_.resize(instanceEnd_);
     for (const auto& [id, world] : draws.placed_)
@@ -265,6 +274,8 @@ void TerrainPass::upload(TerrainDraws& draws)
         shadowDraws_.clear();
         for (const auto& [id, slot] : slots_)
         {
+            if (!slot.shown_)
+                continue;
             for (size_t s = 0; s < kMaxTerrainStrata; ++s)
                 if (slot.ranges_[s].count_ > 0)
                     draws_.push_back({slot.instance_, static_cast<uint32_t>(s),

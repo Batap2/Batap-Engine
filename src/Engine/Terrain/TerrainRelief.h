@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 
 namespace batap
 {
@@ -49,8 +50,9 @@ struct TerrainSource
 {
     struct Ground
     {
-        // Null: no terrain on this entity.
-        const TerrainRelief* relief_ = nullptr;
+        // Null: no terrain on this entity. Shared with the builds under way,
+        // which World::resetScene() waits for before the game is unloaded.
+        std::shared_ptr<const TerrainRelief> relief_;
         // The sphere's radius or the plane's side, in metres.
         double size_ = 0.0;
         // Every chunk is rebuilt when it changes, none while it stays.
@@ -59,7 +61,8 @@ struct TerrainSource
 
     virtual ~TerrainSource() = default;
 
-    // Called every frame: keep it cheap. relief_ must live until the next call.
+    // Called every frame: keep it cheap. sample() and stratum() run on worker
+    // threads.
     virtual Ground ground(World& world, entt::entity entity) = 0;
 };
 

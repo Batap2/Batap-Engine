@@ -60,9 +60,9 @@ void readWindow(WindowDesc& io)
     userConfig::readWindow(readFile(), io);
 }
 
-void writeWindow(int screen, bool focusOnShow)
+void writeWindow(int screen, bool focusOnShow, bool behindOnShow)
 {
-    userConfig::writeWindow(configPath(), screen, focusOnShow);
+    userConfig::writeWindow(configPath(), screen, focusOnShow, behindOnShow);
 }
 
 std::string pathKey(const std::string& path)

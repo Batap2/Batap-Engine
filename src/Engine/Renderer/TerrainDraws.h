@@ -13,8 +13,9 @@
 namespace batap
 {
 
-// From Terrain_S to the terrain pass, as Billboards. A mesh is drawn from its
-// add() to its remove(), and must be placed every frame in between.
+// From Terrain_S to the terrain pass, as Billboards. A mesh lives on the GPU
+// from its add() to its remove(), is drawn while shown, and must be placed
+// every frame it is.
 struct TerrainDraws
 {
     // TerrainChunkGPUData's fields that change while the mesh stays.
@@ -45,12 +46,14 @@ struct TerrainDraws
         uint32_t cells_ = 0;
         uint32_t level_ = 0;
         Params params_;
+        bool shown_ = false;
     };
 
     // Uploaded with the next frame.
     uint64_t add(Mesh mesh);
     void remove(uint64_t mesh);
     void setParams(uint64_t mesh, const Params& params);
+    void show(uint64_t mesh, bool shown);
     // This frame's matrix: chunk space to world space less the render
     // camera's position.
     void place(uint64_t mesh, const m4f& world);
@@ -59,6 +62,7 @@ struct TerrainDraws
     std::vector<std::pair<uint64_t, Mesh>> added_;
     std::vector<uint64_t> removed_;
     std::vector<std::pair<uint64_t, Params>> paramChanges_;
+    std::vector<std::pair<uint64_t, bool>> shownChanges_;
     std::vector<std::pair<uint64_t, m4f>> placed_;
     uint64_t next_ = 1;
 
