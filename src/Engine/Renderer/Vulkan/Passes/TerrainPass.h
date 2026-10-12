@@ -55,6 +55,7 @@ struct TerrainPass
         // Into chunks_ and worlds_.
         uint32_t instance_ = 0;
         uint32_t cells_ = 0;
+        uint32_t level_ = 0;
         std::array<StratumRange, kMaxTerrainStrata> ranges_{};
     };
 
@@ -88,6 +89,7 @@ struct TerrainPass
     std::vector<TerrainWorldGPUData> worldData_;
     std::vector<Draw> draws_;
     bool drawsDirty_ = false;
+    uint64_t stagedBytes_ = 0;
     bool warnedFull_ = false;
 };
 }  // namespace batap

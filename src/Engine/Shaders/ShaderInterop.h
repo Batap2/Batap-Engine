@@ -108,11 +108,13 @@ struct TerrainChunkGPUData
     // The first target's band; the second's is twice as far.
     float morphStart_;
     float morphEnd_;
+    uint level_;
     uint pad0_;
-    uint pad1_;
 };
 
 static const uint TerrainMorphs = 1u;
+// Terrain_C::debug_: the chunk's border drawn in its level's colour.
+static const uint TerrainOutline = 2u;
 
 // Every frame, at the chunk's index: chunk space to world space less the
 // render camera's position, worked out in double (Terrain_S::publish).

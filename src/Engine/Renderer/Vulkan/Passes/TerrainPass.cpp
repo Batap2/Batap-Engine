@@ -8,6 +8,7 @@
 #include "Renderer/Vulkan/VulkanResources.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <span>
@@ -119,17 +120,21 @@ void TerrainPass::writeChunk(uint32_t instance, const Slot& slot,
     g.vertexBase_ = static_cast<uint32_t>(slot.vertex_);
     g.cells_ = slot.cells_;
     g.force_ = params.force_;
-    g.flags_ = params.morphs_ ? TerrainMorphs : 0u;
+    g.flags_ = (params.morphs_ ? TerrainMorphs : 0u) | (params.outline_ ? TerrainOutline : 0u);
     g.morphStart_ = params.morphStart_;
     g.morphEnd_ = params.morphEnd_;
+    g.level_ = slot.level_;
     std::memcpy(setup_.resources_
                     .requestUpload(chunks_, sizeof(g), uint64_t{instance} * sizeof(g))
                     .data(),
                 &g, sizeof(g));
+    stagedBytes_ += sizeof(g);
 }
 
 void TerrainPass::upload(TerrainDraws& draws)
 {
+    const auto start = std::chrono::steady_clock::now();
+    stagedBytes_ = 0;
     ++frame_;
     for (const uint64_t id : draws.removed_)
         if (const auto it = slots_.find(id); it != slots_.end())
@@ -188,6 +193,7 @@ void TerrainPass::upload(TerrainDraws& draws)
         Slot slot;
         slot.instance_ = *instance;
         slot.cells_ = mesh.cells_;
+        slot.level_ = mesh.level_;
         slot.vertices_ = mesh.vertices_.size();
         slot.indices_ = mesh.indices_.size();
         slot.ranges_ = mesh.ranges_;
@@ -205,6 +211,7 @@ void TerrainPass::upload(TerrainDraws& draws)
                         .requestUpload(indices_.buffer_, indexBytes, slot.index_ * indices_.stride_)
                         .data(),
                     mesh.indices_.data(), indexBytes);
+        stagedBytes_ += vertexBytes + indexBytes;
         writeChunk(slot.instance_, slot, mesh.params_);
         slots_[id] = slot;
         drawsDirty_ = true;
@@ -236,18 +243,25 @@ void TerrainPass::upload(TerrainDraws& draws)
         const uint64_t bytes = sizeof(TerrainWorldGPUData) * instanceEnd_;
         std::memcpy(setup_.resources_.requestUpload(worlds_, bytes).data(), worldData_.data(),
                     bytes);
+        stagedBytes_ += bytes;
     }
 
-    if (!drawsDirty_)
-        return;
-    drawsDirty_ = false;
-    draws_.clear();
-    for (const auto& [id, slot] : slots_)
-        for (size_t s = 0; s < kMaxTerrainStrata; ++s)
-            if (slot.ranges_[s].count_ > 0)
-                draws_.push_back({slot.instance_, static_cast<uint32_t>(s),
-                                  static_cast<uint32_t>(slot.index_) + slot.ranges_[s].offset_,
-                                  slot.ranges_[s].count_});
+    if (drawsDirty_)
+    {
+        drawsDirty_ = false;
+        draws_.clear();
+        for (const auto& [id, slot] : slots_)
+            for (size_t s = 0; s < kMaxTerrainStrata; ++s)
+                if (slot.ranges_[s].count_ > 0)
+                    draws_.push_back({slot.instance_, static_cast<uint32_t>(s),
+                                      static_cast<uint32_t>(slot.index_) + slot.ranges_[s].offset_,
+                                      slot.ranges_[s].count_});
+    }
+
+    draws.lastUpload_ = {slots_.size(), stagedBytes_,
+                         std::chrono::duration<double, std::milli>(
+                             std::chrono::steady_clock::now() - start)
+                             .count()};
 }
 
 void TerrainPass::record(const PassContext& pass)

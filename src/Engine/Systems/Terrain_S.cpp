@@ -7,7 +7,10 @@
 #include "Renderer/TerrainDraws.h"
 #include "Systems/Hierarchy_S.h"
 #include "Terrain/TerrainRelief.h"
+#include "UI/ScreenSpace.h"
 #include "World.h"
+
+#include <imgui.h>
 
 #include <algorithm>
 #include <bit>
@@ -157,6 +160,7 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             gpu.indices_ = std::move(mesh.indices_);
             gpu.ranges_ = mesh.ranges_;
             gpu.cells_ = static_cast<uint32_t>(grid.cells_);
+            gpu.level_ = static_cast<uint32_t>(key.level_);
 
             Chunk& chunk = state.chunks_[key];
             chunk.mesh_ = draws.add(std::move(gpu));
@@ -217,6 +221,7 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             TerrainDraws::Params params;
             params.materials_ = materials;
             params.force_ = chunk.force_;
+            params.outline_ = terrain.debug_;
             params.morphs_ = morphs && key.level_ > 0;
             if (params.morphs_)
             {
@@ -229,6 +234,15 @@ void Terrain_S::sync(World& world, TerrainSource& source)
                 chunk.params_ = params;
             }
         }
+
+        state.grid_ = grid;
+        state.ratio_ = ratio;
+        state.maxLevel_ = levelForCell(grid, static_cast<double>(terrain.finestCell_));
+        state.built_ = missing.size();
+        state.dropped_ = leaving.size();
+        state.totalBuilt_ += missing.size();
+        if (!missing.empty())
+            state.lastBuildMs_ = buildMs;
 
         if (!missing.empty() || !leaving.empty())
         {
@@ -273,7 +287,39 @@ void Terrain_S::publish(World& world)
             m.topRightCorner<3, 1>() = (linear * chunk.center_ + offset).cast<float>();
             draws.place(chunk.mesh_, m);
         }
+
+        if (const Terrain_C* terrain = reg.try_get<Terrain_C>(e); terrain && terrain->debug_)
+            debug(world, e, state);
     }
+}
+
+void Terrain_S::debug(World& world, entt::entity owner, const State& state)
+{
+    const TerrainDraws::Upload& upload = world.terrainDraws().lastUpload_;
+    const auto* name = world.registry_.try_get<Name_C>(owner);
+    const size_t chunks = state.chunks_.size();
+    const auto cells = static_cast<size_t>(state.grid_.cells_);
+    const size_t triangles = chunks * cells * cells * 2;
+    const size_t vertices = chunks * (cells + 1) * (cells + 1);
+    const double gpuMb = static_cast<double>(vertices * sizeof(TerrainVertexGPUData) +
+                                             triangles * 3 * sizeof(uint16_t)) /
+                         1048576.0;
+
+    const ViewRect view = world.viewRect();
+    const v2f corner = toPoints((view.origin_ + v2i{view.size_.x(), 0}).cast<float>());
+    ImGui::SetNextWindowPos({corner.x() - 10.f, corner.y() + 10.f}, ImGuiCond_Always, {1.f, 0.f});
+    ImGui::Begin(("Terrain " + (name ? name->name_ : std::string{"terrain"})).c_str(), nullptr,
+                 ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse |
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+    ImGui::Text("%zu chunks, max level %d, ratio %.1f, %d cells", chunks, state.maxLevel_,
+                state.ratio_, state.grid_.cells_);
+    ImGui::Text("%zu k triangles, %.0f MB, %zu meshes on the GPU", triangles / 1000, gpuMb,
+                upload.meshes_);
+    ImGui::Text("+%zu -%zu this frame, %zu built in all, last %.1f ms", state.built_,
+                state.dropped_, state.totalBuilt_, state.lastBuildMs_);
+    ImGui::Text("upload %.1f KB, %.2f ms", static_cast<double>(upload.bytes_) / 1024.0,
+                upload.ms_);
+    ImGui::End();
 }
 
 }  // namespace batap

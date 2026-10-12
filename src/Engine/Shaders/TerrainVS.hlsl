@@ -23,5 +23,6 @@ TerrainVSOutput main(uint vertexId : SV_VertexID)
     o.posWS_ = cam.pos_ + relative;
     o.nrmWS_ = normalize(mul((float3x3)world, normal));
     o.position_ = mul(cam.proj_, float4(mul((float3x3)cam.view_, relative), 1.0f));
+    o.grid_ = float2(vertexId % (chunk.cells_ + 1u), vertexId / (chunk.cells_ + 1u));
     return o;
 }

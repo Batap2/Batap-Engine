@@ -281,6 +281,7 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
         out.indices_[slot + 1] = tris[t][1];
         out.indices_[slot + 2] = tris[t][2];
     }
+
     return out;
 }
 

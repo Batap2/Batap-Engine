@@ -6,6 +6,7 @@
 
 #include <entt/entt.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <unordered_map>
 
@@ -41,9 +42,18 @@ struct Terrain_S
         uint64_t fingerprint_ = 0;
         NodeBoundsCache bounds_;
         std::unordered_map<ChunkKey, Chunk, ChunkKeyHash> chunks_;
+        // For the debug view.
+        TerrainGrid grid_;
+        double ratio_ = 0.0;
+        int32_t maxLevel_ = 0;
+        size_t built_ = 0;
+        size_t dropped_ = 0;
+        size_t totalBuilt_ = 0;
+        double lastBuildMs_ = 0.0;
     };
 
     void drop(World& world, State& state);
+    void debug(World& world, entt::entity owner, const State& state);
 
     std::unordered_map<entt::entity, State> states_;
 };
