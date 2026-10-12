@@ -1,19 +1,21 @@
 #pragma once
 
 #include "Handles.h"
+#include "Renderer/TerrainDraws.h"
 #include "Renderer/Vulkan/Passes/Pass.h"
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
+#include "Shaders/ShaderInterop.h"
 #include "Terrain/TerrainChunk.h"
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace batap
 {
-struct TerrainDraws;
 
 struct TerrainPass
 {
@@ -31,6 +33,7 @@ struct TerrainPass
 
     GPUResourceHandle chunkBuffer() const { return chunks_; }
     GPUResourceHandle vertexBuffer() const { return vertices_.buffer_; }
+    GPUResourceHandle worldBuffer() const { return worlds_; }
 
    private:
     // In elements, vertices or indices.
@@ -49,6 +52,9 @@ struct TerrainPass
         uint64_t index_ = 0;
         uint64_t vertices_ = 0;
         uint64_t indices_ = 0;
+        // Into chunks_ and worlds_.
+        uint32_t instance_ = 0;
+        uint32_t cells_ = 0;
         std::array<StratumRange, kMaxTerrainStrata> ranges_{};
     };
 
@@ -62,19 +68,26 @@ struct TerrainPass
 
     void reserve(Pool& pool, uint64_t elements);
     uint64_t allocate(Pool& pool, uint64_t elements);
+    std::optional<uint32_t> allocateInstance();
+    void writeChunk(uint32_t instance, const Slot& slot, const TerrainDraws::Params& params);
 
     PassSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     GPUResourceHandle chunks_;
+    GPUResourceHandle worlds_;
     Pool vertices_;
     Pool indices_;
     std::unordered_map<uint64_t, Slot> slots_;
+    std::vector<uint32_t> freeInstances_;
+    uint32_t instanceEnd_ = 0;
     // Stamped with the frame they left: frames in flight may still read them.
     std::vector<std::pair<uint64_t, Slot>> retiredSlots_;
+    std::vector<std::pair<uint64_t, uint32_t>> retiredInstances_;
     std::vector<std::pair<uint64_t, GPUResourceHandle>> retiredBuffers_;
     uint64_t frame_ = 0;
-    std::vector<TerrainChunkGPUData> instances_;
+    std::vector<TerrainWorldGPUData> worldData_;
     std::vector<Draw> draws_;
+    bool drawsDirty_ = false;
     bool warnedFull_ = false;
 };
 }  // namespace batap

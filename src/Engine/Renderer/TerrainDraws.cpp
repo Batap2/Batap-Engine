@@ -22,4 +22,19 @@ void TerrainDraws::remove(uint64_t mesh)
         removed_.push_back(mesh);
 }
 
+void TerrainDraws::setParams(uint64_t mesh, const Params& params)
+{
+    const auto it = std::find_if(added_.begin(), added_.end(),
+                                 [&](const auto& a) { return a.first == mesh; });
+    if (it != added_.end())
+        it->second.params_ = params;
+    else
+        paramChanges_.emplace_back(mesh, params);
+}
+
+void TerrainDraws::place(uint64_t mesh, const m4f& world)
+{
+    placed_.emplace_back(mesh, world);
+}
+
 }  // namespace batap

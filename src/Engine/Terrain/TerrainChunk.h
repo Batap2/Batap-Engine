@@ -86,13 +86,18 @@ struct StratumRange
 };
 
 // cells + 1 vertices a side, row-major, j * (cells + 1) + i, relative to
-// center_.
+// center_. A parent (grandparent) position is where the vertex sits on the
+// parent's (grandparent's) triangles: the morph targets.
 struct ChunkMesh
 {
     int32_t cells_ = kChunkCells;
     v3d center_ = v3d::Zero();
     std::vector<v3f> positions_;
     std::vector<v3f> normals_;
+    std::vector<v3f> parentPositions_;
+    std::vector<v3f> parentNormals_;
+    std::vector<v3f> grandparentPositions_;
+    std::vector<v3f> grandparentNormals_;
     // Per triangle, in grid order.
     std::vector<uint8_t> strata_;
     // Sorted by stratum.

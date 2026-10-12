@@ -50,7 +50,8 @@ enum FrameSetBinding : uint
     FrameConstantsBinding = 10,
     TerrainChunksBinding = 11,
     TerrainVerticesBinding = 12,
-    FrameSetBindingCount = 13,
+    TerrainWorldsBinding = 13,
+    FrameSetBindingCount = 14,
 };
 
 enum ShadingModel : uint
@@ -81,21 +82,43 @@ struct StaticMeshGPUData
     uint materialIndices_[8];  // GPU arena slot per submesh
 };
 
-// The normal is octahedral, two snorm16 in a uint (Terrain.hlsli).
+// The normals are octahedral, two snorm16 in a uint (Terrain.hlsli). The
+// targets are the vertex on its parent's shape, then its grandparent's.
 struct TerrainVertexGPUData
 {
     float3 position_;
     uint normal_;
+    float3 target_;
+    uint targetNormal_;
+    float3 target2_;
+    uint target2Normal_;
 };
 
+// Written once per chunk, never in place: a change takes a new index, since
+// frames in flight still read the old one.
 struct TerrainChunkGPUData
 {
-    float4x4 world_;
     uint materialIndices_[8];  // per stratum
     uint vertexBase_;
+    uint cells_;
+    // Sides 0..3 (j = 0, i = cells_, j = cells_, i = 0) and corners 4..7
+    // ((0,0), (cells_,0), (cells_,cells_), (0,cells_)) pinned to the first target.
+    uint force_;
+    uint flags_;
+    // The first target's band; the second's is twice as far.
+    float morphStart_;
+    float morphEnd_;
     uint pad0_;
     uint pad1_;
-    uint pad2_;
+};
+
+static const uint TerrainMorphs = 1u;
+
+// Every frame, at the chunk's index: chunk space to world space less the
+// render camera's position, worked out in double (Terrain_S::publish).
+struct TerrainWorldGPUData
+{
+    float4x4 world_;
 };
 
 // A kind leaves the fields it has no use for at zero.
@@ -271,8 +294,9 @@ static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);
-static_assert(sizeof(TerrainVertexGPUData) == 16);
-static_assert(sizeof(TerrainChunkGPUData) == 112);
+static_assert(sizeof(TerrainVertexGPUData) == 48);
+static_assert(sizeof(TerrainChunkGPUData) == 64);
+static_assert(sizeof(TerrainWorldGPUData) == 64);
 
 // dxc lays a structured buffer out as std430: the array stride is the struct
 // size rounded up to 16. A C++ struct that is not a multiple of 16 therefore
@@ -285,7 +309,7 @@ static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
               gpuStrideOk<SkyboxGPUData> && gpuStrideOk<DebugVertexGPUData> &&
               gpuStrideOk<DebugShapeGPUData> && gpuStrideOk<BillboardGPUData> &&
               gpuStrideOk<ShadowGPUData> && gpuStrideOk<TerrainVertexGPUData> &&
-              gpuStrideOk<TerrainChunkGPUData>);
+              gpuStrideOk<TerrainChunkGPUData> && gpuStrideOk<TerrainWorldGPUData>);
 
 static_assert(offsetof(CameraGPUData, pos_) == 128 && offsetof(CameraGPUData, znear_) == 140);
 static_assert(offsetof(SkyboxGPUData, color1) == 160);

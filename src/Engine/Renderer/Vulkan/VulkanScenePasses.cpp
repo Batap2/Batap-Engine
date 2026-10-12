@@ -276,6 +276,7 @@ void ScenePasses::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Eng
     claim(FrameConstantsBinding, resources_.bufferFor(frameConstants_));
     claim(TerrainChunksBinding, resources_.bufferFor(terrain_.chunkBuffer()));
     claim(TerrainVerticesBinding, resources_.bufferFor(terrain_.vertexBuffer()));
+    claim(TerrainWorldsBinding, resources_.bufferFor(terrain_.worldBuffer()));
 
     std::array<VkDescriptorBufferInfo, FrameSetBindingCount> bufferInfos{};
     std::array<VkWriteDescriptorSet, FrameSetBindingCount> writes{};

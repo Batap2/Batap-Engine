@@ -8,7 +8,9 @@
 namespace batap
 {
 
-// With oneChunk_, the one node named by face_, level_, x_ and y_ shows.
+// The quadtree follows the render camera down to finestCell_; without a
+// camera, the roots show. With oneChunk_, the one node named by face_,
+// level_, x_ and y_ shows instead.
 struct Terrain_C
 {
     int32_t level_ = 0;
@@ -20,7 +22,9 @@ struct Terrain_C
     // from 16 to 128, rounded down otherwise.
     int32_t cells_ = 32;
     bool debug_ = false;
+    // Metres. Sets the deepest level of the quadtree.
     float finestCell_ = 0.01f;
+    // A node splits while the camera is closer than this many times its side.
     float lodRatio_ = 2.f;
     // 0 a sphere, 1 a square plane centred on the entity, up +Y. Its radius
     // or side comes from the TerrainSource.
@@ -45,7 +49,7 @@ BATAP_COMPONENT(Terrain_C, "terrain",
                 fieldMeta<&Terrain_C::y_>({.speed = 1.f, .min = 0.f, .max = 16777215.f}),
                 fieldMeta<&Terrain_C::cells_>({.speed = 16.f, .min = 16.f, .max = 128.f}),
                 fieldMeta<&Terrain_C::finestCell_>({.speed = 0.001f, .min = 0.001f, .max = 1000.f}),
-                fieldMeta<&Terrain_C::lodRatio_>({.speed = 0.1f, .min = 0.f, .max = 8.f}),
+                fieldMeta<&Terrain_C::lodRatio_>({.speed = 0.1f, .min = 1.f, .max = 8.f}),
                 fieldMeta<&Terrain_C::shape_>({.speed = 1.f, .min = 0.f, .max = 1.f}));
 
 }  // namespace batap

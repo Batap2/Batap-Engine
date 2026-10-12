@@ -142,7 +142,7 @@ void Engine::endFrame()
     renderer_->uploadDebugDraw(*debugDraw_, *debugOverlay_);
     renderer_->uploadBillboards(*billboards_);
     renderer_->uploadTerrain(*terrainDraws_);
-    terrainDraws_->chunks_.clear();
+    terrainDraws_->placed_.clear();
     debugDraw_->endFrame(deltaTime_);
     debugOverlay_->endFrame(deltaTime_);
     billboards_->endFrame(deltaTime_);

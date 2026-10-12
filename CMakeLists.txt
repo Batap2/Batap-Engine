@@ -49,6 +49,11 @@ set(ASSIMP_BUILD_SAMPLES      OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_TESTS        OFF CACHE BOOL "" FORCE)
 set(ASSIMP_NO_EXPORT          ON  CACHE BOOL "" FORCE)
 set(ASSIMP_INSTALL            OFF CACHE BOOL "" FORCE)
+# On, it wraps every compile of the whole project in ccache (a global
+# RULE_LAUNCH_COMPILE). ccache does not know clang-cl's -clang:-MF: on a cache
+# hit no depfile is written, ninja records no headers, and the object goes
+# stale the next time one of them changes.
+set(ASSIMP_BUILD_USE_CCACHE   OFF CACHE BOOL "" FORCE)
 
 # Jolt's JPH_* defines and ISA flags (/arch:AVX2) are PUBLIC on the target:
 # every consumer compiles with the same ones, so ODR holds by construction.

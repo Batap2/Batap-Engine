@@ -1,7 +1,8 @@
 #pragma once
 
 #include "EigenTypes.h"
-#include "Terrain/TerrainChunk.h"
+#include "Renderer/TerrainDraws.h"
+#include "Terrain/TerrainLod.h"
 
 #include <entt/entt.hpp>
 
@@ -28,12 +29,17 @@ struct Terrain_S
     {
         uint64_t mesh_ = 0;
         v3d center_ = v3d::Zero();
+        uint32_t force_ = 0;
+        // As last sent to TerrainDraws.
+        TerrainDraws::Params params_;
     };
 
-    // Per entity with a Terrain_C.
+    // Per entity with a Terrain_C. The node boxes live for as long as the
+    // fingerprint does.
     struct State
     {
         uint64_t fingerprint_ = 0;
+        NodeBoundsCache bounds_;
         std::unordered_map<ChunkKey, Chunk, ChunkKeyHash> chunks_;
     };
 

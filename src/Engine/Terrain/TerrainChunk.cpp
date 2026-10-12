@@ -95,25 +95,24 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
     const double span = std::ldexp(2.0, -level);
     const double u0 = -1.0 + span * key.x_;
     const double v0 = -1.0 + span * key.y_;
-    const auto sample = [&](double i, double j)
+    const auto sample = [&](double i, double j, int32_t l)
     {
         const SurfacePoint p =
             surfacePoint(grid, key.face_, u0 + span * i / cells, v0 + span * j / cells);
-        const TerrainRelief::Sample s =
-            relief.sample({p.base_, p.up_, level, cellSize(grid, level)});
+        const TerrainRelief::Sample s = relief.sample({p.base_, p.up_, l, cellSize(grid, l)});
         return std::pair<v3d, int32_t>{p.base_ + p.up_ * s.height_, s.zone_};
     };
 
     ChunkMesh out;
     out.cells_ = cells;
-    out.center_ = sample(0.5 * cells, 0.5 * cells).first;
+    out.center_ = sample(0.5 * cells, 0.5 * cells, level).first;
 
     // One ring more than the chunk, for the normals of its border.
     std::vector<v3d> world(static_cast<size_t>(paddedSide * paddedSide));
     std::vector<int32_t> zones(static_cast<size_t>(paddedSide * paddedSide));
     for (int32_t j = -1; j <= side; ++j)
         for (int32_t i = -1; i <= side; ++i)
-            std::tie(world[padded(i, j)], zones[padded(i, j)]) = sample(i, j);
+            std::tie(world[padded(i, j)], zones[padded(i, j)]) = sample(i, j, level);
 
     const size_t count = static_cast<size_t>(side * side);
     out.positions_.resize(count);
@@ -126,6 +125,114 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
             out.positions_[at(i, j)] = (world[padded(i, j)] - out.center_).cast<float>();
             out.normals_[at(i, j)] = du.cross(dv).normalized().cast<float>();
         }
+
+    // The parent's vertices are this chunk's even ones, one level coarser;
+    // between them the parent is flat, with its diagonals from (0,0) to
+    // (1,1) in every cell, the same as the triangles below. Its normals are
+    // the parent chunk's own: central differences one parent cell apart,
+    // hence the parent ring at -2 and cells + 2.
+    out.parentPositions_.resize(count);
+    out.parentNormals_.resize(count);
+    if (level == 0)
+    {
+        out.parentPositions_ = out.positions_;
+        out.parentNormals_ = out.normals_;
+    }
+    else
+    {
+        const int32_t parentSide = cells / 2 + 3;
+        const auto ring = [&](int32_t i, int32_t j)
+        { return static_cast<size_t>((j / 2 + 1) * parentSide + (i / 2 + 1)); };
+        std::vector<v3d> parentRing(static_cast<size_t>(parentSide * parentSide));
+        for (int32_t j = -2; j <= cells + 2; j += 2)
+            for (int32_t i = -2; i <= cells + 2; i += 2)
+                parentRing[ring(i, j)] = sample(i, j, level - 1).first;
+
+        std::vector<v3d> parent(count);
+        std::vector<v3d> parentNormal(count);
+        for (int32_t j = 0; j <= cells; j += 2)
+            for (int32_t i = 0; i <= cells; i += 2)
+            {
+                parent[at(i, j)] = parentRing[ring(i, j)];
+                const v3d du = parentRing[ring(i + 2, j)] - parentRing[ring(i - 2, j)];
+                const v3d dv = parentRing[ring(i, j + 2)] - parentRing[ring(i, j - 2)];
+                parentNormal[at(i, j)] = du.cross(dv).normalized();
+            }
+        const auto between = [&](std::vector<v3d>& v, int32_t i, int32_t j)
+        {
+            const bool oddI = (i & 1) != 0;
+            const bool oddJ = (j & 1) != 0;
+            if (oddI && oddJ)
+                v[at(i, j)] = 0.5 * (v[at(i - 1, j - 1)] + v[at(i + 1, j + 1)]);
+            else if (oddI)
+                v[at(i, j)] = 0.5 * (v[at(i - 1, j)] + v[at(i + 1, j)]);
+            else if (oddJ)
+                v[at(i, j)] = 0.5 * (v[at(i, j - 1)] + v[at(i, j + 1)]);
+        };
+        for (int32_t j = 0; j <= cells; ++j)
+            for (int32_t i = 0; i <= cells; ++i)
+            {
+                between(parent, i, j);
+                between(parentNormal, i, j);
+            }
+        for (size_t k = 0; k < count; ++k)
+        {
+            out.parentPositions_[k] = (parent[k] - out.center_).cast<float>();
+            out.parentNormals_[k] = parentNormal[k].normalized().cast<float>();
+        }
+    }
+
+    // The grandparent's shape, for a child to show its parent while that
+    // parent is itself sliding to the grandparent: vertices every 4 cells,
+    // normals one grandparent cell apart, and in between its triangles, whose
+    // diagonals the parent's own triangles nest in.
+    out.grandparentNormals_.resize(count);
+    if (level <= 1)
+    {
+        out.grandparentPositions_ = out.parentPositions_;
+        out.grandparentNormals_ = out.parentNormals_;
+    }
+    else
+    {
+        const int32_t gpCells = cells / 4;
+        const int32_t gpSide = gpCells + 3;
+        const auto ring = [&](int32_t gi, int32_t gj)
+        { return static_cast<size_t>((gj + 1) * gpSide + (gi + 1)); };
+        std::vector<v3d> gp(static_cast<size_t>(gpSide * gpSide));
+        for (int32_t gj = -1; gj <= gpCells + 1; ++gj)
+            for (int32_t gi = -1; gi <= gpCells + 1; ++gi)
+                gp[ring(gi, gj)] = sample(4 * gi, 4 * gj, level - 2).first;
+        std::vector<v3d> gpNormal(static_cast<size_t>(gpSide * gpSide));
+        for (int32_t gj = 0; gj <= gpCells; ++gj)
+            for (int32_t gi = 0; gi <= gpCells; ++gi)
+            {
+                const v3d du = gp[ring(gi + 1, gj)] - gp[ring(gi - 1, gj)];
+                const v3d dv = gp[ring(gi, gj + 1)] - gp[ring(gi, gj - 1)];
+                gpNormal[ring(gi, gj)] = du.cross(dv).normalized();
+            }
+        const auto onTriangles = [&](const std::vector<v3d>& v, int32_t i, int32_t j)
+        {
+            const int32_t gi = std::min(i / 4, gpCells - 1);
+            const int32_t gj = std::min(j / 4, gpCells - 1);
+            const double s = (i - 4 * gi) / 4.0;
+            const double t = (j - 4 * gj) / 4.0;
+            const v3d& p00 = v[ring(gi, gj)];
+            const v3d& p10 = v[ring(gi + 1, gj)];
+            const v3d& p11 = v[ring(gi + 1, gj + 1)];
+            const v3d& p01 = v[ring(gi, gj + 1)];
+            return s >= t ? v3d{p00 + s * (p10 - p00) + t * (p11 - p10)}
+                          : v3d{p00 + t * (p01 - p00) + s * (p11 - p01)};
+        };
+        out.grandparentPositions_.resize(count);
+        for (int32_t j = 0; j <= cells; ++j)
+            for (int32_t i = 0; i <= cells; ++i)
+            {
+                out.grandparentPositions_[at(i, j)] =
+                    (onTriangles(gp, i, j) - out.center_).cast<float>();
+                out.grandparentNormals_[at(i, j)] =
+                    onTriangles(gpNormal, i, j).normalized().cast<float>();
+            }
+    }
 
     const size_t triangles = static_cast<size_t>(cells * cells * 2);
     std::vector<std::array<uint16_t, 3>> tris;
@@ -214,6 +321,10 @@ std::vector<TerrainVertexGPUData> packVertices(const ChunkMesh& mesh)
     {
         flatten(out[k].position_, mesh.positions_[k]);
         out[k].normal_ = packNormal(mesh.normals_[k]);
+        flatten(out[k].target_, mesh.parentPositions_[k]);
+        out[k].targetNormal_ = packNormal(mesh.parentNormals_[k]);
+        flatten(out[k].target2_, mesh.grandparentPositions_[k]);
+        out[k].target2Normal_ = packNormal(mesh.grandparentNormals_[k]);
     }
     return out;
 }
