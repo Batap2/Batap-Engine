@@ -68,6 +68,7 @@ struct ResourceManager
     void flushUploads(VkCommandBuffer cmd);
 
     VkBuffer bufferFor(GPUResourceHandle handle);
+    VkDeviceAddress deviceAddress(GPUResourceHandle handle);
 
     VkImageView viewFor(GPUResourceHandle handle);
     VkSampler textureSampler() const { return textureSampler_; }
@@ -83,6 +84,7 @@ struct ResourceManager
         VkBuffer buffer = VK_NULL_HANDLE;
         VmaAllocation allocation = nullptr;
         uint64_t size = 0;
+        VkDeviceAddress address = 0;
     };
 
     struct Image

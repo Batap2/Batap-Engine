@@ -318,7 +318,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       - Pour l'instant, elle n'a aucun effet sur l'image.
 
       *Vérif* : la case existe, survit à un redémarrage ; image identique.
-- [ ] **0.3 Flags des buffers.** Dans `createBufferInternal`
+- [x] **0.3 Flags des buffers.** Dans `createBufferInternal`
       (`VulkanResources.cpp:179`), ajouter `SHADER_DEVICE_ADDRESS` et, si
       `rtSupported_`, `ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY`. Ajouter
       `ResourceManager::deviceAddress(handle)`.

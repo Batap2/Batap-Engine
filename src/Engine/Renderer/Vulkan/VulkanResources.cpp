@@ -183,7 +183,10 @@ ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes
     bufferInfo.size = sizeBytes;
     bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                       VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    if (ctx_.rtSupported_)
+        bufferInfo.usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -193,6 +196,11 @@ ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes
     if (vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation,
                         nullptr) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : createBuffer");
+
+    VkBufferDeviceAddressInfo addressInfo{};
+    addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    addressInfo.buffer = buffer.buffer;
+    buffer.address = vkGetBufferDeviceAddress(ctx_.device_, &addressInfo);
     return buffer;
 }
 
@@ -658,6 +666,16 @@ VkBuffer ResourceManager::bufferFor(GPUResourceHandle handle)
         return b->buffer;
     assert(false && "bufferFor: not a buffer");
     return VK_NULL_HANDLE;
+}
+
+VkDeviceAddress ResourceManager::deviceAddress(GPUResourceHandle handle)
+{
+    if (auto* b = getBuffer(handle))
+        return b->address;
+    if (auto* b = getFrameBuffer(handle, currentFrame()))
+        return b->address;
+    assert(false && "deviceAddress: not a buffer");
+    return 0;
 }
 
 VkImageView ResourceManager::viewFor(GPUResourceHandle handle)
