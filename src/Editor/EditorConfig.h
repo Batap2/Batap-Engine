@@ -3,21 +3,25 @@
 #include "EigenTypes.h"
 #include "UI/UITheme.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 namespace batap
 {
 struct WindowDesc;
+struct EngineSettings;
 }
 
 namespace batap::editorConfig
 {
-// The editor's window section of the same file (UserConfig.h), read before
-// the window exists: a key the file lacks leaves `io` alone. The settings
-// menu writes it back, the rest of the file untouched.
+// The editor's window and render sections of the same file (UserConfig.h),
+// read before the window exists: a key the file lacks leaves `io` alone. The
+// settings menu writes them back, the rest of the file untouched.
 void readWindow(WindowDesc& io);
 void writeWindow(int screen, bool focusOnShow, bool behindOnShow);
+void readRender(EngineSettings& io);
+void writeRender(bool rayTracing, uint32_t maxFps);
 
 // One spelling per path, or C:\Foo, C:/Foo and a relative argument key three
 // different projects.

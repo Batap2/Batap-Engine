@@ -1,13 +1,25 @@
 #include "UserConfig.h"
 
-#include "Engine.h"  // WindowDesc
+#include "Engine.h"  // WindowDesc, EngineSettings
 
 #include <cstdlib>
 #include <fstream>
 #include <system_error>
+#include <utility>
 
 namespace batap::userConfig
 {
+namespace
+{
+void writeSection(const std::filesystem::path& file, const char* key, nlohmann::json section)
+{
+    nlohmann::json j = read(file);
+    j[key] = std::move(section);
+    std::error_code ec;
+    std::filesystem::create_directories(file.parent_path(), ec);
+    std::ofstream(file) << j.dump(2);
+}
+}  // namespace
 
 std::filesystem::path path(std::string_view app, std::string_view file)
 {
@@ -57,12 +69,26 @@ void readWindow(const nlohmann::json& config, WindowDesc& io)
 void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow,
                  bool behindOnShow)
 {
-    nlohmann::json j = read(file);
-    j["window"] = {
-        {"screen", screen}, {"focusOnShow", focusOnShow}, {"behindOnShow", behindOnShow}};
-    std::error_code ec;
-    std::filesystem::create_directories(file.parent_path(), ec);
-    std::ofstream(file) << j.dump(2);
+    writeSection(
+        file, "window",
+        {{"screen", screen}, {"focusOnShow", focusOnShow}, {"behindOnShow", behindOnShow}});
+}
+
+void readRender(const nlohmann::json& config, EngineSettings& io)
+{
+    if (!config.is_object())
+        return;
+    const auto it = config.find("render");
+    if (it == config.end() || !it->is_object())
+        return;
+
+    io.rayTracing_ = it->value("rayTracing", io.rayTracing_);
+    io.maxFps_ = it->value("maxFps", io.maxFps_);
+}
+
+void writeRender(const std::filesystem::path& file, bool rayTracing, uint32_t maxFps)
+{
+    writeSection(file, "render", {{"rayTracing", rayTracing}, {"maxFps", maxFps}});
 }
 
 }  // namespace batap::userConfig

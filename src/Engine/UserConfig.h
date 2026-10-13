@@ -2,12 +2,14 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstdint>
 #include <filesystem>
 #include <string_view>
 
 namespace batap
 {
 struct WindowDesc;
+struct EngineSettings;
 
 // Per-user configuration files, one per application: the editor's is
 // %APPDATA%/BatapEngine/config.json (see editorConfig), a game has its own
@@ -35,5 +37,11 @@ void readWindow(const nlohmann::json& config, WindowDesc& io);
 // whatever else it holds survives.
 void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow,
                  bool behindOnShow);
+
+// The "render" section: `rayTracing` picks the ray traced renderer over the
+// raster one, `maxFps` caps the frame rate, 0 for none. Same rules as the
+// window section.
+void readRender(const nlohmann::json& config, EngineSettings& io);
+void writeRender(const std::filesystem::path& file, bool rayTracing, uint32_t maxFps);
 }  // namespace userConfig
 }  // namespace batap

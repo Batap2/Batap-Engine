@@ -77,6 +77,23 @@ VulkanContext::VulkanContext()
     physicalDevice_ = vkbPhysicalDevice.physical_device;
     std::cout << "[Vulkan] GPU : " << vkbPhysicalDevice.name << "\n";
 
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
+    accelerationStructureFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    accelerationStructureFeatures.accelerationStructure = VK_TRUE;
+
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{};
+    rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+    rayQueryFeatures.rayQuery = VK_TRUE;
+
+    rtSupported_ =
+        vkbPhysicalDevice.enable_extensions_if_present(
+            {VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
+             VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME}) &&
+        vkbPhysicalDevice.enable_extension_features_if_present(accelerationStructureFeatures) &&
+        vkbPhysicalDevice.enable_extension_features_if_present(rayQueryFeatures);
+    std::cout << "[Vulkan] RT : " << (rtSupported_ ? "oui" : "non") << "\n";
+
     auto deviceResult = vkb::DeviceBuilder(vkbPhysicalDevice).build();
     if (!deviceResult)
         throw std::runtime_error("VkDevice : " + deviceResult.error().message());

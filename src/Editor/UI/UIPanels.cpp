@@ -170,9 +170,10 @@ void UIPanels::drawWindowButtons(Engine& ctx, float height)
     ImGui::PopStyleVar();
 }
 
-// Where each application opens its window and whether it takes the focus,
-// one section per user file: the editor's applies at once and is written to
-// its file, the game's is written to the game's own file for its next launch.
+// Where each application opens its window, whether it takes the focus and
+// which renderer draws, one section per user file: the editor's applies at
+// once and is written to its file, the game's is written to the game's own
+// file for its next launch.
 void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
 {
     const std::vector<MonitorInfo> monitors = platformMonitors();
@@ -184,12 +185,20 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     {
         WindowDesc editor;
         editorConfig::readWindow(editor);
-        editorSettings_ = {editor.screen, editor.focusOnShow, editor.behindOnShow};
+        editorSettings_ = {editor.screen, editor.focusOnShow, editor.behindOnShow,
+                           ctx.settings().rayTracing_,
+                           static_cast<int>(ctx.settings().maxFps_)};
 
         WindowDesc game;
+        EngineSettings gameRender;
         if (hasGame)
-            userConfig::readWindow(userConfig::read(gameFile), game);
-        gameSettings_ = {game.screen, game.focusOnShow, game.behindOnShow};
+        {
+            const nlohmann::json config = userConfig::read(gameFile);
+            userConfig::readWindow(config, game);
+            userConfig::readRender(config, gameRender);
+        }
+        gameSettings_ = {game.screen, game.focusOnShow, game.behindOnShow,
+                         gameRender.rayTracing_, static_cast<int>(gameRender.maxFps_)};
     }
 
     const auto screenLabel = [&](int screen)
@@ -208,15 +217,16 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         return std::string(buf);
     };
 
-    // Returns what changed: the screen moves the editor's window at once, the
-    // two flags only matter at the next launch.
+    // Returns what changed: the screen, the renderer and the fps cap apply to
+    // the editor at once, the two window flags only at the next launch.
     enum Change
     {
         None,
         Screen,
-        Launch
+        Launch,
+        Render
     };
-    const auto section = [&](const char* title, const char* id, WindowSettings& s)
+    const auto section = [&](const char* title, const char* id, AppSettings& s)
     {
         Change change = None;
         ImGui::TextUnformatted(title);
@@ -243,13 +253,32 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         if (ImGui::Checkbox("Take the focus at launch", &s.focusOnShow))
             change = Launch;
         ImGui::EndDisabled();
+        ImGui::BeginDisabled(!ctx.rtSupported());
+        if (ImGui::Checkbox(ctx.rtSupported() ? "Ray tracing" : "Ray tracing (unsupported GPU)",
+                            &s.rayTracing))
+            change = Render;
+        ImGui::EndDisabled();
+        ImGui::SetNextItemWidth(80.0f);
+        ImGui::InputInt("FPS cap (0 = none)", &s.maxFps, 0);
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            s.maxFps = std::max(s.maxFps, 0);
+            change = Render;
+        }
         ImGui::PopID();
         ImGui::Unindent();
         return change;
     };
 
     const Change editorChange = section("Editor", "editor", editorSettings_);
-    if (editorChange != None)
+    if (editorChange == Render)
+    {
+        const auto maxFps = static_cast<uint32_t>(editorSettings_.maxFps);
+        editorConfig::writeRender(editorSettings_.rayTracing, maxFps);
+        ctx.setRayTracing(editorSettings_.rayTracing);
+        ctx.setMaxFps(maxFps);
+    }
+    else if (editorChange != None)
     {
         editorConfig::writeWindow(editorSettings_.screen, editorSettings_.focusOnShow,
                                   editorSettings_.behindOnShow);
@@ -264,7 +293,11 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     const std::string gameTitle =
         hasGame ? "Game  (" + app.gameExeName_ + ")" : std::string("Game  (no module loaded)");
     ImGui::BeginDisabled(!hasGame);
-    if (section(gameTitle.c_str(), "game", gameSettings_) != None && hasGame)
+    const Change gameChange = section(gameTitle.c_str(), "game", gameSettings_);
+    if (hasGame && gameChange == Render)
+        userConfig::writeRender(gameFile, gameSettings_.rayTracing,
+                                static_cast<uint32_t>(gameSettings_.maxFps));
+    else if (hasGame && gameChange != None)
         userConfig::writeWindow(gameFile, gameSettings_.screen, gameSettings_.focusOnShow,
                                 gameSettings_.behindOnShow);
     ImGui::EndDisabled();

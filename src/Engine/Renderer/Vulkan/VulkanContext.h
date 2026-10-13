@@ -26,6 +26,8 @@ struct VulkanContext
     VkQueue graphicsQueue_ = VK_NULL_HANDLE;
     uint32_t graphicsQueueFamily_ = 0;
 
+    bool rtSupported_ = false;
+
     ShaderCompiler shaderCompiler_;
 
     VmaAllocator allocator_ = nullptr;

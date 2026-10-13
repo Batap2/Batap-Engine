@@ -65,6 +65,16 @@ void writeWindow(int screen, bool focusOnShow, bool behindOnShow)
     userConfig::writeWindow(configPath(), screen, focusOnShow, behindOnShow);
 }
 
+void readRender(EngineSettings& io)
+{
+    userConfig::readRender(readFile(), io);
+}
+
+void writeRender(bool rayTracing, uint32_t maxFps)
+{
+    userConfig::writeRender(configPath(), rayTracing, maxFps);
+}
+
 std::string pathKey(const std::string& path)
 {
     std::error_code ec;

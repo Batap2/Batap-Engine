@@ -39,16 +39,18 @@ struct UIPanels
     void drawWindowButtons(Engine& ctx, float height);
     void drawSettingsMenu(App& app, Engine& ctx);
 
-    // The window section of each application's user file, as the settings
-    // menu last read or wrote it. Reloaded each time the menu opens.
-    struct WindowSettings
+    // The window and render sections of each application's user file, as the
+    // settings menu last read or wrote them. Reloaded each time the menu opens.
+    struct AppSettings
     {
         int screen = 0;
         bool focusOnShow = true;
         bool behindOnShow = false;
+        bool rayTracing = true;
+        int maxFps = 0;
     };
-    WindowSettings editorSettings_;
-    WindowSettings gameSettings_;
+    AppSettings editorSettings_;
+    AppSettings gameSettings_;
     void drawFileMenu(World& world, App& app);
     void drawImportMenu(World& world, App& app, Engine& ctx);
     void drawViewMenu(World& world, App& app);

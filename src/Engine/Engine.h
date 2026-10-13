@@ -36,6 +36,7 @@ struct EngineSettings
 {
     uint32_t maxFps_ = 0;
     bool vsync_ = false;
+    bool rayTracing_ = true;
 };
 
 struct Frame
@@ -58,7 +59,7 @@ struct Frame
 
 struct Engine
 {
-    explicit Engine(const WindowDesc& desc = {});
+    explicit Engine(const WindowDesc& desc = {}, const EngineSettings& settings = {});
     ~Engine();
 
     Engine(const Engine&) = delete;
@@ -98,6 +99,8 @@ struct Engine
     // 0 = uncapped. CPU sleep
     void setMaxFps(uint32_t fps) { settings_.maxFps_ = fps; }
     void setVsync(bool on);
+    void setRayTracing(bool on) { settings_.rayTracing_ = on; }
+    bool rtSupported() const;
 
     float deltaTime_ = 0;
 

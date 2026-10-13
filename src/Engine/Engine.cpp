@@ -26,7 +26,8 @@ Frame::~Frame()
     engine_->endFrame();
 }
 
-Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fpsInTitle)
+Engine::Engine(const WindowDesc& desc, const EngineSettings& settings)
+    : settings_(settings), title_(desc.title), fpsInTitle_(desc.fpsInTitle)
 {
     // Components self-registered at static init (BATAP_COMPONENT); field
     // serializers arrive now. Validate the whole registry while a stack
@@ -46,6 +47,7 @@ Engine::Engine(const WindowDesc& desc) : title_(desc.title), fpsInTitle_(desc.fp
     lastTime_ = std::chrono::steady_clock::now();
 
     renderer_ = std::make_unique<Renderer>(window_, desc.transparent);
+    renderer_->setVsync(settings_.vsync_);
     assetManager_ = std::make_unique<AssetManager>(renderer_->resourceManager_);
     debugDraw_ = std::make_unique<DebugDraw>();
     debugOverlay_ = std::make_unique<DebugDraw>();
@@ -162,6 +164,11 @@ void Engine::setVsync(bool on)
 {
     settings_.vsync_ = on;
     renderer_->setVsync(on);
+}
+
+bool Engine::rtSupported() const
+{
+    return renderer_->ctx_.rtSupported_;
 }
 
 void Engine::updateFpsTitle()

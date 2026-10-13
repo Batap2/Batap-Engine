@@ -15,15 +15,15 @@ int runEditor(const EditorConfig& cfg)
 {
     try
     {
-        // The editor's user file has the last word on where its window opens
-        // and whether it takes the focus.
+        // The editor's user file has the last word on where its window opens,
+        // whether it takes the focus and which renderer draws.
         WindowDesc window = cfg.window_;
         editorConfig::readWindow(window);
-        Engine engine{window};
+        EngineSettings settings{.maxFps_ = 144};
+        editorConfig::readRender(settings);
+        Engine engine{window, settings};
         World world{engine};
         App app{engine, world};
-
-        engine.setMaxFps(144);
 
         // `--game <dll>` (dev mode): the game is loaded as a module instead of
         // coming from the opened project.

@@ -3,6 +3,11 @@
 Décidé le 2026-09-30. Le raster actuel reste le fallback sur les machines sans
 RT (MoltenVK, vieux GPU).
 
+**Le rendu raster n'est jamais supprimé.** Un réglage utilisateur choisit entre
+les deux (étape 0.2). Chaque étape RT ajoute une branche à côté du chemin
+raster, qui reste complet et sélectionnable même sur un GPU RT : quand le plan
+dit qu'une passe est « coupée » ou « disparaît », c'est en mode RT seulement.
+
 ## Décision
 
 - **Ombres de l'étoile** : ray query dans `ShadowVisibility`.
@@ -296,16 +301,23 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 0 — Socle RT (rien ne change à l'écran)
 
-- [ ] **0.1 Détection du RT.** Dans `VulkanContext.cpp`, demander *si présentes*
+- [x] **0.1 Détection du RT.** Dans `VulkanContext.cpp`, demander *si présentes*
       les extensions `VK_KHR_acceleration_structure`, `VK_KHR_ray_query`,
       `VK_KHR_deferred_host_operations`, ainsi que les features
       `accelerationStructure` et `rayQuery`. Exposer `rtSupported_` et logger
       `[Vulkan] RT : oui/non`.
       *Vérif* : le log ; image identique.
-- [ ] **0.2 Interrupteur.** Ajouter `rayTracing_` à `SceneRenderArgs`, sur le
-      modèle de `showShadowCascades_`, avec une case dans l'éditeur, grisée si
-      `!rtSupported_`. Pour l'instant, elle n'a aucun effet.
-      *Vérif* : la case existe ; image identique.
+- [x] **0.2 Réglage RT / raster.**
+      - `rayTracing_` dans `EngineSettings` ; le mode actif vaut
+        `rayTracing_ && rtSupported_`.
+      - Persisté dans la config utilisateur (`UserConfig`), section `render`,
+        sur le modèle de la section `window` : un fichier pour l'éditeur, un
+        pour le jeu.
+      - Une case dans le menu Settings, pour l'éditeur et pour le jeu, grisée
+        si `!rtSupported_`. Côté éditeur, elle s'applique tout de suite.
+      - Pour l'instant, elle n'a aucun effet sur l'image.
+
+      *Vérif* : la case existe, survit à un redémarrage ; image identique.
 - [ ] **0.3 Flags des buffers.** Dans `createBufferInternal`
       (`VulkanResources.cpp:179`), ajouter `SHADER_DEVICE_ADDRESS` et, si
       `rtSupported_`, `ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY`. Ajouter
