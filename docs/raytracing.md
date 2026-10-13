@@ -342,9 +342,10 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       - un cache `Mesh* → BLAS`, libéré avec le mesh.
 
       *Vérif* : un log par BLAS (triangles, octets) ; validation propre.
-- [ ] **0.6b BLAS d'un chunk de terrain.** Les chunks ne sont pas des `Mesh_C` :
+- [x] **0.6b BLAS d'un chunk de terrain.** Les chunks ne sont pas des `Mesh_C` :
       ils arrivent par `TerrainDraws` dans le pool de la `TerrainPass`.
-      - Une BLAS par chunk, construite à son `add`, libérée à son `remove` ;
+      - Une BLAS par chunk, construite la première fois qu'il est montré,
+        libérée à son `remove` ; une géométrie par strate ;
       - positions `position_` lues dans le pool (vertex de 48 octets), index
         `R16_UINT`.
       - **Morph** : le VS déplace les vertices vers leurs cibles, la BLAS reste

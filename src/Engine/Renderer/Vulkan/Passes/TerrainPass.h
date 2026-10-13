@@ -33,21 +33,6 @@ struct TerrainPass
     // Inside a shadow view's rendering, its push constants set.
     void recordShadow(const PassContext& pass);
 
-    GPUResourceHandle chunkBuffer() const { return chunks_; }
-    GPUResourceHandle vertexBuffer() const { return vertices_.buffer_; }
-    GPUResourceHandle worldBuffer() const { return worlds_; }
-
-   private:
-    // In elements, vertices or indices.
-    struct Pool
-    {
-        GPUResourceHandle buffer_;
-        uint64_t stride_ = 0;
-        uint64_t capacity_ = 0;
-        uint64_t end_ = 0;
-        std::unordered_map<uint64_t, std::vector<uint64_t>> free_;
-    };
-
     struct Slot
     {
         uint64_t vertex_ = 0;
@@ -60,6 +45,25 @@ struct TerrainPass
         uint32_t level_ = 0;
         std::array<StratumRange, kMaxTerrainStrata> ranges_{};
         bool shown_ = false;
+    };
+
+    GPUResourceHandle chunkBuffer() const { return chunks_; }
+    GPUResourceHandle vertexBuffer() const { return vertices_.buffer_; }
+    GPUResourceHandle indexBuffer() const { return indices_.buffer_; }
+    GPUResourceHandle worldBuffer() const { return worlds_; }
+    // Keyed by TerrainDraws id, offsets and counts in elements. A slot's data
+    // is uploaded at the top of the first frame it appears in.
+    const std::unordered_map<uint64_t, Slot>& slots() const { return slots_; }
+
+   private:
+    // In elements, vertices or indices.
+    struct Pool
+    {
+        GPUResourceHandle buffer_;
+        uint64_t stride_ = 0;
+        uint64_t capacity_ = 0;
+        uint64_t end_ = 0;
+        std::unordered_map<uint64_t, std::vector<uint64_t>> free_;
     };
 
     struct Draw

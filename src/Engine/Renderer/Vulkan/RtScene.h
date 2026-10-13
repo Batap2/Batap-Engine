@@ -18,6 +18,7 @@ namespace batap
 struct VulkanContext;
 struct ResourceManager;
 struct AssetManager;
+struct TerrainPass;
 
 struct RtScene
 {
@@ -28,7 +29,7 @@ struct RtScene
     RtScene& operator=(const RtScene&) = delete;
 
     void updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
-                      AssetManager& assets);
+                      AssetManager& assets, const TerrainPass& terrain);
 
    private:
     struct Blas
@@ -38,9 +39,13 @@ struct RtScene
         GPUResourceHandle source_;
     };
 
+    struct BlasInputs;
+    std::vector<Blas> buildBlases(VkCommandBuffer cmd, const BlasInputs& inputs);
+
     VulkanContext& ctx_;
     ResourceManager& resources_;
-    std::unordered_map<MeshHandle, Blas> blases_;
+    std::unordered_map<MeshHandle, Blas> meshBlases_;
+    std::unordered_map<uint64_t, Blas> chunkBlases_;
     // Destroyed when their frame slot comes back: frames in flight may still
     // trace them.
     std::array<std::vector<Blas>, FramesInFlight> retired_;
