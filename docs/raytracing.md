@@ -355,10 +355,12 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       *Vérif* : un log par BLAS de chunk ; validation propre en survolant la
       lune.
-- [ ] **0.7 Compaction.** Requête de taille compactée, copie, puis libération de
+- [x] **0.7 Compaction.** Requête de taille compactée, copie, puis libération de
       l'original quelques frames plus tard. Logger avant/après.
       *Vérif* : le log ; noter le gain de compaction sur les BLAS du buggy et
       des chunks de terrain.
+      *Mesuré (RTX 5070)* : meshes du buggy 186 → 76 Ko (−59 %), chunk de
+      2 048 triangles 133 → 47 Ko (−65 %).
 - [ ] **0.8 TLAS par frame.**
       - Reconstruite en tête de `record`, avec la même boucle que
         `recordMeshDraws` sur `view<Mesh_C>`, plus les chunks de terrain

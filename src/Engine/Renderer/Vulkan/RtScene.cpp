@@ -11,6 +11,8 @@
 
 #include <emhash/hash_set8.hpp>
 
+#include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <stdexcept>
 
@@ -77,6 +79,8 @@ RtScene::~RtScene()
     for (const auto& slot : retired_)
         for (const Blas& blas : slot)
             vkDestroyAccelerationStructureKHR(ctx_.device_, blas.handle_, nullptr);
+    for (const CompactionQueries& queries : queries_)
+        vkDestroyQueryPool(ctx_.device_, queries.pool_, nullptr);
 }
 
 void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
@@ -106,6 +110,8 @@ void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& 
                       retired_[frame].push_back(entry.second);
                       return true;
                   });
+
+    compactBlases(cmd, frame);
 
     // One geometry per submesh, or per stratum for a chunk: a hit's geometry
     // index names its material.
@@ -159,7 +165,7 @@ void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& 
     if (inputs.firstGeometry_.empty())
         return;
 
-    const std::vector<Blas> built = buildBlases(cmd, inputs);
+    const std::vector<Blas> built = buildBlases(cmd, frame, inputs);
     for (size_t i = 0; i < meshes.size(); ++i)
     {
         Blas blas = built[i];
@@ -170,7 +176,25 @@ void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& 
         chunkBlases_.emplace(chunks[i], built[meshes.size() + i]);
 }
 
-std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, const BlasInputs& inputs)
+RtScene::Blas RtScene::createBlas(uint64_t size)
+{
+    Blas blas;
+    blas.size_ = size;
+    blas.buffer_ = resources_.createAccelerationStructureBuffer(size);
+
+    VkAccelerationStructureCreateInfoKHR createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+    createInfo.buffer = resources_.bufferFor(blas.buffer_);
+    createInfo.size = size;
+    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    if (vkCreateAccelerationStructureKHR(ctx_.device_, &createInfo, nullptr, &blas.handle_) !=
+        VK_SUCCESS)
+        throw std::runtime_error("RtScene : BLAS");
+    return blas;
+}
+
+std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, uint32_t frame,
+                                                const BlasInputs& inputs)
 {
     const size_t count = inputs.firstGeometry_.size();
     const auto endGeometry = [&](size_t i)
@@ -210,19 +234,8 @@ std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, const BlasI
                                                 VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
                                                 &info, &primitiveCounts[first], &sizes);
 
-        Blas& blas = built[i];
-        blas.buffer_ =
-            resources_.createAccelerationStructureBuffer(sizes.accelerationStructureSize);
-
-        VkAccelerationStructureCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-        createInfo.buffer = resources_.bufferFor(blas.buffer_);
-        createInfo.size = sizes.accelerationStructureSize;
-        createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        if (vkCreateAccelerationStructureKHR(ctx_.device_, &createInfo, nullptr, &blas.handle_) !=
-            VK_SUCCESS)
-            throw std::runtime_error("RtScene : BLAS");
-        info.dstAccelerationStructure = blas.handle_;
+        built[i] = createBlas(sizes.accelerationStructureSize);
+        info.dstAccelerationStructure = built[i].handle_;
 
         scratchOffsets[i] = scratchBytes;
         scratchBytes += alignUp(sizes.buildScratchSize, ctx_.asScratchAlignment_);
@@ -236,13 +249,87 @@ std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, const BlasI
     for (size_t i = 0; i < count; ++i)
         infos[i].scratchData.deviceAddress = scratchAddress + scratchOffsets[i];
 
+    CompactionQueries& queries = queries_[frame];
+    assert(queries.count_ == 0 && "buildBlases: compactBlases reads the slot's queries first");
+    if (count > queries.capacity_)
+    {
+        vkDestroyQueryPool(ctx_.device_, queries.pool_, nullptr);
+        queries.capacity_ = std::max(static_cast<uint32_t>(count), queries.capacity_ * 2);
+        VkQueryPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        poolInfo.queryType = VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR;
+        poolInfo.queryCount = queries.capacity_;
+        if (vkCreateQueryPool(ctx_.device_, &poolInfo, nullptr, &queries.pool_) != VK_SUCCESS)
+            throw std::runtime_error("RtScene : query pool");
+    }
+    vkCmdResetQueryPool(cmd, queries.pool_, 0, static_cast<uint32_t>(count));
+
     vkCmdBuildAccelerationStructuresKHR(cmd, static_cast<uint32_t>(count), infos.data(),
                                         rangePointers.data());
     BarrierBatch{}.memory(Usage::AccelerationStructureBuild, Usage::AnyRead).flush(cmd);
     resources_.requestDestroy(scratch);
 
+    std::vector<VkAccelerationStructureKHR> handles(count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        handles[i] = built[i].handle_;
+        built[i].query_ = static_cast<uint32_t>(i);
+        built[i].querySlot_ = frame;
+    }
+    vkCmdWriteAccelerationStructuresPropertiesKHR(
+        cmd, static_cast<uint32_t>(count), handles.data(),
+        VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, queries.pool_, 0);
+    queries.count_ = static_cast<uint32_t>(count);
+
     std::cout << "[RT] " << count << " BLAS : " << triangles << " triangles, " << bytes
               << " octets (scratch " << scratchBytes << ")\n";
     return built;
+}
+
+void RtScene::compactBlases(VkCommandBuffer cmd, uint32_t frame)
+{
+    CompactionQueries& queries = queries_[frame];
+    if (queries.count_ == 0)
+        return;
+    // Written by the slot's previous frame, which beginFrame has waited for.
+    std::vector<VkDeviceSize> sizes(queries.count_);
+    vkGetQueryPoolResults(ctx_.device_, queries.pool_, 0, queries.count_,
+                          sizes.size() * sizeof(VkDeviceSize), sizes.data(), sizeof(VkDeviceSize),
+                          VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+    queries.count_ = 0;
+
+    uint32_t count = 0;
+    uint64_t before = 0;
+    uint64_t after = 0;
+    const auto compact = [&](Blas& blas)
+    {
+        if (!blas.query_ || blas.querySlot_ != frame)
+            return;
+        Blas compacted = createBlas(sizes[*blas.query_]);
+        compacted.source_ = blas.source_;
+
+        VkCopyAccelerationStructureInfoKHR copy{};
+        copy.sType = VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR;
+        copy.src = blas.handle_;
+        copy.dst = compacted.handle_;
+        copy.mode = VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR;
+        vkCmdCopyAccelerationStructureKHR(cmd, &copy);
+
+        ++count;
+        before += blas.size_;
+        after += compacted.size_;
+        retired_[frame].push_back(blas);
+        blas = compacted;
+    };
+    for (auto& [mesh, blas] : meshBlases_)
+        compact(blas);
+    for (auto& [chunk, blas] : chunkBlases_)
+        compact(blas);
+    if (count == 0)
+        return;
+
+    BarrierBatch{}.memory(Usage::AccelerationStructureBuild, Usage::AnyRead).flush(cmd);
+    std::cout << "[RT] compaction de " << count << " BLAS : " << before << " -> " << after
+              << " octets\n";
 }
 }  // namespace batap
