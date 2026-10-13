@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace batap
@@ -78,6 +79,23 @@ SurfacePoint surfacePoint(const TerrainGrid& grid, int32_t face, double u, doubl
 
 // The vertical over a point of the terrain, or over a sum of them.
 v3d upAt(const TerrainGrid& grid, const v3d& p);
+
+// Along the vertical, negative below the ground of `level`.
+double heightAboveGround(const TerrainRelief& relief, const TerrainGrid& grid, int32_t level,
+                         const v3d& p);
+
+struct GroundHit
+{
+    // 0 at the segment's start, 1 at its end.
+    double t_ = 0.0;
+    v3d point_ = v3d::Zero();
+    v3d normal_ = v3d::UnitY();
+};
+
+// Where the segment from `from`, above the ground, goes under it at `to`;
+// none if `to` is above. In the terrain's frame.
+std::optional<GroundHit> groundCrossing(const TerrainRelief& relief, const TerrainGrid& grid,
+                                        int32_t level, const v3d& from, const v3d& to);
 
 struct StratumRange
 {

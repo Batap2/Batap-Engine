@@ -113,6 +113,65 @@ v3d upAt(const TerrainGrid& grid, const v3d& p)
     return grid.shape_ == TerrainShape::Plane ? v3d::UnitY() : v3d{p.normalized()};
 }
 
+namespace
+{
+
+SurfacePoint footOf(const TerrainGrid& grid, const v3d& p)
+{
+    if (grid.shape_ == TerrainShape::Plane)
+        return {v3d{p.x(), 0.0, p.z()}, v3d::UnitY()};
+    const v3d up = p.normalized();
+    return {up * grid.size_, up};
+}
+
+double groundHeight(const TerrainRelief& relief, const TerrainGrid& grid, int32_t level,
+                    const SurfacePoint& foot)
+{
+    return relief.sample({foot.base_, foot.up_, level, cellSize(grid, level)}).height_;
+}
+
+}  // namespace
+
+double heightAboveGround(const TerrainRelief& relief, const TerrainGrid& grid, int32_t level,
+                         const v3d& p)
+{
+    const SurfacePoint foot = footOf(grid, p);
+    return (p - foot.base_).dot(foot.up_) - groundHeight(relief, grid, level, foot);
+}
+
+std::optional<GroundHit> groundCrossing(const TerrainRelief& relief, const TerrainGrid& grid,
+                                        int32_t level, const v3d& from, const v3d& to)
+{
+    if (heightAboveGround(relief, grid, level, to) >= 0.0)
+        return std::nullopt;
+    double above = 0.0;
+    double below = 1.0;
+    for (int32_t i = 0; i < 24; ++i)
+    {
+        const double mid = 0.5 * (above + below);
+        if (heightAboveGround(relief, grid, level, from + (to - from) * mid) < 0.0)
+            below = mid;
+        else
+            above = mid;
+    }
+
+    GroundHit hit;
+    hit.t_ = below;
+    hit.point_ = from + (to - from) * below;
+    const SurfacePoint foot = footOf(grid, hit.point_);
+    const auto groundAt = [&](const v3d& offset)
+    {
+        const SurfacePoint f = footOf(grid, hit.point_ + offset);
+        return v3d{f.base_ + f.up_ * groundHeight(relief, grid, level, f)};
+    };
+    const v3d side = foot.up_.unitOrthogonal() * cellSize(grid, level);
+    const v3d g = groundAt(v3d::Zero());
+    hit.normal_ = (groundAt(side) - g).cross(groundAt(foot.up_.cross(side)) - g).normalized();
+    if (hit.normal_.dot(foot.up_) < 0.0)
+        hit.normal_ = -hit.normal_;
+    return hit;
+}
+
 ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const ChunkKey& key)
 {
     const int32_t cells = grid.cells_;
