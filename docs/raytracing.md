@@ -323,7 +323,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       `rtSupported_`, `ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY`. Ajouter
       `ResourceManager::deviceAddress(handle)`.
       *Vérif* : image identique.
-- [ ] **0.4 Buffers d'AS et de scratch.** Deux créations dédiées :
+- [x] **0.4 Buffers d'AS et de scratch.** Deux créations dédiées :
       - le stockage d'AS (`ACCELERATION_STRUCTURE_STORAGE` + `SHADER_DEVICE_ADDRESS`) ;
       - le scratch (`STORAGE` + `SHADER_DEVICE_ADDRESS`), aligné sur
         `minAccelerationStructureScratchOffsetAlignment`.

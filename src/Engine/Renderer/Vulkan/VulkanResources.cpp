@@ -31,6 +31,12 @@ uint64_t alignUp(uint64_t v, uint64_t a)
 ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFrame)
     : ctx_(ctx), allocator_(ctx.allocator_)
 {
+    defaultBufferUsage_ = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    if (ctx_.rtSupported_)
+        defaultBufferUsage_ |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+
     destroyQueues_.resize(FramesInFlight);
 
     // ---- Staging rings, mappés en permanence ----
@@ -176,25 +182,22 @@ ResourceManager::~ResourceManager()
         vkDestroySampler(ctx_.device_, textureSampler_, nullptr);
 }
 
-ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes)
+ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes,
+                                                              VkBufferUsageFlags usage,
+                                                              VkDeviceSize minAlignment)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = sizeBytes;
-    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                       VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    if (ctx_.rtSupported_)
-        bufferInfo.usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+    bufferInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
     Buffer buffer{};
     buffer.size = sizeBytes;
-    if (vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation,
-                        nullptr) != VK_SUCCESS)
+    if (vmaCreateBufferWithAlignment(allocator_, &bufferInfo, &allocInfo, minAlignment,
+                                     &buffer.buffer, &buffer.allocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : createBuffer");
 
     VkBufferDeviceAddressInfo addressInfo{};
@@ -232,7 +235,7 @@ GPUResourceHandle ResourceManager::createStaticBuffer(uint64_t sizeBytes,
 {
     GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
                                     : GPUResourceHandle(GPUResourceType::StaticResource);
-    buffers_.emplace(handle, createBufferInternal(sizeBytes));
+    buffers_.emplace(handle, createBufferInternal(sizeBytes, defaultBufferUsage_));
     return handle;
 }
 
@@ -245,8 +248,32 @@ GPUResourceHandle ResourceManager::createPerFrameBuffer(uint64_t sizeBytes,
     auto& buffers = frameBuffers_[handle];
     buffers.reserve(FramesInFlight);
     for (uint32_t i = 0; i < FramesInFlight; ++i)
-        buffers.push_back(createBufferInternal(sizeBytes));
+        buffers.push_back(createBufferInternal(sizeBytes, defaultBufferUsage_));
 
+    return handle;
+}
+
+GPUResourceHandle
+ResourceManager::createAccelerationStructureBuffer(uint64_t sizeBytes,
+                                                   std::optional<std::string_view> name)
+{
+    assert(ctx_.rtSupported_);
+    GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
+                                    : GPUResourceHandle(GPUResourceType::StaticResource);
+    buffers_.emplace(
+        handle,
+        createBufferInternal(sizeBytes, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR));
+    return handle;
+}
+
+GPUResourceHandle ResourceManager::createScratchBuffer(uint64_t sizeBytes,
+                                                       std::optional<std::string_view> name)
+{
+    assert(ctx_.rtSupported_);
+    GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
+                                    : GPUResourceHandle(GPUResourceType::StaticResource);
+    buffers_.emplace(handle, createBufferInternal(sizeBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                                  ctx_.asScratchAlignment_));
     return handle;
 }
 

@@ -94,6 +94,18 @@ VulkanContext::VulkanContext()
         vkbPhysicalDevice.enable_extension_features_if_present(rayQueryFeatures);
     std::cout << "[Vulkan] RT : " << (rtSupported_ ? "oui" : "non") << "\n";
 
+    if (rtSupported_)
+    {
+        VkPhysicalDeviceAccelerationStructurePropertiesKHR asProperties{};
+        asProperties.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+        VkPhysicalDeviceProperties2 properties{};
+        properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+        properties.pNext = &asProperties;
+        vkGetPhysicalDeviceProperties2(physicalDevice_, &properties);
+        asScratchAlignment_ = asProperties.minAccelerationStructureScratchOffsetAlignment;
+    }
+
     auto deviceResult = vkb::DeviceBuilder(vkbPhysicalDevice).build();
     if (!deviceResult)
         throw std::runtime_error("VkDevice : " + deviceResult.error().message());

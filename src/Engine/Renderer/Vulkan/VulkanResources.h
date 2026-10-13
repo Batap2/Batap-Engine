@@ -37,6 +37,13 @@ struct ResourceManager
                                          std::optional<std::string_view> name = std::nullopt);
     GPUResourceHandle createPerFrameBuffer(uint64_t sizeBytes,
                                            std::optional<std::string_view> name = std::nullopt);
+    GPUResourceHandle
+    createAccelerationStructureBuffer(uint64_t sizeBytes,
+                                      std::optional<std::string_view> name = std::nullopt);
+    // Its address starts on minAccelerationStructureScratchOffsetAlignment; an
+    // offset into it must keep that alignment.
+    GPUResourceHandle createScratchBuffer(uint64_t sizeBytes,
+                                          std::optional<std::string_view> name = std::nullopt);
     GPUResourceHandle createImage2D(uint32_t width, uint32_t height, ResourceFormat format,
                                     std::optional<std::string_view> name = std::nullopt);
 
@@ -129,7 +136,8 @@ struct ResourceManager
         std::vector<Image> images;
     };
 
-    Buffer createBufferInternal(uint64_t sizeBytes);
+    Buffer createBufferInternal(uint64_t sizeBytes, VkBufferUsageFlags usage,
+                                VkDeviceSize minAlignment = 1);
     Buffer createStagingBuffer(uint64_t sizeBytes, std::byte*& outMapped);
     std::byte* stagingAlloc(uint64_t size, UploadRequest& req);
 
@@ -145,6 +153,7 @@ struct ResourceManager
 
     VulkanContext& ctx_;
     VmaAllocator allocator_ = nullptr;
+    VkBufferUsageFlags defaultBufferUsage_ = 0;
 
     // A handle lives in exactly one of these.
     std::unordered_map<GPUResourceHandle, Buffer> buffers_;
