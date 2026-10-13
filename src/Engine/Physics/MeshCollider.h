@@ -6,6 +6,9 @@
 
 #include "Serialization/BmeshSerializer.h"
 
+#include <cstdint>
+#include <vector>
+
 namespace batap
 {
 
@@ -13,5 +16,9 @@ namespace batap
 // triangles. Winding is kept as authored: the front face is the one the
 // renderer draws.
 JPH::ShapeRefC makeMeshShape(const BmeshData& data);
+
+// Over a grid of cells + 1 vertices a side, row-major, wound like a terrain
+// chunk.
+JPH::ShapeRefC makeGridMeshShape(const std::vector<v3f>& positions, int32_t cells);
 
 }  // namespace batap

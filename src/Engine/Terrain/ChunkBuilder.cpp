@@ -1,5 +1,6 @@
 #include "Terrain/ChunkBuilder.h"
 
+#include "Physics/MeshCollider.h"
 #include "Terrain/TerrainRelief.h"
 
 #include <algorithm>
@@ -44,10 +45,11 @@ void ChunkBuilder::request(std::vector<Request> requests)
             requests,
             [&](const Request& r)
             {
-                const Job job{r.owner_, r.fingerprint_, r.key_};
+                const Job job{r.owner_, r.fingerprint_, r.key_, r.collider_};
                 return std::find(underWay_.begin(), underWay_.end(), job) != underWay_.end() ||
-                       std::any_of(done_.begin(), done_.end(), [&](const Result& d)
-                                   { return Job{d.owner_, d.fingerprint_, d.key_} == job; });
+                       std::any_of(
+                           done_.begin(), done_.end(), [&](const Result& d)
+                           { return Job{d.owner_, d.fingerprint_, d.key_, d.collider_} == job; });
             });
         queue_ = std::move(requests);
         next_ = 0;
@@ -103,22 +105,33 @@ void ChunkBuilder::work()
         if (stop_)
             return;
         Request request = std::move(queue_[next_++]);
-        const Job job{request.owner_, request.fingerprint_, request.key_};
+        const Job job{request.owner_, request.fingerprint_, request.key_, request.collider_};
         underWay_.push_back(job);
         lock.unlock();
 
         const auto start = std::chrono::steady_clock::now();
-        ChunkMesh mesh = buildChunk(*request.relief_, request.grid_, request.key_);
         Result result;
         result.owner_ = job.owner_;
         result.fingerprint_ = job.fingerprint_;
         result.key_ = job.key_;
-        result.center_ = mesh.center_;
-        result.mesh_.vertices_ = packVertices(mesh);
-        result.mesh_.indices_ = std::move(mesh.indices_);
-        result.mesh_.ranges_ = mesh.ranges_;
-        result.mesh_.cells_ = static_cast<uint32_t>(request.grid_.cells_);
-        result.mesh_.level_ = static_cast<uint32_t>(request.key_.level_);
+        result.collider_ = job.collider_;
+        if (job.collider_)
+        {
+            const ChunkSurface surface =
+                chunkSurface(*request.relief_, request.grid_, request.key_);
+            result.center_ = surface.center_;
+            result.shape_ = makeGridMeshShape(surface.positions_, request.grid_.cells_);
+        }
+        else
+        {
+            ChunkMesh mesh = buildChunk(*request.relief_, request.grid_, request.key_);
+            result.center_ = mesh.center_;
+            result.mesh_.vertices_ = packVertices(mesh);
+            result.mesh_.indices_ = std::move(mesh.indices_);
+            result.mesh_.ranges_ = mesh.ranges_;
+            result.mesh_.cells_ = static_cast<uint32_t>(request.grid_.cells_);
+            result.mesh_.level_ = static_cast<uint32_t>(request.key_.level_);
+        }
         result.ms_ =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
                 .count();

@@ -4,6 +4,9 @@
 #include "Renderer/TerrainDraws.h"
 #include "Terrain/TerrainChunk.h"
 
+#include <Jolt/Jolt.h>
+
+#include <Jolt/Physics/Collision/Shape/Shape.h>
 #include <entt/entt.hpp>
 
 #include <condition_variable>
@@ -18,7 +21,8 @@ namespace batap
 
 struct TerrainRelief;
 
-// Builds chunks on worker threads, in the order asked.
+// Builds chunks on worker threads, in the order asked: a mesh to draw, or a
+// collider.
 struct ChunkBuilder
 {
     struct Request
@@ -28,6 +32,7 @@ struct ChunkBuilder
         std::shared_ptr<const TerrainRelief> relief_;
         TerrainGrid grid_;
         ChunkKey key_;
+        bool collider_ = false;
     };
 
     struct Result
@@ -36,7 +41,10 @@ struct ChunkBuilder
         uint64_t fingerprint_ = 0;
         ChunkKey key_;
         v3d center_ = v3d::Zero();
+        bool collider_ = false;
+        // The mesh, or the collider's shape: null if Jolt refused it.
         TerrainDraws::Mesh mesh_;
+        JPH::ShapeRefC shape_;
         double ms_ = 0.0;
     };
 
@@ -65,10 +73,12 @@ struct ChunkBuilder
         entt::entity owner_ = entt::null;
         uint64_t fingerprint_ = 0;
         ChunkKey key_;
+        bool collider_ = false;
 
         bool operator==(const Job& o) const
         {
-            return owner_ == o.owner_ && fingerprint_ == o.fingerprint_ && key_ == o.key_;
+            return owner_ == o.owner_ && fingerprint_ == o.fingerprint_ && key_ == o.key_ &&
+                   collider_ == o.collider_;
         }
     };
 

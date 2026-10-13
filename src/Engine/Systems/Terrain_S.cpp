@@ -1,9 +1,14 @@
 #include "Systems/Terrain_S.h"
 
+#include "Components/Character_C.h"
 #include "Components/Materials_C.h"
 #include "Components/Name_C.h"
+#include "Components/RigidBody_C.h"
 #include "Components/Terrain_C.h"
 #include "Components/Transform_C.h"
+#include "Physics/JoltConvert.h"
+#include "Physics/MeshCollider.h"
+#include "Physics/PhysicsWorld.h"
 #include "Renderer/TerrainDraws.h"
 #include "Systems/Hierarchy_S.h"
 #include "Terrain/TerrainRelief.h"
@@ -15,6 +20,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <limits>
 #include <optional>
 #include <string>
 #include <thread>
@@ -31,6 +37,11 @@ constexpr uint64_t kUploadBytesPerFrame = uint64_t{4} << 20;
 // Per terrain, the chunks out of the quadtree kept on the GPU in case it
 // comes back.
 constexpr uint64_t kCacheBytes = uint64_t{64} << 20;
+// Ground is built where a mover may be within a second, and at once under
+// one that would otherwise fall through.
+constexpr double kColliderReach = 10.0;
+constexpr double kColliderLead = 1.0;
+constexpr double kColliderAtOnce = 3.0;
 
 int32_t builderThreads()
 {
@@ -41,6 +52,22 @@ uint64_t chunkBytes(int32_t cells)
 {
     const auto c = static_cast<uint64_t>(cells);
     return (c + 1) * (c + 1) * sizeof(TerrainVertexGPUData) + c * c * 6 * sizeof(uint16_t);
+}
+
+// A root's local pose is its world one and is current at once; the world
+// matrix is only flushed after the game update, so on the first frame it is
+// still the identity.
+v3f worldPositionOf(entt::registry& reg, entt::entity e)
+{
+    const Transform_C& tc = reg.get<Transform_C>(e);
+    return Hierarchy_S::getParent({&reg, e}) == entt::null ? tc.pos() : tc.worldPos();
+}
+
+quatf worldRotationOf(entt::registry& reg, entt::entity e)
+{
+    const Transform_C& tc = reg.get<Transform_C>(e);
+    return Hierarchy_S::getParent({&reg, e}) == entt::null ? tc.rot()
+                                                           : quatf{tc.world().rotation()};
 }
 
 std::array<uint32_t, kMaxTerrainStrata> materialsOf(const entt::registry& reg, entt::entity e)
@@ -64,6 +91,7 @@ void Terrain_S::drop(World& world, State& state)
     for (const auto& [key, chunk] : state.chunks_)
         draws.remove(chunk.mesh_);
     state.chunks_.clear();
+    state.colliders_.clear(world.physics());
     state.wanted_.clear();
     state.shown_.clear();
     state.wishes_.clear();
@@ -94,16 +122,34 @@ void Terrain_S::sync(World& world, TerrainSource& source)
         it = states_.erase(it);
     }
 
-    // A root camera's local position is its world one and is current at
-    // once; the world matrix is only flushed after the game update, so on
-    // the first frame it is still the identity.
     std::optional<v3f> cameraWorld;
-    if (const entt::entity cam = world.renderCamera(); cam != entt::null && reg.valid(cam))
-        if (const Transform_C* ct = reg.try_get<Transform_C>(cam))
-            cameraWorld = Hierarchy_S::getParent({&reg, cam}) == entt::null ? ct->pos()
-                                                                            : ct->worldPos();
+    if (const entt::entity cam = world.renderCamera();
+        cam != entt::null && reg.valid(cam) && reg.all_of<Transform_C>(cam))
+        cameraWorld = worldPositionOf(reg, cam);
+
+    JPH::BodyInterface& bodies = world.physics().bodies();
+    std::vector<Mover> movers;
+    for (auto [e, rb, tc] : reg.view<RigidBody_C, Transform_C>().each())
+    {
+        if (!rb.active_ || rb.motion_ != RigidBody_C::Motion::Dynamic)
+            continue;
+        if (rb.bodyId_ == kInvalidBodyId)
+            movers.push_back({worldPositionOf(reg, e).cast<double>(), 0.0});
+        else
+        {
+            const JPH::BodyID id{rb.bodyId_};
+            movers.push_back({toEigen(bodies.GetPosition(id)).cast<double>(),
+                              static_cast<double>(toEigen(bodies.GetLinearVelocity(id)).norm())});
+        }
+    }
+    for (auto [e, character, tc] : reg.view<Character_C, Transform_C>().each())
+        movers.push_back({worldPositionOf(reg, e).cast<double>(),
+                          static_cast<double>(character.velocity_.norm())});
 
     std::vector<ChunkBuilder::Result> arrivals = builder_.take(kUploadBytesPerFrame);
+    const bool meshesArrived = std::any_of(arrivals.begin(), arrivals.end(),
+                                           [](const ChunkBuilder::Result& r)
+                                           { return !r.collider_; });
     std::vector<Wish> wishes;
 
     for (auto [e, terrain, tc] : reg.view<Terrain_C, Transform_C>().each())
@@ -164,13 +210,13 @@ void Terrain_S::sync(World& world, TerrainSource& source)
         state.evicted_ = 0;
         const bool moved = wanted != state.wanted_;
         ChunkKeySet tree;
-        if (moved || !arrivals.empty())
+        if (moved || meshesArrived)
             tree = nested ? quadtreeOf(wanted) : ChunkKeySet(wanted.begin(), wanted.end());
 
         for (ChunkBuilder::Result& r : arrivals)
         {
-            if (r.owner_ != e || r.fingerprint_ != fingerprint || !tree.contains(r.key_) ||
-                state.chunks_.contains(r.key_))
+            if (r.collider_ || r.owner_ != e || r.fingerprint_ != fingerprint ||
+                !tree.contains(r.key_) || state.chunks_.contains(r.key_))
                 continue;
             Chunk& chunk = state.chunks_[r.key_];
             chunk.center_ = r.center_;
@@ -238,6 +284,7 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             state.wanted_ = std::move(wanted);
         }
         wishes.insert(wishes.end(), state.wishes_.begin(), state.wishes_.end());
+        syncColliders(world, e, terrain, ground, grid, state, movers, arrivals, wishes);
 
         const double ratio = static_cast<double>(terrain.lodRatio_);
         const std::array<uint32_t, kMaxTerrainStrata> materials = materialsOf(reg, e);
@@ -280,18 +327,80 @@ void Terrain_S::sync(World& world, TerrainSource& source)
         }
     }
 
-    // Nearest first; at equal distance, the camera inside both, the coarser.
+    // Colliders first: a mover without ground falls through, a missing mesh
+    // only leaves its parent showing. Then nearest first; at equal distance,
+    // the camera inside both, the coarser.
     std::sort(wishes.begin(), wishes.end(),
               [](const Wish& a, const Wish& b)
               {
-                  return std::tie(a.distance_, a.request_.key_.level_) <
-                         std::tie(b.distance_, b.request_.key_.level_);
+                  return std::tuple(!a.request_.collider_, a.distance_, a.request_.key_.level_) <
+                         std::tuple(!b.request_.collider_, b.distance_, b.request_.key_.level_);
               });
     std::vector<ChunkBuilder::Request> requests;
     requests.reserve(wishes.size());
     for (Wish& w : wishes)
         requests.push_back(std::move(w.request_));
     builder_.request(std::move(requests));
+}
+
+void Terrain_S::syncColliders(World& world, entt::entity owner, const Terrain_C& terrain,
+                              const TerrainSource::Ground& ground, const TerrainGrid& grid,
+                              State& state, const std::vector<Mover>& movers,
+                              std::vector<ChunkBuilder::Result>& arrivals,
+                              std::vector<Wish>& wishes)
+{
+    auto& reg = world.registry_;
+    PhysicsWorld& physics = world.physics();
+
+    TerrainColliders::Surface surface;
+    surface.userData_ = static_cast<uint64_t>(entt::to_integral(owner)) + 1u;
+    if (const RigidBody_C* rb = reg.try_get<RigidBody_C>(owner))
+    {
+        surface.friction_ = rb->friction_;
+        surface.restitution_ = rb->restitution_;
+    }
+    const v3d origin = worldPositionOf(reg, owner).cast<double>();
+    const quatd rotation = worldRotationOf(reg, owner).cast<double>();
+    state.colliders_.place(physics, origin, rotation, surface);
+
+    std::vector<Reach> reaches;
+    reaches.reserve(movers.size());
+    for (const Mover& m : movers)
+        reaches.push_back({rotation.conjugate() * (m.position_ - origin),
+                           kColliderReach + kColliderLead * m.speed_});
+    const NodeBoundsFn bounds = [&](const ChunkKey& key)
+    { return state.bounds_.get(key, *ground.relief_, grid); };
+    const int32_t level = levelClosestToCell(grid, static_cast<double>(terrain.physicsCell_));
+    const double seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const std::vector<ChunkKey> missing =
+        state.colliders_.update(physics, grid, level, reaches, bounds, seconds);
+
+    for (const ChunkBuilder::Result& r : arrivals)
+        if (r.collider_ && r.owner_ == owner && r.fingerprint_ == state.fingerprint_ &&
+            state.colliders_.wants(r.key_))
+            state.colliders_.add(physics, r.key_, r.center_, r.shape_);
+
+    for (const ChunkKey& key : missing)
+    {
+        if (state.colliders_.has(key))
+            continue;
+        const Box3d box = bounds(key);
+        double nearest = std::numeric_limits<double>::infinity();
+        for (const Reach& r : reaches)
+            nearest = std::min(nearest, distanceTo(box, r.center_));
+        if (nearest < kColliderAtOnce)
+        {
+            const ChunkSurface s = chunkSurface(*ground.relief_, grid, key);
+            state.colliders_.add(physics, key, s.center_,
+                                 makeGridMeshShape(s.positions_, grid.cells_));
+            ++state.collidersAtOnce_;
+            continue;
+        }
+        ChunkBuilder::Request request{owner, state.fingerprint_, ground.relief_, grid, key};
+        request.collider_ = true;
+        wishes.push_back({nearest, std::move(request)});
+    }
 }
 
 void Terrain_S::publish(World& world)
@@ -354,6 +463,11 @@ void Terrain_S::debug(World& world, entt::entity owner, const State& state)
                 state.totalBuilt_);
     ImGui::Text("%.0f chunks/s, %.2f ms each; %zu queued, %zu under way", state.chunksPerSecond_,
                 state.msPerChunk_, builder_.queued(), builder_.underWay());
+    const int32_t colliderLevel = state.colliders_.level();
+    ImGui::Text("%zu colliders, level %d, %.1f cm cells; %zu built at once",
+                state.colliders_.size(), colliderLevel,
+                colliderLevel >= 0 ? cellSize(state.grid_, colliderLevel) * 100.0 : 0.0,
+                state.collidersAtOnce_);
     ImGui::Text("sync %.2f ms, upload %.1f KB, %.2f ms", state.syncMs_,
                 static_cast<double>(upload.bytes_) / 1024.0, upload.ms_);
     ImGui::End();

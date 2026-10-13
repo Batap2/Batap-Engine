@@ -36,6 +36,37 @@ const std::array<FaceFrame, 6>& faceFrames()
     return frames;
 }
 
+// Point (i, j) of a node's grid, counted in cells, on the relief of `level`.
+struct NodeSampler
+{
+    NodeSampler(const TerrainRelief& relief, const TerrainGrid& grid, const ChunkKey& key)
+        : relief_(relief),
+          grid_(grid),
+          face_(key.face_),
+          level_(std::clamp(key.level_, 0, kMaxTerrainLevel)),
+          span_(std::ldexp(2.0, -level_)),
+          u0_(-1.0 + span_ * key.x_),
+          v0_(-1.0 + span_ * key.y_)
+    {}
+
+    std::pair<v3d, int32_t> operator()(double i, double j, int32_t level) const
+    {
+        const SurfacePoint p = surfacePoint(grid_, face_, u0_ + span_ * i / grid_.cells_,
+                                            v0_ + span_ * j / grid_.cells_);
+        const TerrainRelief::Sample s =
+            relief_.sample({p.base_, p.up_, level, cellSize(grid_, level)});
+        return {p.base_ + p.up_ * s.height_, s.zone_};
+    }
+
+    const TerrainRelief& relief_;
+    const TerrainGrid& grid_;
+    int32_t face_;
+    int32_t level_;
+    double span_;
+    double u0_;
+    double v0_;
+};
+
 }  // namespace
 
 int32_t clampChunkCells(int32_t cells)
@@ -91,17 +122,8 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
     { return static_cast<size_t>((j + 1) * paddedSide + (i + 1)); };
     const auto at = [&](int32_t i, int32_t j) { return static_cast<size_t>(j * side + i); };
 
-    const int32_t level = std::clamp(key.level_, 0, kMaxTerrainLevel);
-    const double span = std::ldexp(2.0, -level);
-    const double u0 = -1.0 + span * key.x_;
-    const double v0 = -1.0 + span * key.y_;
-    const auto sample = [&](double i, double j, int32_t l)
-    {
-        const SurfacePoint p =
-            surfacePoint(grid, key.face_, u0 + span * i / cells, v0 + span * j / cells);
-        const TerrainRelief::Sample s = relief.sample({p.base_, p.up_, l, cellSize(grid, l)});
-        return std::pair<v3d, int32_t>{p.base_ + p.up_ * s.height_, s.zone_};
-    };
+    const NodeSampler sample(relief, grid, key);
+    const int32_t level = sample.level_;
 
     ChunkMesh out;
     out.cells_ = cells;
@@ -282,6 +304,20 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
         out.indices_[slot + 2] = tris[t][2];
     }
 
+    return out;
+}
+
+ChunkSurface chunkSurface(const TerrainRelief& relief, const TerrainGrid& grid, const ChunkKey& key)
+{
+    const NodeSampler sample(relief, grid, key);
+    const int32_t cells = grid.cells_;
+    ChunkSurface out;
+    out.center_ = sample(0.5 * cells, 0.5 * cells, sample.level_).first;
+    out.positions_.reserve(static_cast<size_t>((cells + 1) * (cells + 1)));
+    for (int32_t j = 0; j <= cells; ++j)
+        for (int32_t i = 0; i <= cells; ++i)
+            out.positions_.push_back(
+                (sample(i, j, sample.level_).first - out.center_).cast<float>());
     return out;
 }
 

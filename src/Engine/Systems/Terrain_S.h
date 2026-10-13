@@ -3,7 +3,9 @@
 #include "EigenTypes.h"
 #include "Renderer/TerrainDraws.h"
 #include "Terrain/ChunkBuilder.h"
+#include "Terrain/TerrainColliders.h"
 #include "Terrain/TerrainLod.h"
+#include "Terrain/TerrainRelief.h"
 
 #include <entt/entt.hpp>
 
@@ -16,7 +18,7 @@
 namespace batap
 {
 struct World;
-struct TerrainSource;
+struct Terrain_C;
 
 struct Terrain_S
 {
@@ -64,6 +66,7 @@ struct Terrain_S
         std::vector<ChunkKey> wanted_;
         ChunkKeySet shown_;
         std::vector<Wish> wishes_;
+        TerrainColliders colliders_;
         // For the debug view.
         TerrainGrid grid_;
         double ratio_ = 0.0;
@@ -77,9 +80,21 @@ struct Terrain_S
         double rateBuildMs_ = 0.0;
         double chunksPerSecond_ = 0.0;
         double msPerChunk_ = 0.0;
+        size_t collidersAtOnce_ = 0;
+    };
+
+    // What stands on the ground: a dynamic body or a character, in the world.
+    struct Mover
+    {
+        v3d position_ = v3d::Zero();
+        double speed_ = 0.0;
     };
 
     void drop(World& world, State& state);
+    void syncColliders(World& world, entt::entity owner, const Terrain_C& terrain,
+                       const TerrainSource::Ground& ground, const TerrainGrid& grid, State& state,
+                       const std::vector<Mover>& movers,
+                       std::vector<ChunkBuilder::Result>& arrivals, std::vector<Wish>& wishes);
     void debug(World& world, entt::entity owner, const State& state);
 
     std::unordered_map<entt::entity, State> states_;

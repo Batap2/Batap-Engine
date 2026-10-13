@@ -107,6 +107,16 @@ struct ChunkMesh
 
 ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const ChunkKey& key);
 
+// buildChunk's vertex positions and nothing else: what a collider needs.
+struct ChunkSurface
+{
+    v3d center_ = v3d::Zero();
+    std::vector<v3f> positions_;
+};
+
+ChunkSurface chunkSurface(const TerrainRelief& relief, const TerrainGrid& grid,
+                          const ChunkKey& key);
+
 uint32_t packNormal(const v3f& n);
 v3f unpackNormal(uint32_t packed);
 std::vector<TerrainVertexGPUData> packVertices(const ChunkMesh& mesh);

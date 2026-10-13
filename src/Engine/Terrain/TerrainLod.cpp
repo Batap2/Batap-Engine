@@ -58,6 +58,14 @@ int32_t levelForCell(const TerrainGrid& grid, double cell)
     return std::clamp(level, 0, kMaxTerrainLevel);
 }
 
+int32_t levelClosestToCell(const TerrainGrid& grid, double cell)
+{
+    if (cell <= 0.0)
+        return kMaxTerrainLevel;
+    const auto level = static_cast<int32_t>(std::lround(std::log2(cellSize(grid, 0) / cell)));
+    return std::clamp(level, 0, kMaxTerrainLevel);
+}
+
 Box3d nodeBounds(const ChunkKey& key, const TerrainRelief& relief, const TerrainGrid& grid)
 {
     const double span = std::ldexp(2.0, -key.level_);
@@ -187,6 +195,33 @@ std::vector<ChunkKey> buildFrontier(const ChunkKeySet& quadtree, const ChunkTest
         if (!built(key) && (key.level_ == 0 || built(parentOf(key))))
             frontier.push_back(key);
     return frontier;
+}
+
+std::vector<ChunkKey> nodesWithin(const TerrainGrid& grid, int32_t level,
+                                  const std::vector<Reach>& reaches, const NodeBoundsFn& bounds)
+{
+    std::vector<ChunkKey> found;
+    if (reaches.empty())
+        return found;
+    std::vector<ChunkKey> todo = rootChunks(grid);
+    while (!todo.empty())
+    {
+        const ChunkKey key = todo.back();
+        todo.pop_back();
+        // A coarse box only samples its node 5 x 5: ground between the
+        // samples may stand out of it, by less than the node's side.
+        const double slack = key.level_ < level ? nodeSide(grid, key.level_) : 0.0;
+        const Box3d box = bounds(key);
+        if (std::none_of(reaches.begin(), reaches.end(), [&](const Reach& r)
+                         { return distanceTo(box, r.center_) < r.radius_ + slack; }))
+            continue;
+        if (key.level_ >= level)
+            found.push_back(key);
+        else
+            for (const ChunkKey& child : childrenOf(key))
+                todo.push_back(child);
+    }
+    return found;
 }
 
 bool isAncestor(const ChunkKey& ancestor, const ChunkKey& key)

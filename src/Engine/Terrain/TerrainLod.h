@@ -25,6 +25,8 @@ struct LodParams
 };
 
 int32_t levelForCell(const TerrainGrid& grid, double cell);
+// The level whose cells come closest to `cell`, coarser or finer.
+int32_t levelClosestToCell(const TerrainGrid& grid, double cell);
 
 struct Box3d
 {
@@ -77,6 +79,17 @@ std::vector<ChunkKey> shownChunks(const TerrainGrid& grid, const ChunkKeySet& qu
 // The nodes of `quadtree` to build next: those whose parent is built, so that
 // a node arrives over a parent that can stand in for it.
 std::vector<ChunkKey> buildFrontier(const ChunkKeySet& quadtree, const ChunkTest& built);
+
+// A ball in the terrain's frame.
+struct Reach
+{
+    v3d center_ = v3d::Zero();
+    double radius_ = 0.0;
+};
+
+// The nodes of `level` whose box comes within one of `reaches`.
+std::vector<ChunkKey> nodesWithin(const TerrainGrid& grid, int32_t level,
+                                  const std::vector<Reach>& reaches, const NodeBoundsFn& bounds);
 
 bool isAncestor(const ChunkKey& ancestor, const ChunkKey& key);
 

@@ -241,6 +241,7 @@ void App::stopPlay()
     if (!playing_)
         return;
     playing_ = false;
+    world_->resetScene();
     EntitySerializer::clearSceneAndLoadBuffer(*world_, *ctx_, playSnapshot_);
     playSnapshot_.clear();
     // Every EntityHandle from before the reload is dead.

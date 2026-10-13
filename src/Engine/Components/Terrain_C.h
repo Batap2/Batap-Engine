@@ -28,6 +28,8 @@ struct Terrain_C
     // 0 a sphere, 1 a square plane centred on the entity, up +Y. Its radius
     // or side comes from the TerrainSource.
     TerrainShape shape_ = TerrainShape::Sphere;
+    // Metres: the colliders' cells, as close as a level gets.
+    float physicsCell_ = 0.12f;
 };
 
 static_assert(refl::fieldName<Terrain_C, 0>() == "level");
@@ -39,6 +41,7 @@ static_assert(refl::fieldName<Terrain_C, 5>() == "cells");
 static_assert(refl::fieldName<Terrain_C, 6>() == "finestCell");
 static_assert(refl::fieldName<Terrain_C, 7>() == "lodRatio");
 static_assert(refl::fieldName<Terrain_C, 8>() == "shape");
+static_assert(refl::fieldName<Terrain_C, 9>() == "physicsCell");
 
 BATAP_COMPONENT(Terrain_C, "terrain",
                 fieldMeta<&Terrain_C::level_>({.speed = 1.f, .min = 0.f, .max = 24.f}),
@@ -48,6 +51,7 @@ BATAP_COMPONENT(Terrain_C, "terrain",
                 fieldMeta<&Terrain_C::cells_>({.speed = 16.f, .min = 16.f, .max = 128.f}),
                 fieldMeta<&Terrain_C::finestCell_>({.speed = 0.001f, .min = 0.001f, .max = 1000.f}),
                 fieldMeta<&Terrain_C::lodRatio_>({.speed = 0.1f, .min = 1.f, .max = 8.f}),
-                fieldMeta<&Terrain_C::shape_>({.speed = 1.f, .min = 0.f, .max = 1.f}));
+                fieldMeta<&Terrain_C::shape_>({.speed = 1.f, .min = 0.f, .max = 1.f}),
+                fieldMeta<&Terrain_C::physicsCell_>({.speed = 0.01f, .min = 0.01f, .max = 1000.f}));
 
 }  // namespace batap
