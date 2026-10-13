@@ -11,10 +11,12 @@
 #include "Renderer/Vulkan/Passes/ShadowPass.h"
 #include "Renderer/Vulkan/Passes/SkyPass.h"
 #include "Renderer/Vulkan/Passes/TerrainPass.h"
+#include "Renderer/Vulkan/RtScene.h"
 #include "Renderer/Vulkan/VulkanRenderTargets.h"
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <vector>
 
 namespace batap
@@ -75,6 +77,7 @@ struct ScenePasses
     BillboardPass billboards_;
     SkyPass sky_;
     DebugPass debug_;
+    std::optional<RtScene> rtScene_;
 
     std::filesystem::file_time_type shadersMtime_{};
 };

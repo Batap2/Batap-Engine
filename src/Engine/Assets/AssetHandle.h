@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <variant>
 
 namespace batap
@@ -38,3 +39,12 @@ enum class AssetType : uint8_t
     Material,
 };
 }  // namespace batap
+
+template <class T>
+struct std::hash<batap::AssetHandle<T>>
+{
+    size_t operator()(batap::AssetHandle<T> h) const noexcept
+    {
+        return std::hash<uint64_t>{}((uint64_t{h.generation} << 32) | h.index);
+    }
+};

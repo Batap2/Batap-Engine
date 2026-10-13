@@ -161,6 +161,9 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
         modules[i] = *owned[i];
     }
     buildPipelines(modules);
+
+    if (ctx_.rtSupported_)
+        rtScene_.emplace(ctx_, resources_);
 }
 
 ScenePasses::~ScenePasses()
@@ -378,6 +381,9 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     fitCascades(*reg, *instanceM, args.camera_, ctx.getFrameSize());
     const size_t shadowEntries = instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
     shadow_.reserve(shadowEntries);
+
+    if (rtScene_ && ctx.settings().rayTracing_)
+        rtScene_->updateBlases(cmd, frame, *reg, *ctx.assetManager_);
 
     writeFrameSet(frame, args, ctx);
 

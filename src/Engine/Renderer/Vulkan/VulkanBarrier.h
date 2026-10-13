@@ -25,14 +25,15 @@ namespace batap
 // How a resource is about to be used, or was last used.
 enum class Usage : uint8_t
 {
-    None,             // nothing to wait for, contents undefined
-    TransferSrc,      // source of a copy / blit
-    TransferDst,      // destination of a copy / blit / clear
-    ShaderRead,       // sampled or read by any shader stage
-    ColorAttachment,  // render target
-    DepthAttachment,  // depth test / write
-    Present,          // handed to the compositor
-    AnyRead,          // read by anything, anywhere — global barriers only
+    None,                        // nothing to wait for, contents undefined
+    TransferSrc,                 // source of a copy / blit
+    TransferDst,                 // destination of a copy / blit / clear
+    ShaderRead,                  // sampled or read by any shader stage
+    ColorAttachment,             // render target
+    DepthAttachment,             // depth test / write
+    Present,                     // handed to the compositor
+    AnyRead,                     // read by anything, anywhere — global barriers only
+    AccelerationStructureBuild,  // written or read by an acceleration structure build
 };
 
 // Keeps the source usage's stage and access but forces oldLayout to UNDEFINED:
@@ -83,14 +84,18 @@ inline UsageInfo usageInfo(Usage usage)
         case Usage::AnyRead:
             return {VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT,
                     VK_IMAGE_LAYOUT_UNDEFINED};
+        case Usage::AccelerationStructureBuild:
+            return {VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                    VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR |
+                        VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+                    VK_IMAGE_LAYOUT_UNDEFINED};
     }
 
     // Fallback outside the switch: no default label, so adding a Usage without
     // mapping it here is a compile error rather than a silent runtime guess.
     assert(false && "usageInfo: unmapped usage");
     return {VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-            VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-            VK_IMAGE_LAYOUT_GENERAL};
+            VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL};
 }
 
 inline VkImageSubresourceRange colorRange(uint32_t baseMip = 0, uint32_t mipCount = 1,
@@ -111,7 +116,7 @@ inline VkImageSubresourceRange depthRange(uint32_t baseMip = 0, uint32_t mipCoun
 // dependency instead of a chain of them.
 class BarrierBatch
 {
-public:
+   public:
     BarrierBatch& image(VkImage img, Usage from, Usage to, VkImageSubresourceRange range,
                         Discard discard = Discard::No)
     {
@@ -176,7 +181,7 @@ public:
         hasMemory_ = false;
     }
 
-private:
+   private:
     static constexpr uint32_t Capacity = 8;
 
     std::array<VkImageMemoryBarrier2, Capacity> images_{};

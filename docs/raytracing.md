@@ -330,10 +330,10 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Destruction différée comme les autres.
       *Vérif* : build.
-- [ ] **0.5 `RtScene` vide.** `Renderer/Vulkan/RtScene.{h,cpp}`, possédée par
+- [x] **0.5 `RtScene` vide.** `Renderer/Vulkan/RtScene.{h,cpp}`, possédée par
       `ScenePasses`, créée seulement si `rtSupported_`.
       *Vérif* : création et destruction propres à la fermeture.
-- [ ] **0.6 BLAS d'un mesh.**
+- [x] **0.6 BLAS d'un mesh.**
       - Construire une BLAS par `Mesh` à sa première apparition dans `record`,
         après `flushUploads` ;
       - une géométrie par submesh, en `OPAQUE`, positions `R32G32B32_SFLOAT` à
@@ -342,14 +342,26 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       - un cache `Mesh* → BLAS`, libéré avec le mesh.
 
       *Vérif* : un log par BLAS (triangles, octets) ; validation propre.
+- [ ] **0.6b BLAS d'un chunk de terrain.** Les chunks ne sont pas des `Mesh_C` :
+      ils arrivent par `TerrainDraws` dans le pool de la `TerrainPass`.
+      - Une BLAS par chunk, construite à son `add`, libérée à son `remove` ;
+      - positions `position_` lues dans le pool (vertex de 48 octets), index
+        `R16_UINT`.
+      - **Morph** : le VS déplace les vertices vers leurs cibles, la BLAS reste
+        sur `position_`. Dans les zones de transition, la surface tracée
+        diffère un peu de la surface dessinée : écart à mesurer en 1.2 (acné,
+        fuite d'ombre).
+
+      *Vérif* : un log par BLAS de chunk ; validation propre en survolant la
+      lune.
 - [ ] **0.7 Compaction.** Requête de taille compactée, copie, puis libération de
       l'original quelques frames plus tard. Logger avant/après.
-      *Vérif* : le log ; noter la taille compactée de la BLAS de la grande lune
-      (icosphère niveau 9, 5,2 M triangles). Si elle est trop lourde, baisser le
-      niveau en attendant le terrain en chunks.
+      *Vérif* : le log ; noter le gain de compaction sur les BLAS du buggy et
+      des chunks de terrain.
 - [ ] **0.8 TLAS par frame.**
       - Reconstruite en tête de `record`, avec la même boucle que
-        `recordMeshDraws` sur `view<Mesh_C>` ;
+        `recordMeshDraws` sur `view<Mesh_C>`, plus les chunks de terrain
+        placés de la frame (`TerrainDraws::placed_`) ;
       - transforms 3×4 relatifs à l'origine courante, `instanceCustomIndex` =
         index GPU de l'instance, masque `0xFF` ;
       - barrière entre le build et la lecture.
