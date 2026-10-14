@@ -28,8 +28,9 @@ dit qu'une passe est « coupée » ou « disparaît », c'est en mode RT seuleme
   d'instance, profondeur, normale), sans clamping de voisinage.
 - **MSAA** en résolution native. Aucun upscaler temporel.
 - **Chaque occulteur est compté une fois.**
-  - Tout astre porte un `Mesh_C`, donc il est dans la TLAS : en mode RT, la
-    boucle `SphereOccluderBuffer` est coupée (étape 1.3).
+  - Tout astre est dans la TLAS, par ses chunks de terrain ou son `Mesh_C` :
+    en mode RT, la boucle `SphereOccluderBuffer` n'est plus atteinte (1.2 pour
+    l'étoile, 1.5 et 1.6 pour les lumières locales).
   - *(Option)* Garder les astres lointains en sphères analytiques, hors du
     masque du rayon d'ombre, pour des éclipses douces gratuites.
 - **Une BLAS par mesh**, construite à sa création, jamais mise à jour (pas de
@@ -459,7 +460,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
         du buggy assombrie. Poussée 0,1 mm + 1e-5 × distance à la caméra.
       - Pour l'étoile, le rayon remplace les cartes **et** les sphères : la
         boucle `SphereOccluderBuffer` n'est plus atteinte pour FarPoint et
-        Directional en RT (voir 1.3).
+        Directional en RT (voir 1.5).
 
       `tMax` du Directional : 1e30.
       *Mesuré (SpaceFret.exe, 1280×728)* : terme d'ombre comparé pixel à
@@ -489,24 +490,65 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       15°.
       Validation propre, RT actif : éditeur debug sur `test_buggy.btpl`
       (60 frames), jeu debug sur la vue terrain (150 frames).
-- [ ] **1.3 Occulteurs sphériques coupés en RT.** Tout astre porte un `Mesh_C`,
-      donc il est dans la TLAS : en mode RT, sauter la boucle
-      `SphereOccluderBuffer`.
-      *Vérif* : une éclipse rendue une seule fois, pas deux.
-      *Note (1.2)* : déjà vrai pour l'étoile. Reste la boucle des lumières
-      locales, atteinte quand leur carte s'efface.
-- [ ] **1.4 Cascades coupées.** En mode RT, ne plus enregistrer l'atlas des
+- **1.3 Fusionnée dans 1.5 et 1.6.** Elle sautait la boucle
+      `SphereOccluderBuffer` en RT, pour ne pas compter deux fois un astre
+      déjà dans la TLAS. Pour l'étoile, c'est fait en 1.2 ; pour les lumières
+      locales, la boucle disparaît d'elle-même quand elles tracent leurs
+      rayons. Les astres entrent dans la TLAS par leurs chunks de terrain :
+      le `Mesh_C` de la lune est vide et caché, et aucune scène n'utilise
+      `shadowSphere`.
+- [x] **1.4 Cascades coupées.** En mode RT, ne plus enregistrer l'atlas des
       cascades de l'étoile.
-      *Vérif* : tracy montre la passe disparue, image inchangée par rapport
-      à 1.3.
-- [ ] **1.5 Point et spot.** Rayon vers `pos_`, `tMax = dL`. On ne trace que si
+      *Vérif* : la passe disparaît, image inchangée par rapport à 1.2.
+      *Fait* : en RT, `ScenePasses::record` saute le fit des cascades. Leurs
+      entrées restent à `strength_` 0, et `ShadowPass` saute l'atlas vide.
+      *Mesuré (SpaceFret.exe, 1280×728)* :
+      - Tracy n'est instrumenté nulle part, donc la passe est vérifiée par un
+        log temporaire dans `ShadowPass::record`, à la frame 200. Buggy +
+        dalle : atlas des cascades à 4 vues en raster, 0 en RT ; l'atlas
+        local garde ses 6 vues (le point light, jusqu'à 1.5). Terrain en RT :
+        plus aucune passe d'ombre.
+      - Buggy + dalle, soleil à 46° et à 15° ; terrain proche et lointain ;
+        raster et RT : les 8 dumps sont identiques au SHA avant/après.
+      - Conséquence : en RT, la vue debug des cascades n'a plus rien à
+        teinter pour l'étoile et montre l'image normale.
+
+      Validation propre, RT actif : éditeur debug sur `test_buggy.btpl`
+      (120 frames), jeu debug sur le terrain proche (150 frames).
+- [x] **1.5 Point et spot.** Rayon vers `pos_`, `tMax = dL`. On ne trace que si
       la lumière contribue (portée, cône, `NdotL`, `castShadows_`). L'atlas
-      local n'est plus enregistré en RT.
+      local n'est plus enregistré en RT, et la boucle `SphereOccluderBuffer`
+      n'est plus atteinte.
       *Vérif* : scène de test avec un point light ombré ; plus aucune vue
-      d'atlas local dans tracy.
+      d'atlas local pour le point et le spot.
+      *Fait* :
+      - En RT, `ShadowVisibility` trace pour tous les types sauf Rect.
+      - Le tri des lumières qui contribuent existait déjà dans
+        `ShadeSurface` : portée, cône et `NdotL` sont testés avant, et
+        `shadowIndex_` est invalide sans `castShadows_`.
+      - En RT, `LocalShadowAllocator::allocate` saute le point et le spot.
+        Les rect lights gardent l'atlas jusqu'à 1.6.
+
+      *Mesuré (SpaceFret.exe, 1280×728)* : scènes sans étoile, buggy + dalle
+      sous un point light ombré (P) ou un spot ombré (S), à l'origine et à
+      11 km, plus une rect light ombrée (R).
+      - Log temporaire à la frame 200 : en RT, P et S n'ont plus aucune vue
+        d'atlas local (6 et 1 en raster) ; R garde ses 6 vues.
+      - Raster identique au SHA avant/après sur P, S, leurs versions à 11 km,
+        E, G, T1 et T3. En RT, G, T1 et T3 sont identiques (ils n'ont que
+        l'étoile), et R est identique au raster.
+      - RT contre carte : 300 px (P) et 1 170 px (S) avec un écart de
+        luminance > 48, tous à moins de 2 px d'un bord d'ombre : **0 px** en
+        pleine zone. Les bords sont nets là où la carte filtre. Les rayures
+        du capot éclairé par le spot en raster disparaissent.
+      - Origine contre 11 km, même disposition : 247 px en RT contre 314 en
+        raster (P), 351 contre 508 (S).
+
+      Validation propre, RT actif : jeu debug sur P, S et R (150 frames),
+      éditeur debug sur `test_buggy.btpl` (120 frames).
 - [ ] **1.6 Rect, version temporaire.** Rayon vers le centre du rectangle. Les
       ombres sont dures, ce qui est faux pour une grande source, mais
-      remplacé en 5.6.
+      remplacé en 5.6. Comme en 1.5, plus de boucle `SphereOccluderBuffer`.
       *Vérif* : scène avec une rect light ombrée.
 - [ ] **1.7 Meshes sans ombre.** Un `Mesh_C` à `castShadows_ = false` (champ
       ajouté par l'agrandissement, pour la boule du soleil) reçoit le bit de

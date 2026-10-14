@@ -403,12 +403,17 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     if (!camID.valid())
         return false;
 
-    localShadowsAlloc_.allocate(*reg, *instanceM, args.camera_, ctx.getFrameSize(), shadowViews_);
-    fitCascades(*reg, *instanceM, args.camera_, ctx.getFrameSize());
+    const bool rayTracing = rtScene_ && ctx.settings().rayTracing_;
+
+    localShadowsAlloc_.allocate(*reg, *instanceM, args.camera_, ctx.getFrameSize(), rayTracing,
+                                shadowViews_);
+    if (rayTracing)
+        cascadeViews_.clear();
+    else
+        fitCascades(*reg, *instanceM, args.camera_, ctx.getFrameSize());
     const size_t shadowEntries = instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
     shadow_.reserve(shadowEntries);
 
-    const bool rayTracing = rtScene_ && ctx.settings().rayTracing_;
     if (rayTracing)
     {
         rtScene_->updateBlases(cmd, frame, *reg, *ctx.assetManager_, terrain_);

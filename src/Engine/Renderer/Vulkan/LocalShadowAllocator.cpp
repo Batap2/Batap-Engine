@@ -137,7 +137,7 @@ uint32_t evenBits(uint32_t k)
 }  // namespace
 
 void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& instances,
-                                    entt::entity camera, v2i frameSize,
+                                    entt::entity camera, v2i frameSize, bool rayTracing,
                                     std::vector<ShadowView>& views)
 {
     views.clear();
@@ -193,7 +193,7 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
 
     for (auto [e, light, trans] : reg.view<PointLight_C, Transform_C>().each())
     {
-        if (!light.castShadows_)
+        if (rayTracing || !light.castShadows_)
             continue;
         const v3f eye = trans.world().translation();
         Candidate* c = consider(e, eye, light.radius_, std::numbers::pi_v<float> * 0.5f,
@@ -213,7 +213,7 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
 
     for (auto [e, spot, trans] : reg.view<SpotLight_C, Transform_C>().each())
     {
-        if (!spot.castShadows_)
+        if (rayTracing || !spot.castShadows_)
             continue;
         const v3f eye = trans.world().translation();
         const v3f forward = -trans.world().linear().col(2).normalized();

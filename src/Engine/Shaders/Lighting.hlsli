@@ -105,7 +105,7 @@ float ShadowVisibility(float3 P, float3 N, float3 Nface, float3 L, float dL, Lig
         return 1.0f;
 
 #if BATAP_RT
-    if (light.type_ == LightDirectional || light.type_ == LightFarPoint)
+    if (light.type_ != LightRect)
         return TraceShadowRay(P, Nface, L, light.type_ == LightDirectional ? ShadowRayFar : dL);
 #endif
 

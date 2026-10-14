@@ -17,7 +17,7 @@ struct GPUInstanceManager;
 struct LocalShadowAllocator
 {
     void allocate(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
-                  v2i frameSize, std::vector<ShadowView>& views);
+                  v2i frameSize, bool rayTracing, std::vector<ShadowView>& views);
 
    private:
     struct LightView
