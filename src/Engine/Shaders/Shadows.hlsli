@@ -12,6 +12,26 @@ StructuredBuffer<ShadowGPUData> ShadowBuffer;
 
 #if BATAP_RT
 [[vk::binding(TlasBinding, RayTracingSet)]] RaytracingAccelerationStructure Tlas;
+
+static const float ShadowRayOffset = 1e-4f;
+static const float ShadowRayOffsetPerMetre = 1e-5f;
+
+static const float ShadowRayFar = 1e30f;
+
+float TraceShadowRay(float3 P, float3 Nface, float3 L, float tMax)
+{
+    float push = ShadowRayOffset + ShadowRayOffsetPerMetre * length(P);
+    RayDesc ray;
+    ray.Origin = P + Nface * (dot(Nface, L) >= 0.0f ? push : -push);
+    ray.Direction = L;
+    ray.TMin = 0.0f;
+    ray.TMax = tMax;
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE |
+             RAY_FLAG_CULL_BACK_FACING_TRIANGLES> query;
+    query.TraceRayInline(Tlas, RAY_FLAG_NONE, 0xFF, ray);
+    query.Proceed();
+    return query.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 0.0f : 1.0f;
+}
 #endif
 
 // Same descriptors as g_textures, typed single-channel for the depth atlases.

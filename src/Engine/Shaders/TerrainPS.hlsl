@@ -35,6 +35,7 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.reflectivity_ = mat.reflectivity;
     s.posRel_ = i.posRel_;
     s.Ngeom_ = normalize(i.nrmWS_);
+    s.Nface_ = FaceNormal(i.posRel_, s.Ngeom_);
     s.N_ = s.Ngeom_;
 
     return float4(saturate(ShadeSurface(mat.shadingModel_, s)), 1.0f);

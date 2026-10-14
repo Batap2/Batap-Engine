@@ -429,20 +429,72 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       caméra et le buggy s'arrondissent chacun de leur côté) : décalage
       rigide, pas de déformation, invisible à 4 mm/px. Validation propre
       (éditeur debug, `test_buggy.btpl`, 60 frames).
-- [ ] **1.1 `NdotL` avant l'ombre.** Dans `ShadeSurface`, ne pas appeler
+- [x] **1.1 `NdotL` avant l'ombre.** Dans `ShadeSurface`, ne pas appeler
       `ShadowVisibility` quand `NdotL <= 0`.
       *Vérif* : image identique (gain de perf seulement).
-- [ ] **1.2 Rayon vers l'étoile.** Sous `BATAP_RT`, pour FarPoint et
+      *Mesuré* : 4 scènes statiques (buggy + dalle, à l'origine et à 11 km),
+      raster et RT : SHA identiques avant/après. La vue debug des cascades
+      garde le même `debugLit`.
+- [x] **1.2 Rayon vers l'étoile.** Sous `BATAP_RT`, pour FarPoint et
       Directional :
       `RayQuery<ACCEPT_FIRST_HIT_AND_END_SEARCH | FORCE_OPAQUE>`, origine
       décalée le long de `Ngeom_`, `tMax = dL` (borne de scène pour
       Directional).
       *Vérif* : dump RT contre dump cascades. Mêmes ombres, bords plus nets, pas
       d'acné.
+      *Fait, avec trois écarts au texte* :
+      - `CULL_BACK_FACING_TRIANGLES` en plus. Les cartes gardent les faces
+        dos à la lumière, celles qu'un rayon vers la lumière rencontre de
+        face ; une face traversée par-derrière appartient à l'objet que le
+        rayon quitte. Contre-essai : sans culling, ou en cullant les faces
+        avant (mêmes résultats), la zone de morph de la vue terrain lointaine
+        a 26 197 px en désaccord sur les bords et 154 en pleine zone, contre
+        2 773 et 0. L'enroulement des meshes et du terrain suit donc bien la
+        convention des AS.
+      - Origine poussée le long de la **normale de la face**, du côté de la
+        lumière (`FaceNormal`, dérivées écran de `posRel_` en tête de PS) :
+        aucune face ne s'ombre elle-même. Le long de `Ngeom_`, une face passé
+        le terminateur (face dos au soleil, normale de sommet vers lui) se
+        recoupait : 880 px de plus ombrés sur le terrain à 15°, la calandre
+        du buggy assombrie. Poussée 0,1 mm + 1e-5 × distance à la caméra.
+      - Pour l'étoile, le rayon remplace les cartes **et** les sphères : la
+        boucle `SphereOccluderBuffer` n'est plus atteinte pour FarPoint et
+        Directional en RT (voir 1.3).
+
+      `tMax` du Directional : 1e30.
+      *Mesuré (SpaceFret.exe, 1280×728)* : terme d'ombre comparé pixel à
+      pixel, vue debug des cascades forcée, hors bords (2 px) :
+      - buggy + dalle, soleil à 46° et à 15° ; terrain de la lune, soleil
+        d'origine (80°) : **0 px** en désaccord en pleine zone.
+      - terrain à 15° : 611 px où la carte éclaire et le rayon ombre, tous à
+        moins de 8 m, sans morph : la carte y étale une traînée floue (texel
+        allongé ×3,9 à 15°), le rayon une ombre nette.
+      - au-delà de `CascadeRange` (200 m), le raster n'a plus d'ombre
+        d'étoile ; le rayon ombre tout le terrain chargé.
+      - RT à l'origine contre RT à 11 km, même disposition : 400 px (475 en
+        raster). Raster identique au bit près à 1.1.
+
+      *Écart du morph (demandé en 0.6b)*, surface dessinée contre BLAS :
+
+      | Distance | Médiane | p99 | Max |
+      |---|---|---|---|
+      | < 16 m | 0 | 0 | 0 |
+      | 16–100 m | < 1 cm | 2,4–3,8 cm | 8,8 cm |
+      | 100–400 m | 1–4 cm | 6,5–19 cm | 30 cm |
+      | 400–1 100 m | 5–8 cm | 34–40 cm | 80 cm |
+
+      Moitié au-dessus de la BLAS, moitié en dessous. Pas d'acné grâce au
+      culling. Il décale le bord d'une ombre de écart / tan(hauteur du
+      soleil) : sous le pixel en médiane, 1 à 2 px au p99 avec un soleil à
+      15°.
+      Validation propre, RT actif : éditeur debug sur `test_buggy.btpl`
+      (60 frames), jeu debug sur la vue terrain (150 frames).
 - [ ] **1.3 Occulteurs sphériques coupés en RT.** Tout astre porte un `Mesh_C`,
       donc il est dans la TLAS : en mode RT, sauter la boucle
       `SphereOccluderBuffer`.
       *Vérif* : une éclipse rendue une seule fois, pas deux.
+      *Note (1.2)* : déjà vrai pour l'étoile. Reste la boucle des lumières
+      locales, atteinte quand leur carte s'efface.
 - [ ] **1.4 Cascades coupées.** En mode RT, ne plus enregistrer l'atlas des
       cascades de l'étoile.
       *Vérif* : tracy montre la passe disparue, image inchangée par rapport

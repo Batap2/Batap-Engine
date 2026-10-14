@@ -99,10 +99,15 @@ float3 F_Schlick(float HdotV, float3 F0)
 // elsewhere. The partition is on P, not on the occluder: every mesh is drawn
 // in every view and depth clamp keeps the casters between the view and the
 // light, so a P the map holds already has every occluder in it.
-float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData light)
+float ShadowVisibility(float3 P, float3 N, float3 Nface, float3 L, float dL, LightGPUData light)
 {
     if (light.shadowIndex_ == InvalidGPUIndex)
         return 1.0f;
+
+#if BATAP_RT
+    if (light.type_ == LightDirectional || light.type_ == LightFarPoint)
+        return TraceShadowRay(P, Nface, L, light.type_ == LightDirectional ? ShadowRayFar : dL);
+#endif
 
     // The floor keeps smoothstep defined when sourceRadius_ is 0, where the
     // transition collapses to a hard step.
@@ -272,7 +277,7 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
 
 // Read from where the maps were drawn: the apex of the doors' pyramid for one
 // view, the face's centre for a cube.
-float RectLightShadow(LightGPUData light, float3 P, float3 Ngeom)
+float RectLightShadow(LightGPUData light, float3 P, float3 Ngeom, float3 Nface)
 {
     float3 origin = light.pos_;
     if ((light.shadowIndex_ >> ShadowFamilyShift) == ShadowLocalSingle)
@@ -284,7 +289,7 @@ float RectLightShadow(LightGPUData light, float3 P, float3 Ngeom)
     }
     float3 toOrigin = origin - P;
     float dL = length(toOrigin);
-    return ShadowVisibility(P, Ngeom, toOrigin / max(dL, 1e-6f), dL, light);
+    return ShadowVisibility(P, Ngeom, Nface, toOrigin / max(dL, 1e-6f), dL, light);
 }
 
 struct Surface
@@ -295,9 +300,20 @@ struct Surface
     float  reflectivity_;
     float3 N_;
     float3 Ngeom_;
+    float3 Nface_;
     // World axes, camera at the origin: the TLAS space, where rays start.
     float3 posRel_;
 };
+
+float3 FaceNormal(float3 P, float3 Ngeom)
+{
+    float3 c = cross(ddx(P), ddy(P));
+    float l2 = dot(c, c);
+    if (l2 <= 1e-30f)
+        return Ngeom;
+    c *= rsqrt(l2);
+    return dot(c, Ngeom) >= 0.0f ? c : -c;
+}
 
 float3 ShadeSurface(uint shadingModel, Surface s)
 {
@@ -342,7 +358,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
             float3 lit = RectLightContribution(light, s.posRel_, s.N_, V, NdotV, s.albedo_,
                                                s.roughness_, s.metallic_, F0);
             if (any(lit > 0.0f))
-                lit *= RectLightShadow(light, s.posRel_, s.Ngeom_);
+                lit *= RectLightShadow(light, s.posRel_, s.Ngeom_, s.Nface_);
             color += lit;
             continue;
         }
@@ -371,13 +387,15 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         if (cone <= 0.0f)
             continue;
 
-        float shadow = ShadowVisibility(s.posRel_, s.Ngeom_, L, dist, light);
+        float NdotL = saturate(dot(s.N_, L));
+        float shadow =
+            NdotL > 0.0f ? ShadowVisibility(s.posRel_, s.Ngeom_, s.Nface_, L, dist, light) : 0.0f;
         if ((g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
             (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
         {
             debugCascade = CascadeIndexAt(s.posRel_, light.shadowIndex_ & ShadowIndexMask);
             debugTint = CascadeDebugTintAt(s.posRel_, light.shadowIndex_ & ShadowIndexMask);
-            debugLit = dot(s.N_, L) > 0.0f ? shadow : 0.0f;
+            debugLit = shadow;
         }
         if (shadow <= 0.0f)
             continue;
@@ -386,7 +404,6 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
         float3 radiance = light.color_ * (rangeAtt * light.intensity_);
 
-        float NdotL = saturate(dot(s.N_, L));
         float NdotH = saturate(dot(s.N_, H));
         float HdotV = saturate(dot(H, V));
 
