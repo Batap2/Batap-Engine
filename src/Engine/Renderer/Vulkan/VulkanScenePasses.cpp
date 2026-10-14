@@ -23,6 +23,7 @@
 #include <cstring>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 
@@ -85,18 +86,17 @@ std::vector<VkDescriptorSet> allocFrameSets(VkDevice device, VkDescriptorPool po
     return sets;
 }
 
-VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout textureSet,
-                                      VkDescriptorSetLayout frameSet)
+VkPipelineLayout createPipelineLayout(VkDevice device,
+                                      std::span<const VkDescriptorSetLayout> setLayouts)
 {
     VkPushConstantRange pushRange{};
     pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushRange.size = sizeof(DrawPush);
 
-    const VkDescriptorSetLayout setLayouts[2] = {textureSet, frameSet};
     VkPipelineLayoutCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    info.setLayoutCount = 2;
-    info.pSetLayouts = setLayouts;
+    info.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
+    info.pSetLayouts = setLayouts.data();
     info.pushConstantRangeCount = 1;
     info.pPushConstantRanges = &pushRange;
 
@@ -117,8 +117,8 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
       frameSetLayout_(createFrameSetLayout(ctx.device_)),
       framePool_(createFramePool(ctx.device_)),
       frameSets_(allocFrameSets(ctx.device_, framePool_, frameSetLayout_)),
-      pipelineLayout_(
-          createPipelineLayout(ctx.device_, resources.textureSetLayout(), frameSetLayout_)),
+      pipelineLayout_(createPipelineLayout(
+          ctx.device_, std::array{resources.textureSetLayout(), frameSetLayout_})),
       shadow_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       geometry_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
       terrain_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
@@ -163,11 +163,17 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
     buildPipelines(modules);
 
     if (ctx_.rtSupported_)
+    {
         rtScene_.emplace(ctx_, resources_);
+        rtPipelineLayout_ =
+            createPipelineLayout(ctx_.device_, std::array{resources_.textureSetLayout(),
+                                                          frameSetLayout_, rtScene_->setLayout()});
+    }
 }
 
 ScenePasses::~ScenePasses()
 {
+    vkDestroyPipelineLayout(ctx_.device_, rtPipelineLayout_, nullptr);
     vkDestroyPipelineLayout(ctx_.device_, pipelineLayout_, nullptr);
     vkDestroyDescriptorPool(ctx_.device_, framePool_, nullptr);
     vkDestroyDescriptorSetLayout(ctx_.device_, frameSetLayout_, nullptr);
@@ -382,7 +388,8 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     const size_t shadowEntries = instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
     shadow_.reserve(shadowEntries);
 
-    if (rtScene_ && ctx.settings().rayTracing_)
+    const bool rayTracing = rtScene_ && ctx.settings().rayTracing_;
+    if (rayTracing)
     {
         rtScene_->updateBlases(cmd, frame, *reg, *ctx.assetManager_, terrain_);
         rtScene_->buildTlas(cmd, frame, *reg, *instanceM, terrain_, args.camera_);
@@ -416,6 +423,12 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     const VkDescriptorSet sets[2] = {resources_.textureSet(), frameSets_[frame]};
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 2, sets, 0,
                             nullptr);
+    if (rayTracing)
+    {
+        const VkDescriptorSet rtSet = rtScene_->set(frame);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rtPipelineLayout_,
+                                RayTracingSet, 1, &rtSet, 0, nullptr);
+    }
 
     PassContext pass{};
     pass.cmd_ = cmd;

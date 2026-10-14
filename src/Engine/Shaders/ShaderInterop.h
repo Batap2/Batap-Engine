@@ -23,8 +23,14 @@ using float4x4 = float[16];
 
 enum DescriptorSetIndex : uint
 {
-    BindlessSet = 0,  // owned by ResourceManager
-    FrameSet = 1,     // owned by ScenePasses
+    BindlessSet = 0,    // owned by ResourceManager
+    FrameSet = 1,       // owned by ScenePasses
+    RayTracingSet = 2,  // owned by RtScene
+};
+
+enum RayTracingSetBinding : uint
+{
+    TlasBinding = 0,
 };
 
 enum BindlessBinding : uint

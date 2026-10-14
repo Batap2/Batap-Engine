@@ -59,6 +59,7 @@ struct ScenePasses
     VkDescriptorPool framePool_ = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> frameSets_;
     VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout rtPipelineLayout_ = VK_NULL_HANDLE;
 
     GPUResourceHandle localAtlas_;
     LocalShadowAllocator localShadowsAlloc_;

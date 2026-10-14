@@ -11,6 +11,7 @@
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanFormats.h"
 #include "Renderer/Vulkan/VulkanResources.h"
+#include "Shaders/ShaderInterop.h"
 
 #include <emhash/hash_set8.hpp>
 
@@ -105,7 +106,39 @@ struct RtScene::BlasInputs
 };
 
 RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), resources_(resources)
-{}
+{
+    VkDescriptorSetLayoutBinding binding{};
+    binding.binding = TlasBinding;
+    binding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+    binding.descriptorCount = 1;
+    binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &binding;
+    if (vkCreateDescriptorSetLayout(ctx_.device_, &layoutInfo, nullptr, &setLayout_) != VK_SUCCESS)
+        throw std::runtime_error("RtScene : set layout");
+
+    VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, FramesInFlight};
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.maxSets = FramesInFlight;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    if (vkCreateDescriptorPool(ctx_.device_, &poolInfo, nullptr, &pool_) != VK_SUCCESS)
+        throw std::runtime_error("RtScene : descriptor pool");
+
+    std::array<VkDescriptorSetLayout, FramesInFlight> layouts;
+    layouts.fill(setLayout_);
+    VkDescriptorSetAllocateInfo setInfo{};
+    setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    setInfo.descriptorPool = pool_;
+    setInfo.descriptorSetCount = FramesInFlight;
+    setInfo.pSetLayouts = layouts.data();
+    if (vkAllocateDescriptorSets(ctx_.device_, &setInfo, sets_.data()) != VK_SUCCESS)
+        throw std::runtime_error("RtScene : descriptor sets");
+}
 
 // The renderer has waited for the device to idle; the buffers go with the
 // ResourceManager.
@@ -122,6 +155,8 @@ RtScene::~RtScene()
         vkDestroyQueryPool(ctx_.device_, queries.pool_, nullptr);
     for (const Tlas& tlas : tlases_)
         vkDestroyAccelerationStructureKHR(ctx_.device_, tlas.handle_, nullptr);
+    vkDestroyDescriptorPool(ctx_.device_, pool_, nullptr);
+    vkDestroyDescriptorSetLayout(ctx_.device_, setLayout_, nullptr);
 }
 
 void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
@@ -440,6 +475,19 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
     const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
     vkCmdBuildAccelerationStructuresKHR(cmd, 1, &info, &ranges);
     BarrierBatch{}.memory(Usage::AccelerationStructureBuild, Usage::AnyRead).flush(cmd);
+
+    VkWriteDescriptorSetAccelerationStructureKHR tlasWrite{};
+    tlasWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+    tlasWrite.accelerationStructureCount = 1;
+    tlasWrite.pAccelerationStructures = &tlas.handle_;
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext = &tlasWrite;
+    write.dstSet = sets_[frame];
+    write.dstBinding = TlasBinding;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+    vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
 }
 
 // The slot's previous frame is done with the old one.

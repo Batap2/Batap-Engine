@@ -379,7 +379,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       *Vérif* : validation propre ; insensible au recentrage de l'origine par
       construction. Le coût du build sera mesuré en 1.8 : Tracy n'est
       instrumenté nulle part dans le moteur.
-- [ ] **0.9 Set 2.** Layout et pool d'un descripteur
+- [x] **0.9 Set 2.** Layout et pool d'un descripteur
       `ACCELERATION_STRUCTURE_KHR`, écrit à chaque frame. Un second pipeline
       layout `{textures, frame, rt}` n'existe que si `rtSupported_`.
       *Vérif* : validation propre.
