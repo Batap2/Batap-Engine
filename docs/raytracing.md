@@ -30,7 +30,7 @@ dit qu'une passe est « coupée » ou « disparaît », c'est en mode RT seuleme
 - **Chaque occulteur est compté une fois.**
   - Tout astre est dans la TLAS, par ses chunks de terrain ou son `Mesh_C` :
     en mode RT, la boucle `SphereOccluderBuffer` n'est plus atteinte (1.2 pour
-    l'étoile, 1.5 et 1.6 pour les lumières locales).
+    l'étoile, 1.5 pour le point et le spot, 5.6 pour les rect lights).
   - *(Option)* Garder les astres lointains en sphères analytiques, hors du
     masque du rayon d'ombre, pour des éclipses douces gratuites.
 - **Une BLAS par mesh**, construite à sa création, jamais mise à jour (pas de
@@ -104,7 +104,7 @@ dit qu'une passe est « coupée » ou « disparaît », c'est en mode RT seuleme
 | Spot | idem point (cône déjà appliqué) | idem point |
 | Directional | vers `-direction_`, `tMax` = borne de scène | cône d'angle `sourceRadius_` (en radians) |
 | FarPoint (étoile) | vers `pos_`, `tMax = dL` | cône `asin(sourceRadius_ / dL)` |
-| Rect | vers le centre : dur, donc faux pour une grande source, acceptable en transition | tirage d'un point sur le rectangle (échantillonnage du rectangle sphérique, Ureña 2013) + estimateur ratio sur la LTC |
+| Rect | aucun : la carte d'ombre reste jusqu'à la source étendue (1.6 abandonnée) | tirage d'un point sur le rectangle (échantillonnage du rectangle sphérique, Ureña 2013) + estimateur ratio sur la LTC |
 
 **Pièges :**
 - **Le luminaire masque sa propre lumière.** Une ampoule ou un abat-jour qui
@@ -490,11 +490,11 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       15°.
       Validation propre, RT actif : éditeur debug sur `test_buggy.btpl`
       (60 frames), jeu debug sur la vue terrain (150 frames).
-- **1.3 Fusionnée dans 1.5 et 1.6.** Elle sautait la boucle
+- **1.3 Fusionnée dans 1.5 et 5.6.** Elle sautait la boucle
       `SphereOccluderBuffer` en RT, pour ne pas compter deux fois un astre
       déjà dans la TLAS. Pour l'étoile, c'est fait en 1.2 ; pour les lumières
       locales, la boucle disparaît d'elle-même quand elles tracent leurs
-      rayons. Les astres entrent dans la TLAS par leurs chunks de terrain :
+      rayons (1.5 pour le point et le spot, 5.6 pour les rect lights). Les astres entrent dans la TLAS par leurs chunks de terrain :
       le `Mesh_C` de la lune est vide et caché, et aucune scène n'utilise
       `shadowSphere`.
 - [x] **1.4 Cascades coupées.** En mode RT, ne plus enregistrer l'atlas des
@@ -527,7 +527,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
         `ShadeSurface` : portée, cône et `NdotL` sont testés avant, et
         `shadowIndex_` est invalide sans `castShadows_`.
       - En RT, `LocalShadowAllocator::allocate` saute le point et le spot.
-        Les rect lights gardent l'atlas jusqu'à 1.6.
+        Les rect lights gardent l'atlas jusqu'à 5.6.
 
       *Mesuré (SpaceFret.exe, 1280×728)* : scènes sans étoile, buggy + dalle
       sous un point light ombré (P) ou un spot ombré (S), à l'origine et à
@@ -546,16 +546,39 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Validation propre, RT actif : jeu debug sur P, S et R (150 frames),
       éditeur debug sur `test_buggy.btpl` (120 frames).
-- [ ] **1.6 Rect, version temporaire.** Rayon vers le centre du rectangle. Les
-      ombres sont dures, ce qui est faux pour une grande source, mais
-      remplacé en 5.6. Comme en 1.5, plus de boucle `SphereOccluderBuffer`.
-      *Vérif* : scène avec une rect light ombrée.
-- [ ] **1.7 Meshes sans ombre.** Un `Mesh_C` à `castShadows_ = false` (champ
+- **1.6 Abandonnée (2026-10-15).** Un rayon vers le centre du rectangle donnait
+      des ombres dures, fausses pour une grande source, et 5.6 les remplaçait.
+      En RT, les rect lights gardent donc leur carte d'ombre et la boucle
+      `SphereOccluderBuffer` jusqu'à 5.6.
+- [x] **1.7 Meshes sans ombre.** Un `Mesh_C` à `castShadows_ = false` (champ
       ajouté par l'agrandissement, pour la boule du soleil) reçoit le bit de
       masque 0x2, que le rayon d'ombre ignore. Sert aussi aux luminaires qui
       englobent leur source.
       *Vérif* : le soleil éclaire à travers sa boule ; une ampoule autour d'un
       point light n'éteint plus la lumière.
+      *Fait* : le champ n'existait pas encore. Il est ajouté ici, tel que
+      l'étape 18 de l'agrandissement le prévoit, des deux côtés :
+      - `Mesh_C::castShadows_` (`true` par défaut, absent des scènes = `true`),
+        avec sa case dans l'inspecteur.
+      - RT : masque d'instance `TlasMaskShadowCaster` (0x1) ou
+        `TlasMaskNoShadow` (0x2), et le rayon d'ombre ne cherche que 0x1. Les
+        chunks de terrain sont à 0x1. La BLAS reste construite, pour les
+        rayons du cache GI.
+      - Raster : `recordMeshDraws` saute le mesh dans les passes d'ombre, pour
+        que les deux modes donnent la même image.
+
+      *Mesuré (SpaceFret.exe, 1280×728), raster et RT* :
+      - Étoile enfermée dans un cube de 300 m ; point light enfermé dans un
+        cube de 30 cm. Avant : 45 % des pixels changent, la lumière est
+        éteinte (la scène de la boule est identique au SHA à la même scène
+        sans étoile). Après, à `false` : les deux scènes sont identiques au
+        SHA à leur version sans cube. À `true` : toujours éteintes, comme
+        avant.
+      - Série de régression (buggy, étoile à 46° et 15°, point, spot, rect,
+        terrain proche et lointain) identique au SHA avant/après.
+
+      Validation propre, RT actif : jeu debug sur les trois scènes de test
+      (150 frames), éditeur debug sur `test_buggy.btpl` (120 frames).
 - [ ] **1.8 Mesures.** Timestamps GPU (build TLAS, passe géométrie), RT
       désactivé puis activé, en 1440p. Reporter les chiffres dans « Budget ».
 
@@ -677,7 +700,9 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 - [ ] **5.5 Point et spot à sphère `sourceRadius_`** par l'estimateur ratio
       (Heitz 2018).
 - [ ] **5.6 Rect par tirage sur le rectangle** et l'estimateur ratio sur la
-      LTC.
+      LTC. Remplace la carte d'ombre des rect lights en RT (1.6 abandonnée) :
+      l'atlas local n'est plus enregistré, et la boucle
+      `SphereOccluderBuffer` n'est plus atteinte.
 
 ### Phase 6 — Planetshine
 

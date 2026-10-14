@@ -33,6 +33,9 @@ enum RayTracingSetBinding : uint
     TlasBinding = 0,
 };
 
+static const uint TlasMaskShadowCaster = 1u;
+static const uint TlasMaskNoShadow = 2u;
+
 enum BindlessBinding : uint
 {
     SamplerBinding = 0,

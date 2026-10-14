@@ -43,6 +43,6 @@ void GeometryPass::record(const PassContext& pass)
 {
     vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pass.rayTracing_ ? rtPipeline_ : pipeline_);
-    recordMeshDraws(pass, setup_.resources_, Mesh::VertexStreams);
+    recordMeshDraws(pass, setup_.resources_, Mesh::VertexStreams, false);
 }
 }  // namespace batap

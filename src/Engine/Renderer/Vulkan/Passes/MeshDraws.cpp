@@ -12,13 +12,14 @@
 
 namespace batap
 {
-void recordMeshDraws(const PassContext& pass, ResourceManager& resources, uint32_t streams)
+void recordMeshDraws(const PassContext& pass, ResourceManager& resources, uint32_t streams,
+                     bool castersOnly)
 {
     DrawPush push = pass.push_;
     pass.reg_->view<Mesh_C>().each(
         [&](entt::entity e, Mesh_C& meshC)
         {
-            if (!meshC.mesh_ || !meshC.visible_)
+            if (!meshC.mesh_ || !meshC.visible_ || (castersOnly && !meshC.castShadows_))
                 return;
             auto* mesh = pass.assetManager_->get(meshC.mesh_);
             if (!mesh)

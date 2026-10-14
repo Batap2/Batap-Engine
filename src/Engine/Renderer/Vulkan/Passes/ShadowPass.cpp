@@ -136,7 +136,7 @@ void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& at
         setViewportYUpRect(pass.cmd_, view.x_, view.y_, view.size_, view.size_);
         // Again for every view: the terrain binds its own.
         vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-        recordMeshDraws(shadowPass, setup_.resources_, 1);
+        recordMeshDraws(shadowPass, setup_.resources_, 1, true);
         terrain.recordShadow(shadowPass);
     }
 

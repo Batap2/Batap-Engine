@@ -74,13 +74,13 @@ tlasBuildInfo(const VkAccelerationStructureGeometryKHR& geometry)
 }
 
 VkAccelerationStructureInstanceKHR tlasInstance(const m4f& world, uint32_t customIndex,
-                                                VkDeviceAddress blas)
+                                                uint32_t mask, VkDeviceAddress blas)
 {
     const Eigen::Matrix<float, 3, 4, Eigen::RowMajor> rows = world.topRows<3>();
     VkAccelerationStructureInstanceKHR instance{};
     std::memcpy(&instance.transform, rows.data(), sizeof(instance.transform));
     instance.instanceCustomIndex = customIndex & 0xFFFFFF;
-    instance.mask = 0xFF;
+    instance.mask = mask;
     instance.accelerationStructureReference = blas;
     return instance;
 }
@@ -444,7 +444,8 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
             m4f world = transform.worldMatrix();
             world.topRightCorner<3, 1>() =
                 (transform.world().translation().cast<double>() - eye).cast<float>();
-            tlasInstances.push_back(tlasInstance(world, id, blas->second.address_));
+            const uint32_t mask = meshC.castShadows_ ? TlasMaskShadowCaster : TlasMaskNoShadow;
+            tlasInstances.push_back(tlasInstance(world, id, mask, blas->second.address_));
         });
     for (const auto& [id, slot] : terrain.slots())
     {
@@ -454,7 +455,8 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
         if (blas == chunkBlases_.end())
             continue;
         const m4f world = Eigen::Map<const m4f>(terrain.worlds()[slot.instance_].world_);
-        tlasInstances.push_back(tlasInstance(world, slot.instance_, blas->second.address_));
+        tlasInstances.push_back(
+            tlasInstance(world, slot.instance_, TlasMaskShadowCaster, blas->second.address_));
     }
 
     Tlas& tlas = tlases_[frame];

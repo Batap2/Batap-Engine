@@ -213,6 +213,8 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
                           assetPicker_.open(ent, AssetType::Mesh, app.projectDir_);
                   });
         ui::Field("Visible", [&] { return ImGui::Checkbox("##visible", &meshC->visible_); });
+        ui::Field("Cast shadows",
+                  [&] { return ImGui::Checkbox("##castShadows", &meshC->castShadows_); });
     }
 }
 
