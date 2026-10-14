@@ -5,7 +5,7 @@ struct VS_OUTPUT
     float4 position_ : SV_POSITION;
     float2 uv_       : TEXCOORD0;
     float4 tint_     : TEXCOORD1;
-    float3 posWS_    : TEXCOORD2;
+    float3 posRel_   : TEXCOORD2;
     float3 normalWS_ : TEXCOORD3;
     nointerpolation uint materialIdx_ : TEXCOORD4;
     nointerpolation uint textureIdx_  : TEXCOORD5;
@@ -32,7 +32,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.metallic_ = saturate(mat.metallic);
     s.reflectivity_ = mat.reflectivity;
     s.N_ = normalize(i.normalWS_);
-    s.posWS_ = i.posWS_;
+    s.posRel_ = i.posRel_;
 
     return float4(saturate(ShadeSurface(mat.shadingModel_, s)), 1.f);
 }

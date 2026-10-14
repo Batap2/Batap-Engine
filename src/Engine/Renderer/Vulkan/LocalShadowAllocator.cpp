@@ -314,8 +314,9 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
         const float fov = guardedFov(c.fov_, c.size_);
 
         ShadowView& view = views.emplace_back();
-        view.viewProj_ =
-            axisViewProj(c.eye_, t.view_->forward_, t.view_->up_, fov, c.znear_, c.zfar_);
+        // Relative to the camera, where the shaders shade.
+        view.viewProj_ = axisViewProj(v3f{c.eye_ - camPos}, t.view_->forward_, t.view_->up_,
+                                      fov, c.znear_, c.zfar_);
         view.texelWorld_ = 2.f * std::tan(fov * 0.5f) / static_cast<float>(c.size_);
         view.x_ = evenBits(offset) * LocalTileMin;
         view.y_ = evenBits(offset >> 1) * LocalTileMin;

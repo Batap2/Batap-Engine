@@ -33,7 +33,7 @@ float4 main(TerrainVSOutput i) : SV_Target
         clamp(mat.roughness * g_textures[mat.roughnessTexIdx_].Sample(g_sampler, uv).r, 0.05f, 1.0f);
     s.metallic_ = saturate(mat.metallic * g_textures[mat.metallicTexIdx_].Sample(g_sampler, uv).r);
     s.reflectivity_ = mat.reflectivity;
-    s.posWS_ = i.posWS_;
+    s.posRel_ = i.posRel_;
     s.Ngeom_ = normalize(i.nrmWS_);
     s.N_ = s.Ngeom_;
 

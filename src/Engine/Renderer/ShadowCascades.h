@@ -59,7 +59,8 @@ struct ShadowFit
 ShadowFit fitShadowCascades(const ShadowFitInput& in);
 
 // Double: the light's distance enters every term, and the cancellation in
-// float would lose the sphere.
-m4d cascadeViewProjExact(const CascadeSphere& s);
-m4f cascadeViewProj(const CascadeSphere& s);
+// float would lose the sphere. For points relative to `origin`, the render
+// camera's position: the shaders shade there.
+m4d cascadeViewProjExact(const CascadeSphere& s, const v3d& origin = v3d::Zero());
+m4f cascadeViewProj(const CascadeSphere& s, const v3d& origin = v3d::Zero());
 }  // namespace batap

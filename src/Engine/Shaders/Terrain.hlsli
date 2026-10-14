@@ -13,7 +13,7 @@ StructuredBuffer<TerrainWorldGPUData> TerrainWorldBuffer;
 struct TerrainVSOutput
 {
     float4 position_ : SV_POSITION;
-    float3 posWS_    : TEXCOORD0;
+    float3 posRel_   : TEXCOORD0;
     float3 nrmWS_    : TEXCOORD1;
     // (i, j) in the chunk's grid, for the outline.
     float2 grid_     : TEXCOORD2;

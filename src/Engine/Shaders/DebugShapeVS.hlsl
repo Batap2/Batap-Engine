@@ -26,10 +26,10 @@ VS_OUTPUT main(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
     // Divided by w because a frustum's matrix is projective; every other shape
     // is affine, where w comes back as 1 and this costs nothing.
     float4 posH = mul(shape.world_, float4(p, 1.0f));
-    float4 posWS = float4(posH.xyz / posH.w, 1.0f);
+    float3 posRel = posH.xyz / posH.w - cam.pos_;
 
     VS_OUTPUT o;
-    o.position_ = mul(cam.proj_, mul(cam.view_, posWS));
+    o.position_ = mul(cam.proj_, float4(mul((float3x3)cam.view_, posRel), 1.0f));
     o.color_ = shape.color_;
     return o;
 }

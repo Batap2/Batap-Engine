@@ -340,6 +340,8 @@ void ScenePasses::fitCascades(entt::registry& reg, GPUInstanceManager& instances
         return;
 
     const transform camWorld = reg.get<Transform_C>(camera).world();
+    // The render camera's position as the GPU gets it (CameraGPUData::pos_).
+    const v3d origin = camWorld.translation().cast<double>();
     ShadowFitInput in;
     in.camPos_ = camWorld.translation();
     in.camFwd_ = -camWorld.linear().col(2).normalized();
@@ -361,8 +363,9 @@ void ScenePasses::fitCascades(entt::registry& reg, GPUInstanceManager& instances
             continue;
 
         ShadowView& view = cascadeViews_.emplace_back();
-        view.viewProj_ = cascadeViewProj(s);
-        view.sphere_ = v4f{s.center_.x(), s.center_.y(), s.center_.z(), s.radius_};
+        view.viewProj_ = cascadeViewProj(s, origin);
+        const v3f centre = (s.center_.cast<double>() - origin).cast<float>();
+        view.sphere_ = v4f{centre.x(), centre.y(), centre.z(), s.radius_};
         view.texelWorld_ = s.texelWorld_;
         view.x_ = (c % 2) * CascadeTileSize;
         view.y_ = (c / 2) * CascadeTileSize;

@@ -155,29 +155,30 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
     return fit;
 }
 
-m4d cascadeViewProjExact(const CascadeSphere& s)
+m4d cascadeViewProjExact(const CascadeSphere& s, const v3d& origin)
 {
     const m3d frame = s.lightFrame_.cast<double>();
     const double halfWidth = static_cast<double>(s.texelWorld_) * CascadeTileSize * 0.5;
 
     if (s.directional_)
     {
-        // x = (p - window) / halfWidth; depth 0 on the light's side.
+        // x = (p + origin - window) / halfWidth; depth 0 on the light's side.
+        const v3d o = frame * origin;
         const double depthSpan = s.depthNear_ - s.depthFar_;
         m4d vp = m4d::Zero();
         vp.block<1, 3>(0, 0) = frame.row(0) / halfWidth;
-        vp(0, 3) = -s.window_.x() / halfWidth;
+        vp(0, 3) = (o.x() - s.window_.x()) / halfWidth;
         vp.block<1, 3>(1, 0) = frame.row(1) / halfWidth;
-        vp(1, 3) = -s.window_.y() / halfWidth;
+        vp(1, 3) = (o.y() - s.window_.y()) / halfWidth;
         vp.block<1, 3>(2, 0) = -frame.row(2) / depthSpan;
-        vp(2, 3) = s.depthNear_ / depthSpan;
+        vp(2, 3) = (s.depthNear_ - o.z()) / depthSpan;
         vp(3, 3) = 1.0;
         return vp;
     }
 
     m4d view = m4d::Identity();
     view.block<3, 3>(0, 0) = frame;
-    view.block<3, 1>(0, 3) = -(frame * s.lightPos_.cast<double>());
+    view.block<3, 1>(0, 3) = -(frame * (s.lightPos_.cast<double>() - origin));
 
     // x = (x / depth - window) / halfWidth; depth 0 on the light's side.
     const double nf = 1.0 / (s.depthNear_ - s.depthFar_);
@@ -192,9 +193,9 @@ m4d cascadeViewProjExact(const CascadeSphere& s)
     return m4d{proj * view};
 }
 
-m4f cascadeViewProj(const CascadeSphere& s)
+m4f cascadeViewProj(const CascadeSphere& s, const v3d& origin)
 {
     // Rounded last: a hundredth of a texel at 4 km, ten times worse at 40 km.
-    return m4f{cascadeViewProjExact(s).cast<float>()};
+    return m4f{cascadeViewProjExact(s, origin).cast<float>()};
 }
 }  // namespace batap

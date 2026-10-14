@@ -17,6 +17,6 @@ float4 main(uint vertexId : SV_VertexID) : SV_POSITION
     float3 position;
     float3 normal;
     terrainVertex(chunk, world, vertexId, position, normal);
-    const float3 posWS = cam.pos_ + mul(world, float4(position, 1.0f)).xyz;
-    return mul(ShadowBuffer[g_draw.shadowViewIndex_].viewProj_, float4(posWS, 1.0f));
+    const float3 posRel = mul(world, float4(position, 1.0f)).xyz;
+    return mul(ShadowBuffer[g_draw.shadowViewIndex_].viewProj_, float4(posRel, 1.0f));
 }

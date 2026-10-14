@@ -396,7 +396,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 1 — Ombres en ray query
 
-- [ ] **1.0 Rendu relatif à la caméra.** Aujourd'hui le VS des meshes calcule
+- [x] **1.0 Rendu relatif à la caméra.** Aujourd'hui le VS des meshes calcule
       `world × position` en coordonnées monde : à 11 km de l'origine (la
       caméra de `test_buggy`), chaque sommet est arrondi au millimètre
       séparément, et la view retranche deux grands nombres. Le terrain fait
@@ -413,6 +413,22 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       *Vérif* : dump quasi identique près de l'origine ; à 11 km, plus de
       tremblement du buggy en mouvement.
+      *Fait* : les matrices des vues d'ombre (cascades et atlas local) sont
+      construites relatives à la caméra côté CPU, en double pour les cascades
+      (`cascadeViewProj(s, origin)`), et `sphere_` aussi ; `ShadowVS` lit la
+      caméra. Les lumières et les occulteurs sphériques restent absolus dans
+      leurs buffers, le PS retranche `cam.pos_`.
+      *Mesuré (SpaceFret.exe, frame 300, 1280×728)* : scène statique buggy +
+      dalle + far point light (cascades) + point light (atlas local), rendue
+      à l'origine puis à 11 km avec des décalages exactement représentables
+      en float (même disposition relative au bit près). Avant : 7 732 px
+      différents entre les deux rendus (0,83 %), l'arrondi par sommet. Après :
+      475 px (0,05 %), tous sur des égalités de profondeur dans
+      l'auto-ombrage du buggy. Près de l'origine, avant/après : 44 px, delta
+      max 4. Reste le pas de 1 mm des `Transform_C` en float à 11 km (la
+      caméra et le buggy s'arrondissent chacun de leur côté) : décalage
+      rigide, pas de déformation, invisible à 4 mm/px. Validation propre
+      (éditeur debug, `test_buggy.btpl`, 60 frames).
 - [ ] **1.1 `NdotL` avant l'ombre.** Dans `ShadeSurface`, ne pas appeler
       `ShadowVisibility` quand `NdotL <= 0`.
       *Vérif* : image identique (gain de perf seulement).

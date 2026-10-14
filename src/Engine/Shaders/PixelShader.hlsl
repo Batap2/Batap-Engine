@@ -10,7 +10,7 @@ StructuredBuffer<StaticMeshGPUData> StaticMeshInstancebuffer;
 struct VS_OUTPUT
 {
     float4 position_ : SV_POSITION; // clip space
-    float3 posWS_    : TEXCOORD0;   // world position
+    float3 posRel_   : TEXCOORD0;   // world axes, camera at the origin
     float3 nrmWS_    : TEXCOORD1;   // world normal
     float2 uv_       : TEXCOORD2;
     float4 tanWS_    : TEXCOORD3;   // xyz = world tangent, w = handedness
@@ -34,7 +34,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.roughness_ = clamp(mat.roughness * g_textures[mat.roughnessTexIdx_].Sample(g_sampler, i.uv_).r, 0.05f, 1.0f);
     s.metallic_  = saturate(mat.metallic * g_textures[mat.metallicTexIdx_].Sample(g_sampler, i.uv_).r);
     s.reflectivity_ = mat.reflectivity;
-    s.posWS_     = i.posWS_;
+    s.posRel_    = i.posRel_;
 
     float3 Ngeom = normalize(i.nrmWS_);
     s.Ngeom_ = Ngeom;

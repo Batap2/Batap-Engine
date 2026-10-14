@@ -12,7 +12,7 @@ struct VS_OUTPUT
     float4 position_ : SV_POSITION;
     float2 uv_       : TEXCOORD0;
     float4 tint_     : TEXCOORD1;
-    float3 posWS_    : TEXCOORD2;
+    float3 posRel_   : TEXCOORD2;
     float3 normalWS_ : TEXCOORD3;
     nointerpolation uint materialIdx_ : TEXCOORD4;
     nointerpolation uint textureIdx_  : TEXCOORD5;
@@ -33,7 +33,8 @@ VS_OUTPUT main(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
     CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
     BillboardGPUData b = Billboards[g_draw.instanceIndex_ + instanceId];
 
-    float3 toCam = cam.pos_ - b.pos_;
+    float3 posB  = b.pos_ - cam.pos_;
+    float3 toCam = -posB;
     float  dist  = max(length(toCam), 0.0001f);
 
     float3 right = cam.right_;
@@ -59,13 +60,13 @@ VS_OUTPUT main(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
     float scale = (b.flags_ & BillboardScreenSize) ? dist * tan(cam.fov_ * 0.5f) : 0.5f;
 
     float2 c = kCorners[vertexId % 6u];
-    float3 posWS = b.pos_ + right * (c.x * b.sizeX_ * scale) + up * (c.y * b.sizeY_ * scale);
+    float3 posRel = posB + right * (c.x * b.sizeX_ * scale) + up * (c.y * b.sizeY_ * scale);
 
     VS_OUTPUT o;
-    o.position_ = mul(cam.proj_, mul(cam.view_, float4(posWS, 1.f)));
+    o.position_ = mul(cam.proj_, float4(mul((float3x3)cam.view_, posRel), 1.f));
     o.uv_ = float2(c.x * 0.5f + 0.5f, 0.5f - c.y * 0.5f);
     o.tint_ = b.tint_;
-    o.posWS_ = posWS;
+    o.posRel_ = posRel;
     o.normalWS_ = normalize(cross(right, up));
     o.materialIdx_ = b.materialIdx_;
     o.textureIdx_ = b.textureIdx_;

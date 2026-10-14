@@ -126,6 +126,7 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
     if (coverage >= 1.0f)
         return mapVis;
 
+    float3 camPos = CameraInstancebuffer[g_draw.cameraIndex_].pos_;
     float vis = 1.0f;
     [loop]
     for (uint i = 0; i < g_draw.sphereOccluderCount_; ++i)
@@ -134,7 +135,7 @@ float ShadowVisibility(float3 P, float3 N, float3 L, float dL, LightGPUData ligh
         if (occ.radius_ <= 0.0f)
             continue;
 
-        float3 S  = occ.center_ - P;
+        float3 S  = (occ.center_ - camPos) - P;
         float  dS = length(S);
         if (dS <= occ.radius_)  // inside the occluder: its own relief must not
             continue;           // put it out
@@ -294,7 +295,8 @@ struct Surface
     float  reflectivity_;
     float3 N_;
     float3 Ngeom_;
-    float3 posWS_;
+    // World axes, camera at the origin: the TLAS space, where rays start.
+    float3 posRel_;
 };
 
 float3 ShadeSurface(uint shadingModel, Surface s)
@@ -307,7 +309,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     // F0 : diélectrique = 0.04, métal = albedo
     float3 F0 = lerp(float3(0.04f, 0.04f, 0.04f), s.albedo_, s.metallic_);
 
-    float3 V = normalize(cam.pos_ - s.posWS_);
+    float3 V = normalize(-s.posRel_);
     float  NdotV = saturate(dot(s.N_, V));
 
     // IBL diffuse (SH L2) + spéculaire (env sampling). The buffer keeps the last
@@ -333,13 +335,14 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     for (uint lightIndex = 0; lightIndex < g_draw.lightCount_; ++lightIndex)
     {
         LightGPUData light = LightBuffer[lightIndex];
+        light.pos_ -= cam.pos_;
 
         if (light.type_ == LightRect)
         {
-            float3 lit = RectLightContribution(light, s.posWS_, s.N_, V, NdotV, s.albedo_,
+            float3 lit = RectLightContribution(light, s.posRel_, s.N_, V, NdotV, s.albedo_,
                                                s.roughness_, s.metallic_, F0);
             if (any(lit > 0.0f))
-                lit *= RectLightShadow(light, s.posWS_, s.Ngeom_);
+                lit *= RectLightShadow(light, s.posRel_, s.Ngeom_);
             color += lit;
             continue;
         }
@@ -354,7 +357,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         }
         else
         {
-            float3 toLight = light.pos_ - s.posWS_;
+            float3 toLight = light.pos_ - s.posRel_;
             dist = length(toLight);
             if (dist > light.radius_ || dist <= 0.0001f)
                 continue;
@@ -368,12 +371,12 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         if (cone <= 0.0f)
             continue;
 
-        float shadow = ShadowVisibility(s.posWS_, s.Ngeom_, L, dist, light);
+        float shadow = ShadowVisibility(s.posRel_, s.Ngeom_, L, dist, light);
         if ((g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
             (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
         {
-            debugCascade = CascadeIndexAt(s.posWS_, light.shadowIndex_ & ShadowIndexMask);
-            debugTint = CascadeDebugTintAt(s.posWS_, light.shadowIndex_ & ShadowIndexMask);
+            debugCascade = CascadeIndexAt(s.posRel_, light.shadowIndex_ & ShadowIndexMask);
+            debugTint = CascadeDebugTintAt(s.posRel_, light.shadowIndex_ & ShadowIndexMask);
             debugLit = dot(s.N_, L) > 0.0f ? shadow : 0.0f;
         }
         if (shadow <= 0.0f)
