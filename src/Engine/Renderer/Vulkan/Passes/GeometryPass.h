@@ -19,5 +19,6 @@ struct GeometryPass
    private:
     PassSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
+    VkPipeline rtPipeline_ = VK_NULL_HANDLE;
 };
 }  // namespace batap

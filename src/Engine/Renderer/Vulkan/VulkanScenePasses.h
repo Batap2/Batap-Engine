@@ -59,6 +59,7 @@ struct ScenePasses
     VkDescriptorPool framePool_ = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> frameSets_;
     VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
+    std::optional<RtScene> rtScene_;
     VkPipelineLayout rtPipelineLayout_ = VK_NULL_HANDLE;
 
     GPUResourceHandle localAtlas_;
@@ -78,7 +79,6 @@ struct ScenePasses
     BillboardPass billboards_;
     SkyPass sky_;
     DebugPass debug_;
-    std::optional<RtScene> rtScene_;
 
     std::filesystem::file_time_type shadersMtime_{};
 };

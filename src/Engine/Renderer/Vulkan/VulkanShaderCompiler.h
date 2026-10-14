@@ -13,7 +13,8 @@ struct ShaderCompiler
 {
     ~ShaderCompiler();
 
-    std::vector<uint8_t> compile(const std::string& hlslPath, const char* target);
+    std::vector<uint8_t> compile(const std::string& hlslPath, const char* target,
+                                 const char* define = nullptr);
 
    private:
     bool ensureLoaded();

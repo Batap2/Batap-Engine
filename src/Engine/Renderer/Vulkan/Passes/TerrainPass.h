@@ -81,6 +81,7 @@ struct TerrainPass
 
     PassSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
+    VkPipeline rtPipeline_ = VK_NULL_HANDLE;
     VkPipeline shadowPipeline_ = VK_NULL_HANDLE;
     GPUResourceHandle chunks_;
     GPUResourceHandle worlds_;

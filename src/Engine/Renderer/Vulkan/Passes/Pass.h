@@ -20,6 +20,7 @@ struct PassSetup
     VkPipelineLayout layout_ = VK_NULL_HANDLE;
     VkFormat colorFormat_ = VK_FORMAT_UNDEFINED;
     VkFormat depthFormat_ = VK_FORMAT_UNDEFINED;
+    VkPipelineLayout rtLayout_ = VK_NULL_HANDLE;
 };
 
 // A pass records into an already-open rendering: the descriptor sets are bound
@@ -32,6 +33,7 @@ struct PassContext
     entt::registry* reg_ = nullptr;
     GPUInstanceManager* instanceManager_ = nullptr;
     AssetManager* assetManager_ = nullptr;
+    bool rayTracing_ = false;
 };
 
 inline void pushDraw(const PassContext& pass, const DrawPush& push)

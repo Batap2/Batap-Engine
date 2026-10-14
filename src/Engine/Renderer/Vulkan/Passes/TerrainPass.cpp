@@ -40,6 +40,7 @@ TerrainPass::TerrainPass(const PassSetup& setup) : setup_(setup)
 TerrainPass::~TerrainPass()
 {
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
     setup_.resources_.requestDestroy(chunks_);
     setup_.resources_.requestDestroy(worlds_);
@@ -51,17 +52,22 @@ TerrainPass::~TerrainPass()
 
 void TerrainPass::buildPipelines(const ShaderModules& modules)
 {
-    if (pipeline_)
-        vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
-    if (shadowPipeline_)
-        vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
 
-    pipeline_ = GraphicsPipelineBuilder()
-                    .shaders(modules[TerrainVS], modules[TerrainPS])
-                    .colorFormat(setup_.colorFormat_)
-                    .depth(setup_.depthFormat_, true, VK_COMPARE_OP_LESS)
-                    .cullBack()
-                    .build(setup_.ctx_.device_, setup_.layout_);
+    const auto build = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
+    {
+        return GraphicsPipelineBuilder()
+            .shaders(modules[TerrainVS], pixelShader)
+            .colorFormat(setup_.colorFormat_)
+            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_LESS)
+            .cullBack()
+            .build(setup_.ctx_.device_, layout);
+    };
+    pipeline_ = build(modules[TerrainPS], setup_.layout_);
+    rtPipeline_ = modules[TerrainRtPS] ? build(modules[TerrainRtPS], setup_.rtLayout_)
+                                       : VK_NULL_HANDLE;
 
     // ShadowPass's own settings.
     shadowPipeline_ = GraphicsPipelineBuilder()
@@ -314,7 +320,7 @@ void TerrainPass::recordDraws(const PassContext& pass, VkPipeline pipeline,
 
 void TerrainPass::record(const PassContext& pass)
 {
-    recordDraws(pass, pipeline_, draws_);
+    recordDraws(pass, pass.rayTracing_ ? rtPipeline_ : pipeline_, draws_);
 }
 
 void TerrainPass::recordShadow(const PassContext& pass)

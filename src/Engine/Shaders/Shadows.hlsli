@@ -3,8 +3,16 @@
 
 #include "ShaderInterop.h"
 
+#ifndef BATAP_RT
+#define BATAP_RT 0
+#endif
+
 [[vk::binding(ShadowsBinding, FrameSet)]]
 StructuredBuffer<ShadowGPUData> ShadowBuffer;
+
+#if BATAP_RT
+[[vk::binding(TlasBinding, RayTracingSet)]] RaytracingAccelerationStructure Tlas;
+#endif
 
 // Same descriptors as g_textures, typed single-channel for the depth atlases.
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float> g_depthTextures[];

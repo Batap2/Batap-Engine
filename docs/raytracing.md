@@ -383,13 +383,16 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       `ACCELERATION_STRUCTURE_KHR`, écrit à chaque frame. Un second pipeline
       layout `{textures, frame, rt}` n'existe que si `rtSupported_`.
       *Vérif* : validation propre.
-- [ ] **0.10 Variante de shader RT.** Compiler `PixelShader.hlsl` une seconde
-      fois avec `-D BATAP_RT=1`, et déclarer cette variante dans
-      `ShaderCatalog.h` pour le hot reload. La passe géométrie la choisit quand
-      `rayTracing_` est actif. Elle déclare la TLAS mais ne trace encore rien.
-      Le SPIR-V `RayQuery` ne se charge pas sur un GPU sans RT, d'où la
-      variante.
-      *Vérif* : RT coché ou non, image identique.
+- [x] **0.10 Variante de shader RT.** Compiler `PixelShader.hlsl` **et
+      `TerrainPS.hlsl`** une seconde fois avec `-D BATAP_RT=1`, et déclarer ces
+      variantes dans `ShaderCatalog.h` pour le hot reload. Les passes géométrie
+      et terrain les choisissent quand `rayTracing_` est actif. La TLAS est
+      déclarée dans `Shadows.hlsli` mais rien ne trace encore. Le SPIR-V
+      `RayQuery` ne se charge pas sur un GPU sans RT, d'où la variante.
+      *Vérif* : RT coché ou non, image identique (SHA du viewport, frame 300).
+      dxc retire la TLAS tant qu'elle n'est pas lue : la variante est encore
+      identique au shader raster. Avec `-fspv-preserve-bindings`, elle sort au
+      set 2, binding 0, et `spirv-val` passe.
 
 ### Phase 1 — Ombres en ray query
 

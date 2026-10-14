@@ -86,6 +86,13 @@ std::vector<VkDescriptorSet> allocFrameSets(VkDevice device, VkDescriptorPool po
     return sets;
 }
 
+std::optional<RtScene> createRtScene(VulkanContext& ctx, ResourceManager& resources)
+{
+    if (!ctx.rtSupported_)
+        return std::nullopt;
+    return std::optional<RtScene>(std::in_place, ctx, resources);
+}
+
 VkPipelineLayout createPipelineLayout(VkDevice device,
                                       std::span<const VkDescriptorSetLayout> setLayouts)
 {
@@ -119,20 +126,31 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
       frameSets_(allocFrameSets(ctx.device_, framePool_, frameSetLayout_)),
       pipelineLayout_(createPipelineLayout(
           ctx.device_, std::array{resources.textureSetLayout(), frameSetLayout_})),
-      shadow_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
-      geometry_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
-      terrain_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
-      billboards_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
-      sky_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat}),
-      debug_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat})
+      rtScene_(createRtScene(ctx, resources)),
+      rtPipelineLayout_(rtScene_
+                            ? createPipelineLayout(
+                                  ctx.device_, std::array{resources.textureSetLayout(),
+                                                          frameSetLayout_, rtScene_->setLayout()})
+                            : VK_NULL_HANDLE),
+      shadow_(
+          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
+      geometry_(
+          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
+      terrain_(
+          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
+      billboards_(
+          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
+      sky_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
+      debug_(
+          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_})
 {
     localAtlas_ = resources_.createTarget(LocalAtlasSize, LocalAtlasSize, ResourceFormat::D32_FLOAT,
                                           "local shadow atlas");
     cascadeAtlas_ = resources_.createTarget(CascadeAtlasSize, CascadeAtlasSize,
                                             ResourceFormat::D32_FLOAT, "cascade shadow atlas");
 
-    const auto uploadTable = [&](const std::array<uint16_t, LtcTableTexels * 4>& table,
-                                 const char* name)
+    const auto uploadTable =
+        [&](const std::array<uint16_t, LtcTableTexels * 4>& table, const char* name)
     {
         const GPUResourceHandle image = resources_.createImage2D(
             LtcTableSize, LtcTableSize, ResourceFormat::R16G16B16A16_FLOAT, name);
@@ -157,18 +175,12 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
     ShaderModules modules{};
     for (size_t i = 0; i < ShaderCount; ++i)
     {
+        if (kShaders[i].rayTracing_ && !ctx_.rtSupported_)
+            continue;
         owned[i].emplace(ctx_.device_, shaderDir + "/" + kShaders[i].name_ + ".spv");
         modules[i] = *owned[i];
     }
     buildPipelines(modules);
-
-    if (ctx_.rtSupported_)
-    {
-        rtScene_.emplace(ctx_, resources_);
-        rtPipelineLayout_ =
-            createPipelineLayout(ctx_.device_, std::array{resources_.textureSetLayout(),
-                                                          frameSetLayout_, rtScene_->setLayout()});
-    }
 }
 
 ScenePasses::~ScenePasses()
@@ -232,9 +244,12 @@ void ScenePasses::checkHotReload()
     std::array<std::vector<uint8_t>, ShaderCount> spirv;
     for (size_t i = 0; i < ShaderCount; ++i)
     {
+        if (kShaders[i].rayTracing_ && !ctx_.rtSupported_)
+            continue;
         const std::string source =
-            (sourceDir / (std::string(kShaders[i].name_) + ".hlsl")).string();
-        spirv[i] = ctx_.shaderCompiler_.compile(source, kShaders[i].target_);
+            (sourceDir / (std::string(kShaders[i].source_) + ".hlsl")).string();
+        spirv[i] = ctx_.shaderCompiler_.compile(
+            source, kShaders[i].target_, kShaders[i].rayTracing_ ? kRayTracingDefine : nullptr);
         if (spirv[i].empty())
         {
             std::cerr << "[ShaderCompiler] " << kShaders[i].name_
@@ -248,6 +263,8 @@ void ScenePasses::checkHotReload()
     ShaderModules modules{};
     for (size_t i = 0; i < ShaderCount; ++i)
     {
+        if (spirv[i].empty())
+            continue;
         owned[i].emplace(ctx_.device_, spirv[i].data(), spirv[i].size());
         modules[i] = *owned[i];
     }
@@ -438,6 +455,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     pass.reg_ = reg;
     pass.instanceManager_ = instanceM;
     pass.assetManager_ = ctx.assetManager_.get();
+    pass.rayTracing_ = rayTracing;
     instanceM->forEachPool(
         [&](auto& pool)
         {

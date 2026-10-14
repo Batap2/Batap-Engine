@@ -118,7 +118,8 @@ bool ShaderCompiler::ensureLoaded()
     return true;
 }
 
-std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const char* target)
+std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const char* target,
+                                             const char* define)
 {
     if (!ensureLoaded())
         return {};
@@ -153,8 +154,10 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
     const std::wstring wIncludeDir =
         widen(std::filesystem::path(hlslPath).parent_path().string());
 
+    const std::wstring wDefine = define ? widen(define) : std::wstring();
+
     // Same flags as the offline compilation (CMake)
-    LPCWSTR args[] = {
+    std::vector<LPCWSTR> args = {
         wPath.c_str(),
         L"-E",
         L"main",
@@ -165,6 +168,11 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
         L"-I",
         wIncludeDir.c_str(),
     };
+    if (define)
+    {
+        args.push_back(L"-D");
+        args.push_back(wDefine.c_str());
+    }
 
     DxcBuffer buffer{};
     buffer.Ptr = source.data();
@@ -172,7 +180,7 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
     buffer.Encoding = DXC_CP_UTF8;
 
     ComPtr<IDxcResult> result;
-    if (FAILED(compiler->Compile(&buffer, args, static_cast<UINT32>(std::size(args)),
+    if (FAILED(compiler->Compile(&buffer, args.data(), static_cast<UINT32>(args.size()),
                                  includeHandler.p, IID_PPV_ARGS(&result))))
     {
         std::cerr << "[ShaderCompiler] Compile() failed : " << hlslPath << "\n";
