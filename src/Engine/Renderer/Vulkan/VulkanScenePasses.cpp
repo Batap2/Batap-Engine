@@ -383,7 +383,10 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     shadow_.reserve(shadowEntries);
 
     if (rtScene_ && ctx.settings().rayTracing_)
+    {
         rtScene_->updateBlases(cmd, frame, *reg, *ctx.assetManager_, terrain_);
+        rtScene_->buildTlas(cmd, frame, *reg, *instanceM, terrain_, args.camera_);
+    }
 
     writeFrameSet(frame, args, ctx);
 

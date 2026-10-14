@@ -361,16 +361,24 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       des chunks de terrain.
       *Mesuré (RTX 5070)* : meshes du buggy 186 → 76 Ko (−59 %), chunk de
       2 048 triangles 133 → 47 Ko (−65 %).
-- [ ] **0.8 TLAS par frame.**
+- [x] **0.8 TLAS par frame.**
       - Reconstruite en tête de `record`, avec la même boucle que
         `recordMeshDraws` sur `view<Mesh_C>`, plus les chunks de terrain
-        placés de la frame (`TerrainDraws::placed_`) ;
-      - transforms 3×4 relatifs à l'origine courante, `instanceCustomIndex` =
-        index GPU de l'instance, masque `0xFF` ;
+        montrés (`TerrainPass::worlds()`) ;
+      - une TLAS par slot de frame, agrandie au besoin, instances écrites dans
+        un buffer mappé ;
+      - transforms 3×4 **relatifs à la caméra de rendu**, comme le terrain est
+        dessiné : en coordonnées monde, un float vaut 1 mm à 10 km et deux
+        chunks voisins ne se raccorderaient plus. Les rayons devront partir de
+        la position relative à la caméra (à passer du VS au PS en 1.2), pas de
+        `posWS_` ;
+      - `instanceCustomIndex` = index GPU de l'instance (`Slot::instance_`
+        pour un chunk), masque `0xFF` ;
       - barrière entre le build et la lecture.
 
-      *Vérif* : validation propre ; le coût du build apparaît dans tracy ;
-      aucun effet au recentrage de l'origine.
+      *Vérif* : validation propre ; insensible au recentrage de l'origine par
+      construction. Le coût du build sera mesuré en 1.8 : Tracy n'est
+      instrumenté nulle part dans le moteur.
 - [ ] **0.9 Set 2.** Layout et pool d'un descripteur
       `ACCELERATION_STRUCTURE_KHR`, écrit à chaque frame. Un second pipeline
       layout `{textures, frame, rt}` n'existe que si `rtSupported_`.
@@ -385,6 +393,23 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 1 — Ombres en ray query
 
+- [ ] **1.0 Rendu relatif à la caméra.** Aujourd'hui le VS des meshes calcule
+      `world × position` en coordonnées monde : à 11 km de l'origine (la
+      caméra de `test_buggy`), chaque sommet est arrondi au millimètre
+      séparément, et la view retranche deux grands nombres. Le terrain fait
+      déjà autrement.
+      - VS des meshes : `translation − cam.pos_` d'abord (exact quand l'objet
+        est proche), puis la position locale tournée ; view sans translation,
+        comme `TerrainVS`. Aucun upload de plus : les instances gardent leur
+        matrice absolue.
+      - Interpolant `posRel_` (relatif à la caméra) à la place de `posWS_` ;
+        ombrage (V, lumières, cascades) en relatif. C'est l'espace de la TLAS :
+        les rayons de 1.2 en partiront.
+      - Idem `ShadowVS` (matrices de lumière relatives à la caméra), billboards,
+        debug.
+
+      *Vérif* : dump quasi identique près de l'origine ; à 11 km, plus de
+      tremblement du buggy en mouvement.
 - [ ] **1.1 `NdotL` avant l'ombre.** Dans `ShadeSurface`, ne pas appeler
       `ShadowVisibility` quand `NdotL <= 0`.
       *Vérif* : image identique (gain de perf seulement).

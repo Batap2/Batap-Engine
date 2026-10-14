@@ -184,7 +184,8 @@ ResourceManager::~ResourceManager()
 
 ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes,
                                                               VkBufferUsageFlags usage,
-                                                              VkDeviceSize minAlignment)
+                                                              VkDeviceSize minAlignment,
+                                                              bool mapped)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -193,12 +194,20 @@ ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    if (mapped)
+    {
+        allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                          VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    }
 
+    VmaAllocationInfo outInfo{};
     Buffer buffer{};
     buffer.size = sizeBytes;
     if (vmaCreateBufferWithAlignment(allocator_, &bufferInfo, &allocInfo, minAlignment,
-                                     &buffer.buffer, &buffer.allocation, nullptr) != VK_SUCCESS)
+                                     &buffer.buffer, &buffer.allocation, &outInfo) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : createBuffer");
+    buffer.mapped = static_cast<std::byte*>(outInfo.pMappedData);
 
     VkBufferDeviceAddressInfo addressInfo{};
     addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
@@ -274,6 +283,15 @@ GPUResourceHandle ResourceManager::createScratchBuffer(uint64_t sizeBytes,
                                     : GPUResourceHandle(GPUResourceType::StaticResource);
     buffers_.emplace(handle, createBufferInternal(sizeBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                                                   ctx_.asScratchAlignment_));
+    return handle;
+}
+
+GPUResourceHandle ResourceManager::createMappedBuffer(uint64_t sizeBytes,
+                                                      std::optional<std::string_view> name)
+{
+    GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
+                                    : GPUResourceHandle(GPUResourceType::StaticResource);
+    buffers_.emplace(handle, createBufferInternal(sizeBytes, defaultBufferUsage_, 1, true));
     return handle;
 }
 
@@ -504,6 +522,13 @@ std::span<std::byte> ResourceManager::requestTextureUpload(GPUResourceHandle des
     uploadRequests_.push_back(req);
 
     return {ptr, size};
+}
+
+std::span<std::byte> ResourceManager::mappedFor(GPUResourceHandle handle)
+{
+    Buffer* b = getBuffer(handle);
+    assert(b && b->mapped && "mappedFor: not a mapped buffer");
+    return {b->mapped, b->size};
 }
 
 #pragma clang diagnostic pop

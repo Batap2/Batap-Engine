@@ -40,10 +40,11 @@ struct ResourceManager
     GPUResourceHandle
     createAccelerationStructureBuffer(uint64_t sizeBytes,
                                       std::optional<std::string_view> name = std::nullopt);
-    // Its address starts on minAccelerationStructureScratchOffsetAlignment; an
-    // offset into it must keep that alignment.
     GPUResourceHandle createScratchBuffer(uint64_t sizeBytes,
                                           std::optional<std::string_view> name = std::nullopt);
+    GPUResourceHandle createMappedBuffer(uint64_t sizeBytes,
+                                         std::optional<std::string_view> name = std::nullopt);
+    std::span<std::byte> mappedFor(GPUResourceHandle handle);
     GPUResourceHandle createImage2D(uint32_t width, uint32_t height, ResourceFormat format,
                                     std::optional<std::string_view> name = std::nullopt);
 
@@ -92,6 +93,7 @@ struct ResourceManager
         VmaAllocation allocation = nullptr;
         uint64_t size = 0;
         VkDeviceAddress address = 0;
+        std::byte* mapped = nullptr;
     };
 
     struct Image
@@ -137,7 +139,7 @@ struct ResourceManager
     };
 
     Buffer createBufferInternal(uint64_t sizeBytes, VkBufferUsageFlags usage,
-                                VkDeviceSize minAlignment = 1);
+                                VkDeviceSize minAlignment = 1, bool mapped = false);
     Buffer createStagingBuffer(uint64_t sizeBytes, std::byte*& outMapped);
     std::byte* stagingAlloc(uint64_t size, UploadRequest& req);
 

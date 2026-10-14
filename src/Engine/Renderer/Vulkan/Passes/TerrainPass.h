@@ -51,9 +51,8 @@ struct TerrainPass
     GPUResourceHandle vertexBuffer() const { return vertices_.buffer_; }
     GPUResourceHandle indexBuffer() const { return indices_.buffer_; }
     GPUResourceHandle worldBuffer() const { return worlds_; }
-    // Keyed by TerrainDraws id, offsets and counts in elements. A slot's data
-    // is uploaded at the top of the first frame it appears in.
     const std::unordered_map<uint64_t, Slot>& slots() const { return slots_; }
+    const std::vector<TerrainWorldGPUData>& worlds() const { return worldData_; }
 
    private:
     // In elements, vertices or indices.

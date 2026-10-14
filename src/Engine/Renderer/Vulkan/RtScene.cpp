@@ -3,6 +3,9 @@
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "Components/Mesh_C.h"
+#include "Components/Transform_C.h"
+#include "EigenTypes.h"
+#include "Instance/InstanceManager.h"
 #include "Renderer/Vulkan/Passes/TerrainPass.h"
 #include "Renderer/Vulkan/VulkanBarrier.h"
 #include "Renderer/Vulkan/VulkanContext.h"
@@ -13,6 +16,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 
@@ -43,9 +47,44 @@ VkAccelerationStructureGeometryKHR triangleGeometry(VkDeviceAddress vertices, ui
     triangles.indexData.deviceAddress = indices;
     return geometry;
 }
+
+VkAccelerationStructureGeometryKHR instancesGeometry(VkDeviceAddress instances)
+{
+    VkAccelerationStructureGeometryKHR geometry{};
+    geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+    geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+    geometry.geometry.instances.sType =
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+    geometry.geometry.instances.data.deviceAddress = instances;
+    return geometry;
+}
+
+VkAccelerationStructureBuildGeometryInfoKHR
+tlasBuildInfo(const VkAccelerationStructureGeometryKHR& geometry)
+{
+    VkAccelerationStructureBuildGeometryInfoKHR info{};
+    info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+    info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    info.geometryCount = 1;
+    info.pGeometries = &geometry;
+    return info;
+}
+
+VkAccelerationStructureInstanceKHR tlasInstance(const m4f& world, uint32_t customIndex,
+                                                VkDeviceAddress blas)
+{
+    const Eigen::Matrix<float, 3, 4, Eigen::RowMajor> rows = world.topRows<3>();
+    VkAccelerationStructureInstanceKHR instance{};
+    std::memcpy(&instance.transform, rows.data(), sizeof(instance.transform));
+    instance.instanceCustomIndex = customIndex & 0xFFFFFF;
+    instance.mask = 0xFF;
+    instance.accelerationStructureReference = blas;
+    return instance;
+}
 }  // namespace
 
-// Each BLAS is a run of geometries, starting at its firstGeometry_.
 struct RtScene::BlasInputs
 {
     std::vector<VkAccelerationStructureGeometryKHR> geometries_;
@@ -81,6 +120,8 @@ RtScene::~RtScene()
             vkDestroyAccelerationStructureKHR(ctx_.device_, blas.handle_, nullptr);
     for (const CompactionQueries& queries : queries_)
         vkDestroyQueryPool(ctx_.device_, queries.pool_, nullptr);
+    for (const Tlas& tlas : tlases_)
+        vkDestroyAccelerationStructureKHR(ctx_.device_, tlas.handle_, nullptr);
 }
 
 void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
@@ -176,20 +217,33 @@ void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& 
         chunkBlases_.emplace(chunks[i], built[meshes.size() + i]);
 }
 
+VkAccelerationStructureKHR RtScene::createAccelerationStructure(GPUResourceHandle buffer,
+                                                                uint64_t size,
+                                                                VkAccelerationStructureTypeKHR type)
+{
+    VkAccelerationStructureCreateInfoKHR createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+    createInfo.buffer = resources_.bufferFor(buffer);
+    createInfo.size = size;
+    createInfo.type = type;
+    VkAccelerationStructureKHR handle = VK_NULL_HANDLE;
+    if (vkCreateAccelerationStructureKHR(ctx_.device_, &createInfo, nullptr, &handle) != VK_SUCCESS)
+        throw std::runtime_error("RtScene : acceleration structure");
+    return handle;
+}
+
 RtScene::Blas RtScene::createBlas(uint64_t size)
 {
     Blas blas;
     blas.size_ = size;
     blas.buffer_ = resources_.createAccelerationStructureBuffer(size);
+    blas.handle_ = createAccelerationStructure(blas.buffer_, size,
+                                               VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR);
 
-    VkAccelerationStructureCreateInfoKHR createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-    createInfo.buffer = resources_.bufferFor(blas.buffer_);
-    createInfo.size = size;
-    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    if (vkCreateAccelerationStructureKHR(ctx_.device_, &createInfo, nullptr, &blas.handle_) !=
-        VK_SUCCESS)
-        throw std::runtime_error("RtScene : BLAS");
+    VkAccelerationStructureDeviceAddressInfoKHR addressInfo{};
+    addressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+    addressInfo.accelerationStructure = blas.handle_;
+    blas.address_ = vkGetAccelerationStructureDeviceAddressKHR(ctx_.device_, &addressInfo);
     return blas;
 }
 
@@ -331,5 +385,92 @@ void RtScene::compactBlases(VkCommandBuffer cmd, uint32_t frame)
     BarrierBatch{}.memory(Usage::AccelerationStructureBuild, Usage::AnyRead).flush(cmd);
     std::cout << "[RT] compaction de " << count << " BLAS : " << before << " -> " << after
               << " octets\n";
+}
+
+void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
+                        GPUInstanceManager& instances, const TerrainPass& terrain,
+                        entt::entity camera)
+{
+    // Relative to the render camera
+    const v3d eye = reg.get<Transform_C>(camera).world().translation().cast<double>();
+
+    std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
+    reg.view<Mesh_C, Transform_C>().each(
+        [&](entt::entity e, const Mesh_C& meshC, const Transform_C& transform)
+        {
+            if (!meshC.visible_)
+                return;
+            const auto blas = meshBlases_.find(meshC.mesh_);
+            if (blas == meshBlases_.end())
+                return;
+            const auto id = instances.pool<StaticMeshInstance>().getGPUIndex({&reg, e});
+            if (!id.valid())
+                return;
+            m4f world = transform.worldMatrix();
+            world.topRightCorner<3, 1>() =
+                (transform.world().translation().cast<double>() - eye).cast<float>();
+            tlasInstances.push_back(tlasInstance(world, id, blas->second.address_));
+        });
+    for (const auto& [id, slot] : terrain.slots())
+    {
+        if (!slot.shown_)
+            continue;
+        const auto blas = chunkBlases_.find(id);
+        if (blas == chunkBlases_.end())
+            continue;
+        const m4f world = Eigen::Map<const m4f>(terrain.worlds()[slot.instance_].world_);
+        tlasInstances.push_back(tlasInstance(world, slot.instance_, blas->second.address_));
+    }
+
+    Tlas& tlas = tlases_[frame];
+    const auto count = static_cast<uint32_t>(tlasInstances.size());
+    if (tlas.handle_ == VK_NULL_HANDLE || count > tlas.capacity_)
+        growTlas(tlas, count);
+    if (count > 0)
+        std::memcpy(resources_.mappedFor(tlas.instances_).data(), tlasInstances.data(),
+                    count * sizeof(VkAccelerationStructureInstanceKHR));
+
+    const VkAccelerationStructureGeometryKHR geometry =
+        instancesGeometry(resources_.deviceAddress(tlas.instances_));
+    VkAccelerationStructureBuildGeometryInfoKHR info = tlasBuildInfo(geometry);
+    info.dstAccelerationStructure = tlas.handle_;
+    info.scratchData.deviceAddress = resources_.deviceAddress(tlas.scratch_);
+    VkAccelerationStructureBuildRangeInfoKHR range{};
+    range.primitiveCount = count;
+    const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
+    vkCmdBuildAccelerationStructuresKHR(cmd, 1, &info, &ranges);
+    BarrierBatch{}.memory(Usage::AccelerationStructureBuild, Usage::AnyRead).flush(cmd);
+}
+
+// The slot's previous frame is done with the old one.
+void RtScene::growTlas(Tlas& tlas, uint32_t instances)
+{
+    vkDestroyAccelerationStructureKHR(ctx_.device_, tlas.handle_, nullptr);
+    if (tlas.buffer_.valid())
+    {
+        resources_.requestDestroy(tlas.buffer_);
+        resources_.requestDestroy(tlas.scratch_);
+        resources_.requestDestroy(tlas.instances_);
+    }
+    tlas.capacity_ = std::max({instances, tlas.capacity_ * 2, 64u});
+
+    const VkAccelerationStructureGeometryKHR geometry = instancesGeometry(0);
+    const VkAccelerationStructureBuildGeometryInfoKHR info = tlasBuildInfo(geometry);
+    VkAccelerationStructureBuildSizesInfoKHR sizes{};
+    sizes.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+    vkGetAccelerationStructureBuildSizesKHR(ctx_.device_,
+                                            VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &info,
+                                            &tlas.capacity_, &sizes);
+
+    tlas.buffer_ = resources_.createAccelerationStructureBuffer(sizes.accelerationStructureSize);
+    tlas.handle_ = createAccelerationStructure(tlas.buffer_, sizes.accelerationStructureSize,
+                                               VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR);
+    tlas.scratch_ = resources_.createScratchBuffer(sizes.buildScratchSize);
+    tlas.instances_ = resources_.createMappedBuffer(uint64_t{tlas.capacity_} *
+                                                    sizeof(VkAccelerationStructureInstanceKHR));
+
+    std::cout << "[RT] TLAS : " << tlas.capacity_ << " instances, "
+              << sizes.accelerationStructureSize << " octets (scratch " << sizes.buildScratchSize
+              << ")\n";
 }
 }  // namespace batap
