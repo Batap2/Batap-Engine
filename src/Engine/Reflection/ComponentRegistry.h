@@ -33,6 +33,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -53,13 +54,21 @@ struct FieldMeta
     float max = 0.f;
 };
 
+// An EntityRef is stored as an index into entities_: the file's entities, in
+// file order.
+struct FieldIO
+{
+    const Engine& engine_;
+    std::span<const entt::entity> entities_;
+};
+
 // One per C++ field type (float, v3f, MeshHandle, ...). toJson/fromJson are
 // filled by registerBuiltinFieldTypes() at engine init; drawUI is installed
 // by the editor (stays null in a game-only build and is never called there).
 struct FieldType
 {
-    void (*toJson)(const void* field, nlohmann::json& out, const Engine&) = nullptr;
-    void (*fromJson)(void* field, const nlohmann::json& in, const Engine&) = nullptr;
+    void (*toJson)(const void* field, nlohmann::json& out, const FieldIO&) = nullptr;
+    void (*fromJson)(void* field, const nlohmann::json& in, const FieldIO&) = nullptr;
     bool (*drawUI)(void* field, const Field& f, FieldUIContext& ui) = nullptr;
     const char* typeName = "unregistered";
 };

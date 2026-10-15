@@ -13,6 +13,10 @@ namespace batap
 struct App;
 struct World;
 
+inline constexpr const char* kEntityPayload = "ENTITY";
+
+void sortByName(entt::registry& reg, std::vector<entt::entity>& entities);
+
 struct ScenePanel
 {
     // The caller reserves what it draws below the tree; nesting the panel in a

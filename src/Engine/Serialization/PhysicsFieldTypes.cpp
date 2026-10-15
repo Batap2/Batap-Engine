@@ -82,14 +82,14 @@ void registerPhysicsFieldTypes()
     auto& slot = fieldTypeSlot<Shapes>();
     slot.typeName = "Shape[]";
 
-    slot.toJson = [](const void* f, nlohmann::json& out, const Engine& ctx)
+    slot.toJson = [](const void* f, nlohmann::json& out, const FieldIO& io)
     {
         out = nlohmann::json::array();
         for (const Shape& s : *static_cast<const Shapes*>(f))
-            out.push_back(shapeToJson(s, ctx));
+            out.push_back(shapeToJson(s, io.engine_));
     };
 
-    slot.fromJson = [](void* f, const nlohmann::json& in, const Engine& ctx)
+    slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO& io)
     {
         auto& shapes = *static_cast<Shapes*>(f);
         shapes.clear();
@@ -97,7 +97,7 @@ void registerPhysicsFieldTypes()
             return;
         shapes.reserve(in.size());
         for (const auto& j : in)
-            shapes.push_back(shapeFromJson(j, ctx));
+            shapes.push_back(shapeFromJson(j, io.engine_));
     };
 }
 

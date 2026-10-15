@@ -3,16 +3,24 @@
 #include "App.h"
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetManager.h"
+#include "Components/EditorOnly_C.h"
+#include "Components/EntityRef.h"
+#include "Components/Name_C.h"
 #include "Components/RigidBody_C.h"
 #include "EigenTypes.h"
+#include "Instance/Spawnable.h"
 #include "UI/AssetPickerPopup.h"
 #include "Reflection/ComponentRegistry.h"
 #include "UI/AssetRow.h"
 #include "UI/Field.h"
+#include "UI/IconsMaterialDesign.h"
+#include "UI/ScenePanel.h"
 #include "UI/Scoped.h"
+#include "UI/UITheme.h"
 
 #include <imgui.h>
 
+#include <cfloat>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -61,6 +69,68 @@ void set(DrawFn fn)
     auto& slot = fieldTypeSlot<M>();
     slot.drawUI = fn;
     drawUIByName()[slot.typeName] = fn;
+}
+
+bool drawEntityRef(void* p, const Field&, FieldUIContext& fieldCtx)
+{
+    if (!fieldCtx.ent_.reg_)
+        return false;
+    entt::registry& reg = *fieldCtx.ent_.reg_;
+    auto& ref = *static_cast<EntityRef*>(p);
+
+    const bool valid = reg.valid(ref.entity_) && reg.all_of<Name_C>(ref.entity_);
+    if (valid)
+    {
+        const Spawnable& kind = spawnableFor(reg, ref.entity_);
+        if (ui::AssetField(kind.icon, reg.get<Name_C>(ref.entity_).name_.c_str(),
+                           ui::colorOfKind(kind.id)))
+            ImGui::OpenPopup("##entityRef");
+    }
+    else if (ui::AssetField(ICON_MD_LINK_OFF, "None", ui::textDim))
+        ImGui::OpenPopup("##entityRef");
+
+    bool changed = false;
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kEntityPayload))
+        {
+            ref.entity_ = *static_cast<const entt::entity*>(payload->Data);
+            changed = true;
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    ImGui::SetNextWindowSizeConstraints({ImGui::GetItemRectSize().x, 0.0f},
+                                        {FLT_MAX, ImGui::GetTextLineHeightWithSpacing() * 16.0f});
+    if (!ImGui::BeginPopup("##entityRef"))
+        return changed;
+
+    if (ImGui::Selectable("None", !valid))
+    {
+        ref.entity_ = entt::null;
+        changed = true;
+    }
+
+    std::vector<entt::entity> entities;
+    for (auto e : reg.storage<entt::entity>())
+        if (reg.valid(e) && reg.all_of<Name_C>(e) && !reg.all_of<EditorOnly_C>(e))
+            entities.push_back(e);
+    sortByName(reg, entities);
+
+    for (entt::entity e : entities)
+    {
+        ui::ScopedID id{static_cast<int>(entt::to_integral(e))};
+        const std::string label =
+            std::string(spawnableFor(reg, e).icon) + "  " + reg.get<Name_C>(e).name_;
+        if (ImGui::Selectable(label.c_str(), e == ref.entity_))
+        {
+            ref.entity_ = e;
+            changed = true;
+        }
+    }
+
+    ImGui::EndPopup();
+    return changed;
 }
 
 // The picker applies the pick itself (patch + markDirty), so the row never
@@ -128,6 +198,8 @@ void installFieldUI()
             auto* v = static_cast<v3f*>(p);
             return ui::DragFloatN(ui::spanOf(v->data(), 3), f.meta.speed);
         });
+
+    set<EntityRef>(drawEntityRef);
 
     setAssetHandle<Mesh, AssetType::Mesh>();
     setAssetHandle<Texture, AssetType::Texture>();

@@ -26,11 +26,6 @@
 
 namespace batap
 {
-namespace
-{
-constexpr const char* kEntityPayload = "ENTITY";
-constexpr const char* kAddEntityPopup = "##addEntity";
-
 void sortByName(entt::registry& reg, std::vector<entt::entity>& entities)
 {
     std::sort(entities.begin(), entities.end(),
@@ -45,6 +40,10 @@ void sortByName(entt::registry& reg, std::vector<entt::entity>& entities)
                       });
               });
 }
+
+namespace
+{
+constexpr const char* kAddEntityPopup = "##addEntity";
 
 std::vector<entt::entity> sortedChildren(EntityHandle parent)
 {

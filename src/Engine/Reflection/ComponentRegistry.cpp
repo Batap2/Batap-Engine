@@ -1,11 +1,14 @@
 #include "ComponentRegistry.h"
 
+#include "Components/EntityRef.h"
 #include "DebugUtils.h"
 #include "EigenTypes.h"
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <bit>
+#include <cstddef>
 #include <iostream>
 #include <string>
 #include <unordered_set>
@@ -133,9 +136,9 @@ void setPlain(const char* typeName)
 {
     auto& slot = fieldTypeSlot<M>();
     slot.typeName = typeName;
-    slot.toJson = [](const void* f, nlohmann::json& out, const Engine&)
+    slot.toJson = [](const void* f, nlohmann::json& out, const FieldIO&)
     { out = *static_cast<const M*>(f); };
-    slot.fromJson = [](void* f, const nlohmann::json& in, const Engine&)
+    slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO&)
     { *static_cast<M*>(f) = in.get<M>(); };
 }
 
@@ -144,12 +147,12 @@ void setVec3(const char* typeName)
 {
     auto& slot = fieldTypeSlot<M>();
     slot.typeName = typeName;
-    slot.toJson = [](const void* f, nlohmann::json& out, const Engine&)
+    slot.toJson = [](const void* f, nlohmann::json& out, const FieldIO&)
     {
         const auto& v = *static_cast<const M*>(f);
         out = {v.x(), v.y(), v.z()};
     };
-    slot.fromJson = [](void* f, const nlohmann::json& in, const Engine&)
+    slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO&)
     {
         *static_cast<M*>(f) = M{in[0].get<float>(), in[1].get<float>(), in[2].get<float>()};
     };
@@ -171,15 +174,37 @@ void registerBuiltinFieldTypes()
     {
         auto& slot = fieldTypeSlot<quatf>();
         slot.typeName = "quatf";
-        slot.toJson = [](const void* f, nlohmann::json& out, const Engine&)
+        slot.toJson = [](const void* f, nlohmann::json& out, const FieldIO&)
         {
             const auto& q = *static_cast<const quatf*>(f);
             out = {q.x(), q.y(), q.z(), q.w()};
         };
-        slot.fromJson = [](void* f, const nlohmann::json& in, const Engine&)
+        slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO&)
         {
             *static_cast<quatf*>(f) = quatf{in[3].get<float>(), in[0].get<float>(),
                                             in[1].get<float>(), in[2].get<float>()};
+        };
+    }
+
+    {
+        auto& slot = fieldTypeSlot<EntityRef>();
+        slot.typeName = "EntityRef";
+        slot.toJson = [](const void* f, nlohmann::json& out, const FieldIO& io)
+        {
+            const auto it =
+                std::ranges::find(io.entities_, static_cast<const EntityRef*>(f)->entity_);
+            out = it != io.entities_.end() ? nlohmann::json(it - io.entities_.begin())
+                                           : nlohmann::json(nullptr);
+        };
+        slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO& io)
+        {
+            auto& ref = *static_cast<EntityRef*>(f);
+            ref.entity_ = entt::null;
+            if (!in.is_number_integer())
+                return;
+            const auto i = in.get<int64_t>();
+            if (i >= 0 && static_cast<size_t>(i) < io.entities_.size())
+                ref.entity_ = io.entities_[static_cast<size_t>(i)];
         };
     }
 }

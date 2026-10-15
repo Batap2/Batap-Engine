@@ -53,11 +53,11 @@ void setAssetHandle(const char* typeName)
     auto& slot = fieldTypeSlot<AssetHandle<A>>();
     slot.typeName = typeName;
 
-    slot.toJson = [](const void* f, nlohmann::json& out, const Engine& ctx)
-    { out = handleToJson<A>(*static_cast<const AssetHandle<A>*>(f), ctx); };
+    slot.toJson = [](const void* f, nlohmann::json& out, const FieldIO& io)
+    { out = handleToJson<A>(*static_cast<const AssetHandle<A>*>(f), io.engine_); };
 
-    slot.fromJson = [](void* f, const nlohmann::json& in, const Engine& ctx)
-    { *static_cast<AssetHandle<A>*>(f) = handleFromJson<A>(in, ctx); };
+    slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO& io)
+    { *static_cast<AssetHandle<A>*>(f) = handleFromJson<A>(in, io.engine_); };
 }
 
 // Fixed-size slot array (Materials_C). Always writes N entries, null for the
@@ -69,15 +69,15 @@ void setAssetHandleArray(const char* typeName)
     auto& slot = fieldTypeSlot<Arr>();
     slot.typeName = typeName;
 
-    slot.toJson = [](const void* f, nlohmann::json& out, const Engine& ctx)
+    slot.toJson = [](const void* f, nlohmann::json& out, const FieldIO& io)
     {
         const auto& arr = *static_cast<const Arr*>(f);
         out = nlohmann::json::array();
         for (const auto& h : arr)
-            out.push_back(handleToJson<A>(h, ctx));
+            out.push_back(handleToJson<A>(h, io.engine_));
     };
 
-    slot.fromJson = [](void* f, const nlohmann::json& in, const Engine& ctx)
+    slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO& io)
     {
         auto& arr = *static_cast<Arr*>(f);
         arr = {};
@@ -85,7 +85,7 @@ void setAssetHandleArray(const char* typeName)
             return;
         const std::size_t n = std::min(N, in.size());
         for (std::size_t i = 0; i < n; ++i)
-            arr[i] = handleFromJson<A>(in[i], ctx);
+            arr[i] = handleFromJson<A>(in[i], io.engine_);
     };
 }
 }  // namespace

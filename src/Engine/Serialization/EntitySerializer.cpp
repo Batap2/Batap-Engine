@@ -35,7 +35,7 @@ static void collectDFS(entt::registry& reg, entt::entity e, std::vector<entt::en
 }
 
 // All registry-declared components of h, serialized field by field.
-static nlohmann::json reflectedComponents(EntityHandle h, const Engine& ctx)
+static nlohmann::json reflectedComponents(EntityHandle h, const FieldIO& io)
 {
     nlohmann::json arr = nlohmann::json::array();
     for (const ComponentType& t : ComponentRegistry::instance().all())
@@ -47,7 +47,7 @@ static nlohmann::json reflectedComponents(EntityHandle h, const Engine& ctx)
             continue;
         nlohmann::json cj;
         for (const Field& f : t.fields)
-            f.type->toJson(f.ptrIn(c), cj[f.name], ctx);
+            f.type->toJson(f.ptrIn(c), cj[f.name], io);
         cj["type"] = t.name;
         arr.push_back(std::move(cj));
     }
@@ -89,6 +89,7 @@ static nlohmann::json sceneToJson(World& world, const Engine& ctx)
             collectDFS(reg, e, order, indexMap);
     }
 
+    const FieldIO io{ctx, order};
     nlohmann::json root;
     root["time"] = world.time_.simTime_;
     std::unordered_set<std::string> usedTypes;
@@ -107,7 +108,7 @@ static nlohmann::json sceneToJson(World& world, const Engine& ctx)
             if (auto it = indexMap.find(entt::to_integral(hc->parent)); it != indexMap.end())
                 ej["parent"] = it->second;
 
-        auto compsJ = reflectedComponents(h, ctx);
+        auto compsJ = reflectedComponents(h, io);
         for (const auto& cj : compsJ)
             usedTypes.emplace(cj["type"].get<std::string>());
 
@@ -177,17 +178,27 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
     std::vector<entt::entity> created;
     created.reserve(entitiesJ.size());
 
-    // Pass 1 — create entities and apply components
+    // Pass 1 — create every entity first: an EntityRef may name one further
+    // down the file.
     for (const auto& ej : entitiesJ)
     {
-        const auto& compsJ = ej.contains("components") ? ej["components"] : nlohmann::json::array();
-
         // The components carry everything: a marker component puts the entity
         // in its GPU pool as it is emplaced.
         EntityHandle h = factory.create(reg, Spawnables[0]);
 
         if (auto* nc = reg.try_get<Name_C>(h.entity_))
             nc->name_ = ej.value("name", "");
+
+        created.push_back(h.entity_);
+    }
+
+    // Pass 2 — components
+    const FieldIO io{ctx, created};
+    for (size_t i = 0; i < entitiesJ.size(); ++i)
+    {
+        const auto& ej = entitiesJ[i];
+        const auto& compsJ = ej.contains("components") ? ej["components"] : nlohmann::json::array();
+        EntityHandle h{&reg, created[i]};
 
         for (const auto& cj : compsJ)
         {
@@ -203,17 +214,15 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
                 continue;
             for (const Field& f : ct->fields)
                 if (cj.contains(f.name))
-                    f.type->fromJson(f.ptrIn(c), cj[f.name], ctx);
+                    f.type->fromJson(f.ptrIn(c), cj[f.name], io);
 
             if (ct->meta.onDeserialized)
                 ct->meta.onDeserialized(h, world);
             world.instances().markDirty(h, ct->mask());
         }
-
-        created.push_back(h.entity_);
     }
 
-    // Pass 2 — hierarchy
+    // Pass 3 — hierarchy
     for (size_t i = 0; i < entitiesJ.size(); ++i)
     {
         const auto& ej = entitiesJ[i];
