@@ -2,6 +2,8 @@
 
 #include "Assets/AssetLoader.h"
 #include "Assets/Texture.h"
+#include "Bbox.h"
+#include "Components/Billboard_C.h"
 #include "Components/Camera_C.h"
 #include "Components/EditorOnly_C.h"
 #include "Components/Transform_C.h"
@@ -13,6 +15,8 @@
 #include "Platform/PlatformWindow.h"
 #include "Renderer/Renderer.h"
 #include "Serialization/EntitySerializer.h"
+#include "Spatial/SpatialIndex.h"
+#include "Systems/Hierarchy_S.h"
 #include "UI/FieldUI.h"
 #include "UI/UIPanels.h"
 #include "UI/UITheme.h"
@@ -21,6 +25,7 @@
 
 #include <imgui.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
@@ -40,6 +45,18 @@ namespace batap
 namespace
 {
 constexpr auto kConfigSaveDelay = std::chrono::seconds(1);
+constexpr float kFocusMinRadius = 1.0f;
+
+void extendWithSubtree(World& world, Engine& ctx, entt::entity e, AABB& box)
+{
+    const auto* bb = world.registry_.try_get<Billboard_C>(e);
+    if (!bb || bb->sizeMode_ != Billboards::SizeMode::Screen)
+        if (const auto b = entityBounds(world, ctx, e))
+            box.extend(*b);
+
+    for (entt::entity child : Hierarchy_S::children({&world.registry_, e}))
+        extendWithSubtree(world, ctx, child, box);
+}
 
 quatf camRotation(float yaw, float pitch)
 {
@@ -78,6 +95,26 @@ EntityHandle App::editorCamera()
     auto view = reg.view<EditorOnly_C, Camera_C>();
     const auto it = view.begin();
     return it == view.end() ? EntityHandle{} : EntityHandle{&reg, *it};
+}
+
+void App::focusEditorCamera(EntityHandle target)
+{
+    EntityHandle cam = editorCamera();
+    if (!cam.valid() || !target.valid())
+        return;
+    const auto* tc = target.try_get<Transform_C>();
+    if (!tc)
+        return;
+
+    AABB box;
+    extendWithSubtree(*world_, *ctx_, target.entity_, box);
+    const v3f center = box.valid() ? box.center() : tc->worldPos();
+    const float radius =
+        box.valid() ? std::max(box.halfSize().norm(), kFocusMinRadius) : kFocusMinRadius;
+
+    const float distance = radius / std::sin(cam.get<Camera_C>().fov_ * 0.5f);
+    const v3f forward = cam.get<Transform_C>().rot() * -v3f::UnitZ();
+    cam.setLocalPosition(center - forward * distance);
 }
 
 void App::applyEditorCamera()

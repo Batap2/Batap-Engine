@@ -30,6 +30,7 @@ struct ScenePanel
     std::optional<EntityHandle> pendingDelete_;
     std::optional<EntityHandle> pendingDuplicate_;
     std::optional<EntityHandle> pendingRange_;
+    std::optional<EntityHandle> pendingFocus_;
 
     // Draw order, so a shift-click range follows what the folding leaves visible.
     std::vector<entt::entity> rowOrder_;

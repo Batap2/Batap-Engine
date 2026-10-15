@@ -201,6 +201,7 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selecti
     ImGui::InvisibleButton("##row", {ImMax(1.0f, inner.Max.x - inner.Min.x), rowBottom - rowTop});
     const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenOverlappedByItem);
     const bool rowClicked = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+    const bool rowDoubleClicked = hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
     acceptEntityDrop(reg, h);
     if (hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
         ImGui::OpenPopup("##rowMenu");
@@ -265,6 +266,8 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selecti
         else
             selection.set(h);
     }
+    if (rowDoubleClicked && !ImGui::IsItemToggledOpen())
+        pendingFocus_ = h;
 
     if (ImGui::BeginDragDropSource())
     {
@@ -351,6 +354,11 @@ void ScenePanel::draw(World& world, App& app, Selection& selection, float bottom
             for (auto it = std::min(from, to); it <= std::max(from, to); ++it)
                 selection.add(EntityHandle{&reg, *it});
         pendingRange_.reset();
+    }
+    if (pendingFocus_)
+    {
+        app.focusEditorCamera(*pendingFocus_);
+        pendingFocus_.reset();
     }
     if (pendingDuplicate_)
     {

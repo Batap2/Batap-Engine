@@ -55,6 +55,7 @@ struct App
     void syncEditorCamera();
     void applyEditorCamera();
     EntityHandle editorCamera();
+    void focusEditorCamera(EntityHandle target);
     v3f editorCamPos_{0.f, 2.f, 6.f};
     quatf editorCamRot_ = quatf::Identity();
     FreeCamController_C editorCamCtrl_;
