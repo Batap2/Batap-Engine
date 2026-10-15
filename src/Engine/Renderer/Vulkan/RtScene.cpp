@@ -84,6 +84,42 @@ VkAccelerationStructureInstanceKHR tlasInstance(const m4f& world, uint32_t custo
     instance.accelerationStructureReference = blas;
     return instance;
 }
+
+template <class Fn>
+void forEachSubmesh(const Mesh& mesh, Fn&& fn)
+{
+    const uint32_t indexBytes = bytesPerPixel(mesh.indexFormat_);
+    if (mesh.subMeshCount == 0)
+        fn(0u, mesh.indexCount_);
+    else
+        for (uint8_t sub = 0; sub < mesh.subMeshCount; ++sub)
+            fn(mesh.subMeshes[sub].indexOffset * indexBytes, mesh.subMeshes[sub].indexCount);
+}
+
+RtGeometryGPUData geometryRecord(VkDeviceAddress indices, VkDeviceAddress vertices,
+                                 uint32_t vertexStride, uint32_t indexBytes)
+{
+    RtGeometryGPUData record{};
+    record.indicesAddrLo_ = static_cast<uint32_t>(indices);
+    record.indicesAddrHi_ = static_cast<uint32_t>(indices >> 32);
+    record.verticesAddrLo_ = static_cast<uint32_t>(vertices);
+    record.verticesAddrHi_ = static_cast<uint32_t>(vertices >> 32);
+    record.vertexStride_ = vertexStride;
+    record.indexBytes_ = indexBytes;
+    return record;
+}
+
+void writeStorageBuffer(VkWriteDescriptorSet& write, VkDescriptorBufferInfo& info, VkDescriptorSet set,
+                        uint32_t binding, VkBuffer buffer)
+{
+    info = {buffer, 0, VK_WHOLE_SIZE};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = set;
+    write.dstBinding = binding;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write.pBufferInfo = &info;
+}
 }  // namespace
 
 struct RtScene::BlasInputs
@@ -107,25 +143,35 @@ struct RtScene::BlasInputs
 
 RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), resources_(resources)
 {
-    VkDescriptorSetLayoutBinding binding{};
-    binding.binding = TlasBinding;
-    binding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-    binding.descriptorCount = 1;
-    binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
+    bindings[0].binding = TlasBinding;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+    bindings[1].binding = RtGeometriesBinding;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[2].binding = RtInstancesBinding;
+    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    for (VkDescriptorSetLayoutBinding& binding : bindings)
+    {
+        binding.descriptorCount = 1;
+        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &binding;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
     if (vkCreateDescriptorSetLayout(ctx_.device_, &layoutInfo, nullptr, &setLayout_) != VK_SUCCESS)
         throw std::runtime_error("RtScene : set layout");
 
-    VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, FramesInFlight};
+    const std::array<VkDescriptorPoolSize, 2> poolSizes{{
+        {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, FramesInFlight},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * FramesInFlight},
+    }};
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.maxSets = FramesInFlight;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
     if (vkCreateDescriptorPool(ctx_.device_, &poolInfo, nullptr, &pool_) != VK_SUCCESS)
         throw std::runtime_error("RtScene : descriptor pool");
 
@@ -211,14 +257,9 @@ void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& 
                 triangleGeometry(address + mesh->streamOffsets_[Mesh::Position], sizeof(float) * 3,
                                  mesh->vertexCount_, toVkIndexType(mesh->indexFormat_),
                                  address + mesh->streamOffsets_[Mesh::Index]);
-            const uint32_t indexBytes = bytesPerPixel(mesh->indexFormat_);
             inputs.beginBlas();
-            if (mesh->subMeshCount == 0)
-                inputs.addGeometry(geometry, 0, mesh->indexCount_ / 3);
-            else
-                for (uint8_t sub = 0; sub < mesh->subMeshCount; ++sub)
-                    inputs.addGeometry(geometry, mesh->subMeshes[sub].indexOffset * indexBytes,
-                                       mesh->subMeshes[sub].indexCount / 3);
+            forEachSubmesh(*mesh, [&](uint32_t offset, uint32_t count)
+                           { inputs.addGeometry(geometry, offset, count / 3); });
         });
 
     std::vector<uint64_t> chunks;
@@ -423,13 +464,16 @@ void RtScene::compactBlases(VkCommandBuffer cmd, uint32_t frame)
 }
 
 void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
-                        GPUInstanceManager& instances, const TerrainPass& terrain,
-                        entt::entity camera)
+                        GPUInstanceManager& instances, AssetManager& assets,
+                        const TerrainPass& terrain, entt::entity camera)
 {
     // Relative to the render camera
     const v3d eye = reg.get<Transform_C>(camera).world().translation().cast<double>();
 
     std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
+    std::vector<RtInstanceGPUData> hitInstances;
+    std::vector<RtGeometryGPUData> geometries;
+    std::unordered_map<MeshHandle, uint32_t> meshGeometries;
     reg.view<Mesh_C, Transform_C>().each(
         [&](entt::entity e, const Mesh_C& meshC, const Transform_C& transform)
         {
@@ -441,12 +485,33 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
             const auto id = instances.pool<StaticMeshInstance>().getGPUIndex({&reg, e});
             if (!id.valid())
                 return;
+            const Mesh* mesh = assets.get(meshC.mesh_);
+            if (!mesh)
+                return;
+            const auto [first, added] =
+                meshGeometries.try_emplace(meshC.mesh_, static_cast<uint32_t>(geometries.size()));
+            if (added)
+            {
+                const VkDeviceAddress address = resources_.deviceAddress(mesh->buffer_);
+                const VkDeviceAddress indices = address + mesh->streamOffsets_[Mesh::Index];
+                const VkDeviceAddress vertices = address + mesh->streamOffsets_[Mesh::Position];
+                const uint32_t indexBytes = bytesPerPixel(mesh->indexFormat_);
+                forEachSubmesh(*mesh,
+                               [&](uint32_t offset, uint32_t)
+                               {
+                                   geometries.push_back(geometryRecord(
+                                       indices + offset, vertices, sizeof(float) * 3, indexBytes));
+                               });
+            }
             m4f world = transform.worldMatrix();
             world.topRightCorner<3, 1>() =
                 (transform.world().translation().cast<double>() - eye).cast<float>();
             const uint32_t mask = meshC.castShadows_ ? TlasMaskShadowCaster : TlasMaskNoShadow;
             tlasInstances.push_back(tlasInstance(world, id, mask, blas->second.address_));
+            hitInstances.push_back({first->second, id, RtInstanceMesh, 0});
         });
+    const VkDeviceAddress vertexPool = resources_.deviceAddress(terrain.vertexBuffer());
+    const VkDeviceAddress indexPool = resources_.deviceAddress(terrain.indexBuffer());
     for (const auto& [id, slot] : terrain.slots())
     {
         if (!slot.shown_)
@@ -457,7 +522,24 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
         const m4f world = Eigen::Map<const m4f>(terrain.worlds()[slot.instance_].world_);
         tlasInstances.push_back(
             tlasInstance(world, slot.instance_, TlasMaskShadowCaster, blas->second.address_));
+        hitInstances.push_back(
+            {static_cast<uint32_t>(geometries.size()), slot.instance_, RtInstanceChunk, 0});
+        const VkDeviceAddress vertices = vertexPool + slot.vertex_ * sizeof(TerrainVertexGPUData);
+        const VkDeviceAddress indices = indexPool + slot.index_ * sizeof(uint16_t);
+        for (const StratumRange& range : slot.ranges_)
+            geometries.push_back(geometryRecord(indices + range.offset_ * sizeof(uint16_t), vertices,
+                                                sizeof(TerrainVertexGPUData), sizeof(uint16_t)));
     }
+
+    HitTables& tables = hitTables_[frame];
+    reserveHitTables(tables, std::max(static_cast<uint32_t>(geometries.size()), 1u),
+                     std::max(static_cast<uint32_t>(hitInstances.size()), 1u));
+    if (!geometries.empty())
+        std::memcpy(resources_.mappedFor(tables.geometries_).data(), geometries.data(),
+                    geometries.size() * sizeof(RtGeometryGPUData));
+    if (!hitInstances.empty())
+        std::memcpy(resources_.mappedFor(tables.instances_).data(), hitInstances.data(),
+                    hitInstances.size() * sizeof(RtInstanceGPUData));
 
     Tlas& tlas = tlases_[frame];
     const auto count = static_cast<uint32_t>(tlasInstances.size());
@@ -482,14 +564,40 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
     tlasWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
     tlasWrite.accelerationStructureCount = 1;
     tlasWrite.pAccelerationStructures = &tlas.handle_;
-    VkWriteDescriptorSet write{};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.pNext = &tlasWrite;
-    write.dstSet = sets_[frame];
-    write.dstBinding = TlasBinding;
-    write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-    vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
+    std::array<VkWriteDescriptorSet, 3> writes{};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].pNext = &tlasWrite;
+    writes[0].dstSet = sets_[frame];
+    writes[0].dstBinding = TlasBinding;
+    writes[0].descriptorCount = 1;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+    std::array<VkDescriptorBufferInfo, 2> bufferInfos{};
+    writeStorageBuffer(writes[1], bufferInfos[0], sets_[frame], RtGeometriesBinding,
+                       resources_.bufferFor(tables.geometries_));
+    writeStorageBuffer(writes[2], bufferInfos[1], sets_[frame], RtInstancesBinding,
+                       resources_.bufferFor(tables.instances_));
+    vkUpdateDescriptorSets(ctx_.device_, static_cast<uint32_t>(writes.size()), writes.data(), 0,
+                           nullptr);
+}
+
+void RtScene::reserveHitTables(HitTables& tables, uint32_t geometries, uint32_t instances)
+{
+    if (geometries > tables.geometryCapacity_)
+    {
+        if (tables.geometries_.valid())
+            resources_.requestDestroy(tables.geometries_);
+        tables.geometryCapacity_ = std::max({geometries, tables.geometryCapacity_ * 2, 256u});
+        tables.geometries_ = resources_.createMappedBuffer(uint64_t{tables.geometryCapacity_} *
+                                                           sizeof(RtGeometryGPUData));
+    }
+    if (instances > tables.instanceCapacity_)
+    {
+        if (tables.instances_.valid())
+            resources_.requestDestroy(tables.instances_);
+        tables.instanceCapacity_ = std::max({instances, tables.instanceCapacity_ * 2, 64u});
+        tables.instances_ = resources_.createMappedBuffer(uint64_t{tables.instanceCapacity_} *
+                                                          sizeof(RtInstanceGPUData));
+    }
 }
 
 // The slot's previous frame is done with the old one.

@@ -33,7 +33,8 @@ struct RtScene
     void updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
                       AssetManager& assets, const TerrainPass& terrain);
     void buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
-                   GPUInstanceManager& instances, const TerrainPass& terrain, entt::entity camera);
+                   GPUInstanceManager& instances, AssetManager& assets, const TerrainPass& terrain,
+                   entt::entity camera);
 
     VkDescriptorSetLayout setLayout() const { return setLayout_; }
     VkDescriptorSet set(uint32_t frame) const { return sets_[frame]; }
@@ -66,6 +67,14 @@ struct RtScene
         uint32_t capacity_ = 0;
     };
 
+    struct HitTables
+    {
+        GPUResourceHandle geometries_;
+        GPUResourceHandle instances_;
+        uint32_t geometryCapacity_ = 0;
+        uint32_t instanceCapacity_ = 0;
+    };
+
     struct BlasInputs;
     VkAccelerationStructureKHR createAccelerationStructure(GPUResourceHandle buffer, uint64_t size,
                                                            VkAccelerationStructureTypeKHR type);
@@ -73,6 +82,7 @@ struct RtScene
     std::vector<Blas> buildBlases(VkCommandBuffer cmd, uint32_t frame, const BlasInputs& inputs);
     void compactBlases(VkCommandBuffer cmd, uint32_t frame);
     void growTlas(Tlas& tlas, uint32_t instances);
+    void reserveHitTables(HitTables& tables, uint32_t geometries, uint32_t instances);
 
     VulkanContext& ctx_;
     ResourceManager& resources_;
@@ -81,6 +91,7 @@ struct RtScene
     std::array<std::vector<Blas>, FramesInFlight> retired_;
     std::array<CompactionQueries, FramesInFlight> queries_;
     std::array<Tlas, FramesInFlight> tlases_;
+    std::array<HitTables, FramesInFlight> hitTables_;
     VkDescriptorSetLayout setLayout_ = VK_NULL_HANDLE;
     VkDescriptorPool pool_ = VK_NULL_HANDLE;
     std::array<VkDescriptorSet, FramesInFlight> sets_{};

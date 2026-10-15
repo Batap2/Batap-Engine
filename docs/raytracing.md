@@ -265,6 +265,26 @@ des mesures (timestamps GPU / tracy) :
 | AO SSILVB | 0,5–1 ms |
 | **Total RT + AO** | **~4–10 ms**, dont une partie compensée par la suppression des cascades et des cube maps d'ombre |
 
+**Mesuré en 1.8 (2026-10-15, RTX 5070, 2560×1448, médiane de 3 séries)** :
+GPU par frame, raster → RT, sur les scènes de test (un buggy, une dalle, le
+terrain de la lune) :
+
+| Scène | Raster | RT |
+|---|---|---|
+| Buggy, étoile + point light | 0,383 ms | 0,415 ms |
+| Buggy, point light seul | 0,223 ms | 0,256 ms |
+| Buggy, spot seul | 0,149 ms | 0,218 ms |
+| Terrain proche | 0,355 ms | 0,323 ms |
+| Terrain lointain | 0,258 ms | 0,293 ms |
+
+- La passe d'ombre passe de 0,015–0,042 ms à ~0,005 ms ; la construction de
+  la TLAS ajoute 0,04–0,06 ms.
+- L'ombrage coûte à peu près pareil : +0,03 ms sur le buggy, −0,07 ms sur le
+  terrain proche (le rayon s'arrête au premier obstacle, la carte lit 16
+  texels et choisit sa cascade).
+- Scènes trop légères pour juger les estimations ci-dessus : le GPU n'y est
+  pas chargé et les coûts fixes dominent.
+
 **Leviers si ça déborde :**
 - un preset par effet ;
 - une coupure de rugosité plus basse ;
@@ -579,18 +599,54 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Validation propre, RT actif : jeu debug sur les trois scènes de test
       (150 frames), éditeur debug sur `test_buggy.btpl` (120 frames).
-- [ ] **1.8 Mesures.** Timestamps GPU (build TLAS, passe géométrie), RT
+- [x] **1.8 Mesures.** Timestamps GPU (build TLAS, passe géométrie), RT
       désactivé puis activé, en 1440p. Reporter les chiffres dans « Budget ».
+      *Fait* : timestamps posés par un patch temporaire autour de chaque passe
+      de `ScenePasses::record`, puis retirés : le moteur n'a pas de profileur
+      GPU permanent. Chiffres dans « Budget ».
 
 ### Phase 2 — Cache GI
 
-- [ ] **2.1 Buffer geometry info.**
+- [x] **2.1 Buffer geometry info.**
       - Par BLAS : adresse du buffer, `streamOffsets_` et submeshes ;
       - par instance de TLAS : l'index dans ce buffer et l'index GPU de
         l'instance ;
       - exposés dans le set 2.
 
       *Vérif* : build, validation propre.
+      *Fait* : deux tables au set 2, dans des buffers mappés par slot de
+      frame, recalculées à chaque frame dans `RtScene::buildTlas` :
+      - `RtGeometryGPUData` (binding 1), une par géométrie de BLAS (submesh,
+        ou strate d'un chunk), dans l'ordre de la BLAS. Elle contient
+        l'adresse du premier index de la géométrie, l'adresse des sommets, le
+        pas des sommets et la taille d'un index. Écart au texte : les adresses
+        sont résolues par géométrie au lieu d'adresse + `streamOffsets_` ;
+        les UV, normales et tangentes ajouteront les leurs en 7.1.
+      - `RtInstanceGPUData` (binding 2), à l'index de l'instance dans la
+        TLAS : première géométrie, index GPU (`StaticMeshGPUData` pour un
+        mesh, `TerrainChunkGPUData` pour un chunk) et type.
+      - Au hit : `RtGeometries[RtInstances[CommittedInstanceIndex()]
+        .firstGeometry_ + CommittedGeometryIndex()]`.
+      - Le même parcours des submeshes (`forEachSubmesh`) construit la BLAS et
+        la table, pour que l'ordre des géométries ne puisse pas diverger.
+      - Les tables sont recalculées et non stockées avec la BLAS, parce que
+        le pool de terrain change d'adresse quand il grandit, alors que la
+        BLAS reste valable.
+      - Les adresses sont écrites en deux `uint`, que le shader recompose en
+        64 bits : `shaderInt64` rejoint les conditions de `rtSupported_`.
+      - Rien ne lit encore les tables : 2.2 les branche côté shader.
+
+      *Mesuré* :
+      - Log temporaire à la frame 200. Buggy : 8 instances, 8 géométries
+        (index 32 bits, un sommet tous les 12 octets). Terrain proche :
+        37 instances, 247 géométries, soit 7 meshes + 30 chunks × 8 strates
+        (index 16 bits, un sommet tous les 48 octets) ; les strates vides ont
+        0 triangle, comme dans la BLAS. L'index GPU de chaque instance est
+        celui de la TLAS.
+      - Raster et RT identiques au SHA sur la série de régression.
+
+      Validation propre, RT actif : jeu debug sur le buggy et le terrain
+      proche, éditeur debug sur `test_buggy.btpl`.
 - [ ] **2.2 Vue debug « premier hit ».**
       - Un PS plein écran (variante RT) lance un rayon caméra reconstruit
         depuis `right_/up_/fwd_/fov_` ;

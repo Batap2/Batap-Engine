@@ -417,7 +417,8 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     if (rayTracing)
     {
         rtScene_->updateBlases(cmd, frame, *reg, *ctx.assetManager_, terrain_);
-        rtScene_->buildTlas(cmd, frame, *reg, *instanceM, terrain_, args.camera_);
+        rtScene_->buildTlas(cmd, frame, *reg, *instanceM, *ctx.assetManager_, terrain_,
+                            args.camera_);
     }
 
     writeFrameSet(frame, args, ctx);

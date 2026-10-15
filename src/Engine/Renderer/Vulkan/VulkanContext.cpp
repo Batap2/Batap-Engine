@@ -86,7 +86,11 @@ VulkanContext::VulkanContext()
     rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
     rayQueryFeatures.rayQuery = VK_TRUE;
 
+    VkPhysicalDeviceFeatures int64Features{};
+    int64Features.shaderInt64 = VK_TRUE;
+
     rtSupported_ =
+        vkbPhysicalDevice.enable_features_if_present(int64Features) &&
         vkbPhysicalDevice.enable_extensions_if_present(
             {VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
              VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME}) &&
