@@ -314,6 +314,7 @@ struct DrawPush
 };
 
 static const uint DebugShadowCascades = 1u;
+static const uint DebugRtFirstHit = 2u;
 
 #ifdef __cplusplus
 

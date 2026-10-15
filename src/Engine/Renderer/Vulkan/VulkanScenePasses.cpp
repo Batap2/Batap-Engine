@@ -142,6 +142,8 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
           PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
       sky_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
       debug_(
+          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
+      rtDebug_(
           PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_})
 {
     localAtlas_ = resources_.createTarget(LocalAtlasSize, LocalAtlasSize, ResourceFormat::D32_FLOAT,
@@ -199,6 +201,7 @@ void ScenePasses::buildPipelines(const ShaderModules& modules)
     billboards_.buildPipelines(modules);
     sky_.buildPipelines(modules);
     debug_.buildPipelines(modules);
+    rtDebug_.buildPipelines(modules);
 }
 
 void ScenePasses::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay)
@@ -460,7 +463,8 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     pass.cmd_ = cmd;
     pass.layout_ = pipelineLayout_;
     pass.push_.cameraIndex_ = camID;
-    pass.push_.debugFlags_ = args.showShadowCascades_ ? DebugShadowCascades : 0u;
+    pass.push_.debugFlags_ = (args.showShadowCascades_ ? DebugShadowCascades : 0u) |
+                             (args.showRtFirstHit_ ? DebugRtFirstHit : 0u);
     pass.reg_ = reg;
     pass.instanceManager_ = instanceM;
     pass.assetManager_ = ctx.assetManager_.get();
@@ -482,17 +486,25 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     vkCmdBeginRendering(cmd, &renderingInfo);
     setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
 
-    geometry_.record(pass);
-    terrain_.record(pass);
-    // Before the sky, like the geometry: they write depth, so the sky's
-    // LESS_OR_EQUAL test then leaves their pixels alone.
-    billboards_.record(pass);
-    sky_.record(pass);
+    if (rayTracing && (pass.push_.debugFlags_ & DebugRtFirstHit) != 0u)
+        rtDebug_.record(pass);
+    else
+        recordScene(pass);
     // After the sky: it writes no depth, so it would paint over any wire drawn
     // against the background.
     debug_.record(pass);
 
     vkCmdEndRendering(cmd);
     return true;
+}
+
+void ScenePasses::recordScene(const PassContext& pass)
+{
+    geometry_.record(pass);
+    terrain_.record(pass);
+    // Before the sky, like the geometry: they write depth, so the sky's
+    // LESS_OR_EQUAL test then leaves their pixels alone.
+    billboards_.record(pass);
+    sky_.record(pass);
 }
 }  // namespace batap

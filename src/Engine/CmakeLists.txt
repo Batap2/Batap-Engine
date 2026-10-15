@@ -195,6 +195,7 @@ batap_compile_shader(TerrainPS.hlsl    TerrainPS.spv    ps_6_6)
 batap_compile_shader(TerrainShadowVS.hlsl TerrainShadowVS.spv vs_6_6)
 batap_compile_shader(PixelShader.hlsl  PixelShaderRT.spv ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(TerrainPS.hlsl    TerrainPSRT.spv  ps_6_6 -D BATAP_RT=1)
+batap_compile_shader(RtDebugPS.hlsl    RtDebugPS.spv    ps_6_6 -D BATAP_RT=1)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -210,7 +211,8 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/TerrainPS.spv"
   "${engine_shader_out}/TerrainShadowVS.spv"
   "${engine_shader_out}/PixelShaderRT.spv"
-  "${engine_shader_out}/TerrainPSRT.spv")
+  "${engine_shader_out}/TerrainPSRT.spv"
+  "${engine_shader_out}/RtDebugPS.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —

@@ -544,6 +544,7 @@ void UIPanels::drawViewMenu(World& world, App& app)
     ImGui::MenuItem("Bounds", nullptr, &world.systems().bounds_->showBounds_);
     ImGui::MenuItem("Terrain chunks", nullptr, &world.systems().terrain_->showChunks_);
     ImGui::MenuItem("Shadow cascades", nullptr, &world.showShadowCascades_);
+    ImGui::MenuItem("RT first hit", nullptr, &world.showRtFirstHit_);
     ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
 }
 

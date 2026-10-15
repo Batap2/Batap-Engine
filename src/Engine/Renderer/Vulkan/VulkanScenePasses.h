@@ -7,6 +7,7 @@
 #include "Renderer/Vulkan/Passes/BillboardPass.h"
 #include "Renderer/Vulkan/Passes/DebugPass.h"
 #include "Renderer/Vulkan/Passes/GeometryPass.h"
+#include "Renderer/Vulkan/Passes/RtDebugPass.h"
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
 #include "Renderer/Vulkan/Passes/ShadowPass.h"
 #include "Renderer/Vulkan/Passes/SkyPass.h"
@@ -51,6 +52,7 @@ struct ScenePasses
     void fitCascades(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
                      v2i frameSize);
     void buildPipelines(const ShaderModules& modules);
+    void recordScene(const PassContext& pass);
 
     VulkanContext& ctx_;
     ResourceManager& resources_;
@@ -79,6 +81,7 @@ struct ScenePasses
     BillboardPass billboards_;
     SkyPass sky_;
     DebugPass debug_;
+    RtDebugPass rtDebug_;
 
     std::filesystem::file_time_type shadersMtime_{};
 };

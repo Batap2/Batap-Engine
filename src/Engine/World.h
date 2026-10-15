@@ -86,6 +86,7 @@ struct World
     entt::registry registry_;
     Time time_;
     bool showShadowCascades_ = false;
+    bool showRtFirstHit_ = false;
 
    private:
     std::unique_ptr<Systems> systems_;

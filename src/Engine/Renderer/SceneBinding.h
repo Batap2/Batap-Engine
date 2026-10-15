@@ -14,6 +14,7 @@ struct SceneRenderArgs
     GPUInstanceManager* instanceManager_ = nullptr;
     entt::entity camera_ = entt::null;
     bool showShadowCascades_ = false;
+    bool showRtFirstHit_ = false;
 };
 
 void bindScene(Engine& ctx, World& world);

@@ -647,7 +647,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Validation propre, RT actif : jeu debug sur le buggy et le terrain
       proche, éditeur debug sur `test_buggy.btpl`.
-- [ ] **2.2 Vue debug « premier hit ».**
+- [x] **2.2 Vue debug « premier hit ».**
       - Un PS plein écran (variante RT) lance un rayon caméra reconstruit
         depuis `right_/up_/fwd_/fov_` ;
       - au hit, il lit le triangle via `CommittedPrimitiveIndex()` et affiche
@@ -655,6 +655,32 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Valide toute la chaîne au hit, sans encore de cache.
       *Vérif* : le dump ressemble à la scène, sans ombrage.
+      *Fait* : `RtDebugPS.hlsl` (variante RT, triangle plein écran de
+      `SkyVS`), dans `RtDebugPass`, choisie par le menu View → « RT first
+      hit » de l'éditeur (`World::showRtFirstHit_`, bit `DebugRtFirstHit`).
+      En RT avec ce bit, elle remplace géométrie, terrain, billboards et ciel ;
+      le debug filaire reste dessiné par-dessus.
+      - Rayon de `znear_` à `zfar_`, masque `ShadowCaster | NoShadow` : les
+        meshes sans ombre (boule du soleil, ampoules) restent visibles.
+      - Au hit : `RtInstances[CommittedInstanceIndex()]`, puis
+        `RtGeometries[firstGeometry_ + CommittedGeometryIndex()]`, puis les
+        3 index et les 3 positions lus à l'adresse (`vk::RawBufferLoad`, les
+        index 16 bits extraits d'un mot de 32). Normale géométrique = produit
+        vectoriel des arêtes après `CommittedObjectToWorld3x4()`. Matériau par
+        `StaticMeshGPUData` ou `TerrainChunkGPUData` selon le type.
+      - Moitié gauche : albedo constant du matériau. Moitié droite :
+        `n × 0,5 + 0,5`. Miss en noir.
+
+      *Mesuré (SpaceFret.exe, 1280×728, RT)* : buggy + dalle, terrain proche
+      et lointain, ampoule. Albedo : dalle grise, buggy blanc (son matériau
+      constant, la couleur est dans les textures), strates de la lune avec la
+      roche plus sombre. Normales : dalle à +Y sur 59 % de la moitié droite
+      (0 pixel inversé), capot vers le haut, relief lunaire continu, ciel en
+      miss. Flag coupé : RT et raster identiques au SHA à 2.1.
+
+      Validation propre, RT actif, vue active : jeu debug sur le buggy et le
+      terrain proche (150 frames) ; vue coupée : éditeur debug sur
+      `test_buggy.btpl` (120 frames).
 - [ ] **2.3 Table de hachage.**
       - Storage buffer de clés et de valeurs (capacité 2²⁰ pour commencer),
         avec une passe d'effacement ;
