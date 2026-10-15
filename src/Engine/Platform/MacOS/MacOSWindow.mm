@@ -214,27 +214,28 @@ bool decodeEvent(batap::InputManager& input, NSEvent* event)
     using KeyState = batap::InputManager::KeyState;
     using batap::MouseButton;
 
-    // Quand ImGui capture (champ texte, fenêtre survolée), le jeu ne voit pas
-    // l'événement — le backend imgui_impl_osx le reçoit par son event monitor.
-    const bool imguiWantsKeyboard =
-        ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard;
+    // Not WantCaptureKeyboard: with keyboard navigation on, any focused ImGui
+    // window sets it, and a click in a panel would cut the game off. ImGui
+    // reads key states through its event monitor whether or not NSApp gets
+    // the event, but characters only reach a text field through NSApp: its
+    // first responder is the backend's text view.
+    const bool imguiTyping = ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput;
     const bool imguiWantsMouse = ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse;
 
     switch (event.type)
     {
         case NSEventTypeKeyDown:
         case NSEventTypeKeyUp: {
-            if (imguiWantsKeyboard || event.keyCode >= KeycodeToKey.size())
-                return true;
-            const batap::Key key = KeycodeToKey[event.keyCode];
-            if (key == batap::Key::Unknown)
-                return true;
-            input.feed(batap::InputManager::KeyEvent{
-                event.type == NSEventTypeKeyDown ? KeyState::Pressed : KeyState::Released, key});
-            // Consommé : sans ça NSApp bipe (« touche non gérée »). Cmd+Q et
-            // les raccourcis du menu passent par performKeyEquivalent avant
-            // d'arriver ici, ils ne sont pas perdus.
-            return true;
+            const bool down = event.type == NSEventTypeKeyDown;
+            const batap::Key key = event.keyCode < KeycodeToKey.size()
+                                       ? KeycodeToKey[event.keyCode]
+                                       : batap::Key::Unknown;
+            // A release always reaches the game, or a key held while a field
+            // takes focus would stay down.
+            if (key != batap::Key::Unknown && (!down || !imguiTyping))
+                input.feed(batap::InputManager::KeyEvent{
+                    down ? KeyState::Pressed : KeyState::Released, key});
+            return !imguiTyping;
         }
 
         // Les modificateurs n'émettent pas de KeyDown/KeyUp : un seul
