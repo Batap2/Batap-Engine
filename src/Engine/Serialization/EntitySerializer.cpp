@@ -92,6 +92,11 @@ static nlohmann::json sceneToJson(World& world, const Engine& ctx)
     const FieldIO io{ctx, order};
     nlohmann::json root;
     root["time"] = world.time_.simTime_;
+    const v3d& origin = world.origin_.pos_;
+    root["origin"] = {origin.x(), origin.y(), origin.z()};
+    root["originAnchor"] = nlohmann::json(nullptr);
+    if (auto it = indexMap.find(entt::to_integral(world.origin_.anchor_)); it != indexMap.end())
+        root["originAnchor"] = it->second;
     std::unordered_set<std::string> usedTypes;
     auto& entitiesJ = root["entities"] = nlohmann::json::array();
 
@@ -166,10 +171,11 @@ void EntitySerializer::save(const std::vector<EntityDesc>& entities, const std::
     writeFile(root, usedTypes, path);
 }
 
-static void populateWorld(World& world, const Engine& ctx, const nlohmann::json& root)
+static std::vector<entt::entity> populateWorld(World& world, const Engine& ctx,
+                                               const nlohmann::json& root)
 {
     if (!root.contains("entities"))
-        return;
+        return {};
 
     auto& reg = world.registry_;
     auto& factory = world.factory();
@@ -234,6 +240,18 @@ static void populateWorld(World& world, const Engine& ctx, const nlohmann::json&
                                     {&reg, created[i]});
         }
     }
+    return created;
+}
+
+static Origin originOf(const nlohmann::json& root, const std::vector<entt::entity>& created)
+{
+    Origin o;
+    if (const auto it = root.find("origin"); it != root.end() && it->is_array() && it->size() == 3)
+        o.pos_ = {(*it)[0].get<double>(), (*it)[1].get<double>(), (*it)[2].get<double>()};
+    if (const auto it = root.find("originAnchor"); it != root.end() && it->is_number_integer())
+        if (const auto i = it->get<int64_t>(); i >= 0 && static_cast<size_t>(i) < created.size())
+            o.anchor_ = created[static_cast<size_t>(i)];
+    return o;
 }
 
 static void clearScene(World& world)
@@ -271,8 +289,9 @@ void EntitySerializer::clearSceneAndLoad(World& world, const Engine& ctx, const 
     }
 
     clearScene(world);
-    populateWorld(world, ctx, root);
+    const std::vector<entt::entity> created = populateWorld(world, ctx, root);
     world.time_.simTime_ = root.value("time", 0.0);
+    world.origin_ = originOf(root, created);
 }
 
 std::string EntitySerializer::toBuffer(World& world, const Engine& ctx)
@@ -294,8 +313,9 @@ void EntitySerializer::clearSceneAndLoadBuffer(World& world, const Engine& ctx,
     }
 
     clearScene(world);
-    populateWorld(world, ctx, root);
+    const std::vector<entt::entity> created = populateWorld(world, ctx, root);
     world.time_.simTime_ = root.value("time", 0.0);
+    world.origin_ = originOf(root, created);
 }
 
 void EntitySerializer::instantiate(World& world, const Engine& ctx, const std::string& path)

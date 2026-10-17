@@ -6,6 +6,7 @@
 #include <vector>
 #include "Components/EntityHandle.h"
 #include "Instance/InstanceManager.h"
+#include "Origin.h"
 #include "Physics/ContactEvent.h"
 #include "Renderer/SceneBinding.h"
 #include "Spatial/Ray.h"
@@ -85,6 +86,7 @@ struct World
 
     entt::registry registry_;
     Time time_;
+    Origin origin_;
     bool showShadowCascades_ = false;
     bool showRtFirstHit_ = false;
 

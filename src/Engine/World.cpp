@@ -245,6 +245,7 @@ void World::resetScene()
 
     physics_->clear();
     time_.simTime_ = 0.0;
+    origin_ = {};
 }
 
 bool World::loadScene(const std::string& path)
