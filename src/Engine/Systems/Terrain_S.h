@@ -27,6 +27,7 @@ struct Terrain_S
     // The source comes with every call: nothing here keeps a pointer into the
     // game module, which a hot reload unloads.
     void sync(World& world, TerrainSource& source);
+    void fixedUpdate(World& world, float dt);
     // After the frame's last transform update, or a chunk lags its entity by
     // a frame.
     void publish(World& world);

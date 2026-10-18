@@ -17,8 +17,6 @@ namespace batap
 
 struct PhysicsWorld;
 
-// The ground under the moving bodies: one static Jolt body per node of a
-// level, from when a body could reach it to a while after none can.
 struct TerrainColliders
 {
     struct Surface
@@ -32,7 +30,7 @@ struct TerrainColliders
     // The terrain's frame in the world, and what its ground is made of: the
     // bodies already there follow.
     void place(PhysicsWorld& physics, const v3d& origin, const quatd& rotation,
-               const Surface& surface);
+               const v3f& velocity, const Surface& surface);
     // The nodes of `level` within reach, by the boxes of `bounds`. Returns
     // those that have no body yet; a body out of reach for a while leaves.
     // `seconds` reads any clock.
@@ -58,6 +56,7 @@ struct TerrainColliders
     };
 
     JPH::RVec3 positionOf(const v3d& center) const;
+    void move(PhysicsWorld& physics, const Body& body) const;
 
     std::unordered_map<ChunkKey, Body, ChunkKeyHash> bodies_;
     ChunkKeySet wanted_;
@@ -65,6 +64,7 @@ struct TerrainColliders
     double seconds_ = 0.0;
     v3d origin_ = v3d::Zero();
     quatd rotation_ = quatd::Identity();
+    v3f velocity_ = v3f::Zero();
     Surface surface_;
 };
 

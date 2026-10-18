@@ -257,6 +257,18 @@ void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const T
         bi.CreateAndAddBody(settings, activationOf(rb.motion_)).GetIndexAndSequenceNumber();
 }
 
+void driveKinematic(JPH::BodyInterface& bi, JPH::BodyID id, const Transform_C& tc,
+                    const v3f& velocity, float dt)
+{
+    const float speed = velocity.norm();
+    if (bi.GetMaxLinearVelocity(id) < speed)
+        bi.SetMaxLinearVelocity(id, speed);
+    const JPH::Quat from = bi.GetRotation(id);
+    bi.SetPositionRotationAndVelocity(
+        id, toJolt(v3f{tc.pos() - velocity * dt}), from, toJolt(velocity),
+        (toJolt(tc.rot()) * from.Conjugated()).GetAngularVelocity(dt));
+}
+
 void rememberPose(JPH::BodyInterface& bi, JPH::BodyID id, RigidBody_C& rb)
 {
     rb.prevValid_ = bi.IsActive(id);
@@ -435,7 +447,9 @@ void Physics_S::fixedUpdate(World& world, float dt)
             bi.SetMotionType(id, wanted, activationOf(rb.motion_));
         }
 
-        if (rb.motion_ == RigidBody_C::Motion::Kinematic)
+        if (rb.motion_ == RigidBody_C::Motion::Kinematic && rb.kinematicVelocitySet_)
+            driveKinematic(bi, id, tc, rb.kinematicVelocity_, dt);
+        else if (rb.motion_ == RigidBody_C::Motion::Kinematic)
             bi.MoveKinematic(id, toJolt(tc.pos()), toJolt(tc.rot()), dt);
         else if (rb.motion_ == RigidBody_C::Motion::Static)
             bi.SetPositionAndRotationWhenChanged(id, toJolt(tc.pos()), toJolt(tc.rot()),

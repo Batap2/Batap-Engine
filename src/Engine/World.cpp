@@ -167,6 +167,7 @@ void World::update(Game& game)
         time_.simTime_ += static_cast<double>(time_.fixedDt_);
         systems_->physics_->restorePoses(*this);
         game.fixedUpdate(*this, time_.fixedDt_);
+        systems_->terrain_->fixedUpdate(*this, time_.fixedDt_);
         systems_->physics_->fixedUpdate(*this, time_.fixedDt_);
         systems_->characters_->fixedUpdate(*this, time_.fixedDt_);
         time_.accumulator_ -= time_.fixedDt_;

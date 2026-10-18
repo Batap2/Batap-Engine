@@ -71,6 +71,12 @@ struct RigidBody_C
     // Raised by entt's on_update: whoever edits this component must go through
     // registry.patch (the inspector does) or the body keeps its old settings.
     bool dirty_ = false;
+    // Kinematic only, written straight before each step (a patch would raise
+    // dirty_). Set, the body crosses the step at this velocity and ends it on
+    // its transform; unset, MoveKinematic derives the velocity from the float
+    // pose change.
+    v3f kinematicVelocity_ = v3f::Zero();
+    bool kinematicVelocitySet_ = false;
 };
 
 static_assert(refl::fieldName<RigidBody_C, 0>() == "active");
@@ -92,6 +98,8 @@ BATAP_COMPONENT(RigidBody_C, "rigidBody", ComponentMeta{.color = ComponentColor:
                 fieldSkip<&RigidBody_C::prevRot_>(),
                 fieldSkip<&RigidBody_C::prevValid_>(),
                 fieldSkip<&RigidBody_C::dirty_>(),
+                fieldSkip<&RigidBody_C::kinematicVelocity_>(),
+                fieldSkip<&RigidBody_C::kinematicVelocitySet_>(),
                 fieldMeta<&RigidBody_C::mass_>({.speed = 0.05f, .min = 0.001f, .max = 10000.f}),
                 fieldMeta<&RigidBody_C::friction_>({.speed = 0.01f, .min = 0.f, .max = 1.f}),
                 fieldMeta<&RigidBody_C::restitution_>({.speed = 0.01f, .min = 0.f, .max = 1.f}),

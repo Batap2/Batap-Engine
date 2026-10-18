@@ -70,6 +70,26 @@ quatf worldRotationOf(entt::registry& reg, entt::entity e)
                                                            : quatf{tc.world().rotation()};
 }
 
+v3f kinematicVelocityOf(const entt::registry& reg, entt::entity e)
+{
+    const RigidBody_C* rb = reg.try_get<RigidBody_C>(e);
+    return rb && rb->motion_ == RigidBody_C::Motion::Kinematic && rb->kinematicVelocitySet_
+               ? rb->kinematicVelocity_
+               : v3f::Zero();
+}
+
+TerrainColliders::Surface surfaceOf(const entt::registry& reg, entt::entity owner)
+{
+    TerrainColliders::Surface surface;
+    surface.userData_ = static_cast<uint64_t>(entt::to_integral(owner)) + 1u;
+    if (const RigidBody_C* rb = reg.try_get<RigidBody_C>(owner))
+    {
+        surface.friction_ = rb->friction_;
+        surface.restitution_ = rb->restitution_;
+    }
+    return surface;
+}
+
 std::array<uint32_t, kMaxTerrainStrata> materialsOf(const entt::registry& reg, entt::entity e)
 {
     std::array<uint32_t, kMaxTerrainStrata> materials{};
@@ -103,6 +123,21 @@ void Terrain_S::clear(World& world)
     for (auto& [e, state] : states_)
         drop(world, state);
     states_.clear();
+}
+
+void Terrain_S::fixedUpdate(World& world, float dt)
+{
+    auto& reg = world.registry_;
+    for (auto& [e, state] : states_)
+    {
+        if (!reg.valid(e) || !reg.all_of<Transform_C>(e))
+            continue;
+        const v3f velocity = kinematicVelocityOf(reg, e);
+        state.colliders_.place(world.physics(),
+                               worldPositionOf(reg, e).cast<double>() -
+                                   (velocity * dt).cast<double>(),
+                               worldRotationOf(reg, e).cast<double>(), velocity, surfaceOf(reg, e));
+    }
 }
 
 void Terrain_S::sync(World& world, TerrainSource& source)
@@ -352,16 +387,10 @@ void Terrain_S::syncColliders(World& world, entt::entity owner, const Terrain_C&
     auto& reg = world.registry_;
     PhysicsWorld& physics = world.physics();
 
-    TerrainColliders::Surface surface;
-    surface.userData_ = static_cast<uint64_t>(entt::to_integral(owner)) + 1u;
-    if (const RigidBody_C* rb = reg.try_get<RigidBody_C>(owner))
-    {
-        surface.friction_ = rb->friction_;
-        surface.restitution_ = rb->restitution_;
-    }
     const v3d origin = worldPositionOf(reg, owner).cast<double>();
     const quatd rotation = worldRotationOf(reg, owner).cast<double>();
-    state.colliders_.place(physics, origin, rotation, surface);
+    state.colliders_.place(physics, origin, rotation, kinematicVelocityOf(reg, owner),
+                           surfaceOf(reg, owner));
 
     std::vector<Reach> reaches;
     reaches.reserve(movers.size());
