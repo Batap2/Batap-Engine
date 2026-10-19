@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components/EntityHandle.h"
+#include "EigenTypes.h"
 #include "Gizmo.h"
 #include "LightHandles.h"
 #include "Selection.h"
@@ -69,6 +70,8 @@ struct UIPanels
     float optionsHeight_ = 300.0f;
     bool railOpen_ = true;
     ImTextureID logo_ = 0;
+    quatf cameraFrameSource_ = quatf::Identity();
+    v3f cameraFrameEulerDeg_ = v3f::Zero();
 
     Selection selection_;
     Gizmo gizmo_;

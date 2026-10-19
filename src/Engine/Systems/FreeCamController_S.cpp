@@ -15,27 +15,27 @@ void FreeCamController_S::update(Engine& ctx, World& world, float deltaTime)
             if (!controller.controlled_)
                 return;
 
-            if (controller.requireRightMouseButton_ &&
-                !ctx.inputManager_->down(MouseButton::Right))
-                return;
+            const bool looking = !controller.requireRightMouseButton_ ||
+                                 ctx.inputManager_->down(MouseButton::Right);
 
             entt::registry* reg = &world.registry_;
 
             const v2i mouseD = ctx.inputManager_->mouseDelta();
-            if (!mouseD.isZero())
+            if (looking && !mouseD.isZero())
             {
                 controller.yaw_ += static_cast<float>(-mouseD.x()) * controller.mouseSensitivity_;
                 controller.pitch_ +=
                     static_cast<float>(-mouseD.y()) * controller.mouseSensitivity_;
-
-                constexpr float pitchLimit = 1.55334306f;
-                controller.pitch_ = std::clamp(controller.pitch_, -pitchLimit, pitchLimit);
-
-                quatf qYaw{angleaxisf(controller.yaw_, v3f::UnitY())};
-                quatf qPitch{angleaxisf(controller.pitch_, v3f::UnitX())};
-
-                EntityHandle{reg, ent}.setLocalRotation((qYaw * qPitch).normalized());
+                controller.pitch_ =
+                    std::clamp(controller.pitch_, -kFreeCamPitchLimit, kFreeCamPitchLimit);
             }
+
+            const quatf rot = freeCamRotation(controller);
+            if (!transform.rot().isApprox(rot))
+                EntityHandle{reg, ent}.setLocalRotation(rot);
+
+            if (!looking)
+                return;
 
             float scroll = ctx.inputManager_->wheel();
             if (scroll != 0.f)

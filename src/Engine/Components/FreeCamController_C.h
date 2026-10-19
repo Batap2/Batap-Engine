@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EigenTypes.h"
 #include "Reflection/ComponentRegistry.h"
 
 namespace batap
@@ -15,8 +16,11 @@ struct FreeCamController_C
 
     bool requireRightMouseButton_ = false;
     bool controlled_ = true;
+
+    quatf frame_ = quatf::Identity();
 };
 
 BATAP_COMPONENT(FreeCamController_C, "freeCamController",
-                ComponentMeta{.color = ComponentColor::Cyan});
+                ComponentMeta{.color = ComponentColor::Cyan},
+                fieldSkip<&FreeCamController_C::frame_>());
 }  // namespace batap

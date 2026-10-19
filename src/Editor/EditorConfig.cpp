@@ -132,6 +132,9 @@ void read(File& io, const std::string& projectDir, const std::string& scene)
     io.pose.pos = v3f{pos[0], pos[1], pos[2]};
     io.pose.yaw = pose.value("yaw", io.pose.yaw);
     io.pose.pitch = pose.value("pitch", io.pose.pitch);
+    const auto frame = pose.value("frame", std::vector<float>{});
+    if (frame.size() == 4)
+        io.pose.frame = quatf{frame[3], frame[0], frame[1], frame[2]}.normalized();
     io.hasPose = true;
 }
 
@@ -166,6 +169,8 @@ void write(const File& file, const std::string& projectDir, const std::string& s
             // the quaternion instead would snap back on the first mouse move.
             pose["yaw"] = file.pose.yaw;
             pose["pitch"] = file.pose.pitch;
+            pose["frame"] = {file.pose.frame.x(), file.pose.frame.y(), file.pose.frame.z(),
+                             file.pose.frame.w()};
         }
     }
 

@@ -16,6 +16,8 @@
 #include "Renderer/Renderer.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
+#include "Systems/FreeCamController_S.h"
+#include "Components/Name_C.h"
 #include "Systems/Hierarchy_S.h"
 #include "UI/FieldUI.h"
 #include "UI/UIPanels.h"
@@ -24,6 +26,8 @@
 
 
 #include <imgui.h>
+#include <imgui_internal.h>
+#include <cstdio>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -58,17 +62,12 @@ void extendWithSubtree(World& world, Engine& ctx, entt::entity e, AABB& box)
         extendWithSubtree(world, ctx, child, box);
 }
 
-quatf camRotation(float yaw, float pitch)
-{
-    return (quatf{angleaxisf(yaw, v3f::UnitY())} * quatf{angleaxisf(pitch, v3f::UnitX())})
-        .normalized();
-}
-
 auto camState(const v3f& pos, const FreeCamController_C& ctrl, const Camera_C& view)
 {
-    return std::tuple{pos.x(),     pos.y(),         pos.z(),          ctrl.yaw_,
-                      ctrl.pitch_, ctrl.moveSpeed_, ctrl.boostSpeed_, ctrl.mouseSensitivity_,
-                      view.fov_,   view.znear_,     view.zfar_};
+    return std::tuple{pos.x(),          pos.y(),          pos.z(),          ctrl.yaw_,
+                      ctrl.pitch_,      ctrl.moveSpeed_,  ctrl.boostSpeed_, ctrl.mouseSensitivity_,
+                      ctrl.frame_.x(),  ctrl.frame_.y(),  ctrl.frame_.z(),  ctrl.frame_.w(),
+                      view.fov_,        view.znear_,      view.zfar_};
 }
 }  // namespace
 
@@ -191,6 +190,27 @@ App::~App()
 
 void App::update()
 {
+    if (std::getenv("TMP_IMGUI") && world_ && state_ != AppState::SelectProject)
+    {
+        static int f = 0;
+        ++f;
+        ImGuiIO& io = ImGui::GetIO();
+        const char* who = std::getenv("TMP_WHO") ? std::getenv("TMP_WHO") : "Buggy";
+        if (f == 100)
+            uiPanels_.selectByName(*world_, who);
+        if (f == 150) { io.AddMousePosEvent(1094.f, 136.f); io.AddMouseButtonEvent(0, true); }
+        if (f == 152) io.AddMouseButtonEvent(0, false);
+        if (f == 154) io.AddMouseButtonEvent(0, true);
+        if (f == 156) io.AddMouseButtonEvent(0, false);
+        if (f >= 148 && f <= 175)
+        {
+            v3f pos = v3f::Zero();
+            for (auto [e, n, tc] : world_->registry_.view<Name_C, Transform_C>().each())
+                if (n.name_ == who) pos = tc.pos();
+            std::printf("TMP f%d active %u textInput %d pos %.6f %.6f %.6f\n", f, ImGui::GetCurrentContext()->ActiveId, int(io.WantTextInput), pos.x(), pos.y(), pos.z());
+            std::fflush(stdout);
+        }
+    }
     if (themeDirty_)
     {
         ui::ApplyTheme(theme_);
@@ -332,7 +352,8 @@ void App::saveConfig()
     file.camera = {editorCamCtrl_.moveSpeed_,        editorCamCtrl_.boostSpeed_,
                    editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_,
                    editorCamView_.znear_,            editorCamView_.zfar_};
-    file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_};
+    file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_,
+                 editorCamCtrl_.frame_};
     file.hasPose = true;
 
     editorConfig::write(file, projectDir_, sceneKey());
@@ -372,7 +393,8 @@ void App::loadSceneCamera()
         return;
 
     editorConfig::File file;
-    file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_};
+    file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_,
+                 editorCamCtrl_.frame_};
     editorConfig::read(file, projectDir_, scene);
     if (!file.hasPose)
         return;
@@ -380,7 +402,8 @@ void App::loadSceneCamera()
     editorCamPos_ = file.pose.pos;
     editorCamCtrl_.yaw_ = file.pose.yaw;
     editorCamCtrl_.pitch_ = file.pose.pitch;
-    editorCamRot_ = camRotation(editorCamCtrl_.yaw_, editorCamCtrl_.pitch_);
+    editorCamCtrl_.frame_ = file.pose.frame;
+    editorCamRot_ = freeCamRotation(editorCamCtrl_);
 
     applyEditorCamera();
 }

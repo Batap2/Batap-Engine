@@ -22,6 +22,7 @@
 #include "UI/Scoped.h"
 #include "UI/UITheme.h"
 #include "Systems/Bounds_S.h"
+#include "Systems/FreeCamController_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Terrain_S.h"
@@ -34,6 +35,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -649,6 +651,31 @@ void UIPanels::drawCameraOptions(World& world, App& app)
         camChanged |= ui::FieldDragFloat("Far", &camera->zfar_, 1.0f, 1.0f, 1e6f);
         if (camChanged)
             world.instances().markDirty<Camera_C>(cam);
+
+        // Cached like the inspector's rotation: recomputed from the quaternion
+        // every frame, the angles would jump while dragged.
+        if (1.0f - std::abs(cameraFrameSource_.dot(controller->frame_)) > 1e-4f)
+        {
+            cameraFrameSource_ = controller->frame_;
+            cameraFrameEulerDeg_ =
+                controller->frame_.toRotationMatrix().canonicalEulerAngles(0, 1, 2) *
+                (180.0f / std::numbers::pi_v<float>);
+        }
+        if (ui::FieldDragFloat3("Frame", cameraFrameEulerDeg_.data(), 0.1f))
+        {
+            const v3f r = cameraFrameEulerDeg_ * (std::numbers::pi_v<float> / 180.0f);
+            const quatf frame = quatf{angleaxisf(r.x(), v3f::UnitX())} *
+                                quatf{angleaxisf(r.y(), v3f::UnitY())} *
+                                quatf{angleaxisf(r.z(), v3f::UnitZ())};
+            setFreeCamFrame(*controller, frame, cam.get<Transform_C>().rot());
+            cameraFrameSource_ = controller->frame_;
+        }
+        if (ui::Field("",
+                      [&] {
+                          return ImGui::Button("Reset frame",
+                                               {ImGui::GetContentRegionAvail().x, 0.0f});
+                      }))
+            setFreeCamFrame(*controller, quatf::Identity(), cam.get<Transform_C>().rot());
     }
 }
 

@@ -46,6 +46,7 @@ struct Pose
     v3f pos = v3f::Zero();
     float yaw = 0.f;
     float pitch = 0.f;
+    quatf frame = quatf::Identity();
 };
 
 // One project and one of its scenes at a time, which is all the editor ever
