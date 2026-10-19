@@ -144,6 +144,11 @@ void World::setGravity(const v3f& g)
     physics_->system().SetGravity(toJolt(g));
 }
 
+void World::setMaxBodySpeed(float speed)
+{
+    physics_->setMaxBodySpeed(speed);
+}
+
 v3f World::gravity() const
 {
     return toEigen(physics_->system().GetGravity());

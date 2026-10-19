@@ -67,6 +67,7 @@ struct World
     RayHit raycastPhysics(const Ray& ray, EntityHandle ignore = {}) const;
     void setGravity(const v3f& g);
     v3f gravity() const;
+    void setMaxBodySpeed(float speed);
     bool loadScene(const std::string& path);
 
     // Replaces the registry itself: its per-type storages hold code pointers

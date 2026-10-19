@@ -116,6 +116,17 @@ void PhysicsWorld::destroyConstraint(uint32_t key)
     constraints_.erase(it);
 }
 
+void PhysicsWorld::setMaxBodySpeed(float speed)
+{
+    maxBodySpeed_ = speed;
+    JPH::BodyIDVector ids;
+    system_.GetBodies(ids);
+    JPH::BodyInterface& bi = bodies();
+    for (const JPH::BodyID& id : ids)
+        if (bi.GetMotionType(id) == JPH::EMotionType::Dynamic)
+            bi.SetMaxLinearVelocity(id, speed);
+}
+
 void PhysicsWorld::clear()
 {
     contacts_.clear();

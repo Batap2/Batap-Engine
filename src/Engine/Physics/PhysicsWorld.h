@@ -4,6 +4,7 @@
 
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
+#include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Constraints/Constraint.h>
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -42,6 +43,9 @@ struct PhysicsWorld
     ContactCollector& contacts() { return contacts_; }
     JPH::TempAllocator& tempAllocator() { return tempAllocator_; }
 
+    void setMaxBodySpeed(float speed);
+    float maxBodySpeed() const { return maxBodySpeed_; }
+
     JPH::CharacterVirtual* character(uint32_t key);
     JPH::CharacterVirtual& createCharacter(uint32_t key, const JPH::CharacterVirtualSettings& s,
                                            JPH::RVec3Arg pos, JPH::QuatArg rot);
@@ -72,6 +76,7 @@ struct PhysicsWorld
     ContactCollector contacts_;
 
     JPH::PhysicsSystem system_;
+    float maxBodySpeed_ = JPH::BodyCreationSettings{}.mMaxLinearVelocity;
 
     struct OwnedConstraint
     {

@@ -22,6 +22,7 @@
 #include "Physics/MeshCollider.h"
 #include "Renderer/DebugDraw.h"
 #include "Serialization/BmeshSerializer.h"
+#include "Systems/Hierarchy_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
 #include "World.h"
@@ -75,6 +76,46 @@ quatf localRotOf(const Shape& s)
 bool isCentered(const Shape& s)
 {
     return s.localPos_.isZero() && s.localRotDeg_.isZero();
+}
+
+struct Pose
+{
+    v3f pos_ = v3f::Zero();
+    quatf rot_ = quatf::Identity();
+    v3f scale_ = v3f::Ones();
+};
+
+Pose worldPoseOf(entt::registry& reg, entt::entity e)
+{
+    const Transform_C& tc = reg.get<Transform_C>(e);
+    Pose pose{tc.pos(), tc.rot(), tc.scale()};
+    for (entt::entity p = Hierarchy_S::getParent({&reg, e}); p != entt::null;
+         p = Hierarchy_S::getParent({&reg, p}))
+    {
+        const Transform_C* parent = reg.try_get<Transform_C>(p);
+        if (!parent)
+            break;
+        pose = {parent->pos() + parent->rot() * parent->scale().cwiseProduct(pose.pos_),
+                parent->rot() * pose.rot_, parent->scale().cwiseProduct(pose.scale_)};
+    }
+    return pose;
+}
+
+void setWorldPose(Transform_S& transforms, entt::registry& reg, entt::entity e, const v3f& pos,
+                  const quatf& rot)
+{
+    const EntityHandle h{&reg, e};
+    const entt::entity p = Hierarchy_S::getParent(h);
+    if (p == entt::null || !reg.all_of<Transform_C>(p))
+    {
+        transforms.setLocalPosition(h, pos);
+        transforms.setLocalRotation(h, rot);
+        return;
+    }
+    const Pose parent = worldPoseOf(reg, p);
+    const quatf toParent = parent.rot_.conjugate();
+    transforms.setLocalPosition(h, (toParent * (pos - parent.pos_)).cwiseQuotient(parent.scale_));
+    transforms.setLocalRotation(h, toParent * rot);
 }
 
 // The triangles come from the file, not from the GPU copy: the loader keeps
@@ -233,19 +274,20 @@ void destroyBody(JPH::BodyInterface& bi, RigidBody_C& rb)
 }
 
 void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const Transform_C& tc,
-                AssetManager& assets)
+                const Pose& pose, AssetManager& assets, float maxSpeed)
 {
     rb.shapeScale_ = tc.scale();
     rb.dirty_ = false;
     rb.prevValid_ = false;
     JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_, assets);
-    JPH::BodyCreationSettings settings(shape, toJolt(tc.pos()), toJolt(tc.rot()),
+    JPH::BodyCreationSettings settings(shape, toJolt(pose.pos_), toJolt(pose.rot_),
                                        motionTypeOf(rb.motion_), layerOf(rb.motion_));
     settings.mFriction = rb.friction_;
     settings.mRestitution = rb.restitution_;
     settings.mLinearDamping = rb.linearDamping_;
     settings.mAngularDamping = rb.angularDamping_;
     settings.mGravityFactor = rb.gravityFactor_;
+    settings.mMaxLinearVelocity = maxSpeed;
     settings.mIsSensor = rb.sensor_;
     settings.mOverrideMassProperties = JPH::EOverrideMassProperties::MassAndInertiaProvided;
     settings.mMassPropertiesOverride = massPropertiesOf(*shape, rb.mass_);
@@ -257,16 +299,16 @@ void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const T
         bi.CreateAndAddBody(settings, activationOf(rb.motion_)).GetIndexAndSequenceNumber();
 }
 
-void driveKinematic(JPH::BodyInterface& bi, JPH::BodyID id, const Transform_C& tc,
-                    const v3f& velocity, float dt)
+void driveKinematic(JPH::BodyInterface& bi, JPH::BodyID id, const Pose& pose, const v3f& velocity,
+                    float dt)
 {
     const float speed = velocity.norm();
     if (bi.GetMaxLinearVelocity(id) < speed)
         bi.SetMaxLinearVelocity(id, speed);
     const JPH::Quat from = bi.GetRotation(id);
     bi.SetPositionRotationAndVelocity(
-        id, toJolt(v3f{tc.pos() - velocity * dt}), from, toJolt(velocity),
-        (toJolt(tc.rot()) * from.Conjugated()).GetAngularVelocity(dt));
+        id, toJolt(v3f{pose.pos_ - velocity * dt}), from, toJolt(velocity),
+        (toJolt(pose.rot_) * from.Conjugated()).GetAngularVelocity(dt));
 }
 
 void rememberPose(JPH::BodyInterface& bi, JPH::BodyID id, RigidBody_C& rb)
@@ -348,7 +390,8 @@ void Physics_S::drawColliders(World& world)
     AssetManager& assets = world.assets();
     for (auto [e, rb, tc] : world.registry_.view<RigidBody_C, Transform_C>().each())
     {
-        const transform base = TRS_Transform(tc.pos(), tc.rot(), v3f::Ones());
+        const Pose pose = worldPoseOf(world.registry_, e);
+        const transform base = TRS_Transform(pose.pos_, pose.rot_, v3f::Ones());
         const v3f scale = tc.scale().cwiseAbs();
         const col3& color = colorOf(rb);
 
@@ -411,7 +454,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
         const auto& tc = view.get<Transform_C>(e);
         if (rb.bodyId_ == kInvalidBodyId)
         {
-            createBody(bi, e, rb, tc, assets);
+            createBody(bi, e, rb, tc, worldPoseOf(reg, e), assets, physics.maxBodySpeed());
             continue;
         }
 
@@ -440,7 +483,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
             if (current == JPH::EMotionType::Static || wanted == JPH::EMotionType::Static)
             {
                 destroyBody(bi, rb);
-                createBody(bi, e, rb, tc, assets);
+                createBody(bi, e, rb, tc, worldPoseOf(reg, e), assets, physics.maxBodySpeed());
                 continue;
             }
             bi.SetObjectLayer(id, layerOf(rb.motion_));
@@ -448,12 +491,18 @@ void Physics_S::fixedUpdate(World& world, float dt)
         }
 
         if (rb.motion_ == RigidBody_C::Motion::Kinematic && rb.kinematicVelocitySet_)
-            driveKinematic(bi, id, tc, rb.kinematicVelocity_, dt);
+            driveKinematic(bi, id, worldPoseOf(reg, e), rb.kinematicVelocity_, dt);
         else if (rb.motion_ == RigidBody_C::Motion::Kinematic)
-            bi.MoveKinematic(id, toJolt(tc.pos()), toJolt(tc.rot()), dt);
+        {
+            const Pose pose = worldPoseOf(reg, e);
+            bi.MoveKinematic(id, toJolt(pose.pos_), toJolt(pose.rot_), dt);
+        }
         else if (rb.motion_ == RigidBody_C::Motion::Static)
-            bi.SetPositionAndRotationWhenChanged(id, toJolt(tc.pos()), toJolt(tc.rot()),
+        {
+            const Pose pose = worldPoseOf(reg, e);
+            bi.SetPositionAndRotationWhenChanged(id, toJolt(pose.pos_), toJolt(pose.rot_),
                                                  JPH::EActivation::DontActivate);
+        }
         else
             rememberPose(bi, id, rb);
     }
@@ -474,9 +523,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
         if (!rb.prevValid_ && !bi.IsActive(id))
             continue;
 
-        const EntityHandle h{&reg, e};
-        transforms.setLocalPosition(h, toEigen(bi.GetPosition(id)));
-        transforms.setLocalRotation(h, toEigen(bi.GetRotation(id)));
+        setWorldPose(transforms, reg, e, toEigen(bi.GetPosition(id)), toEigen(bi.GetRotation(id)));
     }
 }
 
@@ -504,9 +551,8 @@ void Physics_S::interpolate(World& world, float alpha)
 
         // Through Transform_S, not EntityHandle: its setters push the pose
         // back into Jolt.
-        const EntityHandle h{&reg, e};
-        transforms.setLocalPosition(h, rb.prevPos_ + (toEigen(pos) - rb.prevPos_) * alpha);
-        transforms.setLocalRotation(h, rb.prevRot_.slerp(alpha, toEigen(rot)));
+        setWorldPose(transforms, reg, e, rb.prevPos_ + (toEigen(pos) - rb.prevPos_) * alpha,
+                     rb.prevRot_.slerp(alpha, toEigen(rot)));
         interpolated_ = true;
     }
 }
@@ -537,9 +583,7 @@ void Physics_S::restorePoses(World& world)
         JPH::Quat rot;
         bi.GetPositionAndRotation(id, pos, rot);
 
-        const EntityHandle h{&reg, e};
-        transforms.setLocalPosition(h, toEigen(pos));
-        transforms.setLocalRotation(h, toEigen(rot));
+        setWorldPose(transforms, reg, e, toEigen(pos), toEigen(rot));
     }
 }
 
