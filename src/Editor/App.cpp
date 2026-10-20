@@ -190,12 +190,18 @@ App::~App()
 
 void App::update()
 {
-    if (std::getenv("TMP_IMGUI") && world_ && state_ != AppState::SelectProject)
+    // MSVC deprecates getenv; these two reads only feed the TMP_* hook below.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    const char* tmpImgui = std::getenv("TMP_IMGUI");
+    const char* tmpWho = std::getenv("TMP_WHO");
+#pragma clang diagnostic pop
+    if (tmpImgui && world_ && state_ != AppState::SelectProject)
     {
         static int f = 0;
         ++f;
         ImGuiIO& io = ImGui::GetIO();
-        const char* who = std::getenv("TMP_WHO") ? std::getenv("TMP_WHO") : "Buggy";
+        const char* who = tmpWho ? tmpWho : "Buggy";
         if (f == 100)
             uiPanels_.selectByName(*world_, who);
         if (f == 150) { io.AddMousePosEvent(1094.f, 136.f); io.AddMouseButtonEvent(0, true); }
@@ -207,7 +213,10 @@ void App::update()
             v3f pos = v3f::Zero();
             for (auto [e, n, tc] : world_->registry_.view<Name_C, Transform_C>().each())
                 if (n.name_ == who) pos = tc.pos();
-            std::printf("TMP f%d active %u textInput %d pos %.6f %.6f %.6f\n", f, ImGui::GetCurrentContext()->ActiveId, int(io.WantTextInput), pos.x(), pos.y(), pos.z());
+            std::printf("TMP f%d active %u textInput %d pos %.6f %.6f %.6f\n", f,
+                        ImGui::GetCurrentContext()->ActiveId, int(io.WantTextInput),
+                        static_cast<double>(pos.x()), static_cast<double>(pos.y()),
+                        static_cast<double>(pos.z()));
             std::fflush(stdout);
         }
     }
