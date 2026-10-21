@@ -87,7 +87,7 @@ uint8_t materialSlotCount(EntityHandle ent, App& app)
 void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
 {
     drawHeader(ent);
-    drawTransform(ent);
+    drawTransform(world, ent);
     drawMesh(ent, app);
     drawMaterials(ent, app);
     drawSkybox(ent, app);
@@ -122,7 +122,7 @@ void InspectorPanel::drawHeader(EntityHandle ent)
     ImGui::Spacing();
 }
 
-void InspectorPanel::drawTransform(EntityHandle ent)
+void InspectorPanel::drawTransform(World& world, EntityHandle ent)
 {
     auto* t = ent.try_get<Transform_C>();
     if (!t)
@@ -132,37 +132,88 @@ void InspectorPanel::drawTransform(EntityHandle ent)
     if (!section)
         return;
 
-    // Without a parent the two spaces are the same pose: no button, and the
-    // fields stay the local ones.
     const bool parented = Hierarchy_S::hasParent(ent);
-    if (parented)
+    const bool floating = world.origin_.anchor_ != entt::null || world.origin_.pos_ != v3d::Zero();
+    TransformSpace space = space_;
+    if (space == TransformSpace::Local && !parented)
+        space = TransformSpace::Origin;
+    if (space == TransformSpace::Origin && !floating)
+        space = parented ? TransformSpace::World : TransformSpace::Local;
+    if (space == TransformSpace::World && !parented && !floating)
+        space = TransformSpace::Local;
+
+    if (parented || floating)
     {
-        if (ImGui::Button(worldSpace_ ? ICON_MD_PUBLIC "  World" : ICON_MD_VIEW_IN_AR "  Local",
-                          {ImGui::GetContentRegionAvail().x, 0.0f}))
-            worldSpace_ = !worldSpace_;
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Read the pose in world space or relative to the parent."
-                              " World scale is lossy, so it only shows.");
+        struct Choice
+        {
+            TransformSpace space_;
+            const char* label_;
+            const char* tooltip_;
+            bool offered_;
+        };
+        const std::array<Choice, 3> choices{{
+            {TransformSpace::Local, ICON_MD_VIEW_IN_AR "  Local", "Relative to the parent.",
+             parented},
+            {TransformSpace::Origin, ICON_MD_MY_LOCATION "  Origin",
+             "In world space, relative to the floating origin: what is simulated and drawn."
+             " World scale is lossy, so it only shows.",
+             floating},
+            {TransformSpace::World, ICON_MD_PUBLIC "  World",
+             "In world space, the floating origin added back, in double."
+             " World scale is lossy, so it only shows.",
+             true},
+        }};
+        const float count = 1.0f + (parented ? 1.0f : 0.0f) + (floating ? 1.0f : 0.0f);
+        const float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+        const float width = (ImGui::GetContentRegionAvail().x - spacing * (count - 1.0f)) / count;
+        bool first = true;
+        for (const Choice& c : choices)
+        {
+            if (!c.offered_)
+                continue;
+            if (!first)
+                ImGui::SameLine(0.0f, spacing);
+            first = false;
+            const bool on = c.space_ == space;
+            {
+                ui::ScopedColor colors{{ImGuiCol_Button, on ? ui::accent : ui::bg2},
+                                       {ImGuiCol_ButtonHovered, on ? ui::accentHover : ui::bg3},
+                                       {ImGuiCol_Text, on ? ui::bg0 : ui::text}};
+                if (ImGui::Button(c.label_, {width, 0.0f}))
+                    space_ = c.space_;
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", c.tooltip_);
+        }
         ImGui::Spacing();
     }
-    const bool world = parented && worldSpace_;
+    const bool inWorld = space != TransformSpace::Local;
 
     auto fields = ui::BeginFields("transform");
     if (!fields)
         return;
 
-    v3f pos = world ? t->worldPos() : t->pos();
-    if (ui::FieldDragFloat3("Position", pos.data(), 0.05f))
+    if (space == TransformSpace::World)
     {
-        if (world)
-            ent.setPosition(pos, Space::World);
-        else
-            ent.setLocalPosition(pos);
+        v3d pos = world.origin_.pos_ + t->worldPos().cast<double>();
+        if (ui::FieldDragDouble3("Position", pos.data(), 0.05f))
+            ent.setPosition(v3f{(pos - world.origin_.pos_).cast<float>()}, Space::World);
+    }
+    else
+    {
+        v3f pos = inWorld ? t->worldPos() : t->pos();
+        if (ui::FieldDragFloat3("Position", pos.data(), 0.05f))
+        {
+            if (inWorld)
+                ent.setPosition(pos, Space::World);
+            else
+                ent.setLocalPosition(pos);
+        }
     }
 
     // Euler angles are cached: a quaternion has several equivalent triplets,
     // and recomputing one every frame would make the field jump while dragged.
-    const quatf rot = (world ? t->worldRot() : t->rot()).normalized();
+    const quatf rot = (inWorld ? t->worldRot() : t->rot()).normalized();
     if (!rotationEditEntity_ || *rotationEditEntity_ != ent ||
         1.0f - std::abs(rotationEditSourceQuat_.dot(rot)) > 1e-4f)
     {
@@ -179,15 +230,15 @@ void InspectorPanel::drawTransform(EntityHandle ent)
                        angleaxisf(eulerRad.z(), v3f::UnitZ());
         newRot.normalize();
         rotationEditSourceQuat_ = newRot;
-        if (world)
+        if (inWorld)
             ent.setRotation(newRot, Space::World);
         else
             ent.setLocalRotation(newRot);
     }
 
-    v3f scale = world ? t->worldScale() : t->scale();
-    ImGui::BeginDisabled(world);
-    if (ui::FieldDragFloat3("Scale", scale.data(), 0.01f) && !world)
+    v3f scale = inWorld ? t->worldScale() : t->scale();
+    ImGui::BeginDisabled(inWorld);
+    if (ui::FieldDragFloat3("Scale", scale.data(), 0.01f) && !inWorld)
         ent.setLocalScale(scale);
     ImGui::EndDisabled();
 }

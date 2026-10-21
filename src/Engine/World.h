@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -13,6 +14,7 @@
 #include "ViewRect.h"
 
 
+#include <emhash/hash_table8.hpp>
 #include <entt/entt.hpp>
 
 namespace batap
@@ -39,6 +41,7 @@ struct Time
     float fixedDt_ = 1.f / 60.f;
     float accumulator_ = 0.f;
     double simTime_ = 0.0;
+    int maxStepsPerFrame_ = 15;
 };
 
 struct World
@@ -53,6 +56,7 @@ struct World
     AssetManager& assets();
     DebugDraw& debug();
     DebugDraw& debugOverlay();
+    bool flag(std::string_view name, bool initial);
     Billboards& billboards();
     TerrainDraws& terrainDraws();
     Terrain_S& terrain();
@@ -90,6 +94,7 @@ struct World
     Origin origin_;
     bool showShadowCascades_ = false;
     bool showRtFirstHit_ = false;
+    emhash8::HashMap<std::string, bool, std::hash<std::string_view>, std::equal_to<>> flags_;
 
    private:
     std::unique_ptr<Systems> systems_;

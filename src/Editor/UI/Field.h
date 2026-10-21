@@ -6,16 +6,20 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstddef>
 #include <span>
 #include <string_view>
+#include <type_traits>
 
 namespace batap::ui
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-inline std::span<float> spanOf(float* p, size_t count)
+template <typename T>
+std::span<T> spanOf(T* p, size_t count)
 {
     return {p, count};
 }
@@ -101,9 +105,10 @@ inline void WrapDragMouse()
 }
 
 // %g would print "2.264e-06" for a near-zero and overflow the field.
-inline void formatTrimmed(std::span<char> buf, float v)
+template <typename T>
+void formatTrimmed(std::span<char> buf, T v)
 {
-    if (v == 0.0f)  // also catches -0
+    if (std::fpclassify(v) == FP_ZERO)
     {
         buf[0] = '0';
         buf[1] = '\0';
@@ -128,16 +133,21 @@ inline void formatTrimmed(std::span<char> buf, float v)
 
 // No style aligns a drag's value, so the widget prints nothing and the text is
 // redrawn here. The format comes back while ImGui owns the text, being typed.
-inline bool DragValue(const char* id, float* v, float width, float speed, float min, float max,
-                      const char* fmt = nullptr)
+template <typename T>
+bool DragValue(const char* id, T* v, float width, float speed, float min, float max,
+               const char* fmt = nullptr)
 {
+    static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>);
     const ImVec2 p = ImGui::GetCursorScreenPos();
     const float h = ImGui::GetFrameHeight();
     const bool editing = ImGui::TempInputIsActive(ImGui::GetID(id));
 
+    const T lo = static_cast<T>(min);
+    const T hi = static_cast<T>(max);
     ImGui::SetNextItemWidth(width);
-    const bool changed = ImGui::DragFloat(id, v, speed, min, max, editing ? "%.3f" : "",
-                                          ImGuiSliderFlags_NoRoundToFormat);
+    const bool changed = ImGui::DragScalar(
+        id, std::is_same_v<T, double> ? ImGuiDataType_Double : ImGuiDataType_Float, v, speed, &lo,
+        &hi, editing ? "%.3f" : "", ImGuiSliderFlags_NoRoundToFormat);
     WrapDragMouse();
 
     if (!editing)
@@ -155,22 +165,24 @@ inline bool DragValue(const char* id, float* v, float width, float speed, float 
             formatTrimmed(buf, *v);
         }
 
-        ImFont* face = monoFont ? monoFont : ImGui::GetFont();
-        const float faceSize = face->LegacySize;
-        const ImVec2 sz = face->CalcTextSizeA(faceSize, FLT_MAX, 0.0f, buf);
+        ScopedFont face{monoFont ? monoFont : ImGui::GetFont()};
+        const ImVec2 sz = ImGui::CalcTextSize(buf);
         const float pad = ImGui::GetStyle().FramePadding.x;
-        ImDrawList* dl = ImGui::GetWindowDrawList();
         const float w = ImGui::GetItemRectSize().x;
-        dl->PushClipRect({p.x + AxisBarWidth, p.y}, {p.x + w - pad * 0.5f, p.y + h}, true);
-        dl->AddText(face, faceSize, {p.x + w - pad - sz.x, p.y + (h - sz.y) * 0.5f},
-                    ImGui::GetColorU32(ImGuiCol_Text), buf);
-        dl->PopClipRect();
+        const float left = p.x + AxisBarWidth + pad * 0.5f;
+        const float right = p.x + w - pad * 0.5f;
+        const ImVec2 at{std::max(left, p.x + w - pad - sz.x), p.y + (h - sz.y) * 0.5f};
+        ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), at, {right, p.y + h}, right, buf,
+                                  nullptr, &sz);
+        if (at.x + sz.x > right && ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", buf);
     }
     return changed;
 }
 
-inline bool DragFloatAxis(const char* id, float* v, int axis, float width, float speed,
-                          float min = 0.0f, float max = 0.0f)
+template <typename T>
+bool DragFloatAxis(const char* id, T* v, int axis, float width, float speed, float min = 0.0f,
+                   float max = 0.0f)
 {
     const ImVec2 p = ImGui::GetCursorScreenPos();
     const float h = ImGui::GetFrameHeight();
@@ -182,7 +194,8 @@ inline bool DragFloatAxis(const char* id, float* v, int axis, float width, float
     return changed;
 }
 
-inline bool DragFloatN(std::span<float> v, float speed = 0.01f, float min = 0.0f, float max = 0.0f)
+template <typename T>
+bool DragFloatN(std::span<T> v, float speed = 0.01f, float min = 0.0f, float max = 0.0f)
 {
     const auto count = static_cast<float>(v.size());
     const float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
@@ -208,6 +221,11 @@ inline bool FieldDragFloat(const char* label, float* v, float speed = 1.0f, floa
 }
 
 inline bool FieldDragFloat3(const char* label, float* v, float speed = 1.0f)
+{
+    return Field(label, [=] { return DragFloatN(spanOf(v, 3), speed); });
+}
+
+inline bool FieldDragDouble3(const char* label, double* v, float speed = 1.0f)
 {
     return Field(label, [=] { return DragFloatN(spanOf(v, 3), speed); });
 }

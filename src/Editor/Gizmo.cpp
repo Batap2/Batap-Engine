@@ -566,12 +566,13 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
         return giveUp();
     f.viewDir_ = -toCam.normalized();
 
-    const auto sideScreen = f.proj_.project(f.origin_ + f.proj_.camRight_);
+    const float distance = toCam.norm();
+    const auto sideScreen = f.proj_.project(f.origin_ + f.proj_.camRight_ * distance);
     if (!sideScreen)
         return giveUp();
 
-    f.pixelsPerUnit_ = (*sideScreen - f.originScreen_).norm();
-    if (f.pixelsPerUnit_ < 1e-3f)
+    f.pixelsPerUnit_ = (*sideScreen - f.originScreen_).norm() / distance;
+    if (!(f.pixelsPerUnit_ > 0.f))
         return giveUp();
     f.axisLen_ = kAxisPixels / f.pixelsPerUnit_;
 

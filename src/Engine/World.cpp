@@ -166,7 +166,8 @@ void World::update(Game& game)
 {
     systems_->cascadeLights_->enforce(registry_);
     const float dt = time_.paused_ ? 0.f : ctx_->deltaTime_ * time_.scale_;
-    time_.accumulator_ += std::min(dt, 0.25f);
+    time_.accumulator_ +=
+        std::min(dt, time_.fixedDt_ * static_cast<float>(time_.maxStepsPerFrame_));
     while (time_.accumulator_ >= time_.fixedDt_)
     {
         time_.simTime_ += static_cast<double>(time_.fixedDt_);
@@ -205,6 +206,14 @@ DebugDraw& World::debug()
 DebugDraw& World::debugOverlay()
 {
     return ctx_->debugOverlay();
+}
+
+bool World::flag(std::string_view name, bool initial)
+{
+    if (const auto it = flags_.find(name); it != flags_.end())
+        return it->second;
+    flags_.try_emplace(std::string(name), initial);
+    return initial;
 }
 
 Billboards& World::billboards()

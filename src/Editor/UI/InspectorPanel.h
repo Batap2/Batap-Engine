@@ -17,7 +17,7 @@ struct InspectorPanel
 
   private:
     void drawHeader(EntityHandle ent);
-    void drawTransform(EntityHandle ent);
+    void drawTransform(World& world, EntityHandle ent);
     void drawMesh(EntityHandle ent, App& app);
     void drawMaterials(EntityHandle ent, App& app);
     void drawSkybox(EntityHandle ent, App& app);
@@ -26,7 +26,13 @@ struct InspectorPanel
     // add menu: registry components minus markers and those already present
     void drawAddComponent(EntityHandle ent, World& world, App& app);
 
-    bool worldSpace_ = false;
+    enum struct TransformSpace
+    {
+        Local,
+        Origin,
+        World
+    };
+    TransformSpace space_ = TransformSpace::Local;
 
     // Cache for euler rotation
     std::optional<EntityHandle> rotationEditEntity_;

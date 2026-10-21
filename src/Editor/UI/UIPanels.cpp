@@ -548,6 +548,10 @@ void UIPanels::drawViewMenu(World& world, App& app)
     ImGui::MenuItem("Shadow cascades", nullptr, &world.showShadowCascades_);
     ImGui::MenuItem("RT first hit", nullptr, &world.showRtFirstHit_);
     ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
+    if (!world.flags_.empty())
+        ImGui::Separator();
+    for (auto& [name, on] : world.flags_)
+        ImGui::MenuItem(name.c_str(), nullptr, &on);
 }
 
 void UIPanels::drawEditorOptions(World& world, App& app)
