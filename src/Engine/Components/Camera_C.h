@@ -14,7 +14,6 @@ struct Camera_C
 
     bool active_ = false;
     float znear_ = 0.1f;
-    float zfar_ = 1000;
     float fov_ = 1;
 
     // aspect = width / height
@@ -26,8 +25,7 @@ struct Camera_C
 // matching what scenes on disk already use — the leading '_' is stripped.
 static_assert(refl::fieldName<Camera_C, 0>() == "active");
 static_assert(refl::fieldName<Camera_C, 1>() == "znear");
-static_assert(refl::fieldName<Camera_C, 2>() == "zfar");
-static_assert(refl::fieldName<Camera_C, 3>() == "fov");
+static_assert(refl::fieldName<Camera_C, 2>() == "fov");
 
 BATAP_COMPONENT(Camera_C, "camera",
                 ComponentMeta{.color = ComponentColor::Blue,

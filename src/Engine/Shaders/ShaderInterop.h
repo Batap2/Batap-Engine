@@ -103,7 +103,7 @@ struct CameraGPUData
     float3 pos_;
     float znear_;
     float3 right_;
-    float zfar_;
+    float pad0_;
     float3 up_;
     float fov_;
     float3 fwd_;

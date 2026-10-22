@@ -57,11 +57,6 @@ struct DebugDraw
     void capsule(const transform& xform, float halfHeight, float radius, const col3& color,
                  float seconds = 0.f);
 
-    // The matrix is projective, unlike every other shape: the unit cube is
-    // dragged back through the inverse clip transform, so the vertex shader
-    // has to divide by w.
-    void frustum(const m4f& invViewProj, const col3& color, float seconds = 0.f);
-
     // Drops what this frame drew and what has run out of time. Called once the
     // frame has been handed to the renderer.
     void endFrame(float dt);

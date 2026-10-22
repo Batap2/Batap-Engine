@@ -83,7 +83,8 @@ Frustum frustumOf(const m4f& viewProj)
     const v4f r3 = viewProj.row(3).transpose();
     Frustum planes{r3 + r0, r3 - r0, r3 + r1, r3 - r1, r2, r3 - r2};
     for (v4f& plane : planes)
-        plane /= plane.head<3>().norm();
+        if (const float n = plane.head<3>().norm(); n > 0.f)
+            plane /= n;
     return planes;
 }
 

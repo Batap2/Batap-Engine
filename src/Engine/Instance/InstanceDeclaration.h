@@ -169,7 +169,6 @@ struct CameraInstance
     {
         const Camera_C& cam = in.marker();
         out.znear_ = cam.znear_;
-        out.zfar_ = cam.zfar_;
         out.fov_ = cam.fov_;
 
         auto* trans = in.get<Transform_C>();

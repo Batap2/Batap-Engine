@@ -7,11 +7,14 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <array>
 #include <cfloat>
+#include <charconv>
 #include <cmath>
 #include <cstddef>
 #include <span>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
 
 namespace batap::ui
@@ -23,7 +26,54 @@ std::span<T> spanOf(T* p, size_t count)
 {
     return {p, count};
 }
+
+template <typename T>
+std::string_view formatVec(std::span<const T> v, std::span<char> out)
+{
+    size_t len = 0;
+    for (size_t i = 0; i < v.size(); ++i)
+    {
+        if (i > 0 && len + 2 < out.size())
+        {
+            out[len++] = ',';
+            out[len++] = ' ';
+        }
+        const auto res = std::to_chars(out.data() + len, out.data() + out.size() - 1, v[i]);
+        if (res.ec != std::errc{})
+            break;
+        len = static_cast<size_t>(res.ptr - out.data());
+    }
+    out[len] = '\0';
+    return {out.data(), len};
+}
+
+inline bool parseVec(std::string_view src, std::span<double> out)
+{
+    if (src.size() > 4096)
+        return false;
+
+    size_t n = 0;
+    const char* it = src.data();
+    const char* const end = it + src.size();
+    while (it != end)
+    {
+        double value = 0.0;
+        const auto res = std::from_chars(it, end, value);
+        if (res.ec == std::errc::invalid_argument)
+        {
+            ++it;
+            continue;
+        }
+        if (res.ec != std::errc{} || !std::isfinite(value) || n == out.size())
+            return false;
+        out[n++] = value;
+        it = res.ptr;
+    }
+    return n == out.size();
+}
 #pragma clang diagnostic pop
+
+inline constexpr const char* FieldLabelHoverKey = "##labelhover";
 
 struct BeginFields
 {
@@ -79,6 +129,7 @@ auto Field(const char* label, Fn&& drawWidget) -> decltype(drawWidget())
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", label);
     }
+    ImGui::GetStateStorage()->SetBool(ImGui::GetID(FieldLabelHoverKey), ImGui::IsItemHovered());
     ImGui::TableSetColumnIndex(1);
     return drawWidget();
 }
@@ -195,6 +246,43 @@ bool DragFloatAxis(const char* id, T* v, int axis, float width, float speed, flo
 }
 
 template <typename T>
+bool VecClipboardMenu(std::span<T> v, bool hovered)
+{
+    IM_ASSERT(v.size() <= 4);
+    const char* const popup = "##vecclip";
+    if (hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right) &&
+        !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        ImGui::OpenPopup(popup);
+    if (!ImGui::BeginPopup(popup))
+        return false;
+
+    std::array<char, 128> buf{};
+    if (ImGui::MenuItem("Copy"))
+        ImGui::SetClipboardText(formatVec(std::span<const T>{v}, buf).data());
+
+    std::array<double, 4> parsed{};
+    const char* clip = ImGui::GetClipboardText();
+    const bool canPaste = clip && parseVec(clip, std::span<double>{parsed}.first(v.size()));
+    std::array<T, 4> values{};
+    const std::span<T> incoming = std::span<T>{values}.first(v.size());
+    if (canPaste)
+    {
+        for (size_t i = 0; i < v.size(); ++i)
+            incoming[i] = static_cast<T>(parsed[i]);
+        formatVec(std::span<const T>{incoming}, buf);
+    }
+
+    bool changed = false;
+    if (ImGui::MenuItem("Paste", canPaste ? buf.data() : nullptr, false, canPaste))
+    {
+        std::copy(incoming.begin(), incoming.end(), v.begin());
+        changed = true;
+    }
+    ImGui::EndPopup();
+    return changed;
+}
+
+template <typename T>
 bool DragFloatN(std::span<T> v, float speed = 0.01f, float min = 0.0f, float max = 0.0f)
 {
     const auto count = static_cast<float>(v.size());
@@ -202,14 +290,16 @@ bool DragFloatN(std::span<T> v, float speed = 0.01f, float min = 0.0f, float max
     const float w = (ImGui::GetContentRegionAvail().x - spacing * (count - 1.0f)) / count;
 
     bool changed = false;
+    bool hovered = ImGui::GetStateStorage()->GetBool(ImGui::GetID(FieldLabelHoverKey));
     for (size_t i = 0; i < v.size(); ++i)
     {
         if (i > 0)
             ImGui::SameLine(0.0f, spacing);
         ScopedID id{static_cast<int>(i)};
         changed |= DragFloatAxis("##v", &v[i], static_cast<int>(i), w, speed, min, max);
+        hovered |= ImGui::IsItemHovered();
     }
-    return changed;
+    return VecClipboardMenu(v, hovered) || changed;
 }
 
 inline bool FieldDragFloat(const char* label, float* v, float speed = 1.0f, float min = 0.0f,

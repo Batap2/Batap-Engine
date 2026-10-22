@@ -67,7 +67,7 @@ auto camState(const v3f& pos, const FreeCamController_C& ctrl, const Camera_C& v
     return std::tuple{pos.x(),          pos.y(),          pos.z(),          ctrl.yaw_,
                       ctrl.pitch_,      ctrl.moveSpeed_,  ctrl.boostSpeed_, ctrl.mouseSensitivity_,
                       ctrl.frame_.x(),  ctrl.frame_.y(),  ctrl.frame_.z(),  ctrl.frame_.w(),
-                      view.fov_,        view.znear_,      view.zfar_};
+                      view.fov_,        view.znear_};
 }
 }  // namespace
 
@@ -126,7 +126,6 @@ void App::applyEditorCamera()
     Camera_C& view = cam.get<Camera_C>();
     view.fov_ = editorCamView_.fov_;
     view.znear_ = editorCamView_.znear_;
-    view.zfar_ = editorCamView_.zfar_;
     cam.setLocalPosition(editorCamPos_);
     cam.setLocalRotation(editorCamRot_);
     world_->instances().markDirty<Camera_C>(cam);
@@ -159,7 +158,6 @@ void App::syncEditorCamera()
         editorCamCtrl_.requireRightMouseButton_ = true;
         editorCamView_.fov_ = view.fov_;
         editorCamView_.znear_ = view.znear_;
-        editorCamView_.zfar_ = view.zfar_;
     }
 
     world_->setRenderCamera(playing_ ? entt::null : cam.entity_);
@@ -366,7 +364,7 @@ void App::saveConfig()
     file.recent = recentProjects_;
     file.camera = {editorCamCtrl_.moveSpeed_,        editorCamCtrl_.boostSpeed_,
                    editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_,
-                   editorCamView_.znear_,            editorCamView_.zfar_};
+                   editorCamView_.znear_};
     file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_,
                  editorCamCtrl_.frame_};
     file.hasPose = true;
@@ -386,7 +384,7 @@ void App::loadProjectCamera()
     editorConfig::File file;
     file.camera = {editorCamCtrl_.moveSpeed_,        editorCamCtrl_.boostSpeed_,
                    editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_,
-                   editorCamView_.znear_,            editorCamView_.zfar_};
+                   editorCamView_.znear_};
     editorConfig::read(file, projectDir_, {});
 
     editorCamCtrl_.moveSpeed_ = file.camera.moveSpeed;
@@ -394,7 +392,6 @@ void App::loadProjectCamera()
     editorCamCtrl_.mouseSensitivity_ = file.camera.mouseSensitivity;
     editorCamView_.fov_ = file.camera.fov;
     editorCamView_.znear_ = file.camera.znear;
-    editorCamView_.zfar_ = file.camera.zfar;
 
     applyEditorCamera();
 }

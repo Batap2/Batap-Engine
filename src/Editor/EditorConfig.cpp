@@ -119,7 +119,6 @@ void read(File& io, const std::string& projectDir, const std::string& scene)
     io.camera.mouseSensitivity = camera.value("mouseSensitivity", io.camera.mouseSensitivity);
     io.camera.fov = camera.value("fov", io.camera.fov);
     io.camera.znear = camera.value("znear", io.camera.znear);
-    io.camera.zfar = camera.value("zfar", io.camera.zfar);
 
     if (scene.empty())
         return;
@@ -159,7 +158,6 @@ void write(const File& file, const std::string& projectDir, const std::string& s
         camera["mouseSensitivity"] = file.camera.mouseSensitivity;
         camera["fov"] = file.camera.fov;
         camera["znear"] = file.camera.znear;
-        camera["zfar"] = file.camera.zfar;
 
         if (file.hasPose && !scene.empty())
         {

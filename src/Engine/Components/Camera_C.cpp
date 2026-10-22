@@ -12,21 +12,20 @@ void Camera_C::afterDeserialize(EntityHandle h, World&)
 
 m4f Camera_C::make_proj(float aspect) const
 {
-    if (aspect <= 0.0f || znear_ <= 0.0f || zfar_ <= znear_ || fov_ <= 0.0f)
+    if (aspect <= 0.0f || znear_ <= 0.0f || fov_ <= 0.0f)
         return m4f::Identity();
 
     const float f = 1.0f / std::tan(fov_ * 0.5f);
-    const float nf = 1.0f / (zfar_ - znear_);
 
     m4f m = m4f::Zero();
 
-    // RH coordinate system, forward is -Z. Reversed Z: NDC z = 1 at znear_,
-    // 0 at zfar_; the scene passes clear the depth to 0 and test GREATER.
+    // RH coordinate system, forward is -Z. Reversed Z with no far plane:
+    // NDC z = znear_ / depth, 1 at znear_, 0 at infinity; the scene passes
+    // clear the depth to 0 and test GREATER.
     m(0, 0) = f / aspect;
     m(1, 1) = f;
 
-    m(2, 2) = znear_ * nf;
-    m(2, 3) = (zfar_ * znear_) * nf;
+    m(2, 3) = znear_;
     m(3, 2) = -1.0f;
 
     return m;

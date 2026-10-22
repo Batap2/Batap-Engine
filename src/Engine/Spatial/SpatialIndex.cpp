@@ -24,6 +24,8 @@ void SpatialIndex::connectHooks(entt::registry& reg)
 
 namespace
 {
+constexpr float kPickRange = 1e8f;
+
 entt::entity renderCameraOf(entt::registry& reg)
 {
     World** world = reg.ctx().find<World*>();
@@ -189,10 +191,10 @@ Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos)
         return {};
 
     const Camera_C& camC = reg.get<Camera_C>(cam);
-    const Transform_C& camT = reg.get<Transform_C>(cam);
+    const transform& camWorld = reg.get<Transform_C>(cam).world();
 
     const float aspect = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
-    const m4f invViewProj = (camC.make_proj(aspect) * camC.make_view(camT.world())).inverse();
+    const m4f proj = camC.make_proj(aspect);
 
     // The scene is drawn through a negative-height viewport, so NDC +Y is the
     // top of the screen.
@@ -200,21 +202,14 @@ Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos)
     const float ndcX = 2.f * local.x() / static_cast<float>(frameSize.x()) - 1.f;
     const float ndcY = 1.f - 2.f * local.y() / static_cast<float>(frameSize.y());
 
-    const auto unproject = [&](float ndcZ)
-    {
-        const v4f p = invViewProj * v4f(ndcX, ndcY, ndcZ, 1.f);
-        return v3f(p.head<3>() / p.w());
-    };
-
-    // Reversed Z (Camera_C::make_proj): the near plane is NDC z = 1.
-    const v3f nearPoint = unproject(1.f);
-    const v3f farPoint = unproject(0.f);
-    const v3f delta = farPoint - nearPoint;
-    const float length = delta.norm();
-    if (length <= 0.f)
-        return {};
-
-    return Ray{nearPoint, delta / length, 0.f, length};
+    // Through the camera basis, like SkyPS: the projection has no far plane
+    // to unproject.
+    const v3f right = camWorld.linear().col(0).normalized();
+    const v3f up = camWorld.linear().col(1).normalized();
+    const v3f fwd = -camWorld.linear().col(2).normalized();
+    const v3f dir = (right * (ndcX / proj(0, 0)) + up * (ndcY / proj(1, 1)) + fwd).normalized();
+    const v3f nearPoint = camWorld.translation() + dir * (camC.znear_ / dir.dot(fwd));
+    return Ray{nearPoint, dir, 0.f, kPickRange};
 }
 
 Ray rayFromScreen(World& world, Engine& ctx, const v2i& screenPos)

@@ -652,7 +652,6 @@ void UIPanels::drawCameraOptions(World& world, App& app)
 
         bool camChanged = ui::FieldDragFloat("FOV", &camera->fov_, 0.01f, 0.01f, 3.14f);
         camChanged |= ui::FieldDragFloat("Near", &camera->znear_, 0.01f, 0.001f, 10.0f);
-        camChanged |= ui::FieldDragFloat("Far", &camera->zfar_, 1.0f, 1.0f, 1e6f);
         if (camChanged)
             world.instances().markDirty<Camera_C>(cam);
 

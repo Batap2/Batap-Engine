@@ -38,7 +38,6 @@ struct Camera
     float mouseSensitivity = 0.f;
     float fov = 0.f;
     float znear = 0.f;
-    float zfar = 0.f;
 };
 
 struct Pose

@@ -104,16 +104,6 @@ void DebugDraw::capsule(const transform& xform, float halfHeight, float radius, 
     pushShape(Shape::CylinderSide, side.matrix(), color, seconds);
 }
 
-void DebugDraw::frustum(const m4f& invViewProj, const col3& color, float seconds)
-{
-    // The unit cube spans [-1, 1] on every axis; Vulkan clip space wants z in
-    // [0, 1], hence the half-depth remap before the inverse clip transform.
-    m4f ndcFromUnitCube = m4f::Identity();
-    ndcFromUnitCube(2, 2) = 0.5f;
-    ndcFromUnitCube(2, 3) = 0.5f;
-    pushShape(Shape::Box, invViewProj * ndcFromUnitCube, color, seconds);
-}
-
 void DebugDraw::endFrame(float dt)
 {
     time_ += dt;
@@ -122,12 +112,11 @@ void DebugDraw::endFrame(float dt)
         std::erase_if(shape, [this](const ShapeRecord& r) { return r.expiry_ <= time_; });
 }
 
-// Through the last row, so the projective frustum moves like the others.
 void DebugDraw::shift(const v3f& by)
 {
     for (auto& shape : shapes_)
         for (ShapeRecord& r : shape)
-            r.world_.topRows<3>() += by * r.world_.row(3);
+            r.world_.block<3, 1>(0, 3) += by;
 }
 
 }  // namespace batap
