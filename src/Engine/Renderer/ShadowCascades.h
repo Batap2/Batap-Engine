@@ -42,9 +42,9 @@ struct CascadeSphere
     // Row z is the lattice axis, pointing at the light.
     m3f lightFrame_{m3f::Identity()};
     v3f lightPos_{v3f::Zero()};
-    // On the gnomonic plane, in whole steps; in light-frame metres when
-    // directional, depthNear_ then the higher z. Double: at a star's distance
-    // a float step is longer than the sphere.
+    // On the gnomonic plane, in whole steps; in light-frame metres from
+    // lightPos_ when directional, depthNear_ then the higher z. Double: at a
+    // star's distance a float step is longer than the sphere.
     v2d window_{v2d::Zero()};
     double depthNear_ = 0.0;
     double depthFar_ = 0.0;

@@ -59,6 +59,8 @@ struct Billboards
     // Call after the frame has been handed to the renderer.
     void endFrame(float dt);
 
+    void shift(const v3f& by);
+
     const std::vector<Record>& records() const { return records_; }
 
    private:

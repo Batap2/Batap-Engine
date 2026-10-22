@@ -84,4 +84,10 @@ void Billboards::endFrame(float dt)
     std::erase_if(records_, [this](const Record& r) { return r.expiry_ <= time_; });
 }
 
+void Billboards::shift(const v3f& by)
+{
+    for (Record& r : records_)
+        r.pos_ += by;
+}
+
 }  // namespace batap

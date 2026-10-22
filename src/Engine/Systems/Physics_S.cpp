@@ -381,6 +381,12 @@ void Physics_S::collectContacts(World& world)
     }
 }
 
+void Physics_S::shift(const v3f& by)
+{
+    for (ContactEvent& ev : events_)
+        ev.point_ += by;
+}
+
 void Physics_S::drawColliders(World& world)
 {
     if (!showColliders_)

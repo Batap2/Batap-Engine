@@ -297,6 +297,8 @@ void App::startPlay()
     if (playing_)
         return;
     playSnapshot_ = EntitySerializer::toBuffer(*world_, *ctx_);
+    playCamPos_ = editorCamPos_;
+    playCamRot_ = editorCamRot_;
     playing_ = true;
     if (game_)
         game_->init(*world_);
@@ -310,6 +312,10 @@ void App::stopPlay()
     world_->resetScene();
     EntitySerializer::clearSceneAndLoadBuffer(*world_, *ctx_, playSnapshot_);
     playSnapshot_.clear();
+    // The game's recentrings (World::shiftFrame) carried the editor camera
+    // along with the frame; the snapshot has just put the frame back.
+    editorCamPos_ = playCamPos_;
+    editorCamRot_ = playCamRot_;
     // Every EntityHandle from before the reload is dead.
     uiPanels_.clearSelection();
 }

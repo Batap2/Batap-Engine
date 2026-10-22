@@ -60,6 +60,8 @@ struct App
     quatf editorCamRot_ = quatf::Identity();
     FreeCamController_C editorCamCtrl_;
     Camera_C editorCamView_;
+    v3f playCamPos_{v3f::Zero()};
+    quatf playCamRot_ = quatf::Identity();
 
     void setScenePath(std::string path);
     std::string sceneKey() const;

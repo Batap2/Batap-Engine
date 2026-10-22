@@ -35,6 +35,7 @@ struct Physics_S
     // Contacts of the last step: fixedUpdate fills them after stepping, so the
     // game reads them on the following tick.
     const std::vector<ContactEvent>& contacts() const { return events_; }
+    void shift(const v3f& by);
 
    private:
     void onRigidBodyDestroyed(entt::registry& reg, entt::entity e);

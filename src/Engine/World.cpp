@@ -23,6 +23,7 @@
 #include <Jolt/Physics/Collision/RayCast.h>
 
 #include "Physics/JoltConvert.h"
+#include "Renderer/Billboards.h"
 #include "Renderer/DebugDraw.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneBinding.h"
@@ -165,12 +166,15 @@ void World::shiftFrame(const v3f& by)
     for (auto [e, rb] : registry_.view<RigidBody_C>().each())
         rb.prevPos_ += by;
     physics_->shift(by);
+    systems_->physics_->shift(by);
     debug().shift(by);
     debugOverlay().shift(by);
+    billboards().shift(by);
     origin_.offset_ -= by.cast<double>();
     origin_.pos_ -= by.cast<double>();
     // Or world() stays a frame behind for whoever reads it before the flush.
     systems_->transforms_->update(registry_, *instanceManager_);
+    markSpatialDirty();
 }
 
 v3f World::gravity() const

@@ -46,12 +46,14 @@ v3d quantizedAxis(const v3d& a)
 }
 
 // The window holds the sphere plus the half texel its centre is rounded by.
-void fitDirectional(CascadeSphere& s, const m3f& frame, double radius)
+// Lattice from the light, not from the origin: World::shiftFrame moves the
+// origin under the scene by whole kilometres, and the light with the scene.
+void fitDirectional(CascadeSphere& s, const m3f& frame, double radius, const v3f& lightPos)
 {
     const double halfTile = static_cast<double>(CascadeTileSize) * 0.5;
     const float texel = static_cast<float>(radius / (halfTile - 0.5));
     const double texelD = static_cast<double>(texel);
-    const v3d p = frame.cast<double>() * s.center_.cast<double>();
+    const v3d p = frame.cast<double>() * (s.center_.cast<double>() - lightPos.cast<double>());
     const v3d snapped = (p / texelD).array().round().matrix() * texelD;
 
     s.radius_ = static_cast<float>(radius);
@@ -59,6 +61,7 @@ void fitDirectional(CascadeSphere& s, const m3f& frame, double radius)
     s.lightDistance_ = std::numeric_limits<float>::infinity();
     s.directional_ = true;
     s.lightFrame_ = frame;
+    s.lightPos_ = lightPos;
     s.window_ = snapped.head<2>();
     s.depthNear_ = snapped.z() + radius * kDepthMargin;
     s.depthFar_ = snapped.z() - radius * kDepthMargin;
@@ -115,7 +118,7 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
 
         if (directional)
         {
-            fitDirectional(s, sunFrame, static_cast<double>(r));
+            fitDirectional(s, sunFrame, static_cast<double>(r), in.lightPos_);
             continue;
         }
 
@@ -162,8 +165,7 @@ m4d cascadeViewProjExact(const CascadeSphere& s, const v3d& origin)
 
     if (s.directional_)
     {
-        // x = (p + origin - window) / halfWidth; depth 0 on the light's side.
-        const v3d o = frame * origin;
+        const v3d o = frame * (origin - s.lightPos_.cast<double>());
         const double depthSpan = s.depthNear_ - s.depthFar_;
         m4d vp = m4d::Zero();
         vp.block<1, 3>(0, 0) = frame.row(0) / halfWidth;
