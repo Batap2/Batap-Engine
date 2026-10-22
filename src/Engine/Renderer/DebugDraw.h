@@ -65,6 +65,7 @@ struct DebugDraw
     // Drops what this frame drew and what has run out of time. Called once the
     // frame has been handed to the renderer.
     void endFrame(float dt);
+    void shift(const v3f& by);
 
     const std::vector<ShapeRecord>& shapes(Shape shape) const
     {

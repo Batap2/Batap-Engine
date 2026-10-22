@@ -23,6 +23,7 @@
 #include <Jolt/Physics/Collision/RayCast.h>
 
 #include "Physics/JoltConvert.h"
+#include "Renderer/DebugDraw.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/SceneBinding.h"
 #include "Serialization/EntitySerializer.h"
@@ -30,6 +31,7 @@
 #include "Systems/Camera_S.h"
 #include "Systems/CascadeLight_S.h"
 #include "Systems/Character_S.h"
+#include "Systems/Hierarchy_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Terrain_S.h"
@@ -147,6 +149,28 @@ void World::setGravity(const v3f& g)
 void World::setMaxBodySpeed(float speed)
 {
     physics_->setMaxBodySpeed(speed);
+}
+
+void World::shiftFrame(const v3f& by)
+{
+    Transform_S& transforms = *systems_->transforms_;
+    for (auto [e, tc] : registry_.view<Transform_C>().each())
+    {
+        const entt::entity p = Hierarchy_S::getParent({&registry_, e});
+        if (p != entt::null && registry_.all_of<Transform_C>(p))
+            continue;
+        // Not through EntityHandle: its setters teleport the body awake.
+        transforms.setLocalPosition({&registry_, e}, tc.pos() + by);
+    }
+    for (auto [e, rb] : registry_.view<RigidBody_C>().each())
+        rb.prevPos_ += by;
+    physics_->shift(by);
+    debug().shift(by);
+    debugOverlay().shift(by);
+    origin_.offset_ -= by.cast<double>();
+    origin_.pos_ -= by.cast<double>();
+    // Or world() stays a frame behind for whoever reads it before the flush.
+    systems_->transforms_->update(registry_, *instanceManager_);
 }
 
 v3f World::gravity() const

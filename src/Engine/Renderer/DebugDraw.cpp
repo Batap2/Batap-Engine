@@ -122,4 +122,12 @@ void DebugDraw::endFrame(float dt)
         std::erase_if(shape, [this](const ShapeRecord& r) { return r.expiry_ <= time_; });
 }
 
+// Through the last row, so the projective frustum moves like the others.
+void DebugDraw::shift(const v3f& by)
+{
+    for (auto& shape : shapes_)
+        for (ShapeRecord& r : shape)
+            r.world_.topRows<3>() += by * r.world_.row(3);
+}
+
 }  // namespace batap

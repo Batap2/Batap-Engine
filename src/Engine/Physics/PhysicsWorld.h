@@ -51,6 +51,8 @@ struct PhysicsWorld
                                            JPH::RVec3Arg pos, JPH::QuatArg rot);
     void destroyCharacter(uint32_t key);
 
+    void shift(const v3f& by);
+
     // Constraints are keyed and owned here for one reason: they must leave the
     // PhysicsSystem before the bodies they hold, and clear() is where that is
     // known. listener is for the constraints that are also step listeners.

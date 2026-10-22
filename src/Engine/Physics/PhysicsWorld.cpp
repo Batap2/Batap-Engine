@@ -1,5 +1,8 @@
 #include "Physics/PhysicsWorld.h"
 
+#include "Physics/JoltConvert.h"
+#include "Physics/PhysicsLayers.h"
+
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
 #include <Jolt/RegisterTypes.h>
@@ -83,6 +86,23 @@ JPH::CharacterVirtual& PhysicsWorld::createCharacter(uint32_t key,
 void PhysicsWorld::destroyCharacter(uint32_t key)
 {
     characters_.erase(key);
+}
+
+void PhysicsWorld::shift(const v3f& by)
+{
+    JPH::BodyInterface& bi = bodies();
+    JPH::BodyIDVector ids;
+    system_.GetBodies(ids);
+    for (const JPH::BodyID id : ids)
+        bi.SetPosition(id, bi.GetPosition(id) + toJolt(by), JPH::EActivation::DontActivate);
+
+    for (auto& [key, character] : characters_)
+    {
+        character->SetPosition(character->GetPosition() + toJolt(by));
+        character->RefreshContacts(system_.GetDefaultBroadPhaseLayerFilter(objectLayers::Moving),
+                                   system_.GetDefaultLayerFilter(objectLayers::Moving), {}, {},
+                                   tempAllocator_);
+    }
 }
 
 JPH::Constraint* PhysicsWorld::constraint(uint32_t key)

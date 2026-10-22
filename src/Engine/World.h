@@ -72,6 +72,7 @@ struct World
     void setGravity(const v3f& g);
     v3f gravity() const;
     void setMaxBodySpeed(float speed);
+    void shiftFrame(const v3f& by);
     bool loadScene(const std::string& path);
 
     // Replaces the registry itself: its per-type storages hold code pointers
