@@ -92,8 +92,9 @@ static nlohmann::json sceneToJson(World& world, const Engine& ctx)
     const FieldIO io{ctx, order};
     nlohmann::json root;
     root["time"] = world.time_.simTime_;
-    const v3d& origin = world.origin_.pos_;
-    root["origin"] = {origin.x(), origin.y(), origin.z()};
+    const Origin& origin = world.origin_;
+    root["origin"] = {origin.pos_.x(), origin.pos_.y(), origin.pos_.z()};
+    root["originOffset"] = {origin.offset_.x(), origin.offset_.y(), origin.offset_.z()};
     root["originAnchor"] = nlohmann::json(nullptr);
     if (auto it = indexMap.find(entt::to_integral(world.origin_.anchor_)); it != indexMap.end())
         root["originAnchor"] = it->second;
@@ -245,12 +246,22 @@ static std::vector<entt::entity> populateWorld(World& world, const Engine& ctx,
 
 static Origin originOf(const nlohmann::json& root, const std::vector<entt::entity>& created)
 {
+    const auto vec3 = [&](const char* key, v3d& out)
+    {
+        const auto it = root.find(key);
+        if (it == root.end() || !it->is_array() || it->size() != 3)
+            return false;
+        out = {(*it)[0].get<double>(), (*it)[1].get<double>(), (*it)[2].get<double>()};
+        return true;
+    };
     Origin o;
-    if (const auto it = root.find("origin"); it != root.end() && it->is_array() && it->size() == 3)
-        o.pos_ = {(*it)[0].get<double>(), (*it)[1].get<double>(), (*it)[2].get<double>()};
+    vec3("origin", o.pos_);
     if (const auto it = root.find("originAnchor"); it != root.end() && it->is_number_integer())
         if (const auto i = it->get<int64_t>(); i >= 0 && static_cast<size_t>(i) < created.size())
             o.anchor_ = created[static_cast<size_t>(i)];
+    // Files from before the offset: the origin was the anchor itself.
+    if (!vec3("originOffset", o.offset_) && o.anchor_ == entt::null)
+        o.offset_ = o.pos_;
     return o;
 }
 
