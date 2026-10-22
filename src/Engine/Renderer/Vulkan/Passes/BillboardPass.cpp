@@ -38,7 +38,7 @@ void BillboardPass::buildPipelines(const ShaderModules& modules)
     pipeline_ = GraphicsPipelineBuilder()
                     .shaders(modules[BillboardVS], modules[BillboardPS])
                     .colorFormat(setup_.colorFormat_)
-                    .depth(setup_.depthFormat_, true, VK_COMPARE_OP_LESS)
+                    .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
                     .build(setup_.ctx_.device_, setup_.layout_);
 }
 

@@ -30,7 +30,7 @@ void GeometryPass::buildPipelines(const ShaderModules& modules)
             .vertexAttribute(Mesh::UV0, VK_FORMAT_R32G32_SFLOAT, 8)
             .vertexAttribute(Mesh::Tangent, VK_FORMAT_R32G32B32A32_SFLOAT, 16)
             .colorFormat(setup_.colorFormat_)
-            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_LESS)
+            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
             .cullBack()
             .build(setup_.ctx_.device_, layout);
     };

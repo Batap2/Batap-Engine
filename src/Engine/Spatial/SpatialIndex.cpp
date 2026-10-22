@@ -206,8 +206,9 @@ Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos)
         return v3f(p.head<3>() / p.w());
     };
 
-    const v3f nearPoint = unproject(0.f);
-    const v3f farPoint = unproject(1.f);
+    // Reversed Z (Camera_C::make_proj): the near plane is NDC z = 1.
+    const v3f nearPoint = unproject(1.f);
+    const v3f farPoint = unproject(0.f);
     const v3f delta = farPoint - nearPoint;
     const float length = delta.norm();
     if (length <= 0.f)

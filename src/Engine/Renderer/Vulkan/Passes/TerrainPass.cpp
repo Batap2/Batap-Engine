@@ -61,7 +61,7 @@ void TerrainPass::buildPipelines(const ShaderModules& modules)
         return GraphicsPipelineBuilder()
             .shaders(modules[TerrainVS], pixelShader)
             .colorFormat(setup_.colorFormat_)
-            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_LESS)
+            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
             .cullBack()
             .build(setup_.ctx_.device_, layout);
     };

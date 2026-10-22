@@ -52,7 +52,7 @@ void DebugPass::buildPipelines(const ShaderModules& modules)
         if (layers_[i].pipeline_)
             vkDestroyPipeline(setup_.ctx_.device_, layers_[i].pipeline_, nullptr);
 
-        const VkCompareOp compare = i == 0 ? VK_COMPARE_OP_LESS_OR_EQUAL : VK_COMPARE_OP_ALWAYS;
+        const VkCompareOp compare = i == 0 ? VK_COMPARE_OP_GREATER_OR_EQUAL : VK_COMPARE_OP_ALWAYS;
         layers_[i].pipeline_ = GraphicsPipelineBuilder()
                                    .shaders(modules[DebugVS], modules[DebugPS])
                                    .topology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST)

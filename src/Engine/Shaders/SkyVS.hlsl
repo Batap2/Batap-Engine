@@ -12,7 +12,7 @@ VS_OUT main(uint vID : SV_VertexID)
     float2 ndc = uv * 2.0f - 1.0f;
 
     VS_OUT o;
-    o.pos = float4(ndc, 1.0f, 1.0f);  // z == w → depth = 1.0 after divide (far plane)
+    o.pos = float4(ndc, 0.0f, 1.0f);  // reversed Z: depth 0 is the far plane
     o.ndc = ndc;
     return o;
 }

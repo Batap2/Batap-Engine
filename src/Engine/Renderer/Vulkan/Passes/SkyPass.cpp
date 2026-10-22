@@ -18,7 +18,7 @@ void SkyPass::buildPipelines(const ShaderModules& modules)
     pipeline_ = GraphicsPipelineBuilder()
                     .shaders(modules[SkyVS], modules[SkyPS])
                     .colorFormat(setup_.colorFormat_)
-                    .depth(setup_.depthFormat_, false, VK_COMPARE_OP_LESS_OR_EQUAL)
+                    .depth(setup_.depthFormat_, false, VK_COMPARE_OP_GREATER_OR_EQUAL)
                     .build(setup_.ctx_.device_, setup_.layout_);
 }
 
