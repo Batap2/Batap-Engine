@@ -2,6 +2,7 @@
 
 #include "App.h"
 #include "EditorConfig.h"
+#include "Importers/FileImporter.h"
 #include "Platform/PlatformWindow.h"
 #include "Serialization/EntitySerializer.h"
 #include "World.h"
@@ -41,6 +42,19 @@ int runEditor(const EditorConfig& cfg)
             }
             else if (args[i] == "--select")
                 app.uiPanels_.selectByName(world, args[i + 1]);
+            else if (args[i] == "--import")
+            {
+                // Headless re-import for scripts: rewrites the engine files next
+                // to the source (give --project first) and exits.
+                const ImportResult result =
+                    importFile(args[i + 1], ImportOptions{app.projectDir_});
+                for (const std::string& file : result.writtenFiles)
+                    std::cout << "[Import] " << file << "\n";
+                if (!result)
+                    std::cerr << "[Import] failed: " << args[i + 1] << " " << result.message
+                              << "\n";
+                return result ? 0 : 1;
+            }
         }
         for (const auto& arg : args)
             if (arg == "--play")

@@ -489,7 +489,7 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
     importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, 45.0f);
 
     const unsigned flags = aiProcess_JoinIdenticalVertices | aiProcess_Triangulate |
-                           aiProcess_DropNormals | aiProcess_GenSmoothNormals;
+                           aiProcess_GenSmoothNormals;
 
     const aiScene* scene = importer.ReadFile(std::string(sourcePath), flags);
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)

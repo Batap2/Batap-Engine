@@ -620,7 +620,7 @@ void RtScene::clearCache(VkCommandBuffer cmd)
 {
     vkCmdFillBuffer(cmd, resources_.bufferFor(cache_.keys_), 0, VK_WHOLE_SIZE, 0u);
     vkCmdFillBuffer(cmd, resources_.bufferFor(cache_.values_), 0, VK_WHOLE_SIZE, 0u);
-    BarrierBatch{}.memory(Usage::TransferDst, Usage::AnyRead).flush(cmd);
+    BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderWrite).flush(cmd);
     cache_.clear_ = false;
 }
 

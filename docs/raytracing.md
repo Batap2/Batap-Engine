@@ -45,8 +45,12 @@ dit qu'une passe est « coupée » ou « disparaît », c'est en mode RT seuleme
   - *Repère local, rotation comprise* : une salle ou un vaisseau qui bouge garde
     ses cellules. C'est la différence avec SHaRC, qui indexe en monde et ne
     converge pas quand la scène bouge.
-  - *Octant de normale* : le dessus et le dessous d'une tôle ne partagent pas
-    de cellule (pas de fuite sous le châssis).
+  - *Demi-axe dominant de la normale locale* (±X, ±Y ou ±Z, 6 valeurs) : le
+    dessus et le dessous d'une tôle ne partagent pas de cellule (pas de fuite
+    sous le châssis). L'octant, prévu d'abord, a été écarté en 2.5 : sur une
+    face alignée sur un axe de l'objet, une composante de la normale vaut
+    zéro et son signe est du bruit, différent entre dérivées d'écran et
+    triangle du rayon.
   - *Niveau* : la taille croît avec la distance à la caméra, plancher 10–20 cm.
 - **Mise à jour.**
   - Un PS basse résolution (¼ × ¼) lance ses rayons primaires en ray query
@@ -738,8 +742,8 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
         Cellules de −2048 à +2047 par axe dans le repère de l'objet.
       - Vue : menu View → « GI cells », bit `DebugGiCells`, couleur = hash de
         la clé, dans `ShadeSurface` comme la vue des cascades. Et « GI
-        octants » (`DebugGiOctants`) : rouge, vert, bleu = signe de la
-        normale sur les axes X, Y, Z de l'objet.
+        sides » (`DebugGiSides`, d'abord « GI octants ») : rouge, vert, bleu
+        = axe dominant de la normale locale, clair pour +, sombre pour −.
 
       *Mesuré* sur la copie statique de `test_buggy_fusee`, frame 5000, et
       deux copies où buggy, fusée et caméra sont déplacés ensemble (levés de
@@ -762,7 +766,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Validation propre, vue active, RT actif : jeu debug (300 frames) et
       éditeur debug sur `test_buggy_fusee` (120 frames).
-- [ ] **2.5 Mise à jour, un rebond.** Un PS en ¼ × ¼ :
+- [x] **2.5 Mise à jour, un rebond.** Un PS en ¼ × ¼ :
       - rayon caméra (`TMin = znear_`, `TMax` constant de 1e8 m comme
         `RtDebugPS` : la caméra n'a plus de `zfar_`), puis rebond diffus ;
       - au second hit, l'étoile multipliée par un rayon d'ombre ;
@@ -770,6 +774,48 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Ajouter une vue debug du cache.
       *Vérif* : la vue debug montre le sol éclairé qui teinte ce qui l'entoure.
+      *Fait (2026-10-23)* :
+      - `GiUpdatePass` + `GiUpdatePS.hlsl` (variante RT), triangle plein
+        écran sur une cible RGBA8 d'un quart de la frame, avant les ombres.
+        Par pixel : rayon caméra décalé au hasard dans le pixel (graine =
+        pixel + numéro de frame), insertion de la clé du premier hit (CAS 64
+        bits, 16 sondes linéaires), rebond en cosinus autour de la normale
+        géométrique, puis au second hit `albedo × Σ étoile (couleur ×
+        intensité × atténuation × N·L × rayon d'ombre)` ; miss = π × ciel ;
+        matériau `Unlit` = π × albedo. Somme en virgule fixe (×256) plus
+        compteur, par atomiques 32 bits.
+      - `RtHit.hlsli` : la résolution du hit (triangle, normale orientée vers
+        le rayon, matériau, `GiPoint`), partagée avec `RtDebugPS`.
+      - `FrameGPUData` devient par frame (numéro de frame, taille de la
+        passe), écrit à chaque frame. Barrières `ShaderWrite` ajoutées à
+        `VulkanBarrier`.
+      - Vue View → « GI cache » (`DebugGiCache`, RT seulement) : irradiance
+        de la cellule du pixel, magenta si la cellule n'existe pas.
+      - **Clé** : l'octant est remplacé par le demi-axe dominant (voir « Cache
+        hash »), et la normale de l'écran est la normale de face orientée
+        vers la caméra (`GiFacing`), comme celle du rayon.
+
+      *Mesuré* (copie statique de `test_buggy_fusee`, RT, frame 5000, ciel
+      noir : le seul indirect est le rebond du régolithe) :
+      - Flancs de la fusée à E ≈ 0,65 (saturé par endroits), buggy ≈ 0,45,
+        contre 0,1 à 0,2 pour le sol lui-même, qui ne voit que ses pentes
+        voisines : **le sol éclairé teinte ce qui l'entoure**. Le rendu
+        normal est identique à celui de l'étape 15 de l'agrandissement : la
+        passe tourne sans toucher l'image tant que 2.6 ne lit pas le cache.
+      - Cellules vides vues par la caméra : 0,17 % de l'image avec l'octant,
+        dont 1 075 px sur la fusée et le buggy ; un test clé contre clé
+        (rayon lancé depuis le PS vers son propre point) donnait 2 632 px sur
+        5 969 en désaccord d'octant, 0 de repère ou de niveau, 7 de position.
+        Avec le demi-axe : 0,08 %, 371 px sur les objets, en mouchetures sur
+        les segments très tessellés de la fusée (dérivées d'écran aux bords
+        de triangles). Repli `EvalSH9` en 2.6.
+      - Échantillons par cellule à la frame 5000 : médiane 3 000 sur la
+        fusée, 5 000 à 10 000 sur le sol ; minimum 78.
+      - Jamais lu par la passe : `samples_` déborde après 2³² échantillons
+        et la somme après ~2³²/256 : 2.8 (vieillissement) borne les deux.
+
+      Validation propre, RT actif : jeu debug sur la copie statique (vue
+      active puis coupée), éditeur debug sur `test_buggy_fusee`.
 - [ ] **2.6 Lecture dans `ShadeSurface`.** En variante RT, la lecture du cache
       remplace `EvalSH9`. Une cellule vide retombe sur `EvalSH9`.
       *Vérif* : le dessous du buggy et les cratères reçoivent de la lumière

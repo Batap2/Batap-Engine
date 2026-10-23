@@ -137,7 +137,15 @@ static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& 
             // Gram-Schmidt orthogonalize
             v3f T = (tanSum[i] - N * N.dot(tanSum[i]));
             const float tlen = T.norm();
-            T = (tlen > 1e-6f) ? v3f(T / tlen) : v3f::UnitX();
+            if (tlen > 1e-6f)
+                T /= tlen;
+            else
+            {
+                // Collapsed UVs: the fallback must stay orthogonal to N, or the
+                // shader's Gram-Schmidt yields a zero vector (NaN normal).
+                const v3f axis = (std::abs(N.x()) < 0.9f) ? v3f::UnitX() : v3f::UnitY();
+                T = (axis - N * N.dot(axis)).normalized();
+            }
             // Handedness: +1 if B is consistent with cross(N, T)
             const float w = (N.cross(T).dot(biSum[i]) < 0.0f) ? -1.0f : 1.0f;
             tangents[i] = v4f(T.x(), T.y(), T.z(), w);

@@ -428,8 +428,15 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         color = debugTint * lerp(0.2f, 1.0f, debugLit);
     if ((g_draw.debugFlags_ & DebugGiCells) != 0u)
         color = GiDebugColor(GiCacheKey(s.gi_, GiLevel(length(s.posRel_))));
-    if ((g_draw.debugFlags_ & DebugGiOctants) != 0u)
-        color = GiOctantColor(GiOctant(s.gi_));
+    if ((g_draw.debugFlags_ & DebugGiSides) != 0u)
+        color = GiSideColor(GiSide(s.gi_));
+#if BATAP_RT
+    if ((g_draw.debugFlags_ & DebugGiCache) != 0u)
+    {
+        const uint slot = GiSlotFind(GiCacheKey(s.gi_, GiLevel(length(s.posRel_))));
+        color = slot == GiNoSlot ? float3(0.5f, 0.0f, 0.5f) : GiIrradiance(slot);
+    }
+#endif
 
     return color;
 }

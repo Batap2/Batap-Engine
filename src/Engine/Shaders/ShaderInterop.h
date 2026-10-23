@@ -65,6 +65,8 @@ struct RtInstanceGPUData
 
 // Keys are uint64, 0 = empty slot; values are fixed-point sums.
 static const uint RtCacheCapacity = 1u << 20;
+static const uint RtCacheProbes = 16u;
+static const float RtCacheScale = 256.0f;
 
 struct RtCacheValueGPUData
 {
@@ -244,8 +246,12 @@ struct FrameGPUData
     // Renderer/LtcTables.h
     uint ltcMatTexture_;
     uint ltcAmpTexture_;
+    uint frameIndex_;
+    uint giWidth_;
+    uint giHeight_;
     uint pad0_;
     uint pad1_;
+    uint pad2_;
 };
 
 struct SphereOccluderGPUData
@@ -327,7 +333,8 @@ struct DrawPush
 static const uint DebugShadowCascades = 1u;
 static const uint DebugRtFirstHit = 2u;
 static const uint DebugGiCells = 4u;
-static const uint DebugGiOctants = 8u;
+static const uint DebugGiSides = 8u;
+static const uint DebugGiCache = 16u;
 
 #ifdef __cplusplus
 
@@ -338,7 +345,7 @@ static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(DrawPush) == 32);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 16);
+static_assert(sizeof(FrameGPUData) == 32);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);

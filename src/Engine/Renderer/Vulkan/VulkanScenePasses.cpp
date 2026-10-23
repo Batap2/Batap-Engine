@@ -1,5 +1,6 @@
 #include "VulkanScenePasses.h"
 
+#include "VulkanBarrier.h"
 #include "VulkanContext.h"
 #include "VulkanPipelines.h"
 #include "VulkanResources.h"
@@ -144,6 +145,8 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
       debug_(
           PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
       rtDebug_(
+          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
+      giUpdate_(
           PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_})
 {
     localAtlas_ = resources_.createTarget(LocalAtlasSize, LocalAtlasSize, ResourceFormat::D32_FLOAT,
@@ -164,12 +167,9 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
     ltcMat_ = uploadTable(LtcMatTable, "ltc matrix table");
     ltcAmp_ = uploadTable(LtcAmpTable, "ltc amplitude table");
 
-    FrameGPUData frameData{};
-    frameData.ltcMatTexture_ = resources_.textureIndex(ltcMat_);
-    frameData.ltcAmpTexture_ = resources_.textureIndex(ltcAmp_);
-    frameConstants_ = resources_.createStaticBuffer(sizeof(FrameGPUData), "frame constants");
-    std::memcpy(resources_.requestUpload(frameConstants_, sizeof(FrameGPUData)).data(), &frameData,
-                sizeof(FrameGPUData));
+    frameData_.ltcMatTexture_ = resources_.textureIndex(ltcMat_);
+    frameData_.ltcAmpTexture_ = resources_.textureIndex(ltcAmp_);
+    frameConstants_ = resources_.createPerFrameBuffer(sizeof(FrameGPUData), "frame constants");
 
     const std::string shaderDir = resolveEngineFile("shaders", "shaders");
 
@@ -202,6 +202,7 @@ void ScenePasses::buildPipelines(const ShaderModules& modules)
     sky_.buildPipelines(modules);
     debug_.buildPipelines(modules);
     rtDebug_.buildPipelines(modules);
+    giUpdate_.buildPipelines(modules);
 }
 
 void ScenePasses::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay)
@@ -422,7 +423,14 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
         rtScene_->updateBlases(cmd, frame, *reg, *ctx.assetManager_, terrain_);
         rtScene_->buildTlas(cmd, frame, *reg, *instanceM, *ctx.assetManager_, terrain_,
                             args.camera_);
+        giUpdate_.resize(ctx.getFrameSize());
     }
+
+    frameData_.frameIndex_ = ++giFrame_;
+    frameData_.giWidth_ = static_cast<uint32_t>(giUpdate_.size().x());
+    frameData_.giHeight_ = static_cast<uint32_t>(giUpdate_.size().y());
+    resources_.recordBufferWrite(cmd, frameConstants_, &frameData_, sizeof(FrameGPUData), 0);
+    BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderRead).flush(cmd);
 
     writeFrameSet(frame, args, ctx);
 
@@ -467,7 +475,8 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     pass.push_.debugFlags_ = (args.showShadowCascades_ ? DebugShadowCascades : 0u) |
                              (args.showRtFirstHit_ ? DebugRtFirstHit : 0u) |
                              (args.showGiCells_ ? DebugGiCells : 0u) |
-                             (args.showGiOctants_ ? DebugGiOctants : 0u);
+                             (args.showGiSides_ ? DebugGiSides : 0u) |
+                             (args.showGiCache_ ? DebugGiCache : 0u);
     pass.reg_ = reg;
     pass.instanceManager_ = instanceM;
     pass.assetManager_ = ctx.assetManager_.get();
@@ -479,6 +488,13 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
             if constexpr (requires { InstanceT::CountField; })
                 pass.push_.*InstanceT::CountField = static_cast<uint32_t>(pool.size());
         });
+
+    if (rayTracing)
+    {
+        BarrierBatch{}.memory(Usage::ShaderRead, Usage::ShaderWrite).flush(cmd);
+        giUpdate_.record(pass);
+        BarrierBatch{}.memory(Usage::ShaderWrite, Usage::ShaderRead).flush(cmd);
+    }
 
     const std::array<ShadowAtlasViews, 2> shadowAtlases{{
         {localAtlas_, LocalAtlasSize, shadowViews_},

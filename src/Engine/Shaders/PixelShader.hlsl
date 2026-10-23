@@ -41,7 +41,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.Nface_ = FaceNormal(i.posRel_, Ngeom);
     s.gi_ = GiPointOf(GiFrameMesh, g_draw.instanceIndex_, (float3x3)inst.world_,
                       inst.world_._m03_m13_m23 - CameraInstancebuffer[g_draw.cameraIndex_].pos_,
-                      i.posRel_, Ngeom);
+                      i.posRel_, GiFacing(s.Nface_, i.posRel_));
     if (mat.normalTexIdx_ != InvalidGPUIndex)
     {
         float3 normalSample = g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).rgb;

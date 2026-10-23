@@ -7,6 +7,7 @@
 #include "Renderer/Vulkan/Passes/BillboardPass.h"
 #include "Renderer/Vulkan/Passes/DebugPass.h"
 #include "Renderer/Vulkan/Passes/GeometryPass.h"
+#include "Renderer/Vulkan/Passes/GiUpdatePass.h"
 #include "Renderer/Vulkan/Passes/RtDebugPass.h"
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
 #include "Renderer/Vulkan/Passes/ShadowPass.h"
@@ -71,6 +72,8 @@ struct ScenePasses
     GPUResourceHandle ltcMat_;
     GPUResourceHandle ltcAmp_;
     GPUResourceHandle frameConstants_;
+    FrameGPUData frameData_{};
+    uint32_t giFrame_ = 0;
     std::vector<ShadowView> cascadeViews_;
     // Bit c: cascade c last reported too close; logged on change only.
     uint32_t warnedCascades_ = 0;
@@ -82,6 +85,7 @@ struct ScenePasses
     SkyPass sky_;
     DebugPass debug_;
     RtDebugPass rtDebug_;
+    GiUpdatePass giUpdate_;
 
     std::filesystem::file_time_type shadersMtime_{};
 };

@@ -166,7 +166,8 @@ set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Lighting.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Shadows.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Terrain.hlsli"
-                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/GiCache.hlsli")
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/GiCache.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RtHit.hlsli")
 
 function(batap_compile_shader src out target)
   add_custom_command(
@@ -197,6 +198,7 @@ batap_compile_shader(TerrainShadowVS.hlsl TerrainShadowVS.spv vs_6_6)
 batap_compile_shader(PixelShader.hlsl  PixelShaderRT.spv ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(TerrainPS.hlsl    TerrainPSRT.spv  ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(RtDebugPS.hlsl    RtDebugPS.spv    ps_6_6 -D BATAP_RT=1)
+batap_compile_shader(GiUpdatePS.hlsl   GiUpdatePS.spv   ps_6_6 -D BATAP_RT=1)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -213,7 +215,8 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/TerrainShadowVS.spv"
   "${engine_shader_out}/PixelShaderRT.spv"
   "${engine_shader_out}/TerrainPSRT.spv"
-  "${engine_shader_out}/RtDebugPS.spv")
+  "${engine_shader_out}/RtDebugPS.spv"
+  "${engine_shader_out}/GiUpdatePS.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —
