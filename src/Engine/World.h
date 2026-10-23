@@ -95,6 +95,8 @@ struct World
     Origin origin_;
     bool showShadowCascades_ = false;
     bool showRtFirstHit_ = false;
+    bool showGiCells_ = false;
+    bool showGiOctants_ = false;
     emhash8::HashMap<std::string, bool, std::hash<std::string_view>, std::equal_to<>> flags_;
 
    private:

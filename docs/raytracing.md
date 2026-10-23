@@ -708,18 +708,60 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
         `VkPhysicalDeviceVulkan12Features` que vk-bootstrap fusionne avec
         celui des features requises (`FeaturesChain::add_structure`). Une
         carte sans l'un des trois passe en raster, Vulkan 1.2 requis
-        inchangé.
+        inchangé. 
       - Rien ne lit ni n'écrit la table : 2.4 calcule les clés, 2.5 écrit.
 
       Build vert ; `RT : oui` sur la RTX 5070 ; validation propre, RT actif :
       jeu debug sur la copie statique de `test_buggy_fusee` (300 frames),
       éditeur debug sur `test_buggy_fusee` (120 frames).
-- [ ] **2.4 Vue debug « clé de cellule ».** Chaque pixel calcule sa clé
+- [x] **2.4 Vue debug « clé de cellule ».** Chaque pixel calcule sa clé
       (repère rigide, position locale, octant de normale, niveau) et affiche une
       couleur dérivée de cette clé.
       *Vérif* : les cellules sont fixes sur les objets quand ils bougent,
       grossissent avec la distance, et diffèrent entre les deux faces d'une
       tôle.
+      *Fait (2026-10-23)* : `GiCache.hlsli`, inclus par `Lighting.hlsli`.
+      - **Taille des cellules** : `15 cm × 2^niveau`, `niveau =
+        ⌊log2(distance / 7,5 m)⌋` borné à 0..15. Donc 15 cm jusqu'à 15 m,
+        30 cm jusqu'à 30 m, 1,2 m à 100 m, ~10 m à 500 m : environ 1/50 à
+        1/100 de la distance, soit 0,6 à 1,2° de champ, et 10 à 80 rayons de
+        la passe ¼ × ¼ par cellule et par frame.
+      - **Repère** : les axes de la matrice monde de l'instance, normalisés
+        (l'échelle n'entre pas dans les positions locales) ; translation
+        relative à la caméra. Mesh : `StaticMeshGPUData` et son index GPU.
+        Chunk : `TerrainWorldGPUData` et l'index du chunk. Le PS remplit
+        `Surface::gi_` (repère, position locale, normale locale) ; la clé est
+        calculée dans `ShadeSurface`, le niveau depuis `length(posRel_)`.
+      - **Clé** : deux `uint`, pas de 64 bits, donc disponible aussi en
+        raster. Haut : bit valide, repère 20 bits (type 1 + index 19), niveau
+        4, octant 3, 4 bits hauts de x. Bas : 8 bits bas de x, y 12, z 12.
+        Cellules de −2048 à +2047 par axe dans le repère de l'objet.
+      - Vue : menu View → « GI cells », bit `DebugGiCells`, couleur = hash de
+        la clé, dans `ShadeSurface` comme la vue des cascades. Et « GI
+        octants » (`DebugGiOctants`) : rouge, vert, bleu = signe de la
+        normale sur les axes X, Y, Z de l'objet.
+
+      *Mesuré* sur la copie statique de `test_buggy_fusee`, frame 5000, et
+      deux copies où buggy, fusée et caméra sont déplacés ensemble (levés de
+      30 cm le long de la verticale locale ; tournés de 30° autour d'elle) :
+      - **Fixes sur les objets** : les 6 552 pixels du buggy et de la fusée
+        sont identiques au bit près dans les trois rendus ; le terrain, qui
+        n'a pas bougé avec la caméra, change partout.
+      - **Même clé en RT et en raster** : identiques au bit près sur ces
+        pixels.
+      - **Grossissent avec la distance** : 12 280 couleurs distinctes dans la
+        bande de l'image la plus proche, 2 588 dans la plus lointaine.
+      - **Deux faces d'une tôle** : par construction (octant dans la clé),
+        visible sur les facettes de la fusée ; pas de tôle vue des deux côtés
+        dans la scène.
+      - **Terrain entre deux runs** : les frontières de cellules sont
+        identiques à 100 % (317 684 pixels d'arête ; 75 % si l'on décale d'un
+        pixel), mais les couleurs changent : l'index de slot d'un chunk
+        dépend de l'ordre de construction. Dans un run, c'est cohérent. Voir
+        « Points ouverts ».
+
+      Validation propre, vue active, RT actif : jeu debug (300 frames) et
+      éditeur debug sur `test_buggy_fusee` (120 frames).
 - [ ] **2.5 Mise à jour, un rebond.** Un PS en ¼ × ¼ :
       - rayon caméra (`TMin = znear_`, `TMax` constant de 1e8 m comme
         `RtDebugPS` : la caméra n'a plus de `zfar_`), puis rebond diffus ;
@@ -859,6 +901,14 @@ règles temporelles et le MSAA.
 | Origine flottante dans le repère de l'astre (OBJECTIF_AGRANDISSEMENT) | Un jeu sans origine flottante garde un monde de quelques km au plus. Les clés locales du cache n'en dépendent pas ; seules les matrices précédentes (3.5) doivent suivre le recentrage. |
 
 ## Points ouverts
+
+- **Repère des cellules du terrain.** Un chunk est le repère de ses cellules
+  (2.4). Quand il est reconstruit à un autre niveau de détail, son index
+  change et ses cellules sont perdues : le cache y reconverge en quelques
+  frames. Si ça se voit (scintillement de l'indirect au passage d'un LOD),
+  indexer par l'identifiant stable du chunk (face, niveau, x, y) et, pour
+  partager les cellules entre niveaux, par des positions dans le repère de
+  l'astre à un plancher plus grossier.
 
 - **Support de `VK_KHR_ray_tracing_position_fetch` dans dxc/HLSL.** S'il existe,
   il remplace le buffer geometry info.

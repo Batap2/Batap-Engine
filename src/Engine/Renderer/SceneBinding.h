@@ -15,6 +15,8 @@ struct SceneRenderArgs
     entt::entity camera_ = entt::null;
     bool showShadowCascades_ = false;
     bool showRtFirstHit_ = false;
+    bool showGiCells_ = false;
+    bool showGiOctants_ = false;
 };
 
 void bindScene(Engine& ctx, World& world);

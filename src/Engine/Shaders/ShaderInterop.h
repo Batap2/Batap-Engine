@@ -326,6 +326,8 @@ struct DrawPush
 
 static const uint DebugShadowCascades = 1u;
 static const uint DebugRtFirstHit = 2u;
+static const uint DebugGiCells = 4u;
+static const uint DebugGiOctants = 8u;
 
 #ifdef __cplusplus
 

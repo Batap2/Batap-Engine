@@ -1,6 +1,7 @@
 #ifndef BATAP_LIGHTING_HLSLI
 #define BATAP_LIGHTING_HLSLI
 
+#include "GiCache.hlsli"
 #include "ShaderInterop.h"
 #include "Shadows.hlsli"
 
@@ -303,6 +304,7 @@ struct Surface
     float3 Nface_;
     // World axes, camera at the origin: the TLAS space, where rays start.
     float3 posRel_;
+    GiPoint gi_;
 };
 
 float3 FaceNormal(float3 P, float3 Ngeom)
@@ -424,6 +426,10 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
     if (debugCascade < ShadowCascadeCount)
         color = debugTint * lerp(0.2f, 1.0f, debugLit);
+    if ((g_draw.debugFlags_ & DebugGiCells) != 0u)
+        color = GiDebugColor(GiCacheKey(s.gi_, GiLevel(length(s.posRel_))));
+    if ((g_draw.debugFlags_ & DebugGiOctants) != 0u)
+        color = GiOctantColor(GiOctant(s.gi_));
 
     return color;
 }

@@ -84,7 +84,7 @@ SpatialIndex& World::spatialIndex()
 SceneRenderArgs World::renderArgs()
 {
     return {&registry_, instanceManager_.get(), renderCamera(), showShadowCascades_,
-            showRtFirstHit_};
+            showRtFirstHit_, showGiCells_, showGiOctants_};
 }
 
 entt::entity World::renderCamera()
