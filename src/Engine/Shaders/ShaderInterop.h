@@ -33,6 +33,8 @@ enum RayTracingSetBinding : uint
     TlasBinding = 0,
     RtGeometriesBinding = 1,
     RtInstancesBinding = 2,
+    RtCacheKeysBinding = 3,
+    RtCacheValuesBinding = 4,
 };
 
 static const uint TlasMaskShadowCaster = 1u;
@@ -59,6 +61,15 @@ struct RtInstanceGPUData
     uint gpuIndex_;
     uint kind_;
     uint pad0_;
+};
+
+// Keys are uint64, 0 = empty slot; values are fixed-point sums.
+static const uint RtCacheCapacity = 1u << 20;
+
+struct RtCacheValueGPUData
+{
+    uint radiance_[3];
+    uint samples_;
 };
 
 enum BindlessBinding : uint
@@ -336,6 +347,7 @@ static_assert(sizeof(TerrainChunkGPUData) == 64);
 static_assert(sizeof(TerrainWorldGPUData) == 64);
 static_assert(sizeof(RtGeometryGPUData) == 32);
 static_assert(sizeof(RtInstanceGPUData) == 16);
+static_assert(sizeof(RtCacheValueGPUData) == 16);
 
 // dxc lays a structured buffer out as std430: the array stride is the struct
 // size rounded up to 16. A C++ struct that is not a multiple of 16 therefore
@@ -349,7 +361,8 @@ static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
               gpuStrideOk<DebugShapeGPUData> && gpuStrideOk<BillboardGPUData> &&
               gpuStrideOk<ShadowGPUData> && gpuStrideOk<TerrainVertexGPUData> &&
               gpuStrideOk<TerrainChunkGPUData> && gpuStrideOk<TerrainWorldGPUData> &&
-              gpuStrideOk<RtGeometryGPUData> && gpuStrideOk<RtInstanceGPUData>);
+              gpuStrideOk<RtGeometryGPUData> && gpuStrideOk<RtInstanceGPUData> &&
+              gpuStrideOk<RtCacheValueGPUData>);
 
 static_assert(offsetof(CameraGPUData, pos_) == 128 && offsetof(CameraGPUData, znear_) == 140);
 static_assert(offsetof(SkyboxGPUData, color1) == 160);

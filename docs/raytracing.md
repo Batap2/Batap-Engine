@@ -311,12 +311,17 @@ tu commits.
 
 **Vérification commune à chaque étape :**
 - build vert en `msvc-debug` et en `msvc-relwithdebinfo` ;
-- éditeur lancé sur `scenes/test_buggy.btpl` **sans erreur des couches de
-  validation** ;
+- éditeur lancé sur `scenes/test_buggy_fusee.btpl` **sans erreur des couches
+  de validation** ;
 - dump de frame (`BATAP_DUMP_FRAME=N`) quand l'étape touche l'image.
 
 « Image identique » signifie un dump identique au SHA256, avec le RT coupé et
-sur une scène statique.
+sur une scène statique. Depuis l'origine mobile (agrandissement, étapes 12 à
+16) : sur la copie statique de `test_buggy_fusee` (`make_static_scene.py`,
+physique retirée, caméra fixe), deux runs de la même scène peuvent différer
+de quelques pixels (mesuré : 4 px en RT, ~210 px en raster sur le bord de
+l'ombre portée, à plus de 8 niveaux). Mesurer ce bruit avant de juger un
+avant/après, et compter « identique » ce qui reste dedans.
 
 Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
@@ -681,13 +686,34 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       Validation propre, RT actif, vue active : jeu debug sur le buggy et le
       terrain proche (150 frames) ; vue coupée : éditeur debug sur
       `test_buggy.btpl` (120 frames).
-- [ ] **2.3 Table de hachage.**
+- [x] **2.3 Table de hachage.**
       - Storage buffer de clés et de valeurs (capacité 2²⁰ pour commencer),
         avec une passe d'effacement ;
       - activer `fragmentStoresAndAtomics`, et les atomiques 64 bits si les
         clés sont en 64 bits.
 
       *Vérif* : build, validation propre.
+      *Fait (2026-10-23)* :
+      - Deux buffers statiques dans `RtScene`, au set 2 : clés
+        (`uint64` par case, 0 = vide, binding 3, 8 Mo) et valeurs
+        (`RtCacheValueGPUData` : somme RGB en virgule fixe + compteur,
+        16 octets, binding 4, 16 Mo). `RtCacheCapacity = 2²⁰` dans
+        `ShaderInterop.h`.
+      - Effacement par `vkCmdFillBuffer` à la première frame
+        (`RtScene::clearCache`, hors rendu, barrière vers lecture). Pas de
+        compute : inutile pour un remplissage à zéro. L'éviction continue
+        viendra en 2.8.
+      - Features : `fragmentStoresAndAtomics` et `shaderInt64` demandés
+        ensemble « si présents » ; `shaderBufferInt64Atomics` par un second
+        `VkPhysicalDeviceVulkan12Features` que vk-bootstrap fusionne avec
+        celui des features requises (`FeaturesChain::add_structure`). Une
+        carte sans l'un des trois passe en raster, Vulkan 1.2 requis
+        inchangé.
+      - Rien ne lit ni n'écrit la table : 2.4 calcule les clés, 2.5 écrit.
+
+      Build vert ; `RT : oui` sur la RTX 5070 ; validation propre, RT actif :
+      jeu debug sur la copie statique de `test_buggy_fusee` (300 frames),
+      éditeur debug sur `test_buggy_fusee` (120 frames).
 - [ ] **2.4 Vue debug « clé de cellule ».** Chaque pixel calcule sa clé
       (repère rigide, position locale, octant de normale, niveau) et affiche une
       couleur dérivée de cette clé.
@@ -695,7 +721,8 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       grossissent avec la distance, et diffèrent entre les deux faces d'une
       tôle.
 - [ ] **2.5 Mise à jour, un rebond.** Un PS en ¼ × ¼ :
-      - rayon caméra, puis rebond diffus ;
+      - rayon caméra (`TMin = znear_`, `TMax` constant de 1e8 m comme
+        `RtDebugPS` : la caméra n'a plus de `zfar_`), puis rebond diffus ;
       - au second hit, l'étoile multipliée par un rayon d'ombre ;
       - accumulation atomique dans la cellule du premier hit.
 
@@ -729,14 +756,26 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       lampes, et une exposition.
       *Vérif* : réglages de `test_buggy.btpl` mis à jour, image cohérente.
 - [ ] **3.3 Prépasse profondeur + normales.** C'est `OBJECTIFS.md` §4 étape 3.
+      Le depth est en Z inversé sans plan lointain (agrandissement, 15 et
+      16) : profondeur linéaire = `znear_ / z`, 0 = infini. Vaut pour tout ce
+      qui lira ce buffer : l'AO (phase 4), le SSR (7.6), le rejet
+      d'historique (3.5).
 - [ ] **3.4 Slots d'instance stables.** Remplacer le swap-remove des instances
       de mesh, ou ajouter une indirection stable.
       *Vérif* : un id ne change pas quand une autre entité est supprimée.
 - [ ] **3.5 Matrices précédentes.** Garder la matrice monde de la frame
       précédente par instance, et le view-proj précédent dans `CameraGPUData`.
       Ajouter une vue debug des vecteurs de mouvement.
+      - Origine mobile : `World::shiftFrame` décale tous les `Transform_C`,
+        donc il doit décaler aussi les matrices précédentes, comme
+        `RigidBody_C::prevPos_` ; sinon chaque vecteur de mouvement saute de
+        2 km à la frame du recentrage, et tout l'historique temporel (5.3,
+        7.5, le cache) est rejeté d'un coup.
+      - Un gel ou un dégel (agrandissement, étape 10) téléporte un corps dans
+        la hiérarchie : son historique est rejeté une frame, c'est accepté.
+
       *Vérif* : vecteurs nuls sur ce qui voyage avec la caméra, et justes
-      sur le buggy.
+      sur le buggy ; nuls aussi sur la frame d'un recentrage.
 - [ ] **3.6 MSAA.** MSAA sur la passe géométrie, avec le resolve avant le
       tonemap.
       *Vérif* : arêtes lissées ; coût mesuré dans tracy.
@@ -817,7 +856,7 @@ règles temporelles et le MSAA.
 | Tout est rigide | Mesh skinné : skinning en compute (le moteur n'a pas de compute), refit de BLAS par frame, positions précédentes par vertex pour les vecteurs de mouvement. Pour la clé du cache, indexer dans l'espace de la pose de repos (position de bind en attribut). |
 | Pas d'alpha test | Feuillage, grilles : any-hit ou opacity micromaps, à la place de `FORCE_OPAQUE` partout. |
 | Astres sphériques | Le planetshine et le partage sphères / TLAS servent à tout jeu spatial. Ailleurs, ils ne servent à rien, sans rien casser. |
-| Origine flottante dans le repère de l'astre (OBJECTIF_AGRANDISSEMENT) | Un jeu sans origine flottante garde un monde de quelques km au plus. Les clés locales du cache n'en dépendent pas. |
+| Origine flottante dans le repère de l'astre (OBJECTIF_AGRANDISSEMENT) | Un jeu sans origine flottante garde un monde de quelques km au plus. Les clés locales du cache n'en dépendent pas ; seules les matrices précédentes (3.5) doivent suivre le recentrage. |
 
 ## Points ouverts
 

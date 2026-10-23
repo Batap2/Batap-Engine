@@ -75,6 +75,13 @@ struct RtScene
         uint32_t instanceCapacity_ = 0;
     };
 
+    struct GiCache
+    {
+        GPUResourceHandle keys_;
+        GPUResourceHandle values_;
+        bool clear_ = true;
+    };
+
     struct BlasInputs;
     VkAccelerationStructureKHR createAccelerationStructure(GPUResourceHandle buffer, uint64_t size,
                                                            VkAccelerationStructureTypeKHR type);
@@ -83,6 +90,7 @@ struct RtScene
     void compactBlases(VkCommandBuffer cmd, uint32_t frame);
     void growTlas(Tlas& tlas, uint32_t instances);
     void reserveHitTables(HitTables& tables, uint32_t geometries, uint32_t instances);
+    void clearCache(VkCommandBuffer cmd);
 
     VulkanContext& ctx_;
     ResourceManager& resources_;
@@ -92,6 +100,7 @@ struct RtScene
     std::array<CompactionQueries, FramesInFlight> queries_;
     std::array<Tlas, FramesInFlight> tlases_;
     std::array<HitTables, FramesInFlight> hitTables_;
+    GiCache cache_;
     VkDescriptorSetLayout setLayout_ = VK_NULL_HANDLE;
     VkDescriptorPool pool_ = VK_NULL_HANDLE;
     std::array<VkDescriptorSet, FramesInFlight> sets_{};
