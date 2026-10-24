@@ -47,9 +47,13 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     const FrameGPUData fc = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
     const uint2 pixel = uint2(svpos.xy);
-    uint seed = GiHash(pixel.x + GiHash(pixel.y + GiHash(fc.frameIndex_)));
+    const uint sampleIndex = fc.frameIndex_ * fc.giPasses_ + g_draw.instanceIndex_;
+    uint seed = GiHash(pixel.x + GiHash(pixel.y + GiHash(sampleIndex)));
 
-    const float2 jitter = (float2(GiRand(seed), GiRand(seed)) - 0.5f) *
+    const uint2 pixelRotation = uint2(GiHash(pixel.x * 7919u + pixel.y), GiHash(pixel.y * 104729u + pixel.x + 1u));
+    const float2 jitterU = GiStratified ? GiR2(sampleIndex, pixelRotation)
+                                        : float2(GiRand(seed), GiRand(seed));
+    const float2 jitter = (jitterU - 0.5f) *
                           (2.0f / float2(max(fc.giWidth_, 1u), max(fc.giHeight_, 1u)));
     const float2 sample = ndc + jitter;
 
@@ -83,11 +87,25 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     float3 irradiance = float3(0.0f, 0.0f, 0.0f);
     float3 throughput = float3(1.0f, 1.0f, 1.0f);
     RtHit hit = first;
+
+    const uint place = GiReserve(slot);
+    const uint folded = GiValues[slot].history_ & GiSamplesMask;
+    uint2 cellRotation = uint2(GiHash(key.x), GiHash(key.y ^ 0x9E3779B9u));
+    uint cellIndex = folded + place;
+    if (folded >= GiSamplesMask)
+    {
+        cellRotation = uint2(GiHash(cellRotation.x ^ fc.frameIndex_), GiHash(cellRotation.y + fc.frameIndex_));
+        cellIndex = place;
+    }
+    const float2 firstU = GiStratified ? GiR2(cellIndex, cellRotation)
+                                       : float2(GiRand(seed), GiRand(seed));
+
     [loop]
     for (uint bounce = 0; bounce < fc.giBounces_; ++bounce)
     {
         RayDesc ray2;
-        ray2.Direction = GiCosineDirection(hit.normal_, GiRand(seed), GiRand(seed));
+        ray2.Direction = bounce == 0u ? GiCosineDirection(hit.normal_, firstU.x, firstU.y)
+                                      : GiCosineDirection(hit.normal_, GiRand(seed), GiRand(seed));
         ray2.Origin = hit.position_ + hit.normal_ * (ShadowRayOffset +
                                                       ShadowRayOffsetPerMetre * length(hit.position_));
         ray2.TMin = 0.0f;

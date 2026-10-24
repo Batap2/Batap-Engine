@@ -115,6 +115,11 @@ VulkanContext::VulkanContext()
         vkGetPhysicalDeviceProperties2(physicalDevice_, &properties);
         asScratchAlignment_ = asProperties.minAccelerationStructureScratchOffsetAlignment;
     }
+    {
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(physicalDevice_, &properties);
+        timestampPeriodNs_ = properties.limits.timestampPeriod;
+    }
 
     auto deviceResult = vkb::DeviceBuilder(vkbPhysicalDevice).build();
     if (!deviceResult)

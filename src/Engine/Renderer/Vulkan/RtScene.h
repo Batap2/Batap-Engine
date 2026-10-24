@@ -46,6 +46,7 @@ struct RtScene
         uint32_t failed_ = 0;
         uint32_t evicted_ = 0;
         uint32_t tailMiss_ = 0;
+        uint32_t reset_ = 0;
     };
     CacheStats copyCacheStats(VkCommandBuffer cmd, uint32_t frame);
 

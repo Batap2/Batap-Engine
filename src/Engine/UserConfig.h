@@ -43,6 +43,6 @@ void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow
 // window section.
 void readRender(const nlohmann::json& config, EngineSettings& io);
 void writeRender(const std::filesystem::path& file, bool rayTracing, uint32_t maxFps,
-                 uint32_t giBounces);
+                 uint32_t giBounces, uint32_t giPasses);
 }  // namespace userConfig
 }  // namespace batap

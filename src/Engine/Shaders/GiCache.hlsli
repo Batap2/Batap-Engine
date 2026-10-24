@@ -110,9 +110,22 @@ float GiLuma(float3 c)
     return dot(c, float3(0.2126f, 0.7152f, 0.0722f));
 }
 
+static const float GiSlowTau = 1.0f;
+static const float GiFastTau = 0.125f;
 static const uint GiChangeMinSamples = 16u;
-static const float GiChangeRatio = 0.5f;
-static const float GiChangeFloor = 0.02f;
+static const float GiChangeMinFastSamples = 32.0f;
+static const uint GiResetSamples = 16u;
+static const float GiClampSigma = 3.0f;
+static const float GiClampFloor = 0.01f;
+static const float GiResetSigma = 5.0f;
+static const float GiResetFloor = 0.02f;
+static const float GiFalseResetRate = 1e-7f;
+static const float GiDarkRatio = 0.05f;
+static const bool GiStratified = false;
+static const float GiShowSamples = 8.0f;
+static const uint GiSamplesMask = 0x3FFu;
+static const uint GiZeroRunShift = 10u;
+static const uint GiZeroRunMask = 0x3Fu;
 
 #if BATAP_RT
 [[vk::binding(RtCacheKeysBinding, RayTracingSet)]] RWStructuredBuffer<uint64_t> GiKeys;
@@ -171,19 +184,38 @@ uint GiSlotInsert(uint2 key, out bool inserted)
     return GiNoSlot;
 }
 
+uint GiReserve(uint slot)
+{
+    uint before;
+    InterlockedAdd(GiValues[slot].count_, 1u, before);
+    return before;
+}
+
 void GiAccumulate(uint slot, float3 irradiance)
 {
     const uint3 fixed = uint3(round(max(irradiance, 0.0f) * RtCacheScale));
     InterlockedAdd(GiValues[slot].sum_[0], fixed.x);
     InterlockedAdd(GiValues[slot].sum_[1], fixed.y);
     InterlockedAdd(GiValues[slot].sum_[2], fixed.z);
-    InterlockedAdd(GiValues[slot].count_, 1u);
+}
+
+float2 GiR2(uint index, uint2 rotation)
+{
+    const uint2 x = index * uint2(3242174889u, 2447445414u) + rotation;
+    return float2(x) / 4294967296.0f;
 }
 
 float3 GiIrradiance(uint slot)
 {
     const RtCacheValueGPUData v = GiValues[slot];
     return float3(v.irradiance_[0], v.irradiance_[1], v.irradiance_[2]);
+}
+
+float3 GiShownIrradiance(uint slot, float3 fallback)
+{
+    const RtCacheValueGPUData v = GiValues[slot];
+    const float weight = saturate(float(v.history_ & GiSamplesMask) / GiShowSamples);
+    return lerp(fallback, float3(v.irradiance_[0], v.irradiance_[1], v.irradiance_[2]), weight);
 }
 #endif
 

@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 namespace batap
 {
@@ -59,16 +60,32 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
     if (vkAllocateCommandBuffers(ctx_.device_, &cmdInfo, commandBuffers_.data()) != VK_SUCCESS)
         throw std::runtime_error("Renderer(vk) : command buffers");
 
+    const auto parseDumpFrames = [&](const std::string& list)
+    {
+        size_t begin = 0;
+        while (begin <= list.size())
+        {
+            const size_t comma = list.find(',', begin);
+            const std::string item = list.substr(begin, comma == std::string::npos
+                                                            ? std::string::npos
+                                                            : comma - begin);
+            if (!item.empty())
+                dumpFrames_.push_back(std::strtoull(item.c_str(), nullptr, 10));
+            if (comma == std::string::npos)
+                break;
+            begin = comma + 1;
+        }
+    };
 #if defined(_WIN32)
     char* dumpEnv = nullptr;
     size_t dumpEnvLen = 0;
     _dupenv_s(&dumpEnv, &dumpEnvLen, "BATAP_DUMP_FRAME");
     if (dumpEnv)
-        dumpAtFrame_ = std::atoll(dumpEnv);
+        parseDumpFrames(std::string(dumpEnv));
     free(dumpEnv);
 #else
     if (const char* dumpEnv = std::getenv("BATAP_DUMP_FRAME"))
-        dumpAtFrame_ = std::atoll(dumpEnv);
+        parseDumpFrames(std::string(dumpEnv));
 #endif
 
     window_ = nativeWindow;
@@ -115,9 +132,12 @@ void Renderer::writeDump()
     for (uint64_t i = 0; i < count; ++i)  // swapchain BGRA -> RGBA
         std::swap(px[i * 4 + 0], px[i * 4 + 2]);
 #pragma clang diagnostic pop
-    stbi_write_png("frame_dump.png", int(swapchain_.extent_.width), int(swapchain_.extent_.height),
-                   4, px, int(swapchain_.extent_.width * 4));
-    std::cout << "[Vulkan] frame_dump.png écrite (frame " << frameCounter_ << ")" << std::endl;
+    const std::string name = dumpFrames_.size() == 1
+                                 ? std::string("frame_dump.png")
+                                 : "frame_dump_" + std::to_string(frameCounter_) + ".png";
+    stbi_write_png(name.c_str(), int(swapchain_.extent_.width), int(swapchain_.extent_.height), 4,
+                   px, int(swapchain_.extent_.width * 4));
+    std::cout << "[Vulkan] " << name << " écrite (frame " << frameCounter_ << ")" << std::endl;
 
     vmaDestroyBuffer(ctx_.allocator_, dumpBuffer_, dumpAllocation_);
     dumpBuffer_ = VK_NULL_HANDLE;
@@ -463,8 +483,8 @@ void Renderer::render()
     auto swapchainBarrier = [&](Usage from, Usage to)
     { BarrierBatch{}.image(swapchain_.images_[imageIndex], from, to, colorRange()).flush(cmd); };
 
-    const bool dumpThisFrame = dumpAtFrame_ >= 0 &&
-                               frameCounter_ == static_cast<uint64_t>(dumpAtFrame_);
+    const bool dumpThisFrame =
+        std::find(dumpFrames_.begin(), dumpFrames_.end(), frameCounter_) != dumpFrames_.end();
     if (dumpThisFrame)
     {
         swapchainBarrier(Usage::ColorAttachment, Usage::TransferSrc);

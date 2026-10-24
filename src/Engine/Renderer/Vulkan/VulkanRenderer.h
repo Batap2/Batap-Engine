@@ -143,7 +143,7 @@ struct Renderer
     void recordDumpCopy(VkCommandBuffer cmd, uint32_t imageIndex);
     void writeDump();
     uint64_t frameCounter_ = 0;
-    int64_t dumpAtFrame_ = -1;
+    std::vector<uint64_t> dumpFrames_;
     VkBuffer dumpBuffer_ = VK_NULL_HANDLE;
     VmaAllocation dumpAllocation_ = nullptr;
     void* dumpMapped_ = nullptr;

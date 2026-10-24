@@ -50,6 +50,7 @@ struct UIPanels
         bool rayTracing = true;
         int maxFps = 0;
         int giBounces = 2;
+        int giPasses = 2;
     };
     AppSettings editorSettings_;
     AppSettings gameSettings_;

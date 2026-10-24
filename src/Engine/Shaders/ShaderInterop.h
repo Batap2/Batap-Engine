@@ -75,17 +75,23 @@ static const uint RtCacheStatInserted = 1u;
 static const uint RtCacheStatFailed = 2u;
 static const uint RtCacheStatEvicted = 3u;
 static const uint RtCacheStatTailMiss = 4u;
-static const uint RtCacheStatCount = 5u;
+static const uint RtCacheStatReset = 5u;
+static const uint RtCacheStatCount = 6u;
 
 // irradiance_ is the resolved value; sum_ and count_ collect the frame's
 // samples and the resolve pass folds them in. history_: samples folded in
-// the low 16 bits, the frame of the last visit in the high 16.
+// bits 0-9, the run of empty frames in bits 10-15, the frame of the last
+// visit in the high 16 (GiSamplesMask, GiZeroRunShift in GiCache.hlsli).
 struct RtCacheValueGPUData
 {
     float irradiance_[3];
     uint history_;
     uint sum_[3];
     uint count_;
+    float fastLuma_;
+    float variance_;
+    float zeroFraction_;
+    float fastCount_;
 };
 
 enum BindlessBinding : uint
@@ -264,8 +270,12 @@ struct FrameGPUData
     uint giWidth_;
     uint giHeight_;
     uint giMaxAge_;
-    float giAlphaMin_;
+    float giDt_;
     uint giBounces_;
+    uint giPasses_;
+    uint pad0_;
+    uint pad1_;
+    uint pad2_;
 };
 
 struct SphereOccluderGPUData
@@ -359,7 +369,7 @@ static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(DrawPush) == 32);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 32);
+static_assert(sizeof(FrameGPUData) == 48);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);
@@ -370,7 +380,7 @@ static_assert(sizeof(TerrainChunkGPUData) == 64);
 static_assert(sizeof(TerrainWorldGPUData) == 64);
 static_assert(sizeof(RtGeometryGPUData) == 32);
 static_assert(sizeof(RtInstanceGPUData) == 16);
-static_assert(sizeof(RtCacheValueGPUData) == 32);
+static_assert(sizeof(RtCacheValueGPUData) == 48);
 static_assert(RtCacheCapacity % RtCacheResolveWidth == 0);
 
 // dxc lays a structured buffer out as std430: the array stride is the struct

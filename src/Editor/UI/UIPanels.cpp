@@ -190,7 +190,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         editorSettings_ = {editor.screen, editor.focusOnShow, editor.behindOnShow,
                            ctx.settings().rayTracing_,
                            static_cast<int>(ctx.settings().maxFps_),
-                           static_cast<int>(ctx.settings().giBounces_)};
+                           static_cast<int>(ctx.settings().giBounces_),
+                           static_cast<int>(ctx.settings().giPasses_)};
 
         WindowDesc game;
         EngineSettings gameRender;
@@ -202,7 +203,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         }
         gameSettings_ = {game.screen, game.focusOnShow, game.behindOnShow,
                          gameRender.rayTracing_, static_cast<int>(gameRender.maxFps_),
-                         static_cast<int>(gameRender.giBounces_)};
+                         static_cast<int>(gameRender.giBounces_),
+                         static_cast<int>(gameRender.giPasses_)};
     }
 
     const auto screenLabel = [&](int screen)
@@ -277,6 +279,13 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
             s.giBounces = std::clamp(s.giBounces, 1, 4);
             change = Render;
         }
+        ImGui::SetNextItemWidth(80.0f);
+        ImGui::InputInt("GI passes per frame (1-8)", &s.giPasses, 1);
+        if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemEdited())
+        {
+            s.giPasses = std::clamp(s.giPasses, 1, 8);
+            change = Render;
+        }
         ImGui::EndDisabled();
         ImGui::PopID();
         ImGui::Unindent();
@@ -288,10 +297,12 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     {
         const auto maxFps = static_cast<uint32_t>(editorSettings_.maxFps);
         const auto giBounces = static_cast<uint32_t>(editorSettings_.giBounces);
-        editorConfig::writeRender(editorSettings_.rayTracing, maxFps, giBounces);
+        const auto giPasses = static_cast<uint32_t>(editorSettings_.giPasses);
+        editorConfig::writeRender(editorSettings_.rayTracing, maxFps, giBounces, giPasses);
         ctx.setRayTracing(editorSettings_.rayTracing);
         ctx.setMaxFps(maxFps);
         ctx.setGiBounces(giBounces);
+        ctx.setGiPasses(giPasses);
     }
     else if (editorChange != None)
     {
@@ -312,7 +323,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     if (hasGame && gameChange == Render)
         userConfig::writeRender(gameFile, gameSettings_.rayTracing,
                                 static_cast<uint32_t>(gameSettings_.maxFps),
-                                static_cast<uint32_t>(gameSettings_.giBounces));
+                                static_cast<uint32_t>(gameSettings_.giBounces),
+                                static_cast<uint32_t>(gameSettings_.giPasses));
     else if (hasGame && gameChange != None)
         userConfig::writeWindow(gameFile, gameSettings_.screen, gameSettings_.focusOnShow,
                                 gameSettings_.behindOnShow);

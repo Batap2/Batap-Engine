@@ -28,6 +28,7 @@ struct VulkanContext
 
     bool rtSupported_ = false;
     uint32_t asScratchAlignment_ = 0;
+    float timestampPeriodNs_ = 0.f;
 
     ShaderCompiler shaderCompiler_;
 

@@ -321,12 +321,13 @@ float3 FaceNormal(float3 P, float3 Ngeom)
 // count is what says it is gone.
 float3 DiffuseIrradiance(Surface s)
 {
+    const float3 sky = g_draw.skyboxCount_ != 0 ? EvalSH9(s.N_) : float3(0.0f, 0.0f, 0.0f);
 #if BATAP_RT
     const uint slot = GiSlotFind(GiCacheKey(s.gi_, GiLevel(length(s.posRel_))));
     if (slot != GiNoSlot)
-        return GiIrradiance(slot);
+        return GiShownIrradiance(slot, sky);
 #endif
-    return g_draw.skyboxCount_ != 0 ? EvalSH9(s.N_) : float3(0.0f, 0.0f, 0.0f);
+    return sky;
 }
 
 float3 ShadeSurface(uint shadingModel, Surface s)

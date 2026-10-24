@@ -214,6 +214,7 @@ RtScene::CacheStats RtScene::copyCacheStats(VkCommandBuffer cmd, uint32_t frame)
         stats.failed_ += counters[RtCacheStatFailed * RtCacheStatsBuckets + bucket];
         stats.evicted_ += counters[RtCacheStatEvicted * RtCacheStatsBuckets + bucket];
         stats.tailMiss_ += counters[RtCacheStatTailMiss * RtCacheStatsBuckets + bucket];
+        stats.reset_ += counters[RtCacheStatReset * RtCacheStatsBuckets + bucket];
     }
 
     BarrierBatch{}.memory(Usage::ShaderWrite, Usage::TransferSrc).flush(cmd);

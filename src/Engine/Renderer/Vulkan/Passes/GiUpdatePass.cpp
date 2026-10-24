@@ -22,6 +22,7 @@ GiUpdatePass::~GiUpdatePass()
 {
     vkDestroyPipeline(setup_.ctx_.device_, updatePipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, resolvePipeline_, nullptr);
+    vkDestroyQueryPool(setup_.ctx_.device_, queries_, nullptr);
 }
 
 void GiUpdatePass::buildPipelines(const ShaderModules& modules)
@@ -58,11 +59,49 @@ void GiUpdatePass::resize(v2i frameSize)
                                                    ResourceFormat::R8G8B8A8_UNORM, std::nullopt);
 }
 
-void GiUpdatePass::record(const PassContext& pass)
+void GiUpdatePass::record(const PassContext& pass, uint32_t frame, uint32_t passes)
 {
-    draw(pass, updateTarget_, size_, updatePipeline_);
-    BarrierBatch{}.memory(Usage::ShaderWrite, Usage::ShaderWrite).flush(pass.cmd_);
+    const VkDevice device = setup_.ctx_.device_;
+    if (queries_ == VK_NULL_HANDLE)
+    {
+        VkQueryPoolCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        info.queryCount = 2 * FramesInFlight;
+        if (vkCreateQueryPool(device, &info, nullptr, &queries_) != VK_SUCCESS)
+            queries_ = VK_NULL_HANDLE;
+        // A query is undefined until its first reset, which must be recorded.
+        if (queries_ != VK_NULL_HANDLE)
+            vkCmdResetQueryPool(pass.cmd_, queries_, 0, info.queryCount);
+        written_.fill(false);
+    }
+    const uint32_t first = frame * 2;
+    if (queries_ != VK_NULL_HANDLE && written_[frame])
+    {
+        uint64_t ticks[2]{};
+        if (vkGetQueryPoolResults(device, queries_, first, 2, sizeof ticks, ticks,
+                                  sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+            gpuMs_ = static_cast<float>(ticks[1] - ticks[0]) * setup_.ctx_.timestampPeriodNs_ *
+                     1e-6f;
+        vkCmdResetQueryPool(pass.cmd_, queries_, first, 2);
+    }
+    if (queries_ != VK_NULL_HANDLE)
+    {
+        vkCmdWriteTimestamp(pass.cmd_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_, first);
+        written_[frame] = true;
+    }
+
+    PassContext update = pass;
+    for (uint32_t i = 0; i < std::max(passes, 1u); ++i)
+    {
+        update.push_.instanceIndex_ = i;
+        draw(update, updateTarget_, size_, updatePipeline_);
+        BarrierBatch{}.memory(Usage::ShaderWrite, Usage::ShaderWrite).flush(pass.cmd_);
+    }
     draw(pass, resolveTarget_, v2i{kResolveWidth, kResolveHeight}, resolvePipeline_);
+
+    if (queries_ != VK_NULL_HANDLE)
+        vkCmdWriteTimestamp(pass.cmd_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_, first + 1);
 }
 
 void GiUpdatePass::draw(const PassContext& pass, GPUResourceHandle target, v2i size,

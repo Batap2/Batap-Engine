@@ -38,6 +38,7 @@ struct EngineSettings
     bool vsync_ = false;
     bool rayTracing_ = true;
     uint32_t giBounces_ = 2;
+    uint32_t giPasses_ = 2;
 };
 
 struct Frame
@@ -102,6 +103,7 @@ struct Engine
     void setVsync(bool on);
     void setRayTracing(bool on) { settings_.rayTracing_ = on; }
     void setGiBounces(uint32_t bounces) { settings_.giBounces_ = bounces; }
+    void setGiPasses(uint32_t passes) { settings_.giPasses_ = passes; }
     bool rtSupported() const;
 
     float deltaTime_ = 0;
