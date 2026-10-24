@@ -37,6 +37,7 @@ struct EngineSettings
     uint32_t maxFps_ = 0;
     bool vsync_ = false;
     bool rayTracing_ = true;
+    uint32_t giBounces_ = 2;
 };
 
 struct Frame
@@ -100,6 +101,7 @@ struct Engine
     void setMaxFps(uint32_t fps) { settings_.maxFps_ = fps; }
     void setVsync(bool on);
     void setRayTracing(bool on) { settings_.rayTracing_ = on; }
+    void setGiBounces(uint32_t bounces) { settings_.giBounces_ = bounces; }
     bool rtSupported() const;
 
     float deltaTime_ = 0;

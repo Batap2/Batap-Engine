@@ -433,6 +433,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
     frameData_.giMaxAge_ = static_cast<uint32_t>(std::lround(1.f / dt));
     frameData_.giAlphaMin_ = 3.f * dt;
+    frameData_.giBounces_ = std::clamp(ctx.settings().giBounces_, 1u, 4u);
     resources_.recordBufferWrite(cmd, frameConstants_, &frameData_, sizeof(FrameGPUData), 0);
     BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderRead).flush(cmd);
 
@@ -502,7 +503,8 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
         if (args.showGiCache_ && giFrame_ % 120 == 0)
             std::cout << "[GI] cache: " << stats.occupied_ << " / " << RtCacheCapacity
                       << " cells, +" << stats.inserted_ << " inserted, " << stats.failed_
-                      << " failed, " << stats.evicted_ << " evicted\n";
+                      << " failed, " << stats.evicted_ << " evicted, " << stats.tailMiss_
+                      << " tail misses\n";
     }
 
     const std::array<ShadowAtlasViews, 2> shadowAtlases{{

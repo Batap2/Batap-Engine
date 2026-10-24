@@ -74,7 +74,8 @@ static const uint RtCacheStatOccupied = 0u;
 static const uint RtCacheStatInserted = 1u;
 static const uint RtCacheStatFailed = 2u;
 static const uint RtCacheStatEvicted = 3u;
-static const uint RtCacheStatCount = 4u;
+static const uint RtCacheStatTailMiss = 4u;
+static const uint RtCacheStatCount = 5u;
 
 // irradiance_ is the resolved value; sum_ and count_ collect the frame's
 // samples and the resolve pass folds them in. history_: samples folded in
@@ -264,7 +265,7 @@ struct FrameGPUData
     uint giHeight_;
     uint giMaxAge_;
     float giAlphaMin_;
-    uint pad0_;
+    uint giBounces_;
 };
 
 struct SphereOccluderGPUData

@@ -80,28 +80,45 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     if (inserted)
         GiStatAdd(RtCacheStatInserted, bucket);
 
-    RayDesc bounce;
-    bounce.Direction = GiCosineDirection(first.normal_, GiRand(seed), GiRand(seed));
-    bounce.Origin = first.position_ +
-                    first.normal_ * (ShadowRayOffset + ShadowRayOffsetPerMetre * length(first.position_));
-    bounce.TMin = 0.0f;
-    bounce.TMax = RtHitFar;
-    RayQuery<RAY_FLAG_FORCE_OPAQUE> bounceQuery;
-    bounceQuery.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow, bounce);
-    while (bounceQuery.Proceed())
+    float3 irradiance = float3(0.0f, 0.0f, 0.0f);
+    float3 throughput = float3(1.0f, 1.0f, 1.0f);
+    RtHit hit = first;
+    [loop]
+    for (uint bounce = 0; bounce < fc.giBounces_; ++bounce)
     {
-    }
-
-    float3 irradiance;
-    if (bounceQuery.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
-        irradiance = g_draw.skyboxCount_ != 0 ? PI * SampleSky(bounce.Direction, 0.0f)
-                                              : float3(0.0f, 0.0f, 0.0f);
-    else
-    {
-        const RtHit second = RtResolveHit(bounceQuery, bounce.Direction);
-        irradiance = second.shadingModel_ == ShadingUnlit
-                         ? PI * second.albedo_
-                         : second.albedo_ * GiStarIrradiance(second.position_, second.normal_);
+        RayDesc ray2;
+        ray2.Direction = GiCosineDirection(hit.normal_, GiRand(seed), GiRand(seed));
+        ray2.Origin = hit.position_ + hit.normal_ * (ShadowRayOffset +
+                                                      ShadowRayOffsetPerMetre * length(hit.position_));
+        ray2.TMin = 0.0f;
+        ray2.TMax = RtHitFar;
+        RayQuery<RAY_FLAG_FORCE_OPAQUE> bounceQuery;
+        bounceQuery.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow, ray2);
+        while (bounceQuery.Proceed())
+        {
+        }
+        if (bounceQuery.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
+        {
+            if (g_draw.skyboxCount_ != 0)
+                irradiance += throughput * (PI * SampleSky(ray2.Direction, 0.0f));
+            break;
+        }
+        hit = RtResolveHit(bounceQuery, ray2.Direction);
+        if (hit.shadingModel_ == ShadingUnlit)
+        {
+            irradiance += throughput * (PI * hit.albedo_);
+            break;
+        }
+        throughput *= hit.albedo_;
+        irradiance += throughput * GiStarIrradiance(hit.position_, hit.normal_);
+        if (bounce + 1 == fc.giBounces_)
+        {
+            const uint tail = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));
+            if (tail != GiNoSlot)
+                irradiance += throughput * GiIrradiance(tail);
+            else
+                GiStatAdd(RtCacheStatTailMiss, bucket);
+        }
     }
     GiAccumulate(slot, irradiance);
     return float4(irradiance, 1.0f);

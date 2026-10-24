@@ -874,9 +874,50 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       Validation propre, RT actif : jeu debug sur la copie statique (300
       frames). Pas d'éditeur debug : Batap utilisait la machine, et il vole le
       focus ; le shader est le même des deux côtés.
-- [ ] **2.7 Multi-rebonds.** Lire le cache au dernier sommet, puis passer à 2–3
+- [x] **2.7 Multi-rebonds.** Lire le cache au dernier sommet, puis passer à 2–3
       rebonds.
       *Vérif* : l'intérieur des cratères s'éclaircit un peu plus.
+      *Fait (2026-10-24)* : `GiUpdatePS` boucle sur `giBounces_` rebonds en
+      cosinus. À chaque sommet, `throughput × albedo × E_étoile` (rayon
+      d'ombre), le throughput étant le produit des albedos rencontrés ; au
+      dernier sommet s'ajoute `throughput × cache` de sa cellule (clé et
+      niveau du hit, comme une lecture d'écran), valeur résolue à la frame
+      précédente, qui tient lieu de tous les rebonds suivants. Miss : π × ciel
+      au throughput courant. Cellule de queue absente : rien d'ajouté, et le
+      compteur `RtCacheStatTailMiss` (log `[GI] cache:`). 1 + 2 B ray queries
+      par rayon de la passe.
+      - **Réglage utilisateur** `render.giBounces` (1 à 4, défaut 2) dans le
+        fichier de config de chaque application, `EngineSettings::giBounces_`,
+        `FrameGPUData::giBounces_` (l'ancien `pad0_`), et le champ « GI
+        bounces » du menu Settings de l'éditeur pour l'éditeur et le jeu, à
+        côté du ray tracing et du cap de fps.
+
+      *Mesuré* (copie statique, 60 fps, par rapport à l'état 2.6, mêmes
+      frames) :
+      - **Énergie** : B = 1 avec lecture de queue : fusée à l'ombre 0,577 →
+        0,611 (+6 %), terminateur 0,668 → 0,699 ; B = 2 : 0,617 et 0,709 ;
+        B = 3 : 0,617 et 0,707. **Convergé à B = 2**, d'où le défaut. Sol
+        au soleil +2 à 3 %, collines lointaines à l'ombre 0,150 → 0,154.
+        Fond de cratère à l'ombre (`slopes.btpl`) : 26,3 → 26,4 → 27,7 →
+        27,9/255 pour B = 1 (2.6), 1, 2, 3 : **+6 %, « un peu plus »**. Sur
+        la lune presque tout rayon de rebond part dans un ciel noir ; en
+        intérieur la part des rebonds suivants sera bien plus grande.
+      - **Lectures de queue** : 75 à 115 par frame sur 58 000 rayons
+        (0,2 %) sans cellule, sur les deux vues : le dernier sommet tombe
+        presque toujours sur une surface que la caméra voit. Mettre à jour
+        les cellules de tous les sommets (SHaRC) n'apporterait rien ici.
+      - **Scintillement, non résolu** : écart type de la luma entre les
+        frames 5000 et 5010, surfaces hors HUD, 2.6 → B = 1, 2, 3 : 10,0 →
+        10,3 → 10,7 → 10,7/255 (fusée 23 → 24,6, sol proche 15 → 17) ; 44
+        à 47 % des pixels bougent de plus de 4/255 en 10 frames. Le bruit
+        entre deux runs est de 0,04/255. Sous une étoile, la variance d'un
+        échantillon vient du rayon d'ombre binaire au premier rebond, que la
+        lecture de queue ne lisse pas, et chaque rebond ajoute le sien :
+        **c'est 2.8b qui traite le bruit, pas 2.7.**
+      - Coût de la passe non mesuré (pas de chrono GPU), à faire en 2.8b.
+
+      Validation propre, RT actif : jeu debug sur la copie statique (300
+      frames). Pas d'éditeur debug (même raison qu'en 2.6).
 - [x] **2.8 Vieillissement.** Décroissance exponentielle, hystérésis
       adaptative, éviction des cellules qui ne sont plus touchées.
       *Vérif* : le taux d'occupation de la table reste stable ; une lumière
@@ -977,13 +1018,15 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       À faire, dans l'ordre, chacun mesuré seul :
       1. **Fenêtre longue + historique rapide.** Deux moyennes par cellule :
-         lente, `α = 1 − (1 − 1/64)^âge` (64 frames, soit 64 à 128
-         échantillons à 1 ou 2 par frame : bruit ÷ 1,5 à 1,8 par rapport à
-         39), et rapide, `α = 1/4`. Variance estimée en ligne (moyenne des
-         carrés). Changement réel quand `|rapide − lente| > 3 σ_lente + 0,02`
-         : la lente prend la rapide. Extinction : la rapide tombe à 10 % en
-         8 frames, la détection suit, < 0,2 s au lieu de 1 s. La valeur passe
-         de 32 à 48 octets (48 Mo), ou on recycle `history_`.
+         lente, constante de temps τ = 1 s (`α = 1 − (1 − dt/τ)^âge`, soit
+         60 frames à 60 fps, 64 à 128 échantillons à 1 ou 2 par frame : bruit
+         ÷ 1,5 à 1,8 par rapport à 39), et rapide, τ = 4 frames. Variance
+         estimée en ligne (moyenne des carrés). Changement réel quand
+         `|rapide − lente| > 3 σ_lente + 0,02` : la lente prend la rapide.
+         Extinction : la rapide tombe à 10 % en 8 frames, la détection suit,
+         < 0,2 s au lieu de 1 s. La valeur passe de 32 à 48 octets (48 Mo),
+         ou on recycle `history_`. La fenêtre en secondes, pas en frames,
+         comme `α_min` aujourd'hui.
       2. **Cellule affichée à partir de 8 échantillons**, avec un fondu depuis
          le repli (`EvalSH9`, 0 sans ciel) : `lerp(E_SH, E_cache,
          min(n / 8, 1))`. Un front de cellules neuves devient un fondu de 8
@@ -995,16 +1038,18 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
          par pixel) pour le jitter et la direction du rebond : gain ≤ 2 sur
          l'écart type pour l'intégrale sur l'hémisphère, peu sur la
          visibilité binaire. Option.
-      5. **Passe en ½ × ½** : 233 000 rayons, 4 fois plus d'échantillons par
-         cellule, bruit ÷ 2. Mesurer d'abord le coût de la passe ¼ × ¼ (jamais
-         chronométrée) ; à 3 ray queries par rayon, 0,7 M de requêtes par
-         frame, de l'ordre de 1 ms sur une 3060. Option, selon le budget.
+      5. **N passes par frame** (graines différentes), ou la passe en ½ × ½ :
+         N fois plus d'échantillons par cellule, bruit ÷ √N, coût × N.
+         Mesurer d'abord le coût de la passe ¼ × ¼ (jamais chronométrée) ; le
+         budget lui donne 0,5 à 1 ms sur une 3060, à 3 ray queries par rayon
+         et 58 000 rayons. N devient un réglage de qualité, borné par le temps
+         GPU mesuré.
 
       *Cible* : après 1 à 3, caméra fixe sur `test_GI`, écart type par cellule
       3/255 (64 échantillons binaires) ; après 2.9 (8 cellules, ÷ 2,8) et la
-      passe ½ × ½ (÷ 2), **moins de 1/255 par pixel**. 2.7 baisse en plus la
-      variance de chaque échantillon : au second hit on lit le cache au lieu
-      d'un rayon d'ombre binaire.
+      passe ½ × ½ (÷ 2), **moins de 1/255 par pixel**. 2.7 n'y change rien,
+      mesuré : la lecture de queue s'ajoute au rayon d'ombre binaire du
+      premier rebond, elle ne le remplace pas (10,0 → 10,7/255).
 
       *Vérif* : caméra fixe sur `test_GI` et sur la copie statique, 8 dumps à
       10 frames d'écart (le bruit entre deux runs est de 2/255) : écart type

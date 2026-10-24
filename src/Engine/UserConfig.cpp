@@ -84,11 +84,14 @@ void readRender(const nlohmann::json& config, EngineSettings& io)
 
     io.rayTracing_ = it->value("rayTracing", io.rayTracing_);
     io.maxFps_ = it->value("maxFps", io.maxFps_);
+    io.giBounces_ = it->value("giBounces", io.giBounces_);
 }
 
-void writeRender(const std::filesystem::path& file, bool rayTracing, uint32_t maxFps)
+void writeRender(const std::filesystem::path& file, bool rayTracing, uint32_t maxFps,
+                 uint32_t giBounces)
 {
-    writeSection(file, "render", {{"rayTracing", rayTracing}, {"maxFps", maxFps}});
+    writeSection(file, "render",
+                 {{"rayTracing", rayTracing}, {"maxFps", maxFps}, {"giBounces", giBounces}});
 }
 
 }  // namespace batap::userConfig
