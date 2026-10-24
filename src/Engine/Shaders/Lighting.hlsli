@@ -317,6 +317,18 @@ float3 FaceNormal(float3 P, float3 Ngeom)
     return dot(c, Ngeom) >= 0.0f ? c : -c;
 }
 
+// The sky buffer keeps the last sky's values after it is removed, so the
+// count is what says it is gone.
+float3 DiffuseIrradiance(Surface s)
+{
+#if BATAP_RT
+    const uint slot = GiSlotFind(GiCacheKey(s.gi_, GiLevel(length(s.posRel_))));
+    if (slot != GiNoSlot)
+        return GiIrradiance(slot);
+#endif
+    return g_draw.skyboxCount_ != 0 ? EvalSH9(s.N_) : float3(0.0f, 0.0f, 0.0f);
+}
+
 float3 ShadeSurface(uint shadingModel, Surface s)
 {
     if (shadingModel == ShadingUnlit)
@@ -330,19 +342,14 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     float3 V = normalize(-s.posRel_);
     float  NdotV = saturate(dot(s.N_, V));
 
-    // IBL diffuse (SH L2) + spéculaire (env sampling). The buffer keeps the last
-    // sky's values after it is removed, so the count is what says it is gone.
-    float3 color = float3(0.0f, 0.0f, 0.0f);
+    float3 F_ibl = F_Schlick(NdotV, F0);
+    float3 kD    = (1.0f - F_ibl) * (1.0f - s.metallic_);
+    float3 color = kD * DiffuseIrradiance(s) * s.albedo_;
     if (g_draw.skyboxCount_ != 0)
     {
-        float3 F_ibl = F_Schlick(NdotV, F0);
-        float3 kD    = (1.0f - F_ibl) * (1.0f - s.metallic_);
-
         float3 R        = reflect(-V, s.N_);
         float  mipLevel = s.roughness_ * float(max(SkyboxBuffer[0].mipCount, 1u) - 1u);
-        float3 specIBL  = F_ibl * SampleSky(R, mipLevel) * s.reflectivity_;
-
-        color = kD * EvalSH9(s.N_) * s.albedo_ + specIBL;
+        color += F_ibl * SampleSky(R, mipLevel) * s.reflectivity_;
     }
 
     uint debugCascade = ShadowCascadeCount;

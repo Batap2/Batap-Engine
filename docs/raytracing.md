@@ -816,10 +816,64 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Validation propre, RT actif : jeu debug sur la copie statique (vue
       active puis coupée), éditeur debug sur `test_buggy_fusee`.
-- [ ] **2.6 Lecture dans `ShadeSurface`.** En variante RT, la lecture du cache
+- [x] **2.6 Lecture dans `ShadeSurface`.** En variante RT, la lecture du cache
       remplace `EvalSH9`. Une cellule vide retombe sur `EvalSH9`.
       *Vérif* : le dessous du buggy et les cratères reçoivent de la lumière
       rebondie.
+      *Fait (2026-10-24)* : `DiffuseIrradiance` dans `Lighting.hlsli`. En RT,
+      la cellule du pixel (`GiSlotFind` sur la clé de `Surface::gi_`, même
+      niveau que la vue « GI cache ») ; sinon, et quand elle manque, `EvalSH9`
+      s'il y a un ciel, 0 sans ciel. Le diffus indirect `kD × E × albedo` est
+      calculé quel que soit le ciel : avec le ciel noir de la lune, l'ambiant
+      n'était jamais évalué. Le spéculaire du ciel ne bouge pas. En raster,
+      même expression qu'avant : vue de référence à la frame 5000, 177 px
+      d'écart (> 8) entre les shaders de HEAD et les nouveaux, tous sur le
+      bord de l'ombre en cascade de la fusée, où deux runs des mêmes shaders
+      diffèrent de 300 px.
+
+      *Mesuré* (copie statique de `test_buggy_fusee`, 60 fps, RT, avant et
+      après au même numéro de frame ; deux runs « après » diffèrent de 2/255
+      au plus, sur 5 006 px, aucun de plus de 8) :
+      - **Vue de référence, frame 5000** : 66 % des pixels de la scène
+        éclaircis, aucun assombri, +0,064 de luma en médiane (le sol au soleil
+        reçoit ses pentes voisines). 10 533 px noirs (< 8/255) sont éclairés,
+        à 0,28 de luma en moyenne. Versants à l'ombre des collines du fond :
+        0,10 → 0,15 ; leurs 5 160 px noirs → 0,07.
+      - **Fusée, flanc à l'ombre** (la caméra voit le côté opposé à l'étoile,
+        à 50° au-dessus de l'horizon) : 0,05 → 0,58 de luma, teinté par le
+        régolithe (RGB 169 144 111) ; côté terminateur 0,20 → 0,67. Le sol au
+        soleil est à 0,70 : **le flanc à l'ombre est aussi clair que le sol
+        éclairé**, voir « facteur π » ci-dessous.
+      - **Dessous du buggy** (`under.btpl` : caméra à 4 m du côté opposé à
+        l'étoile, 0,5 m au-dessus du sol, buggy en `strate_2.bmat`) : 14 127
+        px noirs éclairés, luma 0,20 en moyenne, 0,34 au 90ᵉ centile : flancs
+        intérieurs des roues et dessous du châssis. Le vrai matériau du buggy
+        (`mat_0.bmat`) est `metallic 1` sans texture, donc `kD = 0` : il ne
+        reçoit aucun diffus, ni du ciel ni du cache, et reste noir à l'ombre
+        (1 123 px noirs → 0,001). À corriger dans l'asset (metallic 0), pas
+        dans le rendu.
+      - **Cratères et pentes** (`slopes.btpl` : 3 m au-dessus et 5 m à côté du
+        buggy, regard vers l'azimut de l'étoile) : 37 % des pixels éclaircis,
+        2 850 px noirs → 0,10 ; le fond du cratère du centre et les versants
+        opposés au soleil sortent du noir.
+      - Aspect en blocs, et quelques cellules isolées plus claires que leurs
+        voisines (mouchetures sur le sol) : attendu avant 2.9.
+
+      **Facteur π.** Le terme ambiant est `kD × E × albedo`, E en irradiance
+      (les SH sont projetées sans le facteur lambertien, `EvalSH9` l'applique ;
+      le cache accumule π × radiance par rayon en cosinus). Le terme direct
+      fait `albedo / π × E_étoile × N·L`. Four blanc (ciel uniforme à 1,
+      albedo 1) : direct à 1, ambiant à π, saturé. Sur la lune : flanc de
+      fusée à l'ombre, E ≈ 0,65 dans le cache → rendu 0,58 (albedo ≈ 0,9) au
+      lieu de 0,19 ; sol éclairé 0,8/π × 3,4 × sin 50° = 0,67, ce qu'on mesure.
+      Correctif : `/ PI` sur le diffus indirect, une ligne, mais il assombrit
+      d'un facteur 3 l'ambiant de tout ciel, en raster aussi (le raster ne
+      bouge pas sans décision), et le four blanc est prévu en B.8. À trancher
+      avant 2.9 : les mesures de 2.9 et 2.7 dépendent de l'échelle.
+
+      Validation propre, RT actif : jeu debug sur la copie statique (300
+      frames). Pas d'éditeur debug : Batap utilisait la machine, et il vole le
+      focus ; le shader est le même des deux côtés.
 - [ ] **2.7 Multi-rebonds.** Lire le cache au dernier sommet, puis passer à 2–3
       rebonds.
       *Vérif* : l'intérieur des cratères s'éclaircit un peu plus.
@@ -893,11 +947,83 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Validation propre, RT actif : jeu debug sur la copie statique,
       éditeur debug sur `test_buggy_fusee`.
+- [ ] **2.8b Stabilité temporelle.** Avant 2.9, pour mesurer 2.9 sur une base
+      propre. Constat de Batap sur `test_GI` après 2.6 : ça clignote de
+      partout, inutilisable en l'état. Les réglages de 2.8 ont été choisis
+      pour la réactivité (extinction rattrapée en 1 s), pas pour le bruit.
+
+      *Pourquoi ça clignote*, avec les mesures de 2.5 et 2.8 :
+      - La passe ¼ × ¼ lance 58 000 rayons par frame en 1280 × 728 pour
+        49 000 cellules occupées caméra fixe : **1 à 2 échantillons par
+        cellule et par frame** (médiane 0,6 à 2 sur 5 000 frames en 2.5, et
+        non les 10 à 80 estimés en 2.4, qui comptaient les pixels et non les
+        rayons).
+      - Le plancher `α_min = 3 dt` (0,05 à 60 fps) borne la mémoire d'une
+        cellule à `2/α − 1 = 39` échantillons. Pour des échantillons qui
+        valent 0 ou « ciel » (visibilité, p ≈ 0,7), l'écart type de la valeur
+        est `√(α / (2 − α)) × σ = 0,16 × 0,46 E = 7 % de E`, soit ±10 % de la
+        moyenne : **±14/255 à chaque frame** sur un sol à E = 0,76, décorrélé
+        d'une cellule à l'autre.
+      - L'hystérésis (≥ 16 échantillons et écart > 50 % + 0,02) se déclenche
+        sur du bruit : à 16 échantillons binaires l'estimation a un écart type
+        de 0,115 E, le seuil est à 3 σ, soit 0,27 % des cellules par frame,
+        quelques dizaines de remises à zéro par frame près de la caméra.
+      - Une cellule neuve est affichée dès son premier échantillon, à 0 ou à E
+        plein : chaque mouvement de caméra, et chaque changement de niveau avec
+        la distance, crée un front de cellules à plein contraste qui converge
+        en 20 à 40 frames.
+      - À la frange de ce que la passe ¼ × ¼ touche, une cellule vue moins
+        d'une fois par seconde est évincée puis réinsérée à 1 échantillon.
+
+      À faire, dans l'ordre, chacun mesuré seul :
+      1. **Fenêtre longue + historique rapide.** Deux moyennes par cellule :
+         lente, `α = 1 − (1 − 1/64)^âge` (64 frames, soit 64 à 128
+         échantillons à 1 ou 2 par frame : bruit ÷ 1,5 à 1,8 par rapport à
+         39), et rapide, `α = 1/4`. Variance estimée en ligne (moyenne des
+         carrés). Changement réel quand `|rapide − lente| > 3 σ_lente + 0,02`
+         : la lente prend la rapide. Extinction : la rapide tombe à 10 % en
+         8 frames, la détection suit, < 0,2 s au lieu de 1 s. La valeur passe
+         de 32 à 48 octets (48 Mo), ou on recycle `history_`.
+      2. **Cellule affichée à partir de 8 échantillons**, avec un fondu depuis
+         le repli (`EvalSH9`, 0 sans ciel) : `lerp(E_SH, E_cache,
+         min(n / 8, 1))`. Un front de cellules neuves devient un fondu de 8
+         frames au lieu d'un damier. 2.9 pourra lire le niveau parent, plus
+         ancien, à la place.
+      3. **Âge d'éviction 3 s** au lieu de 1 : l'occupation mesurée est de
+         5 %, la table a 20 fois la place.
+      4. **Échantillonnage stratifié** par pixel (R2 ou Halton avec rotation
+         par pixel) pour le jitter et la direction du rebond : gain ≤ 2 sur
+         l'écart type pour l'intégrale sur l'hémisphère, peu sur la
+         visibilité binaire. Option.
+      5. **Passe en ½ × ½** : 233 000 rayons, 4 fois plus d'échantillons par
+         cellule, bruit ÷ 2. Mesurer d'abord le coût de la passe ¼ × ¼ (jamais
+         chronométrée) ; à 3 ray queries par rayon, 0,7 M de requêtes par
+         frame, de l'ordre de 1 ms sur une 3060. Option, selon le budget.
+
+      *Cible* : après 1 à 3, caméra fixe sur `test_GI`, écart type par cellule
+      3/255 (64 échantillons binaires) ; après 2.9 (8 cellules, ÷ 2,8) et la
+      passe ½ × ½ (÷ 2), **moins de 1/255 par pixel**. 2.7 baisse en plus la
+      variance de chaque échantillon : au second hit on lit le cache au lieu
+      d'un rayon d'ombre binaire.
+
+      *Vérif* : caméra fixe sur `test_GI` et sur la copie statique, 8 dumps à
+      10 frames d'écart (le bruit entre deux runs est de 2/255) : écart type
+      par pixel sous 3/255 hors arêtes ; compteur de remises à zéro
+      (`RtCacheStatReset`) nul lumière fixe ; `orbit.btpl` : extinction
+      rattrapée en moins de 0,5 s ; `pan.btpl` : aucune cellule à plein
+      contraste, le front des cellules neuves est un fondu.
 - [ ] **2.9 Interpolation trilinéaire.** 8 lectures, et un fondu entre niveaux.
-      *Vérif* : plus d'aspect en blocs.
+      *Vérif* : plus d'aspect en blocs, et l'écart type par pixel de 2.8b
+      divisé par 2 au moins.
 - [ ] **2.10 Lumières locales dans la mise à jour.** Boucle sur les lumières à
-      portée, avec un rayon d'ombre pour chacune.
-      *Vérif* : une pièce éclairée par une lampe reçoit du rebond.
+      portée, avec un rayon d'ombre pour chacune. Aujourd'hui
+      `GiStarIrradiance` ne voit que l'étoile : sur `test_GI` (un
+      `pointLight`, murs rouge et bleu, sol blanc) le mur rouge n'est pas
+      éclairé pour le cache et le sol ne reçoit que le ciel gris.
+      *Vérif* : une pièce éclairée par une lampe reçoit du rebond ; sur
+      `test_GI`, le sol blanc prend le rouge du mur. Tant que le facteur π
+      n'est pas tranché, le sol blanc sature (ciel 0,76 + lampe 0,25) et la
+      teinte s'écrête : mesurer sur le sol à l'ombre, ou après la décision.
 - [ ] **2.11 Mesures.** Reporter les chiffres dans « Budget ».
 
 ### Phase 3 — Plomberie commune
@@ -1021,6 +1147,11 @@ règles temporelles et le MSAA.
   indexer par l'identifiant stable du chunk (face, niveau, x, y) et, pour
   partager les cellules entre niveaux, par des positions dans le repère de
   l'astre à un plancher plus grossier.
+
+- **Facteur π du diffus indirect.** `kD × E × albedo` sans `/ π`, pour les SH
+  du ciel comme pour le cache : l'ambiant est π fois trop clair par rapport au
+  direct (2.6, mesuré sur la fusée). Une ligne à changer, qui assombrit tout
+  ciel en raster aussi : décision à prendre avant 2.9.
 
 - **Support de `VK_KHR_ray_tracing_position_fetch` dans dxc/HLSL.** S'il existe,
   il remplace le buffer geometry info.
