@@ -22,9 +22,13 @@ struct GiUpdatePass
     v2i size() const { return size_; }
 
    private:
+    void draw(const PassContext& pass, GPUResourceHandle target, v2i size, VkPipeline pipeline);
+
     PassSetup setup_;
-    VkPipeline pipeline_ = VK_NULL_HANDLE;
-    GPUResourceHandle target_;
+    VkPipeline updatePipeline_ = VK_NULL_HANDLE;
+    VkPipeline resolvePipeline_ = VK_NULL_HANDLE;
+    GPUResourceHandle updateTarget_;
+    GPUResourceHandle resolveTarget_;
     v2i size_ = v2i::Zero();
 };
 }  // namespace batap

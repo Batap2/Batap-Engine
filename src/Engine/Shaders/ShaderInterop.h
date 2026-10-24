@@ -35,6 +35,7 @@ enum RayTracingSetBinding : uint
     RtInstancesBinding = 2,
     RtCacheKeysBinding = 3,
     RtCacheValuesBinding = 4,
+    RtCacheStatsBinding = 5,
 };
 
 static const uint TlasMaskShadowCaster = 1u;
@@ -67,11 +68,23 @@ struct RtInstanceGPUData
 static const uint RtCacheCapacity = 1u << 20;
 static const uint RtCacheProbes = 16u;
 static const float RtCacheScale = 256.0f;
+static const uint RtCacheResolveWidth = 1024u;
+static const uint RtCacheStatsBuckets = 256u;
+static const uint RtCacheStatOccupied = 0u;
+static const uint RtCacheStatInserted = 1u;
+static const uint RtCacheStatFailed = 2u;
+static const uint RtCacheStatEvicted = 3u;
+static const uint RtCacheStatCount = 4u;
 
+// irradiance_ is the resolved value; sum_ and count_ collect the frame's
+// samples and the resolve pass folds them in. history_: samples folded in
+// the low 16 bits, the frame of the last visit in the high 16.
 struct RtCacheValueGPUData
 {
-    uint radiance_[3];
-    uint samples_;
+    float irradiance_[3];
+    uint history_;
+    uint sum_[3];
+    uint count_;
 };
 
 enum BindlessBinding : uint
@@ -249,9 +262,9 @@ struct FrameGPUData
     uint frameIndex_;
     uint giWidth_;
     uint giHeight_;
+    uint giMaxAge_;
+    float giAlphaMin_;
     uint pad0_;
-    uint pad1_;
-    uint pad2_;
 };
 
 struct SphereOccluderGPUData
@@ -356,7 +369,8 @@ static_assert(sizeof(TerrainChunkGPUData) == 64);
 static_assert(sizeof(TerrainWorldGPUData) == 64);
 static_assert(sizeof(RtGeometryGPUData) == 32);
 static_assert(sizeof(RtInstanceGPUData) == 16);
-static_assert(sizeof(RtCacheValueGPUData) == 16);
+static_assert(sizeof(RtCacheValueGPUData) == 32);
+static_assert(RtCacheCapacity % RtCacheResolveWidth == 0);
 
 // dxc lays a structured buffer out as std430: the array stride is the struct
 // size rounded up to 16. A C++ struct that is not a multiple of 16 therefore

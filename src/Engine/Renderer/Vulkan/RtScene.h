@@ -39,6 +39,15 @@ struct RtScene
     VkDescriptorSetLayout setLayout() const { return setLayout_; }
     VkDescriptorSet set(uint32_t frame) const { return sets_[frame]; }
 
+    struct CacheStats
+    {
+        uint32_t occupied_ = 0;
+        uint32_t inserted_ = 0;
+        uint32_t failed_ = 0;
+        uint32_t evicted_ = 0;
+    };
+    CacheStats copyCacheStats(VkCommandBuffer cmd, uint32_t frame);
+
    private:
     struct Blas
     {
@@ -79,6 +88,8 @@ struct RtScene
     {
         GPUResourceHandle keys_;
         GPUResourceHandle values_;
+        GPUResourceHandle stats_;
+        std::array<GPUResourceHandle, FramesInFlight> readback_;
         bool clear_ = true;
     };
 

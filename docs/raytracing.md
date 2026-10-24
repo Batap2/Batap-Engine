@@ -823,10 +823,76 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 - [ ] **2.7 Multi-rebonds.** Lire le cache au dernier sommet, puis passer à 2–3
       rebonds.
       *Vérif* : l'intérieur des cratères s'éclaircit un peu plus.
-- [ ] **2.8 Vieillissement.** Décroissance exponentielle, hystérésis
+- [x] **2.8 Vieillissement.** Décroissance exponentielle, hystérésis
       adaptative, éviction des cellules qui ne sont plus touchées.
       *Vérif* : le taux d'occupation de la table reste stable ; une lumière
       qu'on éteint fait disparaître son rebond en moins d'une seconde.
+      *Fait (2026-10-23), avant 2.6 et 2.7* : sans éviction, une caméra en
+      mouvement remplissait le million de cases en 5 à 20 s, après quoi
+      toute insertion échouait et le cache se « peignait » cellule par
+      cellule.
+      - **Valeur à 32 octets** (`RtCacheValueGPUData`, le cache passe à
+        40 Mo) : la valeur résolue (3 flottants), un accumulateur de la
+        frame (somme ×256 + compteur, par atomiques) et `history_` =
+        échantillons repliés (16 bits) | frame de la dernière visite (16).
+      - **Passe de résolution** (`GiResolvePS`, triangle plein écran sur une
+        cible R8 de 1024 × 1024, une case par pixel) juste après la mise à
+        jour, avant les lecteurs. Par case occupée :
+        - visitée cette frame : `valeur = lerp(valeur, somme/compteur, α)`
+          avec `α = max(compteur / (échantillons + compteur), 1 − (1 −
+          α_min)^âge)` ; le plancher compte les frames écoulées depuis la
+          dernière visite, sinon une cellule touchée par un rayon toutes
+          les cinq frames oubliait cinq fois plus lentement (mesuré : résidu
+          nocturne 0,09 et descente en 2,5 s). `α_min = 3 dt`, soit une
+          constante de temps de 0,33 s quel que soit le nombre de fps ;
+        - **hystérésis adaptative** : une frame à ≥ 16 échantillons dont
+          l'estimation diffère de la valeur de plus de 50 % (+ 0,02)
+          ramène les échantillons repliés à ceux de la frame (α = ½) ;
+        - non visitée depuis plus de `giMaxAge_` frames (= 1 s au dt
+          courant) : clé et valeur remises à zéro. Un trou dans une chaîne
+          de sondage linéaire rend orpheline une cellule derrière lui : elle
+          s'évince à son tour et sa surface est réinsérée dès le rayon
+          suivant ; à 5 % d'occupation les chaînes sont presque toujours de
+          longueur 1.
+      - `FrameGPUData` porte `giMaxAge_` et `giAlphaMin_`, calculés du dt.
+      - **Compteurs** (binding 5 du set 2, 256 seaux par compteur pour ne pas
+        sérialiser les atomiques) : occupées, insérées, échecs, évincées ;
+        remis à zéro à chaque frame, copiés dans un buffer mappé par slot
+        de frame, lus trois frames plus tard. Log `[GI] cache:` toutes les
+        120 frames quand la vue « GI cache » est active.
+
+      *Mesuré* (copie statique de `test_buggy_fusee`, 60 fps imposés par la
+      config, vue « GI cache ») :
+      - **Occupation** avec un `Rotator_C` sur la caméra (0,5 rad/s), relevée
+        toutes les 2 s sur 25 s : 19 664 → 35 117 → 45 221 → 58 911 →
+        71 250 → 44 629 → 18 964 → 29 730 → 44 017 → 52 712 cellules, de 100
+        à 500 insertions et autant d'évictions par frame, **0 échec**. Elle
+        suit ce que la caméra balaie au lieu de monter jusqu'au million.
+        Caméra fixe : 49 300 cellules, ±50 par frame.
+      - **Extinction** : l'étoile remplacée par une `FarPointLight_C` à
+        500 m qui tourne autour du buggy (π rad/s, axe horizontal) et passe
+        sous l'horizon une seconde sur deux. Luminance du cache sur la
+        fusée à huit instants espacés de 0,25 s : 0,04 0,02 0,16 0,44 0,56
+        0,44 0,22 0,10. Après le coucher, 0,44 → 0,10 en 0,5 s, 0,04 en
+        0,75 s, 0,02 en 1 s : **95 % du rebond disparu en une seconde**.
+      - Vue statique à la frame 5000 : mêmes valeurs qu'en 2.5 à 5 % près
+        (fusée 0,66 contre 0,70, buggy 0,42 contre 0,43, sol identique),
+        680 px de cellules vides contre 561.
+      - **Côté de la clé, égalités à 45°** (trouvé par Batap sur
+        `bug_GI.btpl`, la fusée vue à 45° de ses axes) : sur la bande qui
+        fait face à la caméra, |x| = |z| pour la normale locale, et le bruit
+        entre la normale des dérivées d'écran et celle du triangle choisit
+        l'axe dominant au hasard : 7 159 px en désaccord de côté (test clé
+        contre clé, 0 de repère, de niveau ou de position), soit 6 559 px de
+        cellules introuvables. `GiSide` tranche les égalités à 1e-3 près,
+        X puis Y : 0 px sur `bug_GI`, et 340 au lieu de 680 sur la scène
+        statique (le reste est aux bords de triangles).
+      - Rendu normal (qui ne lit pas le cache) : 383 px d'écart en RT et
+        630 en raster avec la référence de l'étape 15, tous sur la fusée,
+        dont le mesh a été réimporté le jour même ; identiques hors fusée.
+
+      Validation propre, RT actif : jeu debug sur la copie statique,
+      éditeur debug sur `test_buggy_fusee`.
 - [ ] **2.9 Interpolation trilinéaire.** 8 lectures, et un fondu entre niveaux.
       *Vérif* : plus d'aspect en blocs.
 - [ ] **2.10 Lumières locales dans la mise à jour.** Boucle sur les lumières à

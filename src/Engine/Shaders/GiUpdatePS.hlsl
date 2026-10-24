@@ -69,9 +69,16 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     const RtHit first = RtResolveHit(query, ray.Direction);
 
     const uint2 key = GiCacheKey(first.gi_, GiLevel(length(first.position_)));
-    const uint slot = GiSlotInsert(key);
+    const uint bucket = (pixel.x ^ pixel.y) & (RtCacheStatsBuckets - 1u);
+    bool inserted;
+    const uint slot = GiSlotInsert(key, inserted);
     if (slot == GiNoSlot)
+    {
+        GiStatAdd(RtCacheStatFailed, bucket);
         return float4(1.0f, 0.0f, 1.0f, 1.0f);
+    }
+    if (inserted)
+        GiStatAdd(RtCacheStatInserted, bucket);
 
     RayDesc bounce;
     bounce.Direction = GiCosineDirection(first.normal_, GiRand(seed), GiRand(seed));

@@ -52,10 +52,16 @@ float GiCellSize(uint level)
 // Dominant half-axis, not the octant: a face flat on an object axis has a
 // normal component at exactly zero, and its sign is float noise, different
 // between screen derivatives and the ray's triangle.
+// A facet at exactly 45 degrees has two equal components, and the screen's
+// derivative normal and the ray's triangle normal order them by noise: the
+// tie goes to X, then Y, on both sides.
+static const float GiSideTie = 1e-3f;
+
 uint GiSide(GiPoint p)
 {
     const float3 a = abs(p.nLocal_);
-    const uint axis = a.x >= a.y ? (a.x >= a.z ? 0u : 2u) : (a.y >= a.z ? 1u : 2u);
+    const uint axis = a.x + GiSideTie >= a.y ? (a.x + GiSideTie >= a.z ? 0u : 2u)
+                                             : (a.y + GiSideTie >= a.z ? 1u : 2u);
     return axis * 2u + (p.nLocal_[axis] < 0.0f ? 1u : 0u);
 }
 
@@ -99,11 +105,26 @@ float GiRand(inout uint seed)
     return float(seed >> 8) / 16777216.0f;
 }
 
+float GiLuma(float3 c)
+{
+    return dot(c, float3(0.2126f, 0.7152f, 0.0722f));
+}
+
+static const uint GiChangeMinSamples = 16u;
+static const float GiChangeRatio = 0.5f;
+static const float GiChangeFloor = 0.02f;
+
 #if BATAP_RT
 [[vk::binding(RtCacheKeysBinding, RayTracingSet)]] RWStructuredBuffer<uint64_t> GiKeys;
 [[vk::binding(RtCacheValuesBinding, RayTracingSet)]] RWStructuredBuffer<RtCacheValueGPUData> GiValues;
+[[vk::binding(RtCacheStatsBinding, RayTracingSet)]] RWStructuredBuffer<uint> GiStats;
 
 static const uint GiNoSlot = 0xFFFFFFFFu;
+
+void GiStatAdd(uint stat, uint bucket)
+{
+    InterlockedAdd(GiStats[stat * RtCacheStatsBuckets + bucket], 1u);
+}
 
 uint64_t GiKey64(uint2 key)
 {
@@ -132,16 +153,18 @@ uint GiSlotFind(uint2 key)
     return GiNoSlot;
 }
 
-uint GiSlotInsert(uint2 key)
+uint GiSlotInsert(uint2 key, out bool inserted)
 {
     const uint64_t key64 = GiKey64(key);
     uint slot = GiFirstSlot(key);
+    inserted = false;
     [loop]
     for (uint i = 0; i < RtCacheProbes; ++i)
     {
         uint64_t stored;
         InterlockedCompareExchange(GiKeys[slot], 0, key64, stored);
-        if (stored == 0 || stored == key64)
+        inserted = stored == 0;
+        if (inserted || stored == key64)
             return slot;
         slot = (slot + 1u) & (RtCacheCapacity - 1u);
     }
@@ -151,19 +174,16 @@ uint GiSlotInsert(uint2 key)
 void GiAccumulate(uint slot, float3 irradiance)
 {
     const uint3 fixed = uint3(round(max(irradiance, 0.0f) * RtCacheScale));
-    InterlockedAdd(GiValues[slot].radiance_[0], fixed.x);
-    InterlockedAdd(GiValues[slot].radiance_[1], fixed.y);
-    InterlockedAdd(GiValues[slot].radiance_[2], fixed.z);
-    InterlockedAdd(GiValues[slot].samples_, 1u);
+    InterlockedAdd(GiValues[slot].sum_[0], fixed.x);
+    InterlockedAdd(GiValues[slot].sum_[1], fixed.y);
+    InterlockedAdd(GiValues[slot].sum_[2], fixed.z);
+    InterlockedAdd(GiValues[slot].count_, 1u);
 }
 
 float3 GiIrradiance(uint slot)
 {
     const RtCacheValueGPUData v = GiValues[slot];
-    if (v.samples_ == 0u)
-        return float3(0.0f, 0.0f, 0.0f);
-    return float3(v.radiance_[0], v.radiance_[1], v.radiance_[2]) /
-           (RtCacheScale * float(v.samples_));
+    return float3(v.irradiance_[0], v.irradiance_[1], v.irradiance_[2]);
 }
 #endif
 

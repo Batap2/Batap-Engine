@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <optional>
@@ -429,6 +430,9 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     frameData_.frameIndex_ = ++giFrame_;
     frameData_.giWidth_ = static_cast<uint32_t>(giUpdate_.size().x());
     frameData_.giHeight_ = static_cast<uint32_t>(giUpdate_.size().y());
+    const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
+    frameData_.giMaxAge_ = static_cast<uint32_t>(std::lround(1.f / dt));
+    frameData_.giAlphaMin_ = 3.f * dt;
     resources_.recordBufferWrite(cmd, frameConstants_, &frameData_, sizeof(FrameGPUData), 0);
     BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderRead).flush(cmd);
 
@@ -493,7 +497,12 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     {
         BarrierBatch{}.memory(Usage::ShaderRead, Usage::ShaderWrite).flush(cmd);
         giUpdate_.record(pass);
+        const RtScene::CacheStats stats = rtScene_->copyCacheStats(cmd, frame);
         BarrierBatch{}.memory(Usage::ShaderWrite, Usage::ShaderRead).flush(cmd);
+        if (args.showGiCache_ && giFrame_ % 120 == 0)
+            std::cout << "[GI] cache: " << stats.occupied_ << " / " << RtCacheCapacity
+                      << " cells, +" << stats.inserted_ << " inserted, " << stats.failed_
+                      << " failed, " << stats.evicted_ << " evicted\n";
     }
 
     const std::array<ShadowAtlasViews, 2> shadowAtlases{{

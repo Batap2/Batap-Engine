@@ -25,6 +25,7 @@ enum ShaderId : size_t
     TerrainRtPS,
     RtDebugPS,
     GiUpdatePS,
+    GiResolvePS,
     ShaderCount,
 };
 
@@ -57,6 +58,7 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"TerrainPSRT", "TerrainPS", "ps_6_6", true},
     {"RtDebugPS", "RtDebugPS", "ps_6_6", true},
     {"GiUpdatePS", "GiUpdatePS", "ps_6_6", true},
+    {"GiResolvePS", "GiResolvePS", "ps_6_6", true},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

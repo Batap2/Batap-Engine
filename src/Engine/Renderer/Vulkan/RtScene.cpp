@@ -143,7 +143,7 @@ struct RtScene::BlasInputs
 
 RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), resources_(resources)
 {
-    std::array<VkDescriptorSetLayoutBinding, 5> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, 6> bindings{};
     bindings[0].binding = TlasBinding;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
     bindings[1].binding = RtGeometriesBinding;
@@ -154,6 +154,8 @@ RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), re
     bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     bindings[4].binding = RtCacheValuesBinding;
     bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[5].binding = RtCacheStatsBinding;
+    bindings[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     for (VkDescriptorSetLayoutBinding& binding : bindings)
     {
         binding.descriptorCount = 1;
@@ -169,7 +171,7 @@ RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), re
 
     const std::array<VkDescriptorPoolSize, 2> poolSizes{{
         {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, FramesInFlight},
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4 * FramesInFlight},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5 * FramesInFlight},
     }};
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -193,6 +195,32 @@ RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), re
         resources_.createStaticBuffer(uint64_t{RtCacheCapacity} * sizeof(uint64_t), "gi cache keys");
     cache_.values_ = resources_.createStaticBuffer(
         uint64_t{RtCacheCapacity} * sizeof(RtCacheValueGPUData), "gi cache values");
+    constexpr uint64_t statsBytes = sizeof(uint32_t) * RtCacheStatCount * RtCacheStatsBuckets;
+    cache_.stats_ = resources_.createStaticBuffer(statsBytes, "gi cache stats");
+    for (GPUResourceHandle& readback : cache_.readback_)
+        readback = resources_.createMappedBuffer(statsBytes, std::nullopt);
+}
+
+RtScene::CacheStats RtScene::copyCacheStats(VkCommandBuffer cmd, uint32_t frame)
+{
+    CacheStats stats;
+    const std::span<const std::byte> mapped = resources_.mappedFor(cache_.readback_[frame]);
+    std::array<uint32_t, RtCacheStatCount * RtCacheStatsBuckets> counters{};
+    std::memcpy(counters.data(), mapped.data(), sizeof(counters));
+    for (uint32_t bucket = 0; bucket < RtCacheStatsBuckets; ++bucket)
+    {
+        stats.occupied_ += counters[RtCacheStatOccupied * RtCacheStatsBuckets + bucket];
+        stats.inserted_ += counters[RtCacheStatInserted * RtCacheStatsBuckets + bucket];
+        stats.failed_ += counters[RtCacheStatFailed * RtCacheStatsBuckets + bucket];
+        stats.evicted_ += counters[RtCacheStatEvicted * RtCacheStatsBuckets + bucket];
+    }
+
+    BarrierBatch{}.memory(Usage::ShaderWrite, Usage::TransferSrc).flush(cmd);
+    VkBufferCopy copy{};
+    copy.size = sizeof(counters);
+    vkCmdCopyBuffer(cmd, resources_.bufferFor(cache_.stats_),
+                    resources_.bufferFor(cache_.readback_[frame]), 1, &copy);
+    return stats;
 }
 
 // The renderer has waited for the device to idle; the buffers go with the
@@ -478,6 +506,9 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
 {
     if (cache_.clear_)
         clearCache(cmd);
+    BarrierBatch{}.memory(Usage::TransferSrc, Usage::TransferDst).flush(cmd);
+    vkCmdFillBuffer(cmd, resources_.bufferFor(cache_.stats_), 0, VK_WHOLE_SIZE, 0u);
+    BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderWrite).flush(cmd);
 
     // Relative to the render camera
     const v3d eye = reg.get<Transform_C>(camera).world().translation().cast<double>();
@@ -576,14 +607,14 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
     tlasWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
     tlasWrite.accelerationStructureCount = 1;
     tlasWrite.pAccelerationStructures = &tlas.handle_;
-    std::array<VkWriteDescriptorSet, 5> writes{};
+    std::array<VkWriteDescriptorSet, 6> writes{};
     writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writes[0].pNext = &tlasWrite;
     writes[0].dstSet = sets_[frame];
     writes[0].dstBinding = TlasBinding;
     writes[0].descriptorCount = 1;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-    std::array<VkDescriptorBufferInfo, 4> bufferInfos{};
+    std::array<VkDescriptorBufferInfo, 5> bufferInfos{};
     writeStorageBuffer(writes[1], bufferInfos[0], sets_[frame], RtGeometriesBinding,
                        resources_.bufferFor(tables.geometries_));
     writeStorageBuffer(writes[2], bufferInfos[1], sets_[frame], RtInstancesBinding,
@@ -592,6 +623,8 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
                        resources_.bufferFor(cache_.keys_));
     writeStorageBuffer(writes[4], bufferInfos[3], sets_[frame], RtCacheValuesBinding,
                        resources_.bufferFor(cache_.values_));
+    writeStorageBuffer(writes[5], bufferInfos[4], sets_[frame], RtCacheStatsBinding,
+                       resources_.bufferFor(cache_.stats_));
     vkUpdateDescriptorSets(ctx_.device_, static_cast<uint32_t>(writes.size()), writes.data(), 0,
                            nullptr);
 }

@@ -5,56 +5,83 @@
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
+#include "Shaders/ShaderInterop.h"
 
 #include <algorithm>
 #include <optional>
 
 namespace batap
 {
+namespace
+{
+constexpr int kResolveWidth = static_cast<int>(RtCacheResolveWidth);
+constexpr int kResolveHeight = static_cast<int>(RtCacheCapacity / RtCacheResolveWidth);
+}
+
 GiUpdatePass::~GiUpdatePass()
 {
-    vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, updatePipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, resolvePipeline_, nullptr);
 }
 
 void GiUpdatePass::buildPipelines(const ShaderModules& modules)
 {
-    vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
-    pipeline_ = modules[GiUpdatePS] ? GraphicsPipelineBuilder()
-                                          .shaders(modules[SkyVS], modules[GiUpdatePS])
-                                          .colorFormat(VK_FORMAT_R8G8B8A8_UNORM)
-                                          .build(setup_.ctx_.device_, setup_.rtLayout_)
-                                    : VK_NULL_HANDLE;
+    vkDestroyPipeline(setup_.ctx_.device_, updatePipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, resolvePipeline_, nullptr);
+    const auto build = [&](VkShaderModule pixelShader, VkFormat format)
+    {
+        return pixelShader ? GraphicsPipelineBuilder()
+                                 .shaders(modules[SkyVS], pixelShader)
+                                 .colorFormat(format)
+                                 .build(setup_.ctx_.device_, setup_.rtLayout_)
+                           : VK_NULL_HANDLE;
+    };
+    updatePipeline_ = build(modules[GiUpdatePS], VK_FORMAT_R8G8B8A8_UNORM);
+    resolvePipeline_ = build(modules[GiResolvePS], VK_FORMAT_R8_UNORM);
 }
 
 void GiUpdatePass::resize(v2i frameSize)
 {
+    if (!resolveTarget_.valid())
+        resolveTarget_ = setup_.resources_.createTarget(
+            static_cast<uint32_t>(kResolveWidth), static_cast<uint32_t>(kResolveHeight),
+            ResourceFormat::R8_UNORM, std::nullopt);
+
     const v2i size{std::max((frameSize.x() + 3) / 4, 1), std::max((frameSize.y() + 3) / 4, 1)};
-    if (target_.valid() && size == size_)
+    if (updateTarget_.valid() && size == size_)
         return;
-    if (target_.valid())
-        setup_.resources_.requestDestroy(target_);
+    if (updateTarget_.valid())
+        setup_.resources_.requestDestroy(updateTarget_);
     size_ = size;
-    target_ = setup_.resources_.createTarget(static_cast<uint32_t>(size.x()),
-                                             static_cast<uint32_t>(size.y()),
-                                             ResourceFormat::R8G8B8A8_UNORM, std::nullopt);
+    updateTarget_ = setup_.resources_.createTarget(static_cast<uint32_t>(size.x()),
+                                                   static_cast<uint32_t>(size.y()),
+                                                   ResourceFormat::R8G8B8A8_UNORM, std::nullopt);
 }
 
 void GiUpdatePass::record(const PassContext& pass)
 {
-    const VkImage image = setup_.resources_.imageFor(target_);
+    draw(pass, updateTarget_, size_, updatePipeline_);
+    BarrierBatch{}.memory(Usage::ShaderWrite, Usage::ShaderWrite).flush(pass.cmd_);
+    draw(pass, resolveTarget_, v2i{kResolveWidth, kResolveHeight}, resolvePipeline_);
+}
+
+void GiUpdatePass::draw(const PassContext& pass, GPUResourceHandle target, v2i size,
+                        VkPipeline pipeline)
+{
+    const VkImage image = setup_.resources_.imageFor(target);
     BarrierBatch{}
         .image(image, Usage::ShaderRead, Usage::ColorAttachment, colorRange(), Discard::Yes)
         .flush(pass.cmd_);
 
     VkRenderingAttachmentInfo color{};
     color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color.imageView = setup_.resources_.viewFor(target_);
+    color.imageView = setup_.resources_.viewFor(target);
     color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-    const auto width = static_cast<uint32_t>(size_.x());
-    const auto height = static_cast<uint32_t>(size_.y());
+    const auto width = static_cast<uint32_t>(size.x());
+    const auto height = static_cast<uint32_t>(size.y());
     VkRenderingInfo info{};
     info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     info.renderArea = {{0, 0}, {width, height}};
@@ -64,7 +91,7 @@ void GiUpdatePass::record(const PassContext& pass)
 
     vkCmdBeginRendering(pass.cmd_, &info);
     setViewportYUp(pass.cmd_, width, height);
-    vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+    vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     pushDraw(pass, pass.push_);
     vkCmdDraw(pass.cmd_, 3, 1, 0, 0);
     vkCmdEndRendering(pass.cmd_);
