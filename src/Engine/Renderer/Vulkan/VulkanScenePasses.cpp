@@ -505,7 +505,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
             std::cout << "[GI] cache: " << stats.occupied_ << " / " << RtCacheCapacity
                       << " cells, +" << stats.inserted_ << " inserted, " << stats.failed_
                       << " failed, " << stats.evicted_ << " evicted, " << stats.tailMiss_
-                      << " tail misses, " << stats.reset_ << " resets; " << frameData_.giPasses_
+                      << " tail misses; " << frameData_.giPasses_
                       << " passes, " << giUpdate_.gpuMs() << " ms\n";
     }
 

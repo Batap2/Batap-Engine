@@ -8,7 +8,7 @@
 #endif
 
 static const float GiCellBase = 0.15f;
-static const float GiLevelDistance = 7.5f;
+static const float GiLevelDistance = 3.75f;
 static const uint GiLevelCount = 16u;
 static const uint GiFrameMesh = 0u;
 static const uint GiFrameChunk = 1u;
@@ -38,10 +38,26 @@ GiPoint GiPointOf(uint kind, uint id, float3x3 world, float3 tRel, float3 posRel
     return p;
 }
 
+static const float GiLevelBlend = 0.25f;
+
+float GiLevelOf(float distance)
+{
+    return log2(max(distance, 1e-3f) / GiLevelDistance);
+}
+
+uint GiLevelAt(float level)
+{
+    return uint(clamp(int(floor(level)), 0, int(GiLevelCount) - 1));
+}
+
 uint GiLevel(float distance)
 {
-    const int level = int(floor(log2(max(distance, 1e-3f) / GiLevelDistance)));
-    return uint(clamp(level, 0, int(GiLevelCount) - 1));
+    return GiLevelAt(GiLevelOf(distance));
+}
+
+uint GiRandomLevel(float distance, float u)
+{
+    return GiLevelAt(GiLevelOf(distance) + (2.0f * u - 1.0f) * GiLevelBlend);
 }
 
 float GiCellSize(uint level)
@@ -65,14 +81,17 @@ uint GiSide(GiPoint p)
     return axis * 2u + (p.nLocal_[axis] < 0.0f ? 1u : 0u);
 }
 
+uint2 GiCellKey(uint frame, int3 cell, uint side, uint level)
+{
+    const uint3 c = uint3(clamp(cell + 2048, 0, 4095));
+    const uint hi = 0x80000000u | (frame << 11) | (level << 7) | (side << 4) | (c.x >> 8);
+    const uint lo = (c.x << 24) | (c.y << 12) | c.z;
+    return uint2(hi, lo);
+}
+
 uint2 GiCacheKey(GiPoint p, uint level)
 {
-    const float size = GiCellSize(level);
-    const uint3 cell = uint3(clamp(int3(floor(p.local_ / size)) + 2048, 0, 4095));
-    const uint side = GiSide(p);
-    const uint hi = 0x80000000u | (p.frame_ << 11) | (level << 7) | (side << 4) | (cell.x >> 8);
-    const uint lo = (cell.x << 24) | (cell.y << 12) | cell.z;
-    return uint2(hi, lo);
+    return GiCellKey(p.frame_, int3(floor(p.local_ / GiCellSize(level))), GiSide(p), level);
 }
 
 uint GiHash(uint x)
@@ -105,27 +124,10 @@ float GiRand(inout uint seed)
     return float(seed >> 8) / 16777216.0f;
 }
 
-float GiLuma(float3 c)
-{
-    return dot(c, float3(0.2126f, 0.7152f, 0.0722f));
-}
-
 static const float GiSlowTau = 1.0f;
-static const float GiFastTau = 0.125f;
-static const uint GiChangeMinSamples = 16u;
-static const float GiChangeMinFastSamples = 32.0f;
-static const uint GiResetSamples = 16u;
-static const float GiClampSigma = 3.0f;
-static const float GiClampFloor = 0.01f;
-static const float GiResetSigma = 5.0f;
-static const float GiResetFloor = 0.02f;
-static const float GiFalseResetRate = 1e-7f;
-static const float GiDarkRatio = 0.05f;
 static const bool GiStratified = false;
 static const float GiShowSamples = 8.0f;
-static const uint GiSamplesMask = 0x3FFu;
-static const uint GiZeroRunShift = 10u;
-static const uint GiZeroRunMask = 0x3Fu;
+static const uint GiSamplesMask = 0xFFFFu;
 
 #if BATAP_RT
 [[vk::binding(RtCacheKeysBinding, RayTracingSet)]] RWStructuredBuffer<uint64_t> GiKeys;
@@ -215,7 +217,71 @@ float3 GiShownIrradiance(uint slot, float3 fallback)
 {
     const RtCacheValueGPUData v = GiValues[slot];
     const float weight = saturate(float(v.history_ & GiSamplesMask) / GiShowSamples);
-    return lerp(fallback, float3(v.irradiance_[0], v.irradiance_[1], v.irradiance_[2]), weight);
+    return lerp(fallback, float3(v.filtered_[0], v.filtered_[1], v.filtered_[2]), weight);
+}
+
+float3 GiNeighbourAverage(uint2 key, float3 self, float selfConfidence)
+{
+    const uint frame = (key.x >> 11) & 0xFFFFFu;
+    const uint level = (key.x >> 7) & 0xFu;
+    const uint side = (key.x >> 4) & 0x7u;
+    const int3 cell =
+        int3(((key.x & 0xFu) << 8) | (key.y >> 24), (key.y >> 12) & 0xFFFu, key.y & 0xFFFu) - 2048;
+    float3 sum = self * (8.0f * selfConfidence);
+    float weight = 8.0f * selfConfidence;
+    [loop]
+    for (uint n = 0; n < 27u; ++n)
+    {
+        const int3 o = int3(n % 3u, (n / 3u) % 3u, n / 9u) - 1;
+        const int taxicab = abs(o.x) + abs(o.y) + abs(o.z);
+        if (taxicab == 0 || taxicab == 3)
+            continue;
+        const uint slot = GiSlotFind(GiCellKey(frame, cell + o, side, level));
+        if (slot == GiNoSlot)
+            continue;
+        const RtCacheValueGPUData v = GiValues[slot];
+        const float w = float(8u >> uint(taxicab)) *
+                        saturate(float(v.history_ & GiSamplesMask) / GiShowSamples);
+        sum += w * float3(v.irradiance_[0], v.irradiance_[1], v.irradiance_[2]);
+        weight += w;
+    }
+    return weight > 0.0f ? sum / weight : self;
+}
+
+void GiGatherLevel(GiPoint p, uint side, uint level, float levelWeight, float3 fallback,
+                   inout float3 sum, inout float found)
+{
+    const float3 g = p.local_ / GiCellSize(level) - 0.5f;
+    const float3 base = floor(g);
+    const float3 f = g - base;
+    [unroll]
+    for (uint corner = 0; corner < 8u; ++corner)
+    {
+        const uint3 o = uint3(corner, corner >> 1, corner >> 2) & 1u;
+        const uint slot = GiSlotFind(GiCellKey(p.frame_, int3(base) + int3(o), side, level));
+        if (slot == GiNoSlot)
+            continue;
+        const float3 w = lerp(1.0f - f, f, float3(o));
+        const float weight = levelWeight * w.x * w.y * w.z;
+        sum += weight * GiShownIrradiance(slot, fallback);
+        found += weight;
+    }
+}
+
+float3 GiIrradianceAt(GiPoint p, float distance, float3 fallback)
+{
+    const float level = GiLevelOf(distance);
+    const uint lo = GiLevelAt(level - GiLevelBlend);
+    const uint hi = GiLevelAt(level + GiLevelBlend);
+    const float hiWeight =
+        hi == lo ? 0.0f : (level + GiLevelBlend - float(hi)) / (2.0f * GiLevelBlend);
+    const uint side = GiSide(p);
+    float3 sum = float3(0.0f, 0.0f, 0.0f);
+    float found = 0.0f;
+    GiGatherLevel(p, side, lo, 1.0f - hiWeight, fallback, sum, found);
+    if (hiWeight > 0.0f)
+        GiGatherLevel(p, side, hi, hiWeight, fallback, sum, found);
+    return found > 0.0f ? sum / found : fallback;
 }
 #endif
 

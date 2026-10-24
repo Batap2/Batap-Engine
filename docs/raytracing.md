@@ -3,6 +3,8 @@
 Décidé le 2026-09-30. Le raster actuel reste le fallback sur les machines sans
 RT (MoltenVK, vieux GPU).
 
+Le détail des mesures par étape est dans [raytracing-notes.md](raytracing-notes.md).
+
 **Le rendu raster n'est jamais supprimé.** Un réglage utilisateur choisit entre
 les deux (étape 0.2). Chaque étape RT ajoute une branche à côté du chemin
 raster, qui reste complet et sélectionnable même sur un GPU RT : quand le plan
@@ -55,12 +57,15 @@ dit qu'une passe est « coupée » ou « disparaît », c'est en mode RT seuleme
 - **Mise à jour.**
   - Un PS basse résolution (¼ × ¼) lance ses rayons primaires en ray query
     depuis la caméra, avec 2 à 3 rebonds.
-  - À chaque sommet : étoile × rayon d'ombre, plus le cache au dernier sommet.
-  - Accumulation par atomiques dans un storage buffer, moyenne lente (1 s)
-    doublée d'un historique rapide pour détecter les changements (2.8b),
-    éviction des cellules non touchées depuis 3 s.
+  - À chaque sommet : les lumières à portée × rayon d'ombre (2.10), plus le
+    cache au dernier sommet.
+  - Accumulation par atomiques dans un storage buffer, moyenne glissante de
+    1 s, puis moyenne avec les cellules voisines (2.10b), éviction des
+    cellules non touchées depuis 3 s. La détection de changement de 2.8b est
+    retirée (2.10b) : sur des échantillons à queue lourde elle biaisait vers
+    le clair et retardait la convergence.
 - **Lecture** : dans `ShadeSurface`, elle remplace `EvalSH9`.
-  - Interpolation trilinéaire entre cellules.
+  - Interpolation trilinéaire entre cellules, fondu entre niveaux.
   - Une cellule vide retombe sur `EvalSH9`.
 - **Au point d'impact** :
   - Albedo constant du `Material` et normale géométrique, lus via un buffer
@@ -820,104 +825,16 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       remplace `EvalSH9`. Une cellule vide retombe sur `EvalSH9`.
       *Vérif* : le dessous du buggy et les cratères reçoivent de la lumière
       rebondie.
-      *Fait (2026-10-24)* : `DiffuseIrradiance` dans `Lighting.hlsli`. En RT,
-      la cellule du pixel (`GiSlotFind` sur la clé de `Surface::gi_`, même
-      niveau que la vue « GI cache ») ; sinon, et quand elle manque, `EvalSH9`
-      s'il y a un ciel, 0 sans ciel. Le diffus indirect `kD × E × albedo` est
-      calculé quel que soit le ciel : avec le ciel noir de la lune, l'ambiant
-      n'était jamais évalué. Le spéculaire du ciel ne bouge pas. En raster,
-      même expression qu'avant : vue de référence à la frame 5000, 177 px
-      d'écart (> 8) entre les shaders de HEAD et les nouveaux, tous sur le
-      bord de l'ombre en cascade de la fusée, où deux runs des mêmes shaders
-      diffèrent de 300 px.
-
-      *Mesuré* (copie statique de `test_buggy_fusee`, 60 fps, RT, avant et
-      après au même numéro de frame ; deux runs « après » diffèrent de 2/255
-      au plus, sur 5 006 px, aucun de plus de 8) :
-      - **Vue de référence, frame 5000** : 66 % des pixels de la scène
-        éclaircis, aucun assombri, +0,064 de luma en médiane (le sol au soleil
-        reçoit ses pentes voisines). 10 533 px noirs (< 8/255) sont éclairés,
-        à 0,28 de luma en moyenne. Versants à l'ombre des collines du fond :
-        0,10 → 0,15 ; leurs 5 160 px noirs → 0,07.
-      - **Fusée, flanc à l'ombre** (la caméra voit le côté opposé à l'étoile,
-        à 50° au-dessus de l'horizon) : 0,05 → 0,58 de luma, teinté par le
-        régolithe (RGB 169 144 111) ; côté terminateur 0,20 → 0,67. Le sol au
-        soleil est à 0,70 : **le flanc à l'ombre est aussi clair que le sol
-        éclairé**, voir « facteur π » ci-dessous.
-      - **Dessous du buggy** (`under.btpl` : caméra à 4 m du côté opposé à
-        l'étoile, 0,5 m au-dessus du sol, buggy en `strate_2.bmat`) : 14 127
-        px noirs éclairés, luma 0,20 en moyenne, 0,34 au 90ᵉ centile : flancs
-        intérieurs des roues et dessous du châssis. Le vrai matériau du buggy
-        (`mat_0.bmat`) est `metallic 1` sans texture, donc `kD = 0` : il ne
-        reçoit aucun diffus, ni du ciel ni du cache, et reste noir à l'ombre
-        (1 123 px noirs → 0,001). À corriger dans l'asset (metallic 0), pas
-        dans le rendu.
-      - **Cratères et pentes** (`slopes.btpl` : 3 m au-dessus et 5 m à côté du
-        buggy, regard vers l'azimut de l'étoile) : 37 % des pixels éclaircis,
-        2 850 px noirs → 0,10 ; le fond du cratère du centre et les versants
-        opposés au soleil sortent du noir.
-      - Aspect en blocs, et quelques cellules isolées plus claires que leurs
-        voisines (mouchetures sur le sol) : attendu avant 2.9.
-
-      **Facteur π.** Le terme ambiant est `kD × E × albedo`, E en irradiance
-      (les SH sont projetées sans le facteur lambertien, `EvalSH9` l'applique ;
-      le cache accumule π × radiance par rayon en cosinus). Le terme direct
-      fait `albedo / π × E_étoile × N·L`. Four blanc (ciel uniforme à 1,
-      albedo 1) : direct à 1, ambiant à π, saturé. Sur la lune : flanc de
-      fusée à l'ombre, E ≈ 0,65 dans le cache → rendu 0,58 (albedo ≈ 0,9) au
-      lieu de 0,19 ; sol éclairé 0,8/π × 3,4 × sin 50° = 0,67, ce qu'on mesure.
-      Correctif : `/ PI` sur le diffus indirect, une ligne, mais il assombrit
-      d'un facteur 3 l'ambiant de tout ciel, en raster aussi (le raster ne
-      bouge pas sans décision), et le four blanc est prévu en B.8. À trancher
-      avant 2.9 : les mesures de 2.9 et 2.7 dépendent de l'échelle.
-
-      Validation propre, RT actif : jeu debug sur la copie statique (300
-      frames). Pas d'éditeur debug : Batap utilisait la machine, et il vole le
-      focus ; le shader est le même des deux côtés.
+      *Fait (2026-10-24)* : `DiffuseIrradiance` lit la cellule en RT, repli
+      `EvalSH9`. Buggy en `metallic 1` : aucun diffus, à corriger dans
+      l'asset. Facteur π manquant sur l'ambiant, SH comme cache : flanc à
+      l'ombre à 0,58 au lieu de 0,19. Corrigé au début de 2.9.
 - [x] **2.7 Multi-rebonds.** Lire le cache au dernier sommet, puis passer à 2–3
       rebonds.
       *Vérif* : l'intérieur des cratères s'éclaircit un peu plus.
-      *Fait (2026-10-24)* : `GiUpdatePS` boucle sur `giBounces_` rebonds en
-      cosinus. À chaque sommet, `throughput × albedo × E_étoile` (rayon
-      d'ombre), le throughput étant le produit des albedos rencontrés ; au
-      dernier sommet s'ajoute `throughput × cache` de sa cellule (clé et
-      niveau du hit, comme une lecture d'écran), valeur résolue à la frame
-      précédente, qui tient lieu de tous les rebonds suivants. Miss : π × ciel
-      au throughput courant. Cellule de queue absente : rien d'ajouté, et le
-      compteur `RtCacheStatTailMiss` (log `[GI] cache:`). 1 + 2 B ray queries
-      par rayon de la passe.
-      - **Réglage utilisateur** `render.giBounces` (1 à 4, défaut 2) dans le
-        fichier de config de chaque application, `EngineSettings::giBounces_`,
-        `FrameGPUData::giBounces_` (l'ancien `pad0_`), et le champ « GI
-        bounces » du menu Settings de l'éditeur pour l'éditeur et le jeu, à
-        côté du ray tracing et du cap de fps.
-
-      *Mesuré* (copie statique, 60 fps, par rapport à l'état 2.6, mêmes
-      frames) :
-      - **Énergie** : B = 1 avec lecture de queue : fusée à l'ombre 0,577 →
-        0,611 (+6 %), terminateur 0,668 → 0,699 ; B = 2 : 0,617 et 0,709 ;
-        B = 3 : 0,617 et 0,707. **Convergé à B = 2**, d'où le défaut. Sol
-        au soleil +2 à 3 %, collines lointaines à l'ombre 0,150 → 0,154.
-        Fond de cratère à l'ombre (`slopes.btpl`) : 26,3 → 26,4 → 27,7 →
-        27,9/255 pour B = 1 (2.6), 1, 2, 3 : **+6 %, « un peu plus »**. Sur
-        la lune presque tout rayon de rebond part dans un ciel noir ; en
-        intérieur la part des rebonds suivants sera bien plus grande.
-      - **Lectures de queue** : 75 à 115 par frame sur 58 000 rayons
-        (0,2 %) sans cellule, sur les deux vues : le dernier sommet tombe
-        presque toujours sur une surface que la caméra voit. Mettre à jour
-        les cellules de tous les sommets (SHaRC) n'apporterait rien ici.
-      - **Scintillement, non résolu** : écart type de la luma entre les
-        frames 5000 et 5010, surfaces hors HUD, 2.6 → B = 1, 2, 3 : 10,0 →
-        10,3 → 10,7 → 10,7/255 (fusée 23 → 24,6, sol proche 15 → 17) ; 44
-        à 47 % des pixels bougent de plus de 4/255 en 10 frames. Le bruit
-        entre deux runs est de 0,04/255. Sous une étoile, la variance d'un
-        échantillon vient du rayon d'ombre binaire au premier rebond, que la
-        lecture de queue ne lisse pas, et chaque rebond ajoute le sien :
-        **c'est 2.8b qui traite le bruit, pas 2.7.**
-      - Coût de la passe non mesuré (pas de chrono GPU), à faire en 2.8b.
-
-      Validation propre, RT actif : jeu debug sur la copie statique (300
-      frames). Pas d'éditeur debug (même raison qu'en 2.6).
+      *Fait (2026-10-24)* : boucle sur `render.giBounces` (1 à 4, défaut 2),
+      cache lu au dernier sommet. Cratère +6 %, convergé à 2 rebonds. Ne
+      change rien au scintillement.
 - [x] **2.8 Vieillissement.** Décroissance exponentielle, hystérésis
       adaptative, éviction des cellules qui ne sont plus touchées.
       *Vérif* : le taux d'occupation de la table reste stable ; une lumière
@@ -988,198 +905,58 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       Validation propre, RT actif : jeu debug sur la copie statique,
       éditeur debug sur `test_buggy_fusee`.
-- [ ] **2.8b Stabilité temporelle.** Avant 2.9, pour mesurer 2.9 sur une base
-      propre. Constat de Batap sur `test_GI` après 2.6 : ça clignote de
-      partout, inutilisable en l'état. Les réglages de 2.8 ont été choisis
-      pour la réactivité (extinction rattrapée en 1 s), pas pour le bruit.
-
-      *Pourquoi ça clignote*, avec les mesures de 2.5 et 2.8 :
-      - La passe ¼ × ¼ lance 58 000 rayons par frame en 1280 × 728 pour
-        49 000 cellules occupées caméra fixe : **1 à 2 échantillons par
-        cellule et par frame** (médiane 0,6 à 2 sur 5 000 frames en 2.5, et
-        non les 10 à 80 estimés en 2.4, qui comptaient les pixels et non les
-        rayons).
-      - Le plancher `α_min = 3 dt` (0,05 à 60 fps) borne la mémoire d'une
-        cellule à `2/α − 1 = 39` échantillons. Pour des échantillons qui
-        valent 0 ou « ciel » (visibilité, p ≈ 0,7), l'écart type de la valeur
-        est `√(α / (2 − α)) × σ = 0,16 × 0,46 E = 7 % de E`, soit ±10 % de la
-        moyenne : **±14/255 à chaque frame** sur un sol à E = 0,76, décorrélé
-        d'une cellule à l'autre.
-      - L'hystérésis (≥ 16 échantillons et écart > 50 % + 0,02) se déclenche
-        sur du bruit : à 16 échantillons binaires l'estimation a un écart type
-        de 0,115 E, le seuil est à 3 σ, soit 0,27 % des cellules par frame,
-        quelques dizaines de remises à zéro par frame près de la caméra.
-      - Une cellule neuve est affichée dès son premier échantillon, à 0 ou à E
-        plein : chaque mouvement de caméra, et chaque changement de niveau avec
-        la distance, crée un front de cellules à plein contraste qui converge
-        en 20 à 40 frames.
-      - À la frange de ce que la passe ¼ × ¼ touche, une cellule vue moins
-        d'une fois par seconde est évincée puis réinsérée à 1 échantillon.
-
-      À faire, dans l'ordre, chacun mesuré seul :
-      1. **Fenêtre longue + historique rapide.** Deux moyennes par cellule :
-         lente, constante de temps τ = 1 s (`α = 1 − (1 − dt/τ)^âge`, soit
-         60 frames à 60 fps, 64 à 128 échantillons à 1 ou 2 par frame : bruit
-         ÷ 1,5 à 1,8 par rapport à 39), et rapide, τ = 4 frames. Variance
-         estimée en ligne (moyenne des carrés). Changement réel quand
-         `|rapide − lente| > 3 σ_lente + 0,02` : la lente prend la rapide.
-         Extinction : la rapide tombe à 10 % en 8 frames, la détection suit,
-         < 0,2 s au lieu de 1 s. La valeur passe de 32 à 48 octets (48 Mo),
-         ou on recycle `history_`. La fenêtre en secondes, pas en frames,
-         comme `α_min` aujourd'hui.
-      2. **Cellule affichée à partir de 8 échantillons**, avec un fondu depuis
-         le repli (`EvalSH9`, 0 sans ciel) : `lerp(E_SH, E_cache,
-         min(n / 8, 1))`. Un front de cellules neuves devient un fondu de 8
-         frames au lieu d'un damier. 2.9 pourra lire le niveau parent, plus
-         ancien, à la place.
-      3. **Âge d'éviction 3 s** au lieu de 1 : l'occupation mesurée est de
-         5 %, la table a 20 fois la place.
-      4. **Échantillonnage stratifié** par pixel (R2 ou Halton avec rotation
-         par pixel) pour le jitter et la direction du rebond : gain ≤ 2 sur
-         l'écart type pour l'intégrale sur l'hémisphère, peu sur la
-         visibilité binaire. Option.
-      5. **N passes par frame** (graines différentes), ou la passe en ½ × ½ :
-         N fois plus d'échantillons par cellule, bruit ÷ √N, coût × N.
-         Mesurer d'abord le coût de la passe ¼ × ¼ (jamais chronométrée) ; le
-         budget lui donne 0,5 à 1 ms sur une 3060, à 3 ray queries par rayon
-         et 58 000 rayons. N devient un réglage de qualité, borné par le temps
-         GPU mesuré.
-
-      *Cible* : après 1 à 3, caméra fixe sur `test_GI`, écart type par cellule
-      3/255 (64 échantillons binaires) ; après 2.9 (8 cellules, ÷ 2,8) et la
-      passe ½ × ½ (÷ 2), **moins de 1/255 par pixel**. 2.7 n'y change rien,
-      mesuré : la lecture de queue s'ajoute au rayon d'ombre binaire du
-      premier rebond, elle ne le remplace pas (10,0 → 10,7/255).
-
-      *Vérif* : caméra fixe sur `test_GI` et sur la copie statique, 8 dumps à
-      10 frames d'écart (le bruit entre deux runs est de 2/255) : écart type
-      par pixel sous 3/255 hors arêtes ; compteur de remises à zéro
-      (`RtCacheStatReset`) nul lumière fixe ; `orbit.btpl` : extinction
-      rattrapée en moins de 0,5 s ; `pan.btpl` : aucune cellule à plein
-      contraste, le front des cellules neuves est un fondu.
-
-      *Fait (2026-10-24), points 1 à 3* ; 4, 5 et le chrono GPU restent.
-      - **Valeur à 48 octets** (48 Mo) : `fastLuma_`, `variance_`,
-        `zeroFraction_`, `fastCount_` s'ajoutent. `history_` = échantillons
-        repliés (10 bits, plafond 1 023) | série de frames vides (6 bits) |
-        frame de la dernière visite (16). `FrameGPUData::giDt_` remplace
-        `giAlphaMin_` ; les constantes sont dans `GiCache.hlsli`.
-      - **Fenêtre lente** τ = 1 s (`α = max(n / (N + n), 1 − (1 − dt/τ)^âge)`),
-        **historique rapide** en luma, τ = 1/8 s, **variance** des
-        estimations de frame autour de la lente, **fraction de frames vides**,
-        et le nombre d'échantillons de la fenêtre rapide.
-      - **Détection de changement**, à partir de 16 échantillons :
-        - *extinction* : une frame est « vide » si sa luma est sous 5 % de la
-          valeur lente (relatif : avec la lecture de queue de 2.7, un
-          échantillon n'est jamais exactement nul une fois la lumière
-          éteinte). Une série de k frames vides remet la cellule à zéro quand
-          `k ≥ ln(10⁻⁷) / ln(fraction de vides)` : la probabilité qu'elle
-          arrive par hasard est bornée par cellule et par frame. La fraction
-          ne bouge qu'à la fin d'une série, d'un bloc : mise à jour pendant la
-          série, elle fuyait devant le compteur et la nuit ne venait jamais.
-          Sur le sol lunaire (90 % de frames vides, les rayons partent dans le
-          ciel noir) le seuil dépasse les 63 frames du champ : pas de
-          détection, la fenêtre lente seule.
-        - *saut* : `|rapide − lente| > 5 σ + 0,02`, σ celui de l'historique
-          rapide déduit de la variance, seulement si la fenêtre rapide
-          contient 32 échantillons ou plus. Avant ce garde-fou, à 4,5 σ et 1
-          ou 2 échantillons binaires par frame, 35 à 65 cellules par frame
-          sautaient à lumière fixe : six rayons « touchés » d'affilée sont
-          mille fois plus probables que la queue gaussienne ne le dit.
-        - *bande* : hors saut, la lente est ramenée à 3 σ + 0,01 de la rapide,
-          même garde-fou.
-      - **Affichage** : `lerp(repli, cache, min(N / 8, 1))` dans
-        `DiffuseIrradiance` (`GiShownIrradiance`), le repli étant les SH du
-        ciel, ou 0 sans ciel : sur la lune une cellule neuve monte du noir en
-        8 échantillons au lieu d'apparaître à 0 ou à plein.
-      - **Éviction** à 3 s (`giMaxAge_ = 3 / dt`).
-
-      *Mesuré* (copie statique, 60 fps, 2.7 → 2.8b, frames 5000 et 5010) :
-      - **Scintillement**, écart type de la luma entre les deux frames,
-        surfaces hors HUD : **10,7 → 4,3/255** ; fusée 24,5 → 9,5 ; sol
-        proche 16,9 → 7,8 ; sol lointain 8,3 → 3,1 ; collines à l'ombre 2,8 →
-        1,1. Pixels bougeant de plus de 4/255 : 47 % → 15 % ; de plus de
-        16/255 : 8,4 % → 1,0 %. Niveau moyen inchangé (0,611 → 0,612).
-      - **Remises à zéro à lumière fixe**, par tranche de 120 frames : 22, 16,
-        24, 6, 8 pendant les 10 premières secondes (variances encore
-        immatures), puis 0 à 3, puis **0 sur les 30 dernières secondes** (une
-        seule isolée).
-      - **Extinction** (`orbit.btpl`, lumière à 500 m qui se couche une fois
-        par seconde, luma de la fusée après le coucher) : 2.8 : 163 → 43 → 20
-        à +0, +0,25, +0,5 s ; 2.8b : 160 → 63 → 32. **80 % en 0,5 s contre
-        88 %** ; résidu nocturne 21/255 contre 9–14 (une part en est réelle :
-        les collines lointaines restent éclairées). Le prix de la fenêtre de
-        1 s ; la détection d'extinction ramène la fusée à zéro vers 0,5 à
-        0,75 s. Lumière en mouvement : 54 à 63 remises à zéro par 120 frames,
-        légitimes.
-      - **Panoramique** (`pan.btpl`, frame 1500) : pixels clairs isolés
-        (> médiane 5 × 5 + 64/255) 1,59 % → 1,27 %, contre 1,41 → 1,15 % sur
-        la vue fixe : l'excès dû aux cellules neuves passe de 0,18 à 0,12
-        point ; mesure faible, dominée par le relief lui-même.
-      - Sur la lune la cible de 3/255 par cellule n'est pas atteinte (4,3 par
-        pixel) : les échantillons valent 0 ou 2,1, pas 0 ou 0,76 comme sous
-        un ciel. Le reste vient de 2.9 et du point 5.
-
-      Validation propre, RT actif : jeu debug sur la copie statique (300
-      frames). Pas d'éditeur debug (même raison qu'en 2.6).
-
-      *Fait (2026-10-24), chrono GPU, points 4 et 5* :
-      - **Chrono GPU** : `GiUpdatePass` écrit deux timestamps (`TOP_OF_PIPE`
-        avant les passes, `BOTTOM_OF_PIPE` après la résolution) dans un
-        query pool de 2 × `FramesInFlight`, lus `FramesInFlight` frames plus
-        tard par `vkGetQueryPoolResults`, en ms via
-        `VulkanContext::timestampPeriodNs_`. Affiché dans le log `[GI]
-        cache:` avec le nombre de passes.
-      - **N passes par frame** : `render.giPasses` (1 à 8, **défaut 2**),
-        même plomberie que `giBounces` (config, `EngineSettings`, menu
-        Settings de l'éditeur, `FrameGPUData::giPasses_`). Chaque passe
-        reçoit son index dans `g_draw.instanceIndex_` et en dérive ses
-        graines ; une barrière entre les passes, une seule résolution.
-      - **Stratifié** (point 4) : suite R2 en virgule fixe 32 bits
-        (`GiR2`), par pixel pour le jitter, et par cellule pour la direction
-        du premier rebond, indexée par les échantillons repliés plus la place
-        réservée dans la frame (`GiReserve`, qui a pris l'incrément du
-        compteur à `GiAccumulate`). Interrupteur `GiStratified` dans
-        `GiCache.hlsli`, **laissé à `false`** : voir la mesure.
-      - **Protocole raccourci** (Batap, à juste titre : une mesure de
-        scintillement ne doit pas prendre 15 min) : `BATAP_DUMP_FRAME`
-        accepte une liste (`1000,1010` → `frame_dump_<frame>.png`), la paire
-        vient d'un seul run, et on dumpe à la frame 1000 : **20 s par
-        réglage**. Les valeurs à la frame 1000 ne se comparent qu'entre
-        elles (terrain moins construit qu'à 5000 : 7,4 contre 4,3 de
-        scintillement pour le même code).
-
-      *Mesuré* (copie statique, 60 fps, frames 1000 et 1010, RTX 5070) :
-      - **Coût** : 1 passe 0,13–0,16 ms résolution comprise, 2 passes
-        0,23–0,26, 4 passes 0,41–0,47 : **0,09 ms par passe, 0,05 ms de
-        résolution**. Sur une 3060, 3 fois plus environ : 2 passes ≈ 0,7 ms,
-        dans la ligne du budget (0,5 à 1 ms), d'où le défaut.
-      - **Scintillement selon N** (stratifié), écart type /255 : surfaces
-        7,1 → 5,7 → 4,7 pour 1, 2, 4 passes (÷ 1,25, ÷ 1,5) ; sol proche
-        13,1 → 8,9 → 6,4 (÷ 2,0) ; collines 2,6 → 1,7 → 1,1 (÷ 2,4) ; fusée
-        14,9 → 11,7 → 11,1 (÷ 1,35 seulement : son plancher vient d'ailleurs,
-        à voir avec 2.9). Attendu ÷ √N.
-      - **Stratifié contre aléatoire**, 1 passe, mêmes frames : surfaces 7,1
-        contre 7,4, fusée 14,9 contre 16,1, mais sol proche 13,1 contre 10,3
-        et collines 2,6 contre 2,0 : **pas de gain mesurable**, comme prévu
-        pour une visibilité binaire, et une seule paire de frames par
-        réglage ne départage pas ±10 %. Désactivé, le code reste derrière
-        l'interrupteur.
-
-      Pas de validation debug ni d'éditeur sur cette partie : Batap ne
-      voulait plus attendre ; à faire avant le commit.
-- [ ] **2.9 Interpolation trilinéaire.** 8 lectures, et un fondu entre niveaux.
+- [x] **2.8b Stabilité temporelle.** Moyenne lente 1 s et historique rapide
+      avec détection de changement, fondu des cellules neuves, éviction 3 s,
+      `render.giPasses` (défaut 2, 0,09 ms par passe sur la 5070), chrono GPU.
+      Scintillement 10,7 → 4,3/255, extinction 80 % en 0,5 s. Stratifié sans
+      gain, désactivé. `BATAP_DUMP_FRAME` accepte une liste de frames.
+- [x] **2.9 Interpolation trilinéaire.** 8 lectures, et un fondu entre niveaux.
       *Vérif* : plus d'aspect en blocs, et l'écart type par pixel de 2.8b
       divisé par 2 au moins.
-- [ ] **2.10 Lumières locales dans la mise à jour.** Boucle sur les lumières à
-      portée, avec un rayon d'ombre pour chacune. Aujourd'hui
-      `GiStarIrradiance` ne voit que l'étoile : sur `test_GI` (un
-      `pointLight`, murs rouge et bleu, sol blanc) le mur rouge n'est pas
-      éclairé pour le cache et le sol ne reçoit que le ciel gris.
-      *Vérif* : une pièce éclairée par une lampe reçoit du rebond ; sur
-      `test_GI`, le sol blanc prend le rouge du mur. Tant que le facteur π
-      n'est pas tranché, le sol blanc sature (ciel 0,76 + lampe 0,25) et la
-      teinte s'écrête : mesurer sur le sol à l'ombre, ou après la décision.
+      *Fait (2026-10-24)* : d'abord le facteur π (`/ π` sur le diffus
+      indirect, ciel SH et cache, raster compris). `GiIrradianceAt` lit les 8
+      cellules autour du point (même repère, côté et niveau), poids
+      renormalisés sur les cellules trouvées. Fondu linéaire entre deux
+      niveaux sur ±0,25 de `log2(distance)` (16 lectures sur la moitié des
+      pixels) ; la mise à jour tire le niveau de son premier hit dans la même
+      bande, sinon le niveau grossier serait vide sous sa frontière. Blocs
+      disparus sur la fusée ; scintillement à la frame 5000 2,66 → 1,39/255,
+      part du cache 2,61 → 1,30 (÷ 2,0), niveau moyen inchangé. Coût non
+      mesuré : 2.11.
+- [x] **2.10 Lumières locales dans la mise à jour.** Boucle sur les lumières à
+      portée, avec un rayon d'ombre pour chacune. Avant, la passe ne prenait
+      que `FarPoint` et `Directional` : `test_GI` sous un `pointLight`
+      n'avait aucun rebond.
+      *Vérif* : `test_GI` sous un `pointLight` reçoit du rebond.
+      *Fait (2026-10-24)* : `GiDirectIrradiance` (ex-`GiStarIrradiance`)
+      prend toutes les lumières à portée. `LightIncidence` (direction,
+      distance, portée, cône) est partagée avec `ShadeSurface`, et
+      `RectLightFace` (fenêtre de portée, volets) avec
+      `RectLightContribution` : raster identique au pixel près. Rect :
+      facteur de forme exact × π × radiance, visibilité par un rayon vers un
+      point tiré sur la face. `castShadows` respecté, étoile comprise. Sous
+      un `pointLight`, 11 % des pixels noirs en sortent ; sous une rect, le
+      sol au pied du mur rouge gagne 21/255 en rouge, 5 en vert et bleu.
+- [x] **2.10b Bruit et traînées.** Sur `test_GI_spot` (un spot étroit, tout
+      le reste en rebond) l'indirect était inutilisable : grain de cellule
+      à 31–36 % d'écart type d'une seconde à l'autre, traînée de 4 s après
+      un déplacement de la caméra ou de la lampe, plus claire que l'image
+      convergée.
+      *Fait (2026-10-24)* :
+      - détection de changement de 2.8b retirée (cause du biais clair et
+        de la traînée caméra) ;
+      - échantillons repliés sur 16 bits : la fenêtre est de 1 s quel que
+        soit le nombre d'échantillons, au lieu de 1 023 échantillons ;
+      - cellules deux fois plus grandes (`GiLevelDistance` 7,5 → 3,75 m) ;
+      - la résolution moyenne chaque cellule avec ses 18 voisines (même
+        repère, côté et niveau, poids en tente), lue par `ShadeSurface`.
+
+      Bruit 31–36 % → 7 % ; caméra : plus de traînée ; lampe déplacée de
+      4 m : écart à l'image convergée 6,0 → 3,3 à l'arrêt, plancher atteint
+      en ~2,7 s au lieu de ~4 s. Lune : scintillement 1,39 → 0,90/255.
+      Passe 0,29 ms (lune, 2 passes) contre 0,23. Plus rapide encore :
+      τ = 0,5 s et 4 passes, ou un signal du moteur quand une lumière
+      bouge (voir les notes).
 - [ ] **2.11 Mesures.** Reporter les chiffres dans « Budget ».
 
 ### Phase 3 — Plomberie commune
@@ -1303,11 +1080,6 @@ règles temporelles et le MSAA.
   indexer par l'identifiant stable du chunk (face, niveau, x, y) et, pour
   partager les cellules entre niveaux, par des positions dans le repère de
   l'astre à un plancher plus grossier.
-
-- **Facteur π du diffus indirect.** `kD × E × albedo` sans `/ π`, pour les SH
-  du ciel comme pour le cache : l'ambiant est π fois trop clair par rapport au
-  direct (2.6, mesuré sur la fusée). Une ligne à changer, qui assombrit tout
-  ciel en raster aussi : décision à prendre avant 2.9.
 
 - **Support de `VK_KHR_ray_tracing_position_fetch` dans dxc/HLSL.** S'il existe,
   il remplace le buffer geometry info.

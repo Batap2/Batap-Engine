@@ -1,6 +1,32 @@
 #include "RtHit.hlsli"
 
-float3 GiStarIrradiance(float3 P, float3 N)
+float3 GiRectIrradiance(LightGPUData light, float3 P, float3 N, inout uint seed)
+{
+    const RectFace face = RectLightFace(light, P);
+    if (face.window_ <= 0.0f)
+        return float3(0.0f, 0.0f, 0.0f);
+    const float3 helper = abs(N.y) < 0.99f ? float3(0.0f, 1.0f, 0.0f) : float3(1.0f, 0.0f, 0.0f);
+    const float3x3 identity = float3x3(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+    const float formFactor =
+        LtcEvaluate(N, normalize(cross(helper, N)), P, identity, face.corners_);
+    if (formFactor <= 0.0f)
+        return float3(0.0f, 0.0f, 0.0f);
+
+    float visible = 1.0f;
+    if (light.shadowIndex_ != InvalidGPUIndex)
+    {
+        const float3 q = face.corners_[1] + (face.corners_[0] - face.corners_[1]) * GiRand(seed) +
+                         (face.corners_[2] - face.corners_[1]) * GiRand(seed);
+        const float3 toQ = q - P;
+        const float dist = length(toQ);
+        const float3 L = toQ / max(dist, 1e-6f);
+        if (dot(N, L) > 0.0f)
+            visible = TraceShadowRay(P, N, L, dist);
+    }
+    return light.color_ * (PI * light.intensity_ * face.window_ * formFactor * visible);
+}
+
+float3 GiDirectIrradiance(float3 P, float3 N, inout uint seed)
 {
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
     float3 E = float3(0.0f, 0.0f, 0.0f);
@@ -8,26 +34,25 @@ float3 GiStarIrradiance(float3 P, float3 N)
     for (uint lightIndex = 0; lightIndex < g_draw.lightCount_; ++lightIndex)
     {
         LightGPUData light = LightBuffer[lightIndex];
-        if (light.type_ != LightFarPoint && light.type_ != LightDirectional)
-            continue;
-        float3 L;
-        float dist = ShadowRayFar;
-        float rangeAtt = 1.0f;
-        if (light.type_ == LightDirectional)
-            L = -light.direction_;
-        else
+        light.pos_ -= cam.pos_;
+        if (light.type_ == LightRect)
         {
-            const float3 toLight = (light.pos_ - cam.pos_) - P;
-            dist = length(toLight);
-            if (dist > light.radius_ || dist <= 0.0001f)
-                continue;
-            L = toLight / dist;
-            rangeAtt = pow(saturate(1.0f - dist / light.radius_), max(light.falloff_, 0.0001f));
+            E += GiRectIrradiance(light, P, N, seed);
+            continue;
         }
+        float3 L;
+        float dist;
+        float attenuation;
+        if (!LightIncidence(light, P, L, dist, attenuation))
+            continue;
         const float NdotL = saturate(dot(N, L));
         if (NdotL <= 0.0f)
             continue;
-        E += light.color_ * (rangeAtt * light.intensity_ * NdotL) * TraceShadowRay(P, N, L, dist);
+        float visible = 1.0f;
+        if (light.shadowIndex_ != InvalidGPUIndex)
+            visible =
+                TraceShadowRay(P, N, L, light.type_ == LightDirectional ? ShadowRayFar : dist);
+        E += light.color_ * (attenuation * light.intensity_ * NdotL * visible);
     }
     return E;
 }
@@ -72,7 +97,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
         return float4(0.0f, 0.0f, 0.0f, 1.0f);
     const RtHit first = RtResolveHit(query, ray.Direction);
 
-    const uint2 key = GiCacheKey(first.gi_, GiLevel(length(first.position_)));
+    const uint2 key = GiCacheKey(first.gi_, GiRandomLevel(length(first.position_), GiRand(seed)));
     const uint bucket = (pixel.x ^ pixel.y) & (RtCacheStatsBuckets - 1u);
     bool inserted;
     const uint slot = GiSlotInsert(key, inserted);
@@ -128,7 +153,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
             break;
         }
         throughput *= hit.albedo_;
-        irradiance += throughput * GiStarIrradiance(hit.position_, hit.normal_);
+        irradiance += throughput * GiDirectIrradiance(hit.position_, hit.normal_, seed);
         if (bounce + 1 == fc.giBounces_)
         {
             const uint tail = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));

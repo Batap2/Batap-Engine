@@ -75,23 +75,16 @@ static const uint RtCacheStatInserted = 1u;
 static const uint RtCacheStatFailed = 2u;
 static const uint RtCacheStatEvicted = 3u;
 static const uint RtCacheStatTailMiss = 4u;
-static const uint RtCacheStatReset = 5u;
-static const uint RtCacheStatCount = 6u;
+static const uint RtCacheStatCount = 5u;
 
-// irradiance_ is the resolved value; sum_ and count_ collect the frame's
-// samples and the resolve pass folds them in. history_: samples folded in
-// bits 0-9, the run of empty frames in bits 10-15, the frame of the last
-// visit in the high 16 (GiSamplesMask, GiZeroRunShift in GiCache.hlsli).
 struct RtCacheValueGPUData
 {
     float irradiance_[3];
     uint history_;
     uint sum_[3];
     uint count_;
-    float fastLuma_;
-    float variance_;
-    float zeroFraction_;
-    float fastCount_;
+    float filtered_[3];
+    float pad_;
 };
 
 enum BindlessBinding : uint

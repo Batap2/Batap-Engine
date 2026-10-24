@@ -210,15 +210,19 @@ float LtcEvaluate(float3 N, float3 V, float3 P, float3x3 mInv, float3 corners[4]
     return LtcClippedSphere(f);
 }
 
-// intensity_ is the face's radiance: the integrals are fractions of the
-// hemisphere, so no 1/pi appears.
-float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, float NdotV,
-                             float3 albedo, float roughness, float metallic, float3 F0)
+struct RectFace
 {
+    float3 corners_[4];
+    float window_;
+};
+
+RectFace RectLightFace(LightGPUData light, float3 P)
+{
+    RectFace face = (RectFace)0;
     float3 toP = P - light.pos_;
     float h = dot(toP, light.direction_);
     if (h <= 0.0f)
-        return float3(0.0f, 0.0f, 0.0f);
+        return face;
 
     float hw = length(light.halfWidth_);
     float hh = length(light.halfHeight_);
@@ -232,7 +236,7 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
     float2 outside = max(abs(float2(u, v)) - float2(hw, hh), 0.0f);
     float d = sqrt(dot(outside, outside) + h * h) / max(light.radius_, 1e-4f);
     if (d >= 1.0f)
-        return float3(0.0f, 0.0f, 0.0f);
+        return face;
     float d2 = d * d;
     float window = (1.0f - d2 * d2);
     window *= window;
@@ -249,14 +253,25 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
         lo = max(lo, float2(u, v) - reach);
         hi = min(hi, float2(u, v) + reach);
         if (any(hi <= lo))
-            return float3(0.0f, 0.0f, 0.0f);
+            return face;
     }
 
-    float3 corners[4];
-    corners[0] = light.pos_ + ax * hi.x + ay * lo.y;
-    corners[1] = light.pos_ + ax * lo.x + ay * lo.y;
-    corners[2] = light.pos_ + ax * lo.x + ay * hi.y;
-    corners[3] = light.pos_ + ax * hi.x + ay * hi.y;
+    face.corners_[0] = light.pos_ + ax * hi.x + ay * lo.y;
+    face.corners_[1] = light.pos_ + ax * lo.x + ay * lo.y;
+    face.corners_[2] = light.pos_ + ax * lo.x + ay * hi.y;
+    face.corners_[3] = light.pos_ + ax * hi.x + ay * hi.y;
+    face.window_ = window;
+    return face;
+}
+
+// intensity_ is the face's radiance: the integrals are fractions of the
+// hemisphere, so no 1/pi appears.
+float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, float NdotV,
+                             float3 albedo, float roughness, float metallic, float3 F0)
+{
+    const RectFace face = RectLightFace(light, P);
+    if (face.window_ <= 0.0f)
+        return float3(0.0f, 0.0f, 0.0f);
 
     FrameGPUData frame = FrameBuffer[0];
     float2 uv = LtcUv(NdotV, roughness);
@@ -270,10 +285,10 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
     // Hill's split of the Fresnel term over the lobe: F0 scaled by the GGX
     // albedo, and the rest toward F90 = 1.
     float3 fresnel = F0 * t2.x + (1.0f - F0) * t2.y;
-    float3 specular = fresnel * LtcEvaluate(N, V, P, mInv, corners);
-    float3 diffuse = albedo * (1.0f - metallic) * LtcEvaluate(N, V, P, identity, corners);
+    float3 specular = fresnel * LtcEvaluate(N, V, P, mInv, face.corners_);
+    float3 diffuse = albedo * (1.0f - metallic) * LtcEvaluate(N, V, P, identity, face.corners_);
 
-    return (diffuse + specular) * light.color_ * (light.intensity_ * window);
+    return (diffuse + specular) * light.color_ * (light.intensity_ * face.window_);
 }
 
 // Read from where the maps were drawn: the apex of the doors' pyramid for one
@@ -323,11 +338,30 @@ float3 DiffuseIrradiance(Surface s)
 {
     const float3 sky = g_draw.skyboxCount_ != 0 ? EvalSH9(s.N_) : float3(0.0f, 0.0f, 0.0f);
 #if BATAP_RT
-    const uint slot = GiSlotFind(GiCacheKey(s.gi_, GiLevel(length(s.posRel_))));
-    if (slot != GiNoSlot)
-        return GiShownIrradiance(slot, sky);
-#endif
+    return GiIrradianceAt(s.gi_, length(s.posRel_), sky);
+#else
     return sky;
+#endif
+}
+
+bool LightIncidence(LightGPUData light, float3 P, out float3 L, out float dist,
+                    out float attenuation)
+{
+    L = -light.direction_;
+    dist = 0.0f;
+    attenuation = 1.0f;
+    if (light.type_ != LightDirectional)
+    {
+        float3 toLight = light.pos_ - P;
+        dist = length(toLight);
+        if (dist > light.radius_ || dist <= 0.0001f)
+            return false;
+        L = toLight / dist;
+        attenuation = pow(saturate(1.0f - dist / light.radius_), max(light.falloff_, 0.0001f));
+    }
+    if (light.type_ == LightSpot)
+        attenuation *= smoothstep(light.cosOuter_, light.cosInner_, dot(-L, light.direction_));
+    return attenuation > 0.0f;
 }
 
 float3 ShadeSurface(uint shadingModel, Surface s)
@@ -345,7 +379,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
     float3 F_ibl = F_Schlick(NdotV, F0);
     float3 kD    = (1.0f - F_ibl) * (1.0f - s.metallic_);
-    float3 color = kD * DiffuseIrradiance(s) * s.albedo_;
+    float3 color = kD * DiffuseIrradiance(s) * s.albedo_ / PI;
     if (g_draw.skyboxCount_ != 0)
     {
         float3 R        = reflect(-V, s.N_);
@@ -375,26 +409,8 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
         float3 L;
         float  dist;
-        float  rangeAtt = 1.0f;
-        if (light.type_ == LightDirectional)
-        {
-            L = -light.direction_;
-            dist = 0.0f;
-        }
-        else
-        {
-            float3 toLight = light.pos_ - s.posRel_;
-            dist = length(toLight);
-            if (dist > light.radius_ || dist <= 0.0001f)
-                continue;
-            L = toLight / dist;
-            rangeAtt = pow(saturate(1.0f - dist / light.radius_), max(light.falloff_, 0.0001f));
-        }
-
-        float cone = 1.0f;
-        if (light.type_ == LightSpot)
-            cone = smoothstep(light.cosOuter_, light.cosInner_, dot(-L, light.direction_));
-        if (cone <= 0.0f)
+        float  attenuation;
+        if (!LightIncidence(light, s.posRel_, L, dist, attenuation))
             continue;
 
         float NdotL = saturate(dot(s.N_, L));
@@ -412,7 +428,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
         float3 H = normalize(V + L);
 
-        float3 radiance = light.color_ * (rangeAtt * light.intensity_);
+        float3 radiance = light.color_ * (attenuation * light.intensity_);
 
         float NdotH = saturate(dot(s.N_, H));
         float HdotV = saturate(dot(H, V));
@@ -429,7 +445,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         float3 diffuse = kD_light * s.albedo_ / PI;
 
         // Direct term only: the ambient does not see shadows.
-        color += (diffuse + specular) * radiance * NdotL * shadow * cone;
+        color += (diffuse + specular) * radiance * NdotL * shadow;
     }
 
     if (debugCascade < ShadowCascadeCount)
