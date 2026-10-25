@@ -1001,6 +1001,14 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       *Vérif* : du régolithe au soleil à l'intérieur du vaisseau sous une
       lampe, les deux restent lisibles après adaptation ; pas de pompage sur
       une vue fixe.
+      *Fait (2026-10-25)* : `ExposurePass` réduit la cible HDR en 64×64 →
+      8×8 → 1×1 (somme des log2 de luminance de scène et nombre de pixels,
+      le noir du ciel exclu), relue trois frames plus tard ; le CPU vise le
+      gris moyen 0,18, borne, et s'adapte en τ = 0,4 s vers le clair, 1,5 s
+      vers le sombre. Réglages sur `Camera_C` (`autoExposure`, désactivé
+      par défaut, compensation, EV100 min et max) et dans les options de
+      caméra de l'éditeur. Sol au soleil → pièce sous une lampe de 150 cd :
+      les deux lisibles, vue fixe stable à ±0,002 EV.
 - [ ] **3.3 Prépasse profondeur + normales.** C'est `OBJECTIFS.md` §4 étape 3.
       Le depth est en Z inversé sans plan lointain (agrandissement, 15 et
       16) : profondeur linéaire = `znear_ / z`, 0 = infini. Vaut pour tout ce
@@ -1114,6 +1122,11 @@ règles temporelles et le MSAA.
   partager les cellules entre niveaux, par des positions dans le repère de
   l'astre à un plancher plus grossier.
 
+- **Le cache GI met ~5 s à se poser après un grand changement de vue.** En
+  entrant dans une pièce depuis le soleil (3.2b, exposition fixe),
+  l'intérieur part trop clair et perd ~1 EV en ~5 s, caméra immobile. Piste
+  à vérifier : l'éviction à 3 s des cellules qui ne sont plus vues (le sol
+  au soleil derrière la porte), qui servaient aux lectures de queue.
 - **Support de `VK_KHR_ray_tracing_position_fetch` dans dxc/HLSL.** S'il existe,
   il remplace le buffer geometry info.
 - **Photons de l'étoile** pour alimenter le cache : une expérience plus tard.

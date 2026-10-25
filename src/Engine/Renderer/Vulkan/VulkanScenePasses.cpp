@@ -154,6 +154,8 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
       giUpdate_(PassSetup{ctx, resources, pipelineLayout_, toVkFormat(HdrFormat), depthFormat,
                           rtPipelineLayout_}),
       tonemap_(
+          PassSetup{ctx, resources, pipelineLayout_, outputFormat, depthFormat, rtPipelineLayout_}),
+      exposure_(
           PassSetup{ctx, resources, pipelineLayout_, outputFormat, depthFormat, rtPipelineLayout_})
 {
     localAtlas_ = resources_.createTarget(LocalAtlasSize, LocalAtlasSize, ResourceFormat::D32_FLOAT,
@@ -211,6 +213,7 @@ void ScenePasses::buildPipelines(const ShaderModules& modules)
     rtDebug_.buildPipelines(modules);
     giUpdate_.buildPipelines(modules);
     tonemap_.buildPipelines(modules);
+    exposure_.buildPipelines(modules);
 }
 
 void ScenePasses::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay)
@@ -445,12 +448,13 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     }
 
     frameData_.hdrTexture_ = resources_.textureIndex(hdrTarget_);
+    const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
     frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
-    frameData_.exposure_ = reg->get<Camera_C>(args.camera_).exposure();
+    frameData_.exposure_ =
+        exposure_.update(frame, args.camera_, reg->get<Camera_C>(args.camera_), dt);
     frameData_.frameIndex_ = ++giFrame_;
     frameData_.giWidth_ = static_cast<uint32_t>(giUpdate_.size().x());
     frameData_.giHeight_ = static_cast<uint32_t>(giUpdate_.size().y());
-    const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
     frameData_.giMaxAge_ = static_cast<uint32_t>(std::lround(3.f / dt));
     frameData_.giDt_ = dt;
     frameData_.giBounces_ = std::clamp(ctx.settings().giBounces_, 1u, 4u);
@@ -552,6 +556,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
         .image(hdrImage, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
         .memory(Usage::DepthAttachment, Usage::DepthAttachment)
         .flush(cmd);
+    exposure_.record(pass, frame);
 
     color.imageView = targets.color_;
     color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;

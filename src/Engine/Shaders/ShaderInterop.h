@@ -67,7 +67,7 @@ struct RtInstanceGPUData
 // Keys are uint64, 0 = empty slot; values are fixed-point sums.
 static const uint RtCacheCapacity = 1u << 20;
 static const uint RtCacheProbes = 16u;
-static const float RtCacheScale = 65536.0f;
+static const float RtCacheScale = 1024.0f;
 static const float RtCacheSampleMax = 4194304.0f;
 static const uint RtCacheResolveWidth = 1024u;
 static const uint RtCacheStatsBuckets = 256u;
@@ -254,6 +254,9 @@ struct ShadowGPUData
     // Cascades only.
     float4 sphere_;
 };
+
+static const uint ExposureGridSize = 64u;
+static const uint ExposureReduceBlock = 8u;
 
 enum TonemapOperator : uint
 {

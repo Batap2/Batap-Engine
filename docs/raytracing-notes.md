@@ -532,3 +532,63 @@ peu plus le sol proche et un peu moins le mur du fond. Au soleil, les phares
 du buggy ne se voient plus (réaliste : 20 000 cd donnent ~20 lux à 20 m,
 fenêtre de portée comprise, contre ~10⁵ lux de soleil) ; à l'ombre, l'auto-exposition (3.2b) les
 révélera.
+
+## 3.2b Auto-exposition
+
+*Fait (2026-10-25)* :
+- **Mesure** (`ExposurePass`, trois passes PS, pas de compute) :
+  `ExposureMeasurePS` lit la cible HDR en 16 points par case d'une grille
+  64 × 64 et écrit la somme des `log2` de la luminance **de scène** (valeur
+  exposée divisée par l'exposition de la frame) et le nombre de pixels
+  retenus ; `ExposureReducePS` somme des blocs 8 × 8, deux fois (64 → 8 →
+  1), cibles `R32G32F`. Les pixels sous 10⁻³ cd/m² sont exclus : le ciel
+  noir de l'espace tirerait sinon la moyenne vers le bas et brûlerait le sol
+  éclairé. Le 1 × 1 est copié dans un buffer mappé par slot de frame (les
+  cibles du `ResourceManager` ont maintenant `TRANSFER_SRC`), relu
+  `FramesInFlight` frames plus tard, comme les compteurs du cache GI : pas
+  d'écriture de stockage depuis un PS, donc valable sans RT.
+- **Adaptation** (CPU, `ExposurePass::update`) : moyenne géométrique `L`,
+  cible `EV100 = ev100ForExposure(0,18 / L) − compensation`, bornée par
+  `minEv100` et `maxEv100`, puis `EV += (cible − EV) × (1 − e^(−dt/τ))`
+  avec τ = 0,4 s quand la cible monte (l'image s'éclaircit) et 1,5 s quand
+  elle descend. Le premier essai visait `log2(L × 100 / 12,5)` (Lagarde
+  2014), soit une moyenne exposée à ~0,10 : le régolithe au soleil sortait
+  gris foncé, 2,1 EV sous l'EV 15 manuelle de 3.2 ; le gris moyen 0,18 en
+  rend 0,8.
+- **Réglages** : `Camera_C::autoExposure_` (désactivé par défaut : les
+  scènes de test GI gardent leur EV manuelle), `exposureCompensation_`,
+  `minEv100_` (−6), `maxEv100_` (20). En auto, `ev100_` sert de point de
+  départ, et l'adaptation repart de lui quand la caméra rendue change. Dans
+  l'éditeur, les options de caméra ont « Auto exposure », compensation et
+  bornes ; ils sont gardés par scène et repris de la caméra de la scène à
+  la première ouverture, comme l'EV100.
+- **Cache GI** : `RtCacheScale` 65 536 → 1 024. Avec l'exposition d'un
+  intérieur, le plafond par échantillon (64 fois le blanc à l'écran)
+  écrêtait les rebonds sur le sol au soleil vus par la porte : moins
+  d'indirect, l'exposition montait encore, et la boucle s'entretenait. Le
+  plafond est maintenant 4 096 fois le blanc, pas de ~40 lux à EV 15.
+
+*Banc* : `room_auto.btpl` (scratchpad), sol de 200 m sous un soleil de
+100 000 lux, ciel noir, pièce fermée de 8 × 3 × 8 m avec une porte et une
+lampe de 150 cd sous le toit ; caméra en auto-exposition à 25 m dehors,
+`freeCamController`, W pendant 2,6 s à 6 s (elle entre d'un mètre), S
+pendant 2,6 s à 18 s ; un dump toutes les 12 frames, horodaté.
+
+*Mesuré* :
+- **Vue fixe dehors** : médiane 124/255, stable à ±0,1 de luma sur 4 s ;
+  cible stable à ±0,002 EV (log temporaire). Pas de pompage.
+- **Entrée** : l'image tombe à 36–38 de luma (exposition encore pour le
+  soleil), revient à 74 en 0,9 s, 95 en 1,9 s, puis monte doucement jusqu'à
+  ~125 en ~8 s.
+- **Sortie** : pic de médiane à 150, retour à 125 en ~1,5 s après l'arrêt
+  de la caméra.
+- Dedans, la cible descend de ~1 EV en 6 s, caméra immobile. Ce n'est pas
+  l'exposition : en EV 10 fixe, l'intérieur s'assombrit tout seul de 129 à
+  101 de luma en ~5 s. C'est le cache GI qui se stabilise après un grand
+  changement de vue. Point ouvert.
+- **Lune** (copie statique, auto) : EV 17,07 avec la formule de Lagarde,
+  donc ~16,3 au gris moyen, contre 15 en manuel : `exposureCompensation`
+  ≈ +1,3 redonne l'image de 3.2.
+
+Validation propre : jeu debug en RT et en raster sur `room_auto` et
+`test_buggy_fusee` (300 frames chacun).

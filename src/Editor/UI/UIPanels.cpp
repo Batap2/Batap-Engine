@@ -706,6 +706,13 @@ void UIPanels::drawCameraOptions(World& world, App& app)
         bool camChanged = ui::FieldDragFloat("FOV", &camera->fov_, 0.01f, 0.01f, 3.14f);
         camChanged |= ui::FieldDragFloat("Near", &camera->znear_, 0.01f, 0.001f, 10.0f);
         camChanged |= ui::FieldDragFloat("EV100", &camera->ev100_, 0.05f, -10.0f, 25.0f);
+        ui::Field("Auto exposure",
+                  [&] { return ImGui::Checkbox("##autoExposure", &camera->autoExposure_); });
+        ImGui::BeginDisabled(!camera->autoExposure_);
+        ui::FieldDragFloat("Compensation", &camera->exposureCompensation_, 0.05f, -10.0f, 10.0f);
+        ui::FieldDragFloat("Min EV100", &camera->minEv100_, 0.05f, -10.0f, 25.0f);
+        ui::FieldDragFloat("Max EV100", &camera->maxEv100_, 0.05f, -10.0f, 25.0f);
+        ImGui::EndDisabled();
         if (camChanged)
             world.instances().markDirty<Camera_C>(cam);
 

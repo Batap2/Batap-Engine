@@ -136,8 +136,13 @@ void read(File& io, const std::string& projectDir, const std::string& scene)
         io.pose.frame = quatf{frame[3], frame[0], frame[1], frame[2]}.normalized();
     if (const auto ev = pose.find("ev100"); ev != pose.end() && ev->is_number())
     {
-        io.pose.ev100 = ev->get<float>();
-        io.pose.hasEv100 = true;
+        Exposure& e = io.pose.exposure;
+        e.ev100 = ev->get<float>();
+        e.autoExposure = pose.value("autoExposure", e.autoExposure);
+        e.compensation = pose.value("exposureCompensation", e.compensation);
+        e.minEv100 = pose.value("minEv100", e.minEv100);
+        e.maxEv100 = pose.value("maxEv100", e.maxEv100);
+        io.pose.hasExposure = true;
     }
     io.hasPose = true;
 }
@@ -174,8 +179,15 @@ void write(const File& file, const std::string& projectDir, const std::string& s
             pose["pitch"] = file.pose.pitch;
             pose["frame"] = {file.pose.frame.x(), file.pose.frame.y(), file.pose.frame.z(),
                              file.pose.frame.w()};
-            if (file.pose.hasEv100)
-                pose["ev100"] = file.pose.ev100;
+            if (file.pose.hasExposure)
+            {
+                const Exposure& e = file.pose.exposure;
+                pose["ev100"] = e.ev100;
+                pose["autoExposure"] = e.autoExposure;
+                pose["exposureCompensation"] = e.compensation;
+                pose["minEv100"] = e.minEv100;
+                pose["maxEv100"] = e.maxEv100;
+            }
         }
     }
 

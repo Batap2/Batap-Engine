@@ -40,14 +40,23 @@ struct Camera
     float znear = 0.f;
 };
 
+struct Exposure
+{
+    float ev100 = 0.f;
+    bool autoExposure = false;
+    float compensation = 0.f;
+    float minEv100 = 0.f;
+    float maxEv100 = 0.f;
+};
+
 struct Pose
 {
     v3f pos = v3f::Zero();
     float yaw = 0.f;
     float pitch = 0.f;
     quatf frame = quatf::Identity();
-    float ev100 = 0.f;
-    bool hasEv100 = false;
+    Exposure exposure;
+    bool hasExposure = false;
 };
 
 // One project and one of its scenes at a time, which is all the editor ever

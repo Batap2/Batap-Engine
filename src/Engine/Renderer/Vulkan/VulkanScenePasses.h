@@ -6,6 +6,7 @@
 #include "Renderer/Vulkan/LocalShadowAllocator.h"
 #include "Renderer/Vulkan/Passes/BillboardPass.h"
 #include "Renderer/Vulkan/Passes/DebugPass.h"
+#include "Renderer/Vulkan/Passes/ExposurePass.h"
 #include "Renderer/Vulkan/Passes/GeometryPass.h"
 #include "Renderer/Vulkan/Passes/GiUpdatePass.h"
 #include "Renderer/Vulkan/Passes/RtDebugPass.h"
@@ -90,6 +91,7 @@ struct ScenePasses
     RtDebugPass rtDebug_;
     GiUpdatePass giUpdate_;
     TonemapPass tonemap_;
+    ExposurePass exposure_;
 
     std::filesystem::file_time_type shadersMtime_{};
 };

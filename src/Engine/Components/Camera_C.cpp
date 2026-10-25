@@ -12,9 +12,14 @@ void Camera_C::afterDeserialize(EntityHandle h, World&)
         Camera_S::activate(*h.reg_, h.entity_);
 }
 
-float Camera_C::exposure() const
+float exposureForEv100(float ev100)
 {
-    return 1.0f / (1.2f * std::exp2(ev100_));
+    return 1.0f / (1.2f * std::exp2(ev100));
+}
+
+float ev100ForExposure(float exposure)
+{
+    return -std::log2(1.2f * exposure);
 }
 
 m4f Camera_C::make_proj(float aspect) const

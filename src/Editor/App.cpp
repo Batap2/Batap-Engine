@@ -67,7 +67,29 @@ auto camState(const v3f& pos, const FreeCamController_C& ctrl, const Camera_C& v
     return std::tuple{pos.x(),          pos.y(),          pos.z(),          ctrl.yaw_,
                       ctrl.pitch_,      ctrl.moveSpeed_,  ctrl.boostSpeed_, ctrl.mouseSensitivity_,
                       ctrl.frame_.x(),  ctrl.frame_.y(),  ctrl.frame_.z(),  ctrl.frame_.w(),
-                      view.fov_,        view.znear_,      view.ev100_};
+                      view.fov_,        view.znear_,      view.ev100_,      view.autoExposure_,
+                      view.exposureCompensation_,         view.minEv100_,   view.maxEv100_};
+}
+
+editorConfig::Exposure exposureOf(const Camera_C& view)
+{
+    return {view.ev100_, view.autoExposure_, view.exposureCompensation_, view.minEv100_,
+            view.maxEv100_};
+}
+
+void setExposure(Camera_C& view, const editorConfig::Exposure& exposure)
+{
+    view.ev100_ = exposure.ev100;
+    view.autoExposure_ = exposure.autoExposure;
+    view.exposureCompensation_ = exposure.compensation;
+    view.minEv100_ = exposure.minEv100;
+    view.maxEv100_ = exposure.maxEv100;
+}
+
+auto exposureState(const Camera_C& view)
+{
+    return std::tuple{view.ev100_, view.autoExposure_, view.exposureCompensation_,
+                      view.minEv100_, view.maxEv100_};
 }
 }  // namespace
 
@@ -126,7 +148,7 @@ void App::applyEditorCamera()
     Camera_C& view = cam.get<Camera_C>();
     view.fov_ = editorCamView_.fov_;
     view.znear_ = editorCamView_.znear_;
-    view.ev100_ = editorCamView_.ev100_;
+    setExposure(view, exposureOf(editorCamView_));
     cam.setLocalPosition(editorCamPos_);
     cam.setLocalRotation(editorCamRot_);
     world_->instances().markDirty<Camera_C>(cam);
@@ -149,17 +171,17 @@ void App::syncEditorCamera()
         const FreeCamController_C& ctrl = cam.get<FreeCamController_C>();
         Camera_C& view = cam.get<Camera_C>();
 
-        if (std::abs(view.ev100_ - editorCamView_.ev100_) > 1e-6f)
-            editorEvFromScene_ = false;
-        if (editorEvFromScene_)
+        if (exposureState(view) != exposureState(editorCamView_))
+            editorExposureFromScene_ = false;
+        if (editorExposureFromScene_)
         {
             auto& reg = world_->registry_;
             for (auto [e, sceneCam] : reg.view<Camera_C>(entt::exclude<EditorOnly_C>).each())
             {
                 if (!sceneCam.active_)
                     continue;
-                view.ev100_ = sceneCam.ev100_;
-                editorEvFromScene_ = false;
+                setExposure(view, exposureOf(sceneCam));
+                editorExposureFromScene_ = false;
                 break;
             }
         }
@@ -174,7 +196,7 @@ void App::syncEditorCamera()
         editorCamCtrl_.requireRightMouseButton_ = true;
         editorCamView_.fov_ = view.fov_;
         editorCamView_.znear_ = view.znear_;
-        editorCamView_.ev100_ = view.ev100_;
+        setExposure(editorCamView_, exposureOf(view));
     }
 
     world_->setRenderCamera(playing_ ? entt::null : cam.entity_);
@@ -383,7 +405,7 @@ void App::saveConfig()
                    editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_,
                    editorCamView_.znear_};
     file.pose = {editorCamPos_,         editorCamCtrl_.yaw_,  editorCamCtrl_.pitch_,
-                 editorCamCtrl_.frame_, editorCamView_.ev100_, !editorEvFromScene_};
+                 editorCamCtrl_.frame_, exposureOf(editorCamView_), !editorExposureFromScene_};
     file.hasPose = true;
 
     editorConfig::write(file, projectDir_, sceneKey());
@@ -423,14 +445,14 @@ void App::loadSceneCamera()
 
     editorConfig::File file;
     file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_,
-                 editorCamCtrl_.frame_};
+                 editorCamCtrl_.frame_, exposureOf(editorCamView_)};
     editorConfig::read(file, projectDir_, scene);
-    editorEvFromScene_ = !file.pose.hasEv100;
+    editorExposureFromScene_ = !file.pose.hasExposure;
     if (!file.hasPose)
         return;
 
-    if (file.pose.hasEv100)
-        editorCamView_.ev100_ = file.pose.ev100;
+    if (file.pose.hasExposure)
+        setExposure(editorCamView_, file.pose.exposure);
     editorCamPos_ = file.pose.pos;
     editorCamCtrl_.yaw_ = file.pose.yaw;
     editorCamCtrl_.pitch_ = file.pose.pitch;
