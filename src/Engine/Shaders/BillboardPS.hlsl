@@ -34,5 +34,5 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.N_ = normalize(i.normalWS_);
     s.posRel_ = i.posRel_;
 
-    return float4(saturate(ShadeSurface(mat.shadingModel_, s)), 1.f);
+    return float4(ShadeSurface(mat.shadingModel_, s), 1.f);
 }

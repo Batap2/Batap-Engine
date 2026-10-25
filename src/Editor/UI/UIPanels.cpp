@@ -8,6 +8,7 @@
 #include "UserConfig.h"
 #include "LightGizmos.h"
 #include "Renderer/DebugDraw.h"
+#include "Renderer/Tonemap.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
 #include "UI/ScreenSpace.h"
@@ -191,7 +192,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
                            ctx.settings().rayTracing_,
                            static_cast<int>(ctx.settings().maxFps_),
                            static_cast<int>(ctx.settings().giBounces_),
-                           static_cast<int>(ctx.settings().giPasses_)};
+                           static_cast<int>(ctx.settings().giPasses_),
+                           ctx.settings().tonemap_};
 
         WindowDesc game;
         EngineSettings gameRender;
@@ -204,7 +206,7 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         gameSettings_ = {game.screen, game.focusOnShow, game.behindOnShow,
                          gameRender.rayTracing_, static_cast<int>(gameRender.maxFps_),
                          static_cast<int>(gameRender.giBounces_),
-                         static_cast<int>(gameRender.giPasses_)};
+                         static_cast<int>(gameRender.giPasses_), gameRender.tonemap_};
     }
 
     const auto screenLabel = [&](int screen)
@@ -271,6 +273,21 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
             s.maxFps = std::max(s.maxFps, 0);
             change = Render;
         }
+        ImGui::SetNextItemWidth(220.0f);
+        if (ImGui::BeginCombo("Tonemap", std::string(tonemapChoice(s.tonemap).label_).c_str()))
+        {
+            for (const TonemapChoice& choice : kTonemaps)
+            {
+                if (ImGui::Selectable(std::string(choice.label_).c_str(),
+                                      choice.key_ == s.tonemap) &&
+                    choice.key_ != s.tonemap)
+                {
+                    s.tonemap = std::string(choice.key_);
+                    change = Render;
+                }
+            }
+            ImGui::EndCombo();
+        }
         ImGui::BeginDisabled(!ctx.rtSupported());
         ImGui::SetNextItemWidth(80.0f);
         ImGui::InputInt("GI bounces (1-4)", &s.giBounces, 1);
@@ -292,17 +309,27 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         return change;
     };
 
+    const auto renderOf = [](const AppSettings& s)
+    {
+        EngineSettings render;
+        render.rayTracing_ = s.rayTracing;
+        render.maxFps_ = static_cast<uint32_t>(s.maxFps);
+        render.giBounces_ = static_cast<uint32_t>(s.giBounces);
+        render.giPasses_ = static_cast<uint32_t>(s.giPasses);
+        render.tonemap_ = s.tonemap;
+        return render;
+    };
+
     const Change editorChange = section("Editor", "editor", editorSettings_);
     if (editorChange == Render)
     {
-        const auto maxFps = static_cast<uint32_t>(editorSettings_.maxFps);
-        const auto giBounces = static_cast<uint32_t>(editorSettings_.giBounces);
-        const auto giPasses = static_cast<uint32_t>(editorSettings_.giPasses);
-        editorConfig::writeRender(editorSettings_.rayTracing, maxFps, giBounces, giPasses);
-        ctx.setRayTracing(editorSettings_.rayTracing);
-        ctx.setMaxFps(maxFps);
-        ctx.setGiBounces(giBounces);
-        ctx.setGiPasses(giPasses);
+        const EngineSettings render = renderOf(editorSettings_);
+        editorConfig::writeRender(render);
+        ctx.setRayTracing(render.rayTracing_);
+        ctx.setMaxFps(render.maxFps_);
+        ctx.setGiBounces(render.giBounces_);
+        ctx.setGiPasses(render.giPasses_);
+        ctx.setTonemap(render.tonemap_);
     }
     else if (editorChange != None)
     {
@@ -321,10 +348,7 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     ImGui::BeginDisabled(!hasGame);
     const Change gameChange = section(gameTitle.c_str(), "game", gameSettings_);
     if (hasGame && gameChange == Render)
-        userConfig::writeRender(gameFile, gameSettings_.rayTracing,
-                                static_cast<uint32_t>(gameSettings_.maxFps),
-                                static_cast<uint32_t>(gameSettings_.giBounces),
-                                static_cast<uint32_t>(gameSettings_.giPasses));
+        userConfig::writeRender(gameFile, renderOf(gameSettings_));
     else if (hasGame && gameChange != None)
         userConfig::writeWindow(gameFile, gameSettings_.screen, gameSettings_.focusOnShow,
                                 gameSettings_.behindOnShow);

@@ -2,6 +2,7 @@
 
 #include "VulkanBarrier.h"
 #include "VulkanContext.h"
+#include "VulkanFormats.h"
 #include "VulkanPipelines.h"
 #include "VulkanResources.h"
 
@@ -17,6 +18,7 @@
 #include "Paths.h"
 #include "Renderer/LtcTables.h"
 #include "Renderer/ShadowCascades.h"
+#include "Renderer/Tonemap.h"
 #include "Systems/CascadeLight_S.h"
 
 #include <algorithm>
@@ -33,6 +35,7 @@ namespace batap
 {
 namespace
 {
+constexpr ResourceFormat HdrFormat = ResourceFormat::R16G16B16A16_FLOAT;
 
 VkDescriptorSetLayout createFrameSetLayout(VkDevice device)
 {
@@ -119,7 +122,7 @@ VkPipelineLayout createPipelineLayout(VkDevice device,
 
 // Declaration order matters: a pass captures the pipeline layout by value, so
 // the layout must already be built when the passes are initialised.
-ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
+ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkFormat outputFormat,
                          VkFormat depthFormat)
     : ctx_(ctx),
       resources_(resources),
@@ -134,21 +137,24 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
                                   ctx.device_, std::array{resources.textureSetLayout(),
                                                           frameSetLayout_, rtScene_->setLayout()})
                             : VK_NULL_HANDLE),
-      shadow_(
-          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
-      geometry_(
-          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
-      terrain_(
-          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
-      billboards_(
-          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
-      sky_(PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
+      shadow_(PassSetup{ctx, resources, pipelineLayout_, toVkFormat(HdrFormat), depthFormat,
+                        rtPipelineLayout_}),
+      geometry_(PassSetup{ctx, resources, pipelineLayout_, toVkFormat(HdrFormat), depthFormat,
+                          rtPipelineLayout_}),
+      terrain_(PassSetup{ctx, resources, pipelineLayout_, toVkFormat(HdrFormat), depthFormat,
+                         rtPipelineLayout_}),
+      billboards_(PassSetup{ctx, resources, pipelineLayout_, toVkFormat(HdrFormat), depthFormat,
+                            rtPipelineLayout_}),
+      sky_(PassSetup{ctx, resources, pipelineLayout_, toVkFormat(HdrFormat), depthFormat,
+                     rtPipelineLayout_}),
       debug_(
-          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
-      rtDebug_(
-          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_}),
-      giUpdate_(
-          PassSetup{ctx, resources, pipelineLayout_, colorFormat, depthFormat, rtPipelineLayout_})
+          PassSetup{ctx, resources, pipelineLayout_, outputFormat, depthFormat, rtPipelineLayout_}),
+      rtDebug_(PassSetup{ctx, resources, pipelineLayout_, toVkFormat(HdrFormat), depthFormat,
+                         rtPipelineLayout_}),
+      giUpdate_(PassSetup{ctx, resources, pipelineLayout_, toVkFormat(HdrFormat), depthFormat,
+                          rtPipelineLayout_}),
+      tonemap_(
+          PassSetup{ctx, resources, pipelineLayout_, outputFormat, depthFormat, rtPipelineLayout_})
 {
     localAtlas_ = resources_.createTarget(LocalAtlasSize, LocalAtlasSize, ResourceFormat::D32_FLOAT,
                                           "local shadow atlas");
@@ -204,6 +210,7 @@ void ScenePasses::buildPipelines(const ShaderModules& modules)
     debug_.buildPipelines(modules);
     rtDebug_.buildPipelines(modules);
     giUpdate_.buildPipelines(modules);
+    tonemap_.buildPipelines(modules);
 }
 
 void ScenePasses::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay)
@@ -427,6 +434,18 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
         giUpdate_.resize(ctx.getFrameSize());
     }
 
+    if (!hdrTarget_.valid() || hdrExtent_.width != targets.extent_.width ||
+        hdrExtent_.height != targets.extent_.height)
+    {
+        if (hdrTarget_.valid())
+            resources_.requestDestroy(hdrTarget_);
+        hdrTarget_ = resources_.createTarget(targets.extent_.width, targets.extent_.height,
+                                             HdrFormat, "hdr color");
+        hdrExtent_ = targets.extent_;
+    }
+
+    frameData_.hdrTexture_ = resources_.textureIndex(hdrTarget_);
+    frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
     frameData_.frameIndex_ = ++giFrame_;
     frameData_.giWidth_ = static_cast<uint32_t>(giUpdate_.size().x());
     frameData_.giHeight_ = static_cast<uint32_t>(giUpdate_.size().y());
@@ -442,7 +461,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
 
     VkRenderingAttachmentInfo color{};
     color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color.imageView = targets.color_;
+    color.imageView = resources_.viewFor(hdrTarget_);
     color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -453,7 +472,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     depth.imageView = targets.depth_;
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     // Reversed Z (Camera_C::make_proj): the far plane is 0.
     depth.clearValue.depthStencil = {0.0f, 0};
 
@@ -515,6 +534,10 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     }};
     shadow_.record(pass, shadowAtlases, shadowEntries, terrain_);
 
+    const VkImage hdrImage = resources_.imageFor(hdrTarget_);
+    BarrierBatch{}
+        .image(hdrImage, Usage::ShaderRead, Usage::ColorAttachment, colorRange(), Discard::Yes)
+        .flush(cmd);
     vkCmdBeginRendering(cmd, &renderingInfo);
     setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
 
@@ -522,6 +545,21 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
         rtDebug_.record(pass);
     else
         recordScene(pass);
+
+    vkCmdEndRendering(cmd);
+    BarrierBatch{}
+        .image(hdrImage, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
+        .memory(Usage::DepthAttachment, Usage::DepthAttachment)
+        .flush(cmd);
+
+    color.imageView = targets.color_;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    vkCmdBeginRendering(cmd, &renderingInfo);
+    setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
+
+    tonemap_.record(pass);
     // After the sky: it writes no depth, so it would paint over any wire drawn
     // against the background.
     debug_.record(pass);

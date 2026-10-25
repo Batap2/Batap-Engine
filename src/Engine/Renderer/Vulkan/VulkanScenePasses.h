@@ -13,6 +13,7 @@
 #include "Renderer/Vulkan/Passes/ShadowPass.h"
 #include "Renderer/Vulkan/Passes/SkyPass.h"
 #include "Renderer/Vulkan/Passes/TerrainPass.h"
+#include "Renderer/Vulkan/Passes/TonemapPass.h"
 #include "Renderer/Vulkan/RtScene.h"
 #include "Renderer/Vulkan/VulkanRenderTargets.h"
 
@@ -31,7 +32,7 @@ struct TerrainDraws;
 
 struct ScenePasses
 {
-    ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkFormat colorFormat,
+    ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkFormat outputFormat,
                 VkFormat depthFormat);
     ~ScenePasses();
 
@@ -72,6 +73,8 @@ struct ScenePasses
     GPUResourceHandle ltcMat_;
     GPUResourceHandle ltcAmp_;
     GPUResourceHandle frameConstants_;
+    GPUResourceHandle hdrTarget_;
+    VkExtent2D hdrExtent_{};
     FrameGPUData frameData_{};
     uint32_t giFrame_ = 0;
     std::vector<ShadowView> cascadeViews_;
@@ -86,6 +89,7 @@ struct ScenePasses
     DebugPass debug_;
     RtDebugPass rtDebug_;
     GiUpdatePass giUpdate_;
+    TonemapPass tonemap_;
 
     std::filesystem::file_time_type shadersMtime_{};
 };

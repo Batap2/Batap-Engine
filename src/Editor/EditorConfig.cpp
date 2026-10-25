@@ -70,9 +70,9 @@ void readRender(EngineSettings& io)
     userConfig::readRender(readFile(), io);
 }
 
-void writeRender(bool rayTracing, uint32_t maxFps, uint32_t giBounces, uint32_t giPasses)
+void writeRender(const EngineSettings& render)
 {
-    userConfig::writeRender(configPath(), rayTracing, maxFps, giBounces, giPasses);
+    userConfig::writeRender(configPath(), render);
 }
 
 std::string pathKey(const std::string& path)

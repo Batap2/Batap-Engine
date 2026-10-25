@@ -170,7 +170,8 @@ dit qu'une passe est « coupée » ou « disparaît », c'est en mode RT seuleme
   sans DFG.
 - `reflectivity` multiplie ce spéculaire IBL : un paramètre non physique, qui
   casse la conservation d'énergie.
-- Tout est clampé par `saturate` dans une swapchain UNORM.
+- Tout était clampé par `saturate` dans une swapchain UNORM, sans encodage
+  sRGB ; depuis 3.1, rendu HDR et tonemap AgX, exposition fixe à 1.
 
 Ce qu'il faut, dans l'ordre :
 1. **HDR + tonemap + unités physiques** (J3) : lux pour l'étoile, lumens ou
@@ -961,13 +962,33 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 3 — Plomberie commune
 
-- [ ] **3.1 HDR + tonemap.** Rendu dans une cible `RGBA16F`, puis une passe
+- [x] **3.1 HDR + tonemap.** Rendu dans une cible `RGBA16F`, puis une passe
       tonemap vers la swapchain (choix du tonemapper à faire dans l'étape). Le
       `saturate` de `PixelShader.hlsl` disparaît.
       *Vérif* : le dump ne clippe plus les hautes lumières.
+      *Fait (2026-10-24)* : la scène se rend dans une cible `RGBA16F` de
+      `ScenePasses`, que `TonemapPass` relit pour écrire la sortie
+      (swapchain, ou image de scène de l'éditeur). Tonemapper **AgX**,
+      sortie déjà encodée pour l'écran : rien n'encodait le sRGB jusqu'ici.
+      Les fils de debug sont dessinés après, en couleurs exactes. Exposition
+      fixe à 1 (3.2). Spot de `test_GI_spot` : 25 995 px blanc pur → 0,
+      disque en dégradé. Les tons moyens s'éclaircissent et les forts
+      éclairages se désaturent : réglage des scènes en 3.2.
+      Puis le choix du tonemap : `render.tonemap` (`agx` par défaut,
+      `pbrNeutral`, `aces`, `reinhard`, `uchimura`, `none`), liste
+      « Tonemap » du menu Settings de l'éditeur, pour l'éditeur et le jeu,
+      appliqué à la frame suivante.
 - [ ] **3.2 Unités physiques.** Lux pour l'étoile, lumens ou candela pour les
       lampes, et une exposition.
       *Vérif* : réglages de `test_buggy.btpl` mis à jour, image cohérente.
+- [ ] **3.2b Auto-exposition.** Le moteur choisit l'exposition de 3.2 à
+      chaque frame : luminance moyenne (en log) de la cible HDR, réduite par
+      une chaîne de passes PS (le moteur n'a pas de compute), puis exposition
+      adaptée progressivement, plus vite quand l'image s'éclaircit que quand
+      elle s'assombrit, comme l'œil. Bornes et compensation réglables.
+      *Vérif* : du régolithe au soleil à l'intérieur du vaisseau sous une
+      lampe, les deux restent lisibles après adaptation ; pas de pompage sur
+      une vue fixe.
 - [ ] **3.3 Prépasse profondeur + normales.** C'est `OBJECTIFS.md` §4 étape 3.
       Le depth est en Z inversé sans plan lointain (agrandissement, 15 et
       16) : profondeur linéaire = `znear_ / z`, 0 = infini. Vaut pour tout ce

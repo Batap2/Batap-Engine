@@ -41,5 +41,5 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.gi_ = GiPointOf(GiFrameChunk, g_draw.instanceIndex_, (float3x3)world, world._m03_m13_m23,
                       i.posRel_, GiFacing(s.Nface_, i.posRel_));
 
-    return float4(saturate(ShadeSurface(mat.shadingModel_, s)), 1.0f);
+    return float4(ShadeSurface(mat.shadingModel_, s), 1.0f);
 }

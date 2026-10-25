@@ -384,3 +384,90 @@ l'autre piste.
 
 Validation propre, RT actif : jeu debug sur `test_GI_spot` et sur la copie
 statique de la lune (300 frames chacun). Pas d'éditeur debug.
+
+## 3.1 HDR + tonemap
+
+*Avant* : `ShadeSurface` sortait de la radiance linéaire, coupée par
+`saturate` puis écrite telle quelle dans une swapchain `B8G8R8A8_UNORM`
+(espace `SRGB_NONLINEAR`). Aucun encodage sRGB : l'écran prenait des valeurs
+linéaires pour des valeurs encodées, d'où des tons moyens trop sombres, alors
+que les textures, elles, sont décodées (formats SRGB). Et toute valeur au-delà
+de 1 était coupée canal par canal : blanc plat, et les couleurs vives
+changeaient de teinte (le mur bleu, albedo 0 ; 0,43 ; 1, virait au cyan).
+
+*Fait (2026-10-24)* :
+- **Cible HDR** : `ScenePasses` possède une cible `RGBA16F` à la taille de la
+  vue (`hdrTarget_`, recréée quand la vue change), dont l'index bindless
+  passe par `FrameGPUData::hdrTexture_` (l'ancien `pad0_`). Géométrie,
+  terrain, billboards, ciel, vue RT de debug, ombres et mise à jour du cache
+  sont construits pour ce format ; `saturate` retiré de `PixelShader`,
+  `TerrainPS`, `BillboardPS`.
+- **`TonemapPass`** + `TonemapPS.hlsl` : triangle plein écran (`SkyVS`), lit
+  la cible HDR par `Load` au pixel et écrit la sortie (format de la
+  swapchain : la swapchain dans le jeu, l'image de scène dans l'éditeur).
+  L'alpha passe tel quel (fenêtre transparente).
+- **AgX**, approximation analytique de Wrensch (2023, celle de Blender 4 en
+  polynôme) : matrice d'entrée, log2 borné de −12,47 à +4,03 EV, polynôme de
+  contraste de degré 6, matrice de sortie. La sortie est déjà encodée pour
+  un écran de gamma ~2,2 : écrite telle quelle dans la cible UNORM. Le gris
+  moyen 0,18 sort à ~0,50. Au-delà de ~16 en linéaire, blanc.
+- **Debug après le tonemap** : la passe se fait en deux rendus. Le premier
+  dessine la scène dans la cible HDR, avec la profondeur maintenant gardée
+  (`STORE`). Le second, dans la sortie, lance le tonemap puis les fils de
+  debug (gizmos, lignes, overlay), qui gardent leurs couleurs exactes et
+  restent testés contre la profondeur de la scène. Les vues de debug qui
+  passent par `ShadeSurface` (cellules et cache GI, cascades) et la vue RT
+  sont tonemappées : couleurs un peu adoucies.
+- ImGui n'est pas touché : il dessine après, dans la swapchain UNORM.
+
+*Mesuré* (jeu, 60 fps, frame 600, comparé aux dumps de 2.10b) :
+- **`test_GI_spot`, RT** : pixels blanc pur 25 995 → 0 ; pixels ayant un
+  canal à 255 : 35 985 → 3 894 (le cœur du faisceau, au-delà de +4 EV).
+  Disque du spot : luma de 3–255 (écart type 104) à 18–221 (65), il garde
+  un dégradé. Le rouge et le bleu tirent vers le blanc au cœur du faisceau
+  au lieu de saturer ou de virer au cyan.
+- **Lune** (copie statique) : aucun pixel écrêté ni avant ni après, mais
+  l'image s'éclaircit et se désature. Sol proche : luma médiane 164 → 183,
+  90ᵉ centile 198 → 191 (les clairs sont comprimés) ; RGB moyen 160 151 136
+  → 179 177 172, le beige du régolithe disparaît presque. Normal : les
+  intensités ont été réglées à l'œil sur une sortie sans encodage, et un
+  régolithe d'albedo 0,8 sous le soleil est dans l'épaule d'AgX. Réglage en
+  3.2, avec l'exposition.
+- **Indirect** : l'encodage relève les tons sombres, donc la GI se voit
+  bien plus, et ses taches basse fréquence aussi (sol de `test_GI_spot`).
+- Raster et RT passent par la même passe.
+
+Validation propre : jeu debug en RT et en raster sur `test_GI_spot` et la
+lune (300 frames chacun) ; éditeur debug sur `test_GI`, lumière
+sélectionnée (gizmo dessiné après le tonemap), 120 frames.
+
+*Choix du tonemap (2026-10-25)* :
+- `TonemapOperator` dans `ShaderInterop.h`, `FrameGPUData::tonemap_`
+  (l'ancien `pad1_`). Le réglage est la clé de config, une chaîne dans
+  `EngineSettings::tonemap_` ; `Renderer/Tonemap.h` relie clé, libellé du
+  menu et opérateur (clé inconnue : AgX). Ainsi `Engine.h` n'inclut pas
+  `ShaderInterop.h`.
+- `userConfig::writeRender` et `editorConfig::writeRender` prennent un
+  `EngineSettings` au lieu de quatre arguments positionnels.
+- `TonemapPS.hlsl` : AgX (sortie déjà encodée) ; les autres sortent du
+  linéaire, encodé en sRGB à la fin (`SrgbEncode`, courbe exacte). PBR
+  Neutral : la formule de Khronos (2024). ACES : l'approximation de Stephen
+  Hill (matrices d'entrée et de sortie + RRT/ODT), celle de BakingLab.
+  Reinhard : `x / (1 + x)` par canal. Uchimura : la courbe de Gran Turismo
+  (CEDEC 2017) avec ses paramètres par défaut (pied jusqu'à 0,22, partie
+  linéaire, épaule exponentielle vers 1). `none` : coupe à 1 puis encode,
+  donc pas l'ancien rendu non encodé.
+
+*Comparaison* (`test_GI_spot` et la lune, RT, frame 600) :
+- AgX : le plus doux, les fortes lumières tirent vers le blanc (rouge →
+  rose), régolithe presque gris.
+- PBR Neutral : le rouge du mur reste rouge, seul le cœur du faisceau
+  blanchit ; le régolithe garde son beige.
+- ACES : contrasté, le rouge vire à l'orange sous le spot.
+- Reinhard : terne, les couleurs saturées restent sombres.
+- Uchimura et `none` : disque du spot plat et mur bleu cyan, comme avant
+  la 3.1, mais encodés.
+
+Dans l'éditeur, `render.tonemap: "aces"` dans sa config donne bien ACES. La
+liste du menu Settings n'a pas été cliquée (l'éditeur s'ouvre derrière les
+autres fenêtres) : elle écrit le même champ que le fichier.

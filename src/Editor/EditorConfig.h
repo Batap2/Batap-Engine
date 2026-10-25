@@ -21,7 +21,7 @@ namespace batap::editorConfig
 void readWindow(WindowDesc& io);
 void writeWindow(int screen, bool focusOnShow, bool behindOnShow);
 void readRender(EngineSettings& io);
-void writeRender(bool rayTracing, uint32_t maxFps, uint32_t giBounces, uint32_t giPasses);
+void writeRender(const EngineSettings& render);
 
 // One spelling per path, or C:\Foo, C:/Foo and a relative argument key three
 // different projects.

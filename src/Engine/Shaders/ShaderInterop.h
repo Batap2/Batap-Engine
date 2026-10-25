@@ -254,6 +254,16 @@ struct ShadowGPUData
     float4 sphere_;
 };
 
+enum TonemapOperator : uint
+{
+    TonemapNone = 0,
+    TonemapAgx = 1,
+    TonemapPbrNeutral = 2,
+    TonemapAces = 3,
+    TonemapReinhard = 4,
+    TonemapUchimura = 5,
+};
+
 struct FrameGPUData
 {
     // Renderer/LtcTables.h
@@ -266,8 +276,8 @@ struct FrameGPUData
     float giDt_;
     uint giBounces_;
     uint giPasses_;
-    uint pad0_;
-    uint pad1_;
+    uint hdrTexture_;
+    uint tonemap_;
     uint pad2_;
 };
 

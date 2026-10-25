@@ -58,5 +58,5 @@ float4 main(VS_OUTPUT i) : SV_Target
         s.N_ = Ngeom;
     }
 
-    return float4(saturate(ShadeSurface(mat.shadingModel_, s)), 1.0f);
+    return float4(ShadeSurface(mat.shadingModel_, s), 1.0f);
 }

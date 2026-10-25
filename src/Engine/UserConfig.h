@@ -42,7 +42,6 @@ void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow
 // raster one, `maxFps` caps the frame rate, 0 for none. Same rules as the
 // window section.
 void readRender(const nlohmann::json& config, EngineSettings& io);
-void writeRender(const std::filesystem::path& file, bool rayTracing, uint32_t maxFps,
-                 uint32_t giBounces, uint32_t giPasses);
+void writeRender(const std::filesystem::path& file, const EngineSettings& render);
 }  // namespace userConfig
 }  // namespace batap
