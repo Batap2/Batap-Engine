@@ -125,6 +125,7 @@ struct Engine
 
     EngineSettings settings_;
     std::chrono::steady_clock::time_point lastTime_;
+    float fixedDeltaTime_ = 0.f;
 
     void* window_ = nullptr;
     std::string title_;

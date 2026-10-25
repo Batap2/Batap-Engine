@@ -13,6 +13,8 @@
 #include "Serialization/AssetFieldTypes.h"
 #include "Serialization/PhysicsFieldTypes.h"
 
+#include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 
@@ -36,6 +38,11 @@ Engine::Engine(const WindowDesc& desc, const EngineSettings& settings)
     registerAssetFieldTypes();
     registerPhysicsFieldTypes();
     ComponentRegistry::instance().validate();
+
+    if (const auto rayTracing = platformEnvVar("BATAP_RAY_TRACING"))
+        settings_.rayTracing_ = *rayTracing != "0";
+    if (const auto dt = platformEnvVar("BATAP_FIXED_DT"))
+        fixedDeltaTime_ = std::max(std::strtof(dt->c_str(), nullptr), 0.f);
 
     platformInit();
 
@@ -101,7 +108,8 @@ Frame Engine::nextFrame()
 void Engine::beginFrame()
 {
     const auto now = std::chrono::steady_clock::now();
-    deltaTime_ = std::chrono::duration<float>(now - lastTime_).count();
+    deltaTime_ = fixedDeltaTime_ > 0.f ? fixedDeltaTime_
+                                       : std::chrono::duration<float>(now - lastTime_).count();
     lastTime_ = now;
 
     renderer_->beginFrame();

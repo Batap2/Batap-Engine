@@ -13,6 +13,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <span>
 #include <string>
@@ -754,5 +755,16 @@ std::vector<std::string> platformCommandLineArgs()
 
     ::LocalFree(argv);
     return args;
+}
+
+std::optional<std::string> platformEnvVar(const char* name)
+{
+    char* value = nullptr;
+    size_t len = 0;
+    if (_dupenv_s(&value, &len, name) != 0 || !value)
+        return std::nullopt;
+    std::string result{value};
+    std::free(value);
+    return result;
 }
 }  // namespace batap

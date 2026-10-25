@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -79,4 +80,6 @@ std::string platformExeDir();
 // Program name excluded. Exists because main's argv is not reachable from
 // a windowed-subsystem entry point.
 std::vector<std::string> platformCommandLineArgs();
+
+std::optional<std::string> platformEnvVar(const char* name);
 }  // namespace batap

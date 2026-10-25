@@ -18,6 +18,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstdlib>
 #include <mach-o/dyld.h>
 #include <objc/runtime.h>
 
@@ -613,6 +614,14 @@ std::vector<std::string> platformCommandLineArgs()
     for (NSUInteger i = 1; i < arguments.count; ++i)
         args.emplace_back(arguments[i].UTF8String);
     return args;
+}
+
+std::optional<std::string> platformEnvVar(const char* name)
+{
+    const char* value = std::getenv(name);
+    if (!value)
+        return std::nullopt;
+    return std::string{value};
 }
 
 }  // namespace batap
