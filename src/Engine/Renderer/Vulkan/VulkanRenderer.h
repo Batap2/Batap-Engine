@@ -147,5 +147,13 @@ struct Renderer
     VkBuffer dumpBuffer_ = VK_NULL_HANDLE;
     VmaAllocation dumpAllocation_ = nullptr;
     void* dumpMapped_ = nullptr;
+
+    void beginGpuFrameTime(VkCommandBuffer cmd, uint32_t frame);
+    void endGpuFrameTime(VkCommandBuffer cmd, uint32_t frame);
+    float gpuFrameMedianMs() const;
+    VkQueryPool frameQueries_ = VK_NULL_HANDLE;
+    std::array<bool, FramesInFlight> frameQueriesWritten_{};
+    std::array<float, 256> gpuFrameMs_{};
+    size_t gpuFrameCount_ = 0;
 };
 }  // namespace batap

@@ -6,8 +6,8 @@ Décidé le 2026-10-25. Se place entre l'étape 3.2b et l'étape 3.3 du plan RT
 se déclarent alors dans le graphe au lieu d'ajouter leurs barrières, leurs
 cibles et leur resize à la main.
 
-Le détail des mesures par étape va dans `rendergraph-notes.md`, créé à la
-première étape qui en a besoin, comme [raytracing-notes.md](raytracing-notes.md).
+Ce qui a été fait à chaque étape, et ses mesures, va dans
+[rendergraph-notes.md](rendergraph-notes.md), jamais ici.
 
 ## Pourquoi maintenant
 
@@ -168,7 +168,8 @@ graphique sans autre code.
 - **Synchro vérifiée par la validation**, pas par l'image : une course
   peut ne rien montrer sur une carte et casser sur une autre. Chaque étape
   passe la validation de synchronisation (0.2) sans nouvelle erreur.
-- *Fait* : trois lignes au plus sous l'étape, le reste dans les notes.
+- **Le plan ne porte que la case cochée.** Ce qui a été fait, les mesures et
+  les écarts au texte vont dans `rendergraph-notes.md`.
 
 ## Pièges
 
@@ -211,38 +212,34 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 0 — Banc d'essai (rien ne change à l'écran)
 
-- [x] **0.1 Banc de régression.** `tools/render_bench.py` rend une série de
+- [x] **0.1 Banc de régression.** Un script dans `tools/` rend une série de
       scènes et compare chaque dump à une référence.
       - Scènes statiques versionnées dans `scenes/bench/` (physique retirée,
-        caméra fixe) : `moon_near` et `moon_far` (terrain, étoile, phares du
-        buggy), `room` (auto-exposition), et le décor de `test_GI` sous
-        chaque type de lumière : `gi_sun`, `gi_sun_low` (15°), `gi_spot`,
-        `gi_point`, `gi_rect`. Elles remplacent les copies faites à la main
+        caméra fixe) : buggy + dalle sous l'étoile à 46° et à 15°, point,
+        spot, rect, terrain proche et lointain, `test_GI`, `test_GI_spot`,
+        `test_auto_exposure`. Elles remplacent les copies faites à la main
         dans le plan RT.
       - Chaque scène en raster et en RT, par `SpaceFret.exe --scene` et
-        `BATAP_DUMP_FRAME`, à une frame fixe par scène.
-        `BATAP_RAY_TRACING=0|1` force le mode et `BATAP_FIXED_DT` fixe le pas
-        de temps, sans toucher la config de l'utilisateur. Lancement sans
-        console ni focus.
-      - Plus un run de l'éditeur sur `gi_sun` (`--select`, viewport seul) :
-        c'est le seul chemin qui passe par l'image de scène et ImGui, et 2.2
-        le réécrit.
+        `BATAP_DUMP_FRAME`, à une frame fixe par scène. Le mode RT est forcé
+        par une variable d'environnement, sans toucher la config de
+        l'utilisateur. Lancement sans prendre le focus.
+      - Plus un run de l'éditeur (`--select`, recadrage du viewport) : c'est
+        le seul chemin qui passe par l'image de scène et ImGui, et 2.2 le
+        réécrit.
       - `--baseline` rend deux fois chaque scène : l'écart entre les deux
-        runs est la tolérance du cas ; « dans le bruit » jusqu'à deux fois
-        cette tolérance.
-      - Sortie : un tableau cas × mode, pixels différents et écart max.
+        runs est la tolérance de la scène (le plan RT a mesuré 4 px en RT,
+        ~210 px en raster sur un bord d'ombre).
+      - Sortie : un tableau scène × mode, pixels différents et écart max,
+        vert dans la tolérance. Cible : moins de 2 minutes.
 
       *Vérif* : deux runs sur le même commit sont verts ; un shader modifié
       exprès passe au rouge.
-      *Fait (2026-10-25)* : grâce au pas fixe, le raster est identique au
-      pixel entre deux runs sur les 9 cas, le RT à 1–4 niveaux près (cache
-      GI). Banc en ~40 s. Un tonemap à +1 % passe les 18 cas au rouge.
-- [ ] **0.2 Validation de synchronisation.** `BATAP_SYNC_VALIDATION=1` active
+- [x] **0.2 Validation de synchronisation.** `BATAP_SYNC_VALIDATION=1` active
       `VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT` en debug
       (lente, d'où la variable). Le banc compte les messages par scène.
       *Vérif* : les erreurs d'aujourd'hui sont comptées et notées ; c'est la
       référence des étapes suivantes. Les corriger n'est pas dans l'étape.
-- [ ] **0.3 Chrono de frame GPU.** Deux timestamps autour du command buffer
+- [x] **0.3 Chrono de frame GPU.** Deux timestamps autour du command buffer
       de la frame, médiane loggée par le banc. Sert à montrer que les
       barrières du graphe ne coûtent pas plus que celles écrites à la main.
       *Vérif* : chiffres de référence notés par scène.

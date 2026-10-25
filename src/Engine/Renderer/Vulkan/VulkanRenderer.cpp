@@ -60,6 +60,13 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
     if (vkAllocateCommandBuffers(ctx_.device_, &cmdInfo, commandBuffers_.data()) != VK_SUCCESS)
         throw std::runtime_error("Renderer(vk) : command buffers");
 
+    VkQueryPoolCreateInfo queryInfo{};
+    queryInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    queryInfo.queryCount = 2 * FramesInFlight;
+    if (vkCreateQueryPool(ctx_.device_, &queryInfo, nullptr, &frameQueries_) != VK_SUCCESS)
+        throw std::runtime_error("Renderer(vk) : frame timestamps");
+
     const auto parseDumpFrames = [&](const std::string& list)
     {
         size_t begin = 0;
@@ -132,6 +139,15 @@ void Renderer::writeDump()
     for (uint64_t i = 0; i < count; ++i)  // swapchain BGRA -> RGBA
         std::swap(px[i * 4 + 0], px[i * 4 + 2]);
 #pragma clang diagnostic pop
+    const auto timed = static_cast<std::ptrdiff_t>(std::min(gpuFrameCount_, gpuFrameMs_.size()));
+    if (timed > 0)
+    {
+        const auto [low, high] =
+            std::minmax_element(gpuFrameMs_.begin(), gpuFrameMs_.begin() + timed);
+        std::cout << "[Vulkan] frame GPU : médiane " << gpuFrameMedianMs() << " ms, min " << *low
+                  << " ms, max " << *high << " ms sur " << timed << " frames\n";
+    }
+
     const std::string name = dumpFrames_.size() == 1
                                  ? std::string("frame_dump.png")
                                  : "frame_dump_" + std::to_string(frameCounter_) + ".png";
@@ -143,6 +159,38 @@ void Renderer::writeDump()
     dumpBuffer_ = VK_NULL_HANDLE;
     dumpAllocation_ = nullptr;
     dumpMapped_ = nullptr;
+}
+
+void Renderer::beginGpuFrameTime(VkCommandBuffer cmd, uint32_t frame)
+{
+    const uint32_t first = frame * 2;
+    if (frameQueriesWritten_[frame])
+    {
+        std::array<uint64_t, 2> ticks{};
+        if (vkGetQueryPoolResults(ctx_.device_, frameQueries_, first, 2, sizeof ticks, ticks.data(),
+                                  sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+            gpuFrameMs_[gpuFrameCount_++ % gpuFrameMs_.size()] =
+                static_cast<float>(ticks[1] - ticks[0]) * ctx_.timestampPeriodNs_ * 1e-6f;
+    }
+    vkCmdResetQueryPool(cmd, frameQueries_, first, 2);
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, frameQueries_, first);
+}
+
+void Renderer::endGpuFrameTime(VkCommandBuffer cmd, uint32_t frame)
+{
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameQueries_, frame * 2 + 1);
+    frameQueriesWritten_[frame] = true;
+}
+
+float Renderer::gpuFrameMedianMs() const
+{
+    const auto count = static_cast<std::ptrdiff_t>(std::min(gpuFrameCount_, gpuFrameMs_.size()));
+    if (count == 0)
+        return 0.f;
+    std::vector<float> times(gpuFrameMs_.begin(), gpuFrameMs_.begin() + count);
+    const auto middle = times.begin() + count / 2;
+    std::nth_element(times.begin(), middle, times.end());
+    return *middle;
 }
 
 void Renderer::createDepthBuffer()
@@ -374,6 +422,7 @@ void Renderer::render()
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &beginInfo);
+    beginGpuFrameTime(cmd, frame);
 
     resources_->flushUploads(cmd);
 
@@ -496,6 +545,7 @@ void Renderer::render()
         swapchainBarrier(Usage::ColorAttachment, Usage::Present);
     }
 
+    endGpuFrameTime(cmd, frame);
     vkEndCommandBuffer(cmd);
     swapchain_.submit(cmd, ctx_.graphicsQueue_);
     swapchain_.present(ctx_.graphicsQueue_, imageIndex);
@@ -586,6 +636,7 @@ Renderer::~Renderer()
     ImGui_ImplVulkan_Shutdown();
     platformImGuiShutdown();
     ImGui::DestroyContext();
+    vkDestroyQueryPool(ctx_.device_, frameQueries_, nullptr);
     vkDestroyCommandPool(ctx_.device_, commandPool_, nullptr);
 }
 

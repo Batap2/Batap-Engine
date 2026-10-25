@@ -5,6 +5,8 @@
 
 #include "VkBootstrap.h"
 
+#include "Platform/PlatformWindow.h"
+
 #include <iostream>
 #include <stdexcept>
 
@@ -25,12 +27,23 @@ VulkanContext::VulkanContext()
     if (volkInitialize() != VK_SUCCESS)
         throw std::runtime_error("Unable to find Vulkan loader (volkInitialize)");
 
-    auto instanceResult = vkb::InstanceBuilder()
-                              .set_app_name("Batap")
-                              .require_api_version(1, 3, 0)
-                              .request_validation_layers(UseValidation)
-                              .use_default_debug_messenger()
-                              .build();
+    vkb::InstanceBuilder instanceBuilder;
+    instanceBuilder.set_app_name("Batap")
+        .require_api_version(1, 3, 0)
+        .request_validation_layers(UseValidation)
+        .use_default_debug_messenger();
+    static constexpr VkBool32 kEnabled = VK_TRUE;
+    const bool syncValidation = UseValidation &&
+                                platformEnvVar("BATAP_SYNC_VALIDATION").value_or("0") != "0";
+    if (syncValidation)
+    {
+        instanceBuilder.add_layer_setting({"VK_LAYER_KHRONOS_validation", "validate_sync",
+                                           VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &kEnabled});
+        instanceBuilder.add_layer_setting({"VK_LAYER_KHRONOS_validation",
+                                           "syncval_shader_accesses_heuristic",
+                                           VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &kEnabled});
+    }
+    auto instanceResult = instanceBuilder.build();
     if (!instanceResult)
         throw std::runtime_error("VkInstance : " + instanceResult.error().message());
 
@@ -38,6 +51,8 @@ VulkanContext::VulkanContext()
     instance_ = vkbInstance.instance;
     debugMessenger_ = vkbInstance.debug_messenger;
     volkLoadInstance(instance_);
+    if (syncValidation)
+        std::cout << "[Vulkan] validation de synchronisation : oui\n";
 
     VkPhysicalDeviceVulkan13Features features13{};
     features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
