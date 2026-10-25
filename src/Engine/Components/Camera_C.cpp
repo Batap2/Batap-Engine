@@ -2,12 +2,19 @@
 
 #include "Systems/Camera_S.h"
 
+#include <cmath>
+
 namespace batap
 {
 void Camera_C::afterDeserialize(EntityHandle h, World&)
 {
     if (h.get<Camera_C>().active_)
         Camera_S::activate(*h.reg_, h.entity_);
+}
+
+float Camera_C::exposure() const
+{
+    return 1.0f / (1.2f * std::exp2(ev100_));
 }
 
 m4f Camera_C::make_proj(float aspect) const

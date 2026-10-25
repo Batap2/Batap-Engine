@@ -10,9 +10,9 @@ namespace batap
 struct FarPointLight_C
 {
     col3 color_ = {1, 1, 1};
-    float intensity_ = 1;
+    float intensity_ = 100000;
     float radius_ = 40000;
-    float falloff_ = 1;
+    float falloff_ = 0;
     bool castShadows_ = true;
 
     float sourceRadius_ = 0;
@@ -27,5 +27,6 @@ struct ComponentAdmission<FarPointLight_C>
     }
 };
 
-BATAP_COMPONENT(FarPointLight_C, "farPointLight", ComponentMeta{.color = ComponentColor::Orange});
+BATAP_COMPONENT(FarPointLight_C, "farPointLight", ComponentMeta{.color = ComponentColor::Orange},
+                fieldMeta<&FarPointLight_C::intensity_>({.speed = 100.f, .min = 0.f, .max = 1e9f}));
 }  // namespace batap

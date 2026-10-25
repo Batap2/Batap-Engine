@@ -7,6 +7,8 @@
 StructuredBuffer<CameraGPUData> CameraBuffer;
 [[vk::binding(SkyboxBinding, FrameSet)]]
 StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
+[[vk::binding(FrameConstantsBinding, FrameSet)]]
+StructuredBuffer<FrameGPUData> FrameBuffer;
 
 [[vk::binding(SamplerBinding, BindlessSet)]]  SamplerState      g_sampler;
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
@@ -47,5 +49,5 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
         color = lerp(color,          sky.color3.rgb,  downBlend);
     }
 
-    return float4(color, 1.0f);
+    return float4(color * (sky.intensity * FrameBuffer[0].exposure_), 1.0f);
 }

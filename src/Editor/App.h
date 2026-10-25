@@ -60,6 +60,7 @@ struct App
     quatf editorCamRot_ = quatf::Identity();
     FreeCamController_C editorCamCtrl_;
     Camera_C editorCamView_;
+    bool editorEvFromScene_ = false;
     v3f playCamPos_{v3f::Zero()};
     quatf playCamRot_ = quatf::Identity();
 

@@ -46,6 +46,8 @@ struct Pose
     float yaw = 0.f;
     float pitch = 0.f;
     quatf frame = quatf::Identity();
+    float ev100 = 0.f;
+    bool hasEv100 = false;
 };
 
 // One project and one of its scenes at a time, which is all the editor ever

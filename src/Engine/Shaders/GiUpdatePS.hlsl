@@ -163,6 +163,6 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
                 GiStatAdd(RtCacheStatTailMiss, bucket);
         }
     }
-    GiAccumulate(slot, irradiance);
+    GiAccumulate(slot, irradiance, fc.exposure_);
     return float4(irradiance, 1.0f);
 }

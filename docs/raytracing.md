@@ -171,7 +171,8 @@ dit qu'une passe est « coupée » ou « disparaît », c'est en mode RT seuleme
 - `reflectivity` multiplie ce spéculaire IBL : un paramètre non physique, qui
   casse la conservation d'énergie.
 - Tout était clampé par `saturate` dans une swapchain UNORM, sans encodage
-  sRGB ; depuis 3.1, rendu HDR et tonemap AgX, exposition fixe à 1.
+  sRGB ; depuis 3.1, rendu HDR et tonemap AgX ; depuis 3.2, unités
+  physiques et exposition EV100 par caméra.
 
 Ce qu'il faut, dans l'ordre :
 1. **HDR + tonemap + unités physiques** (J3) : lux pour l'étoile, lumens ou
@@ -978,9 +979,20 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       `pbrNeutral`, `aces`, `reinhard`, `uchimura`, `none`), liste
       « Tonemap » du menu Settings de l'éditeur, pour l'éditeur et le jeu,
       appliqué à la frame suivante.
-- [ ] **3.2 Unités physiques.** Lux pour l'étoile, lumens ou candela pour les
+- [x] **3.2 Unités physiques.** Lux pour l'étoile, lumens ou candela pour les
       lampes, et une exposition.
       *Vérif* : réglages de `test_buggy.btpl` mis à jour, image cohérente.
+      *Fait (2026-10-25)* (`test_buggy.btpl` n'existe plus : `test_buggy_fusee`) :
+      - étoile et directionnelle en **lux** ; point et spot en **candela**,
+        avec l'inverse du carré et la fenêtre de portée des rect lights
+        (`falloff_` > 0 ajoute l'ancienne pente) ; rect en cd/m², ciel en
+        cd/m², appliqué aussi au ciel visible ;
+      - **`Camera_C::ev100_`** (défaut 15, plein soleil), exposition
+        `1 / (1,2 × 2^EV100)` appliquée avant la cible HDR. L'éditeur a la
+        sienne, par scène, reprise de la caméra de la scène à la première
+        ouverture. Les Unlit restent affichés tels quels (émissif en B.6) ;
+      - cache GI en lux, sommes de la frame comptées en unités exposées ;
+      - cinq scènes converties, luminosité moyenne à 1–2 % de la 3.1.
 - [ ] **3.2b Auto-exposition.** Le moteur choisit l'exposition de 3.2 à
       chaque frame : luminance moyenne (en log) de la cible HDR, réduite par
       une chaîne de passes PS (le moteur n'a pas de compute), puis exposition

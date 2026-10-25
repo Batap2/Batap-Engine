@@ -446,6 +446,7 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
 
     frameData_.hdrTexture_ = resources_.textureIndex(hdrTarget_);
     frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
+    frameData_.exposure_ = reg->get<Camera_C>(args.camera_).exposure();
     frameData_.frameIndex_ = ++giFrame_;
     frameData_.giWidth_ = static_cast<uint32_t>(giUpdate_.size().x());
     frameData_.giHeight_ = static_cast<uint32_t>(giUpdate_.size().y());

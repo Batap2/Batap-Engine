@@ -9,7 +9,7 @@ namespace batap
 struct DirectionalLight_C
 {
     col3 color_ = {1, 1, 1};
-    float intensity_ = 1;
+    float intensity_ = 100000;
     bool castShadows_ = true;
     float sourceAngle_ = 0.53f;
 };
@@ -24,5 +24,7 @@ struct ComponentAdmission<DirectionalLight_C>
 };
 
 BATAP_COMPONENT(DirectionalLight_C, "directionalLight",
-                ComponentMeta{.color = ComponentColor::Orange});
+                ComponentMeta{.color = ComponentColor::Orange},
+                fieldMeta<&DirectionalLight_C::intensity_>({.speed = 100.f, .min = 0.f,
+                                                            .max = 1e9f}));
 }  // namespace batap

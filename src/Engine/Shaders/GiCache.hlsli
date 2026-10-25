@@ -193,9 +193,10 @@ uint GiReserve(uint slot)
     return before;
 }
 
-void GiAccumulate(uint slot, float3 irradiance)
+void GiAccumulate(uint slot, float3 irradiance, float exposure)
 {
-    const uint3 fixed = uint3(round(max(irradiance, 0.0f) * RtCacheScale));
+    const uint3 fixed =
+        uint3(round(min(max(irradiance, 0.0f) * (RtCacheScale * exposure), RtCacheSampleMax)));
     InterlockedAdd(GiValues[slot].sum_[0], fixed.x);
     InterlockedAdd(GiValues[slot].sum_[1], fixed.y);
     InterlockedAdd(GiValues[slot].sum_[2], fixed.z);

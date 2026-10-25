@@ -471,3 +471,64 @@ sélectionnée (gizmo dessiné après le tonemap), 120 frames.
 Dans l'éditeur, `render.tonemap: "aces"` dans sa config donne bien ACES. La
 liste du menu Settings n'a pas été cliquée (l'éditeur s'ouvre derrière les
 autres fenêtres) : elle écrit le même champ que le fichier.
+
+## 3.2 Unités physiques
+
+*Choix de Batap* : candela pour les lampes point et spot, lux pour l'étoile
+et la directionnelle ; exposition sur la caméra ; matériaux Unlit affichés
+tels quels jusqu'à l'émissif (B.6).
+
+*Fait (2026-10-25)* :
+- **Lumières** (`LightIncidence`, partagée par `ShadeSurface` et la mise à
+  jour du cache) :
+  - `Directional` et `FarPoint` : `intensity_` = éclairement reçu, en lux.
+    L'étoile garde sa fenêtre de portée, sans inverse du carré : le plan
+    demande des lux reçus, pas une intensité à distance astronomique.
+  - `Point` et `Spot` : `intensity_` en candela, `E = I × fenêtre / d²`.
+    Distance plancher : `max(sourceRadius_, 1 cm)`. Fenêtre de portée
+    `(1 − (d/r)⁴)²`, celle des rect lights (Frostbite) ; `falloff_` > 0
+    multiplie en plus par `(1 − d/r)^falloff_`, 0 = physique seul.
+  - `Rect` : luminance de la face en cd/m², comme avant.
+  - Ciel : `intensity_` en cd/m². `SkyPS` ne l'appliquait pas : le ciel
+    visible ignorait l'intensité que l'éclairage, lui, prenait.
+  - Défauts des composants : point 100 cd, spot 1 000 cd, directionnelle et
+    étoile 100 000 lux, rect 1 000 cd/m², `falloff_` 0. Vitesse de glisse
+    des intensités dans l'inspecteur à l'échelle (1, 10, 100).
+- **Exposition** : `Camera_C::ev100_` (défaut 15), `Camera_C::exposure()` =
+  `1 / (1,2 × 2^EV100)` (Frostbite, Lagarde 2014). `ScenePasses` la prend
+  sur la caméra rendue (`FrameGPUData::exposure_`). Appliquée **avant**
+  l'écriture dans la cible HDR (pré-exposition) : `ShadeSurface` multiplie
+  l'éclairage, `SkyPS` le ciel ; le tonemap ne la refait pas. Les valeurs de
+  la cible restent autour de 0–16, loin des 65 504 du FP16, alors qu'un sol
+  au soleil fait ~25 000 cd/m². Non exposés : Unlit, vues de debug en
+  couleurs (cellules, faces, cascades) et vue RT ; la vue « GI cache »
+  affiche `E × exposition / π`, la luminance d'un blanc lambertien.
+- **Éditeur** : EV100 dans les options de caméra, gardée par scène dans la
+  config de l'éditeur (`ev100` à côté de la pose). Une scène sans valeur
+  enregistrée reprend celle de la caméra active de la scène dès qu'elle
+  existe ; une édition de l'EV100 annule cette reprise.
+- **Cache GI** : en lux. Les sommes de la frame (32 bits, virgule fixe)
+  débordaient en unités physiques : ~1,3·10⁵ lux × 256 par échantillon, plus
+  que 2³² en ~160 échantillons. Elles sont comptées en unités exposées
+  (`RtCacheScale` 65 536 × exposition), échantillon plafonné à 2²²
+  (64 fois le blanc à l'écran) ; la résolution divise par la même échelle,
+  dans la même frame. Pas de 0,6 lux à EV 15.
+
+*Scènes converties* (`intensity` en unités physiques, EV100 sur la caméra
+active, choisis pour garder l'image de la 3.1) :
+
+| Scène | Lumières | EV100 |
+|---|---|---|
+| `test_buggy_fusee` | étoile 128 000 lux (soleil à 1 UA), phares 20 000 cd, `falloff` 0 | 15 |
+| `test_GI` | directionnelle 100 000 lux | 15 |
+| `test_GI_spot` | spot 500 000 cd | 3,1 |
+| `bug_GI` | point 800 cd, `falloff` 0 ; ciel 19,2 cd/m² | 4 |
+| `bug_rocket` | — (HDRI) | −0,26 |
+
+*Mesuré* (frame 600, 60 fps, contre les dumps de la 3.1) : luminosité
+moyenne de la lune 138,4 → 136,9 (RT) et 135,3 → 133,8 (raster), `test_GI`
+59,0 → 58,7, spot 33,9 → 33,3. Sur le spot, l'inverse du carré éclaire un
+peu plus le sol proche et un peu moins le mur du fond. Au soleil, les phares
+du buggy ne se voient plus (réaliste : 20 000 cd donnent ~20 lux à 20 m,
+fenêtre de portée comprise, contre ~10⁵ lux de soleil) ; à l'ombre, l'auto-exposition (3.2b) les
+révélera.

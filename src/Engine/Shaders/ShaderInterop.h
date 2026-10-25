@@ -67,7 +67,8 @@ struct RtInstanceGPUData
 // Keys are uint64, 0 = empty slot; values are fixed-point sums.
 static const uint RtCacheCapacity = 1u << 20;
 static const uint RtCacheProbes = 16u;
-static const float RtCacheScale = 256.0f;
+static const float RtCacheScale = 65536.0f;
+static const float RtCacheSampleMax = 4194304.0f;
 static const uint RtCacheResolveWidth = 1024u;
 static const uint RtCacheStatsBuckets = 256u;
 static const uint RtCacheStatOccupied = 0u;
@@ -278,7 +279,7 @@ struct FrameGPUData
     uint giPasses_;
     uint hdrTexture_;
     uint tonemap_;
-    uint pad2_;
+    float exposure_;
 };
 
 struct SphereOccluderGPUData

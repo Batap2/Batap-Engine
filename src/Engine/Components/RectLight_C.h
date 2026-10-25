@@ -10,7 +10,7 @@ struct RectLight_C
 {
     col3 color_ = {1, 1, 1};
     // Radiance of the face, not a point light's received intensity.
-    float intensity_ = 1;
+    float intensity_ = 1000;
     float width_ = 1;
     float height_ = 1;
     // Hard cutoff distance from the rectangle.
@@ -23,5 +23,6 @@ struct RectLight_C
     bool castShadows_ = false;
 };
 
-BATAP_COMPONENT(RectLight_C, "rectLight", ComponentMeta{.color = ComponentColor::Orange});
+BATAP_COMPONENT(RectLight_C, "rectLight", ComponentMeta{.color = ComponentColor::Orange},
+                fieldMeta<&RectLight_C::intensity_>({.speed = 10.f, .min = 0.f, .max = 1e9f}));
 }  // namespace batap

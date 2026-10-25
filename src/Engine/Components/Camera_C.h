@@ -15,10 +15,12 @@ struct Camera_C
     bool active_ = false;
     float znear_ = 0.1f;
     float fov_ = 1;
+    float ev100_ = 15;
 
     // aspect = width / height
     m4f make_proj(float aspect) const;
     m4f make_view(const transform& worldFromCamera) const;
+    float exposure() const;
 };
 
 // Fields, json keys and UI are derived from the struct. The keys must keep
@@ -31,5 +33,6 @@ BATAP_COMPONENT(Camera_C, "camera",
                 ComponentMeta{.color = ComponentColor::Blue,
                               .onDeserialized = &Camera_C::afterDeserialize},
                 fieldMeta<&Camera_C::znear_>({.speed = 0.01f, .min = 0.001f, .max = 10.f}),
-                fieldMeta<&Camera_C::fov_>({.speed = 0.01f, .min = 0.01f, .max = 3.14f}));
+                fieldMeta<&Camera_C::fov_>({.speed = 0.01f, .min = 0.01f, .max = 3.14f}),
+                fieldMeta<&Camera_C::ev100_>({.speed = 0.05f, .min = -10.f, .max = 25.f}));
 }  // namespace batap

@@ -357,7 +357,14 @@ bool LightIncidence(LightGPUData light, float3 P, out float3 L, out float dist,
         if (dist > light.radius_ || dist <= 0.0001f)
             return false;
         L = toLight / dist;
-        attenuation = pow(saturate(1.0f - dist / light.radius_), max(light.falloff_, 0.0001f));
+        const float d = dist / light.radius_;
+        const float d2 = d * d;
+        attenuation = saturate(1.0f - d2 * d2);
+        attenuation *= attenuation;
+        if (light.falloff_ > 0.0f)
+            attenuation *= pow(1.0f - d, light.falloff_);
+        if (light.type_ != LightFarPoint)
+            attenuation /= max(dist * dist, max(light.sourceRadius_ * light.sourceRadius_, 1e-4f));
     }
     if (light.type_ == LightSpot)
         attenuation *= smoothstep(light.cosOuter_, light.cosInner_, dot(-L, light.direction_));
@@ -448,6 +455,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         color += (diffuse + specular) * radiance * NdotL * shadow;
     }
 
+    color *= FrameBuffer[0].exposure_;
     if (debugCascade < ShadowCascadeCount)
         color = debugTint * lerp(0.2f, 1.0f, debugLit);
     if ((g_draw.debugFlags_ & DebugGiCells) != 0u)
@@ -458,7 +466,8 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     if ((g_draw.debugFlags_ & DebugGiCache) != 0u)
     {
         const uint slot = GiSlotFind(GiCacheKey(s.gi_, GiLevel(length(s.posRel_))));
-        color = slot == GiNoSlot ? float3(0.5f, 0.0f, 0.5f) : GiIrradiance(slot);
+        color = slot == GiNoSlot ? float3(0.5f, 0.0f, 0.5f)
+                                 : GiIrradiance(slot) * (FrameBuffer[0].exposure_ / PI);
     }
 #endif
 

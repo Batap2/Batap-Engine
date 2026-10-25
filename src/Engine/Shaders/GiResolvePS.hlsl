@@ -30,8 +30,8 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
         return none;
     }
 
-    const float3 estimate =
-        float3(v.sum_[0], v.sum_[1], v.sum_[2]) / (RtCacheScale * float(v.count_));
+    const float3 estimate = float3(v.sum_[0], v.sum_[1], v.sum_[2]) /
+                            (RtCacheScale * fc.exposure_ * float(v.count_));
     const float3 previous = float3(v.irradiance_[0], v.irradiance_[1], v.irradiance_[2]);
     const float running = float(v.count_) / float(samples + v.count_);
     const float alpha = max(running, 1.0f - pow(1.0f - fc.giDt_ / GiSlowTau, float(age)));

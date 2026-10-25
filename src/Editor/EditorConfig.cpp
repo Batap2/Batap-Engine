@@ -134,6 +134,11 @@ void read(File& io, const std::string& projectDir, const std::string& scene)
     const auto frame = pose.value("frame", std::vector<float>{});
     if (frame.size() == 4)
         io.pose.frame = quatf{frame[3], frame[0], frame[1], frame[2]}.normalized();
+    if (const auto ev = pose.find("ev100"); ev != pose.end() && ev->is_number())
+    {
+        io.pose.ev100 = ev->get<float>();
+        io.pose.hasEv100 = true;
+    }
     io.hasPose = true;
 }
 
@@ -169,6 +174,8 @@ void write(const File& file, const std::string& projectDir, const std::string& s
             pose["pitch"] = file.pose.pitch;
             pose["frame"] = {file.pose.frame.x(), file.pose.frame.y(), file.pose.frame.z(),
                              file.pose.frame.w()};
+            if (file.pose.hasEv100)
+                pose["ev100"] = file.pose.ev100;
         }
     }
 
