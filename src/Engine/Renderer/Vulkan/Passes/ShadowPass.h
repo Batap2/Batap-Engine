@@ -4,6 +4,7 @@
 #include "Handles.h"
 #include "Renderer/Vulkan/Passes/Pass.h"
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
+#include "Renderer/Vulkan/RenderGraph.h"
 
 #include <span>
 #include <vector>
@@ -26,7 +27,8 @@ struct ShadowView
 
 struct ShadowAtlasViews
 {
-    GPUResourceHandle atlas_;
+    const char* name_ = "";
+    GraphImage atlas_;
     uint32_t size_ = 0;
     std::span<const ShadowView> views_;
 };
@@ -44,16 +46,13 @@ struct ShadowPass
     // Before the frame set is written: growing replaces the buffer it binds.
     void reserve(size_t entryCount);
 
-    // Outside the scene's rendering scope: it writes the atlases the scene
-    // reads. Entries no view claims get a zero strength.
-    void record(const PassContext& pass, std::span<const ShadowAtlasViews> atlases,
-                size_t entryCount, TerrainPass& terrain);
+    void addPasses(RenderGraph& graph, GraphBuffer shadows, const PassContext& pass,
+                   std::span<const ShadowAtlasViews> atlases, size_t entryCount,
+                   TerrainPass& terrain);
 
     GPUResourceHandle buffer() const { return buffer_; }
 
    private:
-    void recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas, TerrainPass& terrain);
-
     PassSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     GPUResourceHandle buffer_;

@@ -89,8 +89,8 @@ float ExposurePass::update(uint32_t frame, entt::entity camera, const Camera_C& 
     return exposureForEv100(ev100_);
 }
 
-void ExposurePass::addPasses(RenderGraph& graph, GraphImage hdr, const PassContext& pass,
-                             uint32_t frame)
+void ExposurePass::addPasses(RenderGraph& graph, GraphImage hdr, GraphBuffer frameConstants,
+                             const PassContext& pass, uint32_t frame)
 {
     if (!auto_)
         return;
@@ -104,10 +104,10 @@ void ExposurePass::addPasses(RenderGraph& graph, GraphImage hdr, const PassConte
     const GraphBuffer readback = graph.importBuffer("exposure readback", resources,
                                                     readback_[frame], Usage::None, Usage::None);
 
-    const auto draw =
-        [&](const char* name, GraphImage source, GraphImage target, VkPipeline pipeline)
+    const auto draw = [&](const char* name, GraphImage source, GraphImage target,
+                          VkPipeline pipeline) -> GraphPass&
     {
-        graph.addPass(name)
+        return graph.addPass(name)
             .read(source, Usage::ShaderRead)
             .color(target, Load::DontCare)
             .execute(
@@ -121,7 +121,7 @@ void ExposurePass::addPasses(RenderGraph& graph, GraphImage hdr, const PassConte
                     vkCmdDraw(context.cmd_, 3, 1, 0, 0);
                 });
     };
-    draw("exposure measure", hdr, grid, measurePipeline_);
+    draw("exposure measure", hdr, grid, measurePipeline_).read(frameConstants, Usage::ShaderRead);
     draw("exposure reduce", grid, block, reducePipeline_);
     draw("exposure total", block, total, reducePipeline_);
 

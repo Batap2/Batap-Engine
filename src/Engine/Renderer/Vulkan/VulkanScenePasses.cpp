@@ -1,7 +1,6 @@
 #include "VulkanScenePasses.h"
 
 #include "RenderGraph.h"
-#include "VulkanBarrier.h"
 #include "VulkanContext.h"
 #include "VulkanFormats.h"
 #include "VulkanPipelines.h"
@@ -460,35 +459,9 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     frameData_.giDt_ = dt;
     frameData_.giBounces_ = std::clamp(ctx.settings().giBounces_, 1u, 4u);
     frameData_.giPasses_ = std::clamp(ctx.settings().giPasses_, 1u, 8u);
-    resources_.recordBufferWrite(cmd, frameConstants_, &frameData_, sizeof(FrameGPUData), 0);
-    BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderRead).flush(cmd);
 
     writeFrameSet(frame, args, ctx);
 
-    VkRenderingAttachmentInfo color{};
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color.imageView = resources_.viewFor(hdrTarget_);
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    color.clearValue.color = targets.clearColor_;
-
-    VkRenderingAttachmentInfo depth{};
-    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth.imageView = targets.depth_;
-    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    // Reversed Z (Camera_C::make_proj): the far plane is 0.
-    depth.clearValue.depthStencil = {0.0f, 0};
-
-    VkRenderingInfo renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfo.renderArea = {{0, 0}, targets.extent_};
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &color;
-    renderingInfo.pDepthAttachment = &depth;
     const VkDescriptorSet sets[2] = {resources_.textureSet(), frameSets_[frame]};
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 2, sets, 0,
                             nullptr);
@@ -519,20 +492,28 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
                 pass.push_.*InstanceT::CountField = static_cast<uint32_t>(pool.size());
         });
 
+    RenderGraph graph;
+    const GraphBuffer frameConstants = graph.importBuffer("frame constants", resources_,
+                                                          frameConstants_, Usage::None, Usage::None);
+    graph.addPass("frame constants")
+        .write(frameConstants, Usage::TransferDst)
+        .execute(
+            [frameConstants, data = frameData_](GraphContext& c)
+            { vkCmdUpdateBuffer(c.cmd(), c.buffer(frameConstants), 0, sizeof data, &data); });
+
+    GiCacheBuffers cache;
     if (rayTracing)
     {
-        RenderGraph giGraph;
-        const GiCacheBuffers cache{
-            giGraph.importBuffer("gi cache keys", resources_, rtScene_->cacheKeys(),
-                                 Usage::ShaderRead, Usage::ShaderRead),
-            giGraph.importBuffer("gi cache values", resources_, rtScene_->cacheValues(),
-                                 Usage::ShaderRead, Usage::ShaderRead),
-            giGraph.importBuffer("gi cache stats", resources_, rtScene_->cacheStats(),
-                                 Usage::ShaderWrite, Usage::TransferSrc),
+        cache = {
+            graph.importBuffer("gi cache keys", resources_, rtScene_->cacheKeys(),
+                               Usage::ShaderRead, Usage::ShaderRead),
+            graph.importBuffer("gi cache values", resources_, rtScene_->cacheValues(),
+                               Usage::ShaderRead, Usage::ShaderRead),
+            graph.importBuffer("gi cache stats", resources_, rtScene_->cacheStats(),
+                               Usage::ShaderWrite, Usage::TransferSrc),
         };
-        giUpdate_.addPasses(giGraph, cache, pass, frame, frameData_.giPasses_);
-        const RtScene::CacheStats stats = rtScene_->addCacheStatsPass(giGraph, cache.stats_, frame);
-        giGraph.record(cmd);
+        giUpdate_.addPasses(graph, cache, frameConstants, pass, frame, frameData_.giPasses_);
+        const RtScene::CacheStats stats = rtScene_->addCacheStatsPass(graph, cache.stats_, frame);
         if (args.showGiCache_ && giFrame_ % 120 == 0)
             std::cout << "[GI] cache: " << stats.occupied_ << " / " << RtCacheCapacity
                       << " cells, +" << stats.inserted_ << " inserted, " << stats.failed_
@@ -541,49 +522,82 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
                       << giUpdate_.gpuMs() << " ms\n";
     }
 
+    const auto atlas = [&](const char* name, GPUResourceHandle image, uint32_t size,
+                           std::span<const ShadowView> views)
+    {
+        return ShadowAtlasViews{
+            name, graph.importImage(name, resources_, image, Usage::ShaderRead, Usage::ShaderRead),
+            size, views};
+    };
     const std::array<ShadowAtlasViews, 2> shadowAtlases{{
-        {localAtlas_, LocalAtlasSize, shadowViews_},
-        {cascadeAtlas_, CascadeAtlasSize, cascadeViews_},
+        atlas("local shadow atlas", localAtlas_, LocalAtlasSize, shadowViews_),
+        atlas("cascade shadow atlas", cascadeAtlas_, CascadeAtlasSize, cascadeViews_),
     }};
-    shadow_.record(pass, shadowAtlases, shadowEntries, terrain_);
+    const GraphBuffer shadows =
+        graph.importBuffer("shadows", resources_, shadow_.buffer(), Usage::None, Usage::ShaderRead);
+    shadow_.addPasses(graph, shadows, pass, shadowAtlases, shadowEntries, terrain_);
 
-    const VkImage hdrImage = resources_.imageFor(hdrTarget_);
-    BarrierBatch{}
-        .image(hdrImage, Usage::ShaderRead, Usage::ColorAttachment, colorRange(), Discard::Yes)
-        .flush(cmd);
-    vkCmdBeginRendering(cmd, &renderingInfo);
-    setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
-
-    if (rayTracing && (pass.push_.debugFlags_ & DebugRtFirstHit) != 0u)
-        rtDebug_.record(pass);
-    else
-        recordScene(pass);
-
-    vkCmdEndRendering(cmd);
-    BarrierBatch{}
-        .image(hdrImage, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
-        .memory(Usage::DepthAttachment, Usage::DepthAttachment)
-        .flush(cmd);
-
-    RenderGraph graph;
     const GraphImage hdr =
         graph.importImage("hdr", resources_, hdrTarget_, Usage::ShaderRead, Usage::ShaderRead);
-    exposure_.addPasses(graph, hdr, pass, frame);
+    const auto target = [&](const char* name, VkImage image, VkImageView view,
+                            VkImageAspectFlags aspect, Usage in, Usage out)
+    {
+        GraphImageInfo info;
+        info.image_ = image;
+        info.view_ = view;
+        info.extent_ = targets.extent_;
+        info.aspect_ = aspect;
+        return graph.importImage(name, info, in, out);
+    };
+    const GraphImage depth = target("depth", targets.depthImage_, targets.depth_,
+                                    VK_IMAGE_ASPECT_DEPTH_BIT, Usage::DepthAttachment, Usage::None);
+    const GraphImage output =
+        target("output", targets.colorImage_, targets.color_, VK_IMAGE_ASPECT_COLOR_BIT,
+               Usage::ColorAttachment, Usage::ColorAttachment);
+
+    const bool rtFirstHit = rayTracing && (pass.push_.debugFlags_ & DebugRtFirstHit) != 0u;
+    GraphPass& scene =
+        graph.addPass("scene")
+            .color(hdr, Load::Clear, targets.clearColor_)
+            // Reversed Z (Camera_C::make_proj): the far plane is 0.
+            .depth(depth, Load::Clear, 0.f)
+            .read(frameConstants, Usage::ShaderRead)
+            .read(shadowAtlases[0].atlas_, Usage::ShaderRead)
+            .read(shadowAtlases[1].atlas_, Usage::ShaderRead)
+            .execute(
+                [this, pass, rtFirstHit](GraphContext& c)
+                {
+                    PassContext context = pass;
+                    context.cmd_ = c.cmd();
+                    if (rtFirstHit)
+                        rtDebug_.record(context);
+                    else
+                        recordScene(context);
+                });
+    if (shadowEntries != 0)
+        scene.read(shadows, Usage::ShaderRead);
+    if (rayTracing)
+        scene.read(cache.keys_, Usage::ShaderRead).read(cache.values_, Usage::ShaderRead);
+
+    exposure_.addPasses(graph, hdr, frameConstants, pass, frame);
+
+    graph.addPass("tonemap")
+        .color(output, Load::DontCare)
+        .depth(depth, Load::Keep)
+        .read(hdr, Usage::ShaderRead)
+        .read(frameConstants, Usage::ShaderRead)
+        .execute(
+            [this, pass](GraphContext& c)
+            {
+                PassContext context = pass;
+                context.cmd_ = c.cmd();
+                tonemap_.record(context);
+                // After the sky: it writes no depth, so it would paint over any wire drawn
+                // against the background.
+                debug_.record(context);
+            });
+
     graph.record(cmd);
-
-    color.imageView = targets.color_;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depth.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    vkCmdBeginRendering(cmd, &renderingInfo);
-    setViewportYUp(cmd, targets.extent_.width, targets.extent_.height);
-
-    tonemap_.record(pass);
-    // After the sky: it writes no depth, so it would paint over any wire drawn
-    // against the background.
-    debug_.record(pass);
-
-    vkCmdEndRendering(cmd);
     return true;
 }
 

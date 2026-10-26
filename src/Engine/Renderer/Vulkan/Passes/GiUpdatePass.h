@@ -28,8 +28,8 @@ struct GiUpdatePass
 
     void buildPipelines(const ShaderModules& modules);
     void resize(v2i frameSize);
-    void addPasses(RenderGraph& graph, const GiCacheBuffers& cache, const PassContext& pass,
-                   uint32_t frame, uint32_t passes);
+    void addPasses(RenderGraph& graph, const GiCacheBuffers& cache, GraphBuffer frameConstants,
+                   const PassContext& pass, uint32_t frame, uint32_t passes);
 
     v2i size() const { return size_; }
     float gpuMs() const { return gpuMs_; }

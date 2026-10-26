@@ -432,6 +432,7 @@ void Renderer::render()
 
     VkImage swapImage = swapchain_.images_[imageIndex];
     RenderTargets targets{};
+    targets.depthImage_ = depthImage_;
     targets.depth_ = depthView_;
     targets.clearColor_ = {{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
 
@@ -455,6 +456,7 @@ void Renderer::render()
                    Discard::Yes)
             .flush(cmd);
 
+        targets.colorImage_ = swapImage;
         targets.color_ = swapchain_.views_[imageIndex];
         targets.extent_ = swapchain_.extent_;
         swapchainHasScene = sceneRecord_ && sceneRecord_(cmd, frame, targets);
@@ -475,6 +477,7 @@ void Renderer::render()
                    Discard::Yes)
             .flush(cmd);
 
+        targets.colorImage_ = sceneImage_;
         targets.color_ = sceneView_;
         targets.extent_ = viewExtent_;
         if (sceneRecord_ && sceneRecord_(cmd, frame, targets))

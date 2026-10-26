@@ -278,14 +278,14 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       compteurs en passe. Les barrières `ShaderRead → ShaderWrite` de
       `ScenePasses::record` disparaissent. Le pool de requêtes reste
       jusqu'à 4.1.
-- [ ] **1.4 Ombres.** Atlas local et atlas des cascades en deux passes raster
+- [x] **1.4 Ombres.** Atlas local et atlas des cascades en deux passes raster
       (profondeur, effacement à 1), importés ; l'écriture du buffer
       `shadows` en passe.
-- [ ] **1.5 Scène HDR.** Géométrie, terrain, billboards, ciel (ou le
+- [x] **1.5 Scène HDR.** Géométrie, terrain, billboards, ciel (ou le
       premier hit RT) en une passe raster : HDR et profondeur effacées, lit
       les atlas, le cache GI, la TLAS. L'écriture des constantes de frame en
       passe.
-- [ ] **1.6 Tonemap et debug.** La sortie (`RenderTargets::color_`) importée,
+- [x] **1.6 Tonemap et debug.** La sortie (`RenderTargets::color_`) importée,
       la profondeur en `Load`.
 - [ ] **1.7 Structures d'accélération.** BLAS, compaction et TLAS en passes
       `Compute` (servies par la file graphique), l'effacement du cache en

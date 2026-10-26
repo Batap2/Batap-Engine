@@ -367,3 +367,106 @@ end`. Une passe sans attachment n'ouvre pas de scope, or
 - Non vérifiée : la valeur du chrono GI, qui ne s'affiche qu'avec la vue
   debug du cache. La validation passe la séquence reset/timestamps sans
   erreur.
+
+## 1.4 Ombres
+
+*Fait (2026-10-26)* : `ShadowPass::record` devient `addPasses(graph, shadows,
+pass, atlases, entryCount, terrain)`, et `recordAtlas` disparaît.
+`ShadowAtlasViews` porte maintenant un nom et une `GraphImage`. L'index
+bindless de l'atlas, écrit dans les entrées, se prend par
+`graph.textureIndex`. Il y a trois passes :
+- `shadow entries` écrit le buffer `shadows` en `TransferDst`, par
+  `vkCmdUpdateBuffer` direct sur `c.buffer(shadows)`. Le découpage par
+  64 Kio reste ;
+- `local shadow atlas` et `cascade shadow atlas`, en `depth(atlas,
+  Load::Clear, 1.f)` : chacune lit `shadows` en `ShaderRead`. Le graphe pose
+  le viewport plein atlas, et la passe le repose par vue, comme avant.
+
+Les imports, dans `ScenePasses` :
+- les deux atlas en `ShaderRead` → `ShaderRead` ;
+- `shadows` en `None` → `ShaderRead`. C'est un buffer par frame : celui du
+  slot courant a été lu il y a `FramesInFlight` frames, et la fence de ce
+  slot est attendue. Avant non plus, il n'y avait pas de barrière avant son
+  écriture.
+
+**La GI et les ombres partagent un graphe**, puisque rien d'écrit à la main
+ne les sépare. La sortie des buffers du cache GI (`ShaderWrite →
+ShaderRead`) part donc à la fin du graphe, juste avant la scène, dans la même
+barrière que celle des atlas. Avant, elle tombait entre la GI et les ombres.
+Le graphe de l'exposition, après la scène, devient `exposureGraph`.
+
+En raster avec les deux atlas, on passe de 5 barrières à 3 :
+- avant : l'écriture des entrées, plus 2 barrières par atlas ;
+- après : 1 par atlas (la première porte aussi le `TransferDst →
+  ShaderRead` de `shadows`), plus la sortie, partagée avec la GI en RT.
+
+*Mesuré* :
+- Banc : raster identique au pixel sur les 9 cas, dont la lune (cascades,
+  et atlas local des phares) et `gi_spot` (atlas local). RT dans le bruit.
+- `room_rt` est sorti en `DIFFÉRENT` (119 px), puis 73 et 102 px sur deux
+  relances. C'est la tolérance trop serrée notée en 1.2.
+- Validation : rien de nouveau.
+
+## 1.5 Scène HDR
+
+*Fait (2026-10-26, avec 1.6)* : `ScenePasses::record` construit un seul
+graphe, enregistré une fois en fin de fonction. Il n'y reste plus aucune
+barrière ni aucun `vkCmdBeginRendering` écrit à la main.
+- **`frame constants`** : une passe en tête du graphe, qui fait
+  `vkCmdUpdateBuffer` depuis une copie de `frameData_` capturée par valeur.
+  Le buffer est par frame, importé en `None` → `None` (même raisonnement que
+  `shadows` en 1.4).
+- **Ses lecteurs le déclarent tous** : les passes GI de mise à jour et de
+  résolution, la scène, la mesure de l'exposition et le tonemap.
+  `GiUpdatePass::addPasses` et `ExposurePass::addPasses` prennent la
+  `GraphBuffer` en plus. Le `TransferDst → ShaderRead` part donc avant le
+  premier lecteur : la GI en RT, la scène en raster. Les ombres ne lisent pas
+  les constantes de frame.
+- **`scene`** : `color(hdr, Clear)` et `depth(depth, Clear, 0)`. Elle lit
+  les constantes de frame et les deux atlas ; elle lit aussi `shadows` s'il y
+  a des entrées, et les clés et les valeurs du cache en RT. Elle exécute
+  `recordScene`, ou `rtDebug_` pour la vue du premier hit RT.
+- `RenderTargets` porte maintenant `colorImage_` et `depthImage_`, que le
+  `Renderer` remplit, car le graphe a besoin des `VkImage`. La profondeur et
+  la sortie ont la taille `targets.extent_`, comme la HDR.
+- L'exposition rejoint le graphe : `exposureGraph` disparaît.
+
+*Écarts* :
+- **La TLAS n'est pas déclarée.** Sa barrière reste écrite à la main dans
+  `RtScene` jusqu'à 1.7, et une lecture en `AnyRead` ne produirait aucune
+  barrière. 1.7 la déclare avec `AccelerationStructureRead`, pour la scène
+  et pour la GI.
+- **`shadows` n'est lu que s'il y a des entrées.** Sans lumière, la passe
+  d'écriture n'existe pas : le graphe refuserait une lecture sans écrivain.
+
+## 1.6 Tonemap et debug
+
+*Fait (2026-10-26)* : une passe `tonemap` qui garde le tonemap et le debug
+dans une seule scope : `color(output, DontCare)` et `depth(depth, Keep)`.
+Elle lit la HDR et les constantes de frame. Les imports :
+- **profondeur** en `DepthAttachment` → `None` : son `storeOp` devient
+  `DONT_CARE` à la dernière passe, comme avant ;
+- **sortie** (swapchain, ou image de scène de l'éditeur) en
+  `ColorAttachment` → `ColorAttachment`.
+
+**La frontière avec le `Renderer` coûte trois transitions de plus**, jusqu'à
+2.2 :
+- la profondeur et la sortie sont jetées deux fois : par le `Renderer`, puis
+  par le graphe, avant la scène pour l'une et avant le tonemap pour l'autre ;
+- une sortie `Color → Color` après le tonemap. Dans le chemin du jeu, elle
+  ordonne pour la première fois le tonemap et le `LOAD` d'ImGui sur la
+  swapchain, qui n'avaient aucune barrière entre eux.
+
+En raster avec les deux atlas, sans auto-exposition, on passe de 6
+`vkCmdPipelineBarrier2` à 5 dans `ScenePasses`, mais avec plus de
+transitions d'image.
+
+*Mesuré (1.5 et 1.6 ensemble)* :
+- Banc : raster identique au pixel sur les 9 cas, éditeur compris
+  (chemin de l'image de scène). RT dans le bruit.
+- Validation : rien de nouveau.
+- **Temps GPU non exploitables** : Batap jouait pendant le banc (GPU à 78 %,
+  banc en 102 s au lieu de ~45 s). La lune double, les scènes GI prennent
+  2 à 11 %. À remesurer machine libre, en particulier les petites scènes,
+  où les trois transitions de la frontière pourraient se voir (quelques µs
+  sur ~80 µs).

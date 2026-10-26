@@ -60,7 +60,8 @@ void GiUpdatePass::resize(v2i frameSize)
 }
 
 void GiUpdatePass::addPasses(RenderGraph& graph, const GiCacheBuffers& cache,
-                             const PassContext& pass, uint32_t frame, uint32_t passes)
+                             GraphBuffer frameConstants, const PassContext& pass, uint32_t frame,
+                             uint32_t passes)
 {
     const VkDevice device = setup_.ctx_.device_;
     const uint32_t first = frame * 2;
@@ -114,6 +115,7 @@ void GiUpdatePass::addPasses(RenderGraph& graph, const GiCacheBuffers& cache,
             .write(cache.keys_, Usage::ShaderWrite)
             .write(cache.values_, Usage::ShaderWrite)
             .write(cache.stats_, Usage::ShaderWrite)
+            .read(frameConstants, Usage::ShaderRead)
             .color(target, Load::DontCare)
             .execute(
                 [pass, pipeline, index](GraphContext& c)

@@ -5,7 +5,6 @@
 #include "Renderer/EngineConfig.h"
 #include "Renderer/Vulkan/Passes/MeshDraws.h"
 #include "Renderer/Vulkan/Passes/TerrainPass.h"
-#include "Renderer/Vulkan/VulkanBarrier.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
@@ -60,8 +59,9 @@ void ShadowPass::buildPipelines(const ShaderModules& modules)
                     .build(setup_.ctx_.device_, setup_.layout_);
 }
 
-void ShadowPass::record(const PassContext& pass, std::span<const ShadowAtlasViews> atlases,
-                        size_t entryCount, TerrainPass& terrain)
+void ShadowPass::addPasses(RenderGraph& graph, GraphBuffer shadows, const PassContext& pass,
+                           std::span<const ShadowAtlasViews> atlases, size_t entryCount,
+                           TerrainPass& terrain)
 {
     if (entryCount == 0 || entryCount > capacity_)
         return;
@@ -69,7 +69,7 @@ void ShadowPass::record(const PassContext& pass, std::span<const ShadowAtlasView
     entries_.assign(entryCount, ShadowGPUData{});
     for (const ShadowAtlasViews& atlas : atlases)
     {
-        const uint32_t atlasTexture = setup_.resources_.textureIndex(atlas.atlas_);
+        const uint32_t atlasTexture = graph.textureIndex(atlas.atlas_);
         const float atlasSize = static_cast<float>(atlas.size_);
         for (const ShadowView& view : atlas.views_)
         {
@@ -88,62 +88,44 @@ void ShadowPass::record(const PassContext& pass, std::span<const ShadowAtlasView
         }
     }
     const std::span<const ShadowGPUData> all{entries_};
-    for (size_t first = 0; first < all.size(); first += kEntriesPerWrite)
-    {
-        const auto chunk = all.subspan(first, std::min(kEntriesPerWrite, all.size() - first));
-        setup_.resources_.recordBufferWrite(pass.cmd_, buffer_, chunk.data(), chunk.size_bytes(),
-                                            first * sizeof(ShadowGPUData));
-    }
-
-    BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderRead).flush(pass.cmd_);
+    graph.addPass("shadow entries")
+        .write(shadows, Usage::TransferDst)
+        .execute(
+            [all, shadows](GraphContext& c)
+            {
+                for (size_t first = 0; first < all.size(); first += kEntriesPerWrite)
+                {
+                    const auto chunk =
+                        all.subspan(first, std::min(kEntriesPerWrite, all.size() - first));
+                    vkCmdUpdateBuffer(c.cmd(), c.buffer(shadows), first * sizeof(ShadowGPUData),
+                                      chunk.size_bytes(), chunk.data());
+                }
+            });
 
     for (const ShadowAtlasViews& atlas : atlases)
-        if (!atlas.views_.empty())
-            recordAtlas(pass, atlas, terrain);
-}
-
-void ShadowPass::recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas,
-                             TerrainPass& terrain)
-{
-    const VkImage atlasImage = setup_.resources_.imageFor(atlas.atlas_);
-
-    // Discard: the clear rewrites all of it, and the first frame has no layout.
-    BarrierBatch{}
-        .image(atlasImage, Usage::ShaderRead, Usage::DepthAttachment, depthRange(), Discard::Yes)
-        .flush(pass.cmd_);
-
-    VkRenderingAttachmentInfo depth{};
-    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth.imageView = setup_.resources_.viewFor(atlas.atlas_);
-    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    // An untouched texel lights whatever samples it.
-    depth.clearValue.depthStencil = {1.0f, 0};
-
-    VkRenderingInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    info.renderArea = {{0, 0}, {atlas.size_, atlas.size_}};
-    info.layerCount = 1;
-    info.pDepthAttachment = &depth;
-
-    vkCmdBeginRendering(pass.cmd_, &info);
-
-    PassContext shadowPass = pass;
-    for (const ShadowView& view : atlas.views_)
     {
-        shadowPass.push_.shadowViewIndex_ = view.entry_;
-        setViewportYUpRect(pass.cmd_, view.x_, view.y_, view.size_, view.size_);
-        // Again for every view: the terrain binds its own.
-        vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
-        recordMeshDraws(shadowPass, setup_.resources_, 1, true);
-        terrain.recordShadow(shadowPass);
+        if (atlas.views_.empty())
+            continue;
+        // An untouched texel lights whatever samples it.
+        graph.addPass(atlas.name_)
+            .depth(atlas.atlas_, Load::Clear, 1.f)
+            .read(shadows, Usage::ShaderRead)
+            .execute(
+                [pass, views = atlas.views_, pipeline = pipeline_,
+                 &resources = setup_.resources_, &terrain](GraphContext& c)
+                {
+                    PassContext shadowPass = pass;
+                    shadowPass.cmd_ = c.cmd();
+                    for (const ShadowView& view : views)
+                    {
+                        shadowPass.push_.shadowViewIndex_ = view.entry_;
+                        setViewportYUpRect(c.cmd(), view.x_, view.y_, view.size_, view.size_);
+                        // Again for every view: the terrain binds its own.
+                        vkCmdBindPipeline(c.cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                        recordMeshDraws(shadowPass, resources, 1, true);
+                        terrain.recordShadow(shadowPass);
+                    }
+                });
     }
-
-    vkCmdEndRendering(pass.cmd_);
-
-    BarrierBatch{}
-        .image(atlasImage, Usage::DepthAttachment, Usage::ShaderRead, depthRange())
-        .flush(pass.cmd_);
 }
 }  // namespace batap
