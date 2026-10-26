@@ -23,9 +23,9 @@ JPH::RefConst<JPH::Shape> makeShape(const Character_C& ch)
 {
     // Jolt wants the bottom of a character shape at the origin, so the entity
     // transform sits at the feet rather than the middle of the capsule.
-    return JPH::RotatedTranslatedShapeSettings(
-               JPH::Vec3(0.f, ch.halfHeight_ + ch.radius_, 0.f), JPH::Quat::sIdentity(),
-               new JPH::CapsuleShape(ch.halfHeight_, ch.radius_))
+    return JPH::RotatedTranslatedShapeSettings(JPH::Vec3(0.f, ch.halfHeight_ + ch.radius_, 0.f),
+                                               JPH::Quat::sIdentity(),
+                                               new JPH::CapsuleShape(ch.halfHeight_, ch.radius_))
         .Create()
         .Get();
 }
@@ -117,8 +117,8 @@ void Character_S::fixedUpdate(World& world, float dt)
             const v3f groundVelocity = toEigen(cv->GetGroundVelocity());
             const v3f verticalVelocity = up * velocity.dot(up);
 
-            const bool onGround =
-                cv->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround;
+            const bool onGround = cv->GetGroundState() ==
+                                  JPH::CharacterBase::EGroundState::OnGround;
             const bool towardGround = (verticalVelocity - groundVelocity).dot(up) < 0.1f;
 
             v3f wanted = onGround && towardGround ? groundVelocity : verticalVelocity;

@@ -3,18 +3,18 @@
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
-#include "Shaders/ShaderInterop.h"
 #include "Assets/Mesh.h"
 #include "Assets/Texture.h"
 #include "Engine.h"
 #include "Reflection/ComponentRegistry.h"
+#include "Shaders/ShaderInterop.h"
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <iostream>
 #include <array>
 #include <cstddef>
+#include <iostream>
 #include <string>
 
 namespace batap

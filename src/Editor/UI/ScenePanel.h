@@ -23,7 +23,7 @@ struct ScenePanel
     // child of its own would count the window padding twice.
     void draw(World& world, App& app, Selection& selection, float bottomReserve = 0.0f);
 
-  private:
+   private:
     static constexpr float kRowMargin = 4.0f;
 
     void drawEntityNode(World& world, entt::entity e, Selection& selection);

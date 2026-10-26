@@ -10,8 +10,8 @@
 #include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
 #include "Components/Materials_C.h"
-#include "Components/Name_C.h"
 #include "Components/Mesh_C.h"
+#include "Components/Name_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "Instance/InstanceDeclaration.h"
@@ -20,10 +20,10 @@
 #include "Systems/Hierarchy_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
-#include "UI/IconsMaterialDesign.h"
 #include "UI/AssetRow.h"
 #include "UI/ComponentSection.h"
 #include "UI/Field.h"
+#include "UI/IconsMaterialDesign.h"
 #include "UI/Scoped.h"
 #include "World.h"
 
@@ -276,8 +276,7 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
         return;
 
     const uint8_t slotCount = materialSlotCount(ent, app);
-    const std::string summary =
-        std::to_string(slotCount) + (slotCount > 1 ? " slots" : " slot");
+    const std::string summary = std::to_string(slotCount) + (slotCount > 1 ? " slots" : " slot");
 
     ui::ComponentSection section("Materials", ComponentColor::Yellow, true, summary.c_str());
     if (section)
@@ -294,8 +293,8 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                               const ImGuiStyle& style = ImGui::GetStyle();
                               const float editW =
                                   ImGui::CalcTextSize("Edit").x + style.FramePadding.x * 2.f;
-                              const float rowW = ImGui::GetContentRegionAvail().x - editW -
-                                                 style.ItemSpacing.x;
+                              const float rowW =
+                                  ImGui::GetContentRegionAvail().x - editW - style.ItemSpacing.x;
                               if (ui::AssetRow(AssetType::Material, name, rowW))
                                   assetPicker_.open(ent, AssetType::Material, app.projectDir_, i);
 
@@ -350,20 +349,20 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
                     break;
 
                 case Skybox_C::Mode::FlatColor:
-                    changed |= ui::Field(
-                        "Color", [&] { return ui::ColorField("##skycolor", sky->color1_.data(), 3); });
+                    changed |=
+                        ui::Field("Color", [&]
+                                  { return ui::ColorField("##skycolor", sky->color1_.data(), 3); });
                     break;
 
                 case Skybox_C::Mode::Gradient:
                     changed |= ui::Field(
                         "Sky", [&] { return ui::ColorField("##skysky", sky->color1_.data(), 3); });
-                    changed |= ui::Field("Horizon",
-                                         [&] {
-                                             return ui::ColorField("##skyhorizon",
-                                                                   sky->color2_.data(), 3);
-                                         });
                     changed |= ui::Field(
-                        "Ground", [&] { return ui::ColorField("##skyground", sky->color3_.data(), 3); });
+                        "Horizon",
+                        [&] { return ui::ColorField("##skyhorizon", sky->color2_.data(), 3); });
+                    changed |= ui::Field(
+                        "Ground",
+                        [&] { return ui::ColorField("##skyground", sky->color3_.data(), 3); });
                     changed |= ui::FieldSlider("Width", &sky->horizonWidth_, 0.01f, 1.0f);
                     break;
             }
@@ -404,8 +403,8 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
                     if (f.type->drawUI)
                     {
                         fieldCtx.component_ = &t;
-                        changed |= ui::Field(prettyLabel(f.name).c_str(),
-                                             [&] { return f.type->drawUI(f.ptrIn(c), f, fieldCtx); });
+                        changed |= ui::Field(prettyLabel(f.name).c_str(), [&]
+                                             { return f.type->drawUI(f.ptrIn(c), f, fieldCtx); });
                     }
 
             if (t.mask() == componentMask<Camera_C>())

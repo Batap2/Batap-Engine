@@ -51,7 +51,6 @@ struct ResourceManager
     GPUResourceHandle createTarget(uint32_t width, uint32_t height, ResourceFormat format,
                                    std::optional<std::string_view> name = std::nullopt);
 
-
     VkImage imageFor(GPUResourceHandle handle);
     VkExtent2D extentFor(GPUResourceHandle image);
     VkFormat formatFor(GPUResourceHandle image);

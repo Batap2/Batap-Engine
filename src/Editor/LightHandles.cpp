@@ -101,8 +101,8 @@ v3f onSphere(const Ray& ray, const v3f& center, float radius)
 LightFrame frameOf(const Transform_C& tc)
 {
     const transform xf = tc.world();
-    return LightFrame{xf.translation(), xf.linear().col(0).normalized(), xf.linear().col(1).normalized(),
-                 -xf.linear().col(2).normalized()};
+    return LightFrame{xf.translation(), xf.linear().col(0).normalized(),
+                      xf.linear().col(1).normalized(), -xf.linear().col(2).normalized()};
 }
 
 v3f conePoint(const LightFrame& f, const v3f& side, float range, float fullAngle)
@@ -170,7 +170,8 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
 
     InputManager& input = *ctx.inputManager_;
     const v2i mousePx = input.mousePos();
-    const v2f mouse = toPoints(v2f(static_cast<float>(mousePx.x()), static_cast<float>(mousePx.y())));
+    const v2f mouse =
+        toPoints(v2f(static_cast<float>(mousePx.x()), static_cast<float>(mousePx.y())));
     const ImVec2 vpPos = ImGui::GetMainViewport()->Pos;
     ImDrawList* dl = ImGui::GetForegroundDrawList();
 
@@ -242,7 +243,8 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
                         point->radius_ = startValue_;
                     else if (const auto s = alongLine(ray, f.pos_, startAxis_))
                         point->radius_ = std::max(std::abs(*s), kMinLength);
-                    std::snprintf(label.data(), label.size(), "radius %.2f m", static_cast<double>(point->radius_));
+                    std::snprintf(label.data(), label.size(), "radius %.2f m",
+                                  static_cast<double>(point->radius_));
                 }
                 break;
             case Kind::SpotRange:
@@ -252,7 +254,8 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
                         spot->radius_ = startValue_;
                     else if (const auto s = alongLine(ray, f.pos_, f.fwd_))
                         spot->radius_ = std::max(*s, kMinLength);
-                    std::snprintf(label.data(), label.size(), "radius %.2f m", static_cast<double>(spot->radius_));
+                    std::snprintf(label.data(), label.size(), "radius %.2f m",
+                                  static_cast<double>(spot->radius_));
                 }
                 break;
             case Kind::SpotOuter:
@@ -281,8 +284,10 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
                             spot->innerAngle_ = std::min(half * 2.f, spot->outerAngle_);
                         }
                     }
-                    std::snprintf(label.data(), label.size(), "%s %.1f deg", outer ? "outer" : "inner",
-                                  static_cast<double>((outer ? spot->outerAngle_ : spot->innerAngle_) * kDegrees));
+                    std::snprintf(label.data(), label.size(), "%s %.1f deg",
+                                  outer ? "outer" : "inner",
+                                  static_cast<double>(
+                                      (outer ? spot->outerAngle_ : spot->innerAngle_) * kDegrees));
                 }
                 break;
             case Kind::RectWidth:
@@ -295,8 +300,8 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
                         size = startValue_;
                     else if (const auto s = alongLine(ray, f.pos_, width ? f.x_ : f.y_))
                         size = std::max(std::abs(*s) * 2.f, kMinLength);
-                    std::snprintf(label.data(), label.size(), "%s %.2f m", width ? "width" : "height",
-                                  static_cast<double>(size));
+                    std::snprintf(label.data(), label.size(), "%s %.2f m",
+                                  width ? "width" : "height", static_cast<double>(size));
                 }
                 break;
             case Kind::RectRange:
@@ -306,7 +311,8 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
                         rect->radius_ = startValue_;
                     else if (const auto s = alongLine(ray, f.pos_, f.fwd_))
                         rect->radius_ = std::max(*s, kMinLength);
-                    std::snprintf(label.data(), label.size(), "radius %.2f m", static_cast<double>(rect->radius_));
+                    std::snprintf(label.data(), label.size(), "radius %.2f m",
+                                  static_cast<double>(rect->radius_));
                 }
                 break;
             case Kind::RectSpread:
@@ -318,9 +324,9 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
                     {
                         // The angle of the door's edge, from the face's own edge.
                         const v3f d = *q - f.pos_;
-                        const float half = std::clamp(
-                            std::atan2(d.dot(f.x_) - rect->width_ * 0.5f, d.dot(f.fwd_)), 0.f,
-                            kHalfPi);
+                        const float half =
+                            std::clamp(std::atan2(d.dot(f.x_) - rect->width_ * 0.5f, d.dot(f.fwd_)),
+                                       0.f, kHalfPi);
                         rect->spreadAngle_ = half >= kSpreadOpen ? kPi : half * 2.f;
                     }
                     if (rect->spreadAngle_ >= kPi)
@@ -330,8 +336,7 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
                                       static_cast<double>(rect->spreadAngle_ * kDegrees));
                 }
                 break;
-            case Kind::SunDirection:
-            {
+            case Kind::SunDirection: {
                 EntityHandle h = ent;
                 if (cancel)
                     h.setRotation(startRot_, Space::World);
@@ -346,7 +351,8 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
                 }
                 const v3f dir = quatf(h.get<Transform_C>().world().rotation()) * -v3f::UnitZ();
                 const float elevation = std::asin(std::clamp(-dir.y(), -1.f, 1.f)) * kDegrees;
-                std::snprintf(label.data(), label.size(), "elevation %.1f deg", static_cast<double>(elevation));
+                std::snprintf(label.data(), label.size(), "elevation %.1f deg",
+                              static_cast<double>(elevation));
                 break;
             }
         }
@@ -360,7 +366,8 @@ bool LightHandles::draw(World& world, Engine& ctx, const Selection& selection, b
     {
         if (!screen[i])
             continue;
-        const bool lit = static_cast<int>(i) == hovered || (dragging_ && handles[i].kind_ == dragKind_);
+        const bool lit = static_cast<int>(i) == hovered ||
+                         (dragging_ && handles[i].kind_ == dragKind_);
         const ImVec2 c{screen[i]->x() + vpPos.x, screen[i]->y() + vpPos.y};
         const float r = lit ? kHandleRadius + 1.5f : kHandleRadius;
         dl->AddCircleFilled(c, r + 1.5f, kOutlineColor);

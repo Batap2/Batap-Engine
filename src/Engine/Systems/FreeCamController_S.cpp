@@ -24,8 +24,7 @@ void FreeCamController_S::update(Engine& ctx, World& world, float deltaTime)
             if (looking && !mouseD.isZero())
             {
                 controller.yaw_ += static_cast<float>(-mouseD.x()) * controller.mouseSensitivity_;
-                controller.pitch_ +=
-                    static_cast<float>(-mouseD.y()) * controller.mouseSensitivity_;
+                controller.pitch_ += static_cast<float>(-mouseD.y()) * controller.mouseSensitivity_;
                 controller.pitch_ =
                     std::clamp(controller.pitch_, -kFreeCamPitchLimit, kFreeCamPitchLimit);
             }
@@ -41,7 +40,7 @@ void FreeCamController_S::update(Engine& ctx, World& world, float deltaTime)
             if (scroll != 0.f)
             {
                 controller.moveSpeed_ *= std::pow(1.15f, scroll);
-                controller.moveSpeed_  = std::clamp(controller.moveSpeed_, 0.1f, 1000.f);
+                controller.moveSpeed_ = std::clamp(controller.moveSpeed_, 0.1f, 1000.f);
                 controller.boostSpeed_ = controller.moveSpeed_ * 3.f;
             }
 
@@ -65,7 +64,7 @@ void FreeCamController_S::update(Engine& ctx, World& world, float deltaTime)
                 move.normalize();
 
                 float speed = ctx.inputManager_->down(Key::LShift) ? controller.boostSpeed_
-                                                                        : controller.moveSpeed_;
+                                                                   : controller.moveSpeed_;
 
                 EntityHandle{reg, ent}.translate(move * speed * deltaTime, Space::Local);
             }

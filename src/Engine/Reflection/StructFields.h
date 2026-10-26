@@ -157,7 +157,6 @@ consteval std::string_view fieldName()
     return name.back() == '_' ? name.substr(0, name.size() - 1) : name;
 }
 
-
 // --- type name -----------------------------------------------------------
 
 namespace detail

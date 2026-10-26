@@ -65,8 +65,8 @@ void appendArc(std::vector<DebugVertexGPUData>& verts, uint32_t axis, float from
 
 }  // namespace
 
-std::vector<DebugVertexGPUData> buildDebugWireframes(
-    std::array<DebugShapeSlice, DebugDraw::ShapeCount>& slices)
+std::vector<DebugVertexGPUData>
+buildDebugWireframes(std::array<DebugShapeSlice, DebugDraw::ShapeCount>& slices)
 {
     std::vector<DebugVertexGPUData> verts;
 

@@ -14,8 +14,8 @@ uint64_t TerrainDraws::add(Mesh mesh)
 
 void TerrainDraws::remove(uint64_t mesh)
 {
-    const auto it = std::find_if(added_.begin(), added_.end(),
-                                 [&](const auto& a) { return a.first == mesh; });
+    const auto it =
+        std::find_if(added_.begin(), added_.end(), [&](const auto& a) { return a.first == mesh; });
     if (it != added_.end())
         added_.erase(it);
     else
@@ -24,8 +24,8 @@ void TerrainDraws::remove(uint64_t mesh)
 
 void TerrainDraws::setParams(uint64_t mesh, const Params& params)
 {
-    const auto it = std::find_if(added_.begin(), added_.end(),
-                                 [&](const auto& a) { return a.first == mesh; });
+    const auto it =
+        std::find_if(added_.begin(), added_.end(), [&](const auto& a) { return a.first == mesh; });
     if (it != added_.end())
         it->second.params_ = params;
     else

@@ -66,8 +66,7 @@ void readWindow(const nlohmann::json& config, WindowDesc& io)
     io.behindOnShow = it->value("behindOnShow", io.behindOnShow);
 }
 
-void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow,
-                 bool behindOnShow)
+void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow, bool behindOnShow)
 {
     writeSection(
         file, "window",

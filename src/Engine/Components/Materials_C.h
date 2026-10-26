@@ -1,7 +1,7 @@
 #pragma once
+#include <array>
 #include "Assets/AssetHandle.h"
 #include "Reflection/ComponentRegistry.h"
-#include <array>
 
 namespace batap
 {

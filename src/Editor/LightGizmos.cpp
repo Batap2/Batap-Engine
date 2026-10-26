@@ -34,8 +34,8 @@ void circle(DebugDraw& dbg, const v3f& center, const v3f& u, const v3f& v, float
 }
 
 // As the shading sees it: the cone is capped by the radius_ sphere.
-void cone(DebugDraw& dbg, const v3f& apex, const v3f& axis, const v3f& u, const v3f& v,
-          float range, float fullAngle, const col3& color, bool spokes)
+void cone(DebugDraw& dbg, const v3f& apex, const v3f& axis, const v3f& u, const v3f& v, float range,
+          float fullAngle, const col3& color, bool spokes)
 {
     const float half = std::min(fullAngle * 0.5f, std::numbers::pi_v<float> * 0.5f);
     const v3f center = apex + axis * (range * std::cos(half));

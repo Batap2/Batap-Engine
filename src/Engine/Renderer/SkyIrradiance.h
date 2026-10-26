@@ -6,7 +6,10 @@
 namespace batap
 {
 
-struct SH9 { std::array<Eigen::Vector3f, 9> c = {}; };
+struct SH9
+{
+    std::array<Eigen::Vector3f, 9> c = {};
+};
 
 struct Skybox_C;  // forward declare
 

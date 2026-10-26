@@ -7,10 +7,10 @@
 #include "Instance/InstanceManager.h"
 #include "Instance/Spawnable.h"
 #include "Reflection/ComponentRegistry.h"
-#include "Systems/Hierarchy_S.h"
-#include "UI/IconsMaterialDesign.h"
 #include "Renderer/Renderer.h"
+#include "Systems/Hierarchy_S.h"
 #include "UI/Field.h"
+#include "UI/IconsMaterialDesign.h"
 #include "UI/Scoped.h"
 #include "UI/UITheme.h"
 #include "World.h"
@@ -34,7 +34,9 @@ void sortByName(entt::registry& reg, std::vector<entt::entity>& entities)
                   const std::string& na = reg.get<Name_C>(a).name_;
                   const std::string& nb = reg.get<Name_C>(b).name_;
                   return std::lexicographical_compare(
-                      na.begin(), na.end(), nb.begin(), nb.end(), [](char x, char y) {
+                      na.begin(), na.end(), nb.begin(), nb.end(),
+                      [](char x, char y)
+                      {
                           return std::tolower(static_cast<unsigned char>(x)) <
                                  std::tolower(static_cast<unsigned char>(y));
                       });
@@ -109,8 +111,8 @@ void acceptRootDrop(entt::registry& reg)
     const ImRect inner = tree->InnerRect;
     if (!ImGui::BeginDragDropTargetCustom(inner, tree->GetID("##sceneRoot")))
         return;
-    constexpr ImGuiDragDropFlags flags =
-        ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect;
+    constexpr ImGuiDragDropFlags flags = ImGuiDragDropFlags_AcceptBeforeDelivery |
+                                         ImGuiDragDropFlags_AcceptNoDrawDefaultRect;
     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kEntityPayload, flags))
     {
         if (payload->Preview)
@@ -161,8 +163,8 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selecti
     const bool hasChildren = hc && hc->firstChild != entt::null;
     const EntityHandle primary = selection.primary();
     const bool selected = selection.contains(h);
-    const bool onSelectedPath =
-        selected || (primary.valid() && Hierarchy_S::isDescendantOf(primary, h));
+    const bool onSelectedPath = selected ||
+                                (primary.valid() && Hierarchy_S::isDescendantOf(primary, h));
 
     // The spaces hold the glyph's place: it is painted separately, in the
     // kind's colour, and left in the label it would be drawn twice.
@@ -346,8 +348,8 @@ void ScenePanel::draw(World& world, App& app, Selection& selection, float bottom
 
     if (pendingRange_)
     {
-        const auto from = std::find(rowOrder_.begin(), rowOrder_.end(),
-                                    selection.primary().entity_);
+        const auto from =
+            std::find(rowOrder_.begin(), rowOrder_.end(), selection.primary().entity_);
         const auto to = std::find(rowOrder_.begin(), rowOrder_.end(), pendingRange_->entity_);
         if (from != rowOrder_.end() && to != rowOrder_.end())
             for (auto it = std::min(from, to); it <= std::max(from, to); ++it)

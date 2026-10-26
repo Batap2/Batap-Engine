@@ -85,8 +85,7 @@ VulkanContext::VulkanContext()
                          .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
                          .select();
     if (!selection)
-        throw std::runtime_error("No Vulkan 1.3 compatible GPU" +
-                                 selection.error().message());
+        throw std::runtime_error("No Vulkan 1.3 compatible GPU" + selection.error().message());
 
     vkb::PhysicalDevice vkbPhysicalDevice = selection.value();
     physicalDevice_ = vkbPhysicalDevice.physical_device;

@@ -29,8 +29,8 @@ struct TerrainColliders
 
     // The terrain's frame in the world, and what its ground is made of: the
     // bodies already there follow.
-    void place(PhysicsWorld& physics, const v3d& origin, const quatd& rotation,
-               const v3f& velocity, const Surface& surface);
+    void place(PhysicsWorld& physics, const v3d& origin, const quatd& rotation, const v3f& velocity,
+               const Surface& surface);
     // The nodes of `level` within reach, by the boxes of `bounds`. Returns
     // those that have no body yet; a body out of reach for a while leaves.
     // `seconds` reads any clock.

@@ -1,8 +1,8 @@
 #include "DebugUtils.h"
 
 #if defined(_WIN32)
-  #include <windows.h>
-  #include <winerror.h>
+#include <windows.h>
+#include <winerror.h>
 #endif
 #include <source_location>
 #include <stdexcept>

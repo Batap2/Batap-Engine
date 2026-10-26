@@ -16,6 +16,6 @@ struct DebugShapeSlice
     uint32_t vertexCount_ = 0;
 };
 
-std::vector<DebugVertexGPUData> buildDebugWireframes(
-    std::array<DebugShapeSlice, DebugDraw::ShapeCount>& slices);
+std::vector<DebugVertexGPUData>
+buildDebugWireframes(std::array<DebugShapeSlice, DebugDraw::ShapeCount>& slices);
 }  // namespace batap

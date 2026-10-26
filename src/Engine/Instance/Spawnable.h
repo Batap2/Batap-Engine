@@ -37,7 +37,7 @@ std::string firstRefusal(const entt::registry& r, entt::entity e)
 {
     std::string why;
     // && stops at the first non-empty refusal.
-    (void)((why = ComponentAdmission<Cs>::refusal(r, e)).empty() && ...);
+    (void) ((why = ComponentAdmission<Cs>::refusal(r, e)).empty() && ...);
     return why;
 }
 
@@ -48,14 +48,17 @@ std::string firstRefusal(const entt::registry& r, entt::entity e)
 template <class Head, class... Rest>
 constexpr Spawnable spawnable(std::string_view id, const char* label, const char* icon)
 {
-    return {id, label, icon,
+    return {id,
+            label,
+            icon,
             +[](const entt::registry& r, entt::entity e) { return r.all_of<Head>(e); },
             +[](entt::registry& r, entt::entity e)
             {
                 r.emplace<Head>(e);
                 (r.emplace<Rest>(e), ...);
             },
-            +[](const entt::registry& r, entt::entity e) { return firstRefusal<Head, Rest...>(r, e); }};
+            +[](const entt::registry& r, entt::entity e)
+            { return firstRefusal<Head, Rest...>(r, e); }};
 }
 
 inline constexpr Spawnable Spawnables[] = {

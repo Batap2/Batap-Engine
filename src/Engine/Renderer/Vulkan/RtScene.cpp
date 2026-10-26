@@ -110,8 +110,8 @@ RtGeometryGPUData geometryRecord(VkDeviceAddress indices, VkDeviceAddress vertic
     return record;
 }
 
-void writeStorageBuffer(VkWriteDescriptorSet& write, VkDescriptorBufferInfo& info, VkDescriptorSet set,
-                        uint32_t binding, VkBuffer buffer)
+void writeStorageBuffer(VkWriteDescriptorSet& write, VkDescriptorBufferInfo& info,
+                        VkDescriptorSet set, uint32_t binding, VkBuffer buffer)
 {
     info = {buffer, 0, VK_WHOLE_SIZE};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -192,8 +192,8 @@ RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), re
     if (vkAllocateDescriptorSets(ctx_.device_, &setInfo, sets_.data()) != VK_SUCCESS)
         throw std::runtime_error("RtScene : descriptor sets");
 
-    cache_.keys_ =
-        resources_.createStaticBuffer(uint64_t{RtCacheCapacity} * sizeof(uint64_t), "gi cache keys");
+    cache_.keys_ = resources_.createStaticBuffer(uint64_t{RtCacheCapacity} * sizeof(uint64_t),
+                                                 "gi cache keys");
     cache_.values_ = resources_.createStaticBuffer(
         uint64_t{RtCacheCapacity} * sizeof(RtCacheValueGPUData), "gi cache values");
     constexpr uint64_t statsBytes = sizeof(uint32_t) * RtCacheStatCount * RtCacheStatsBuckets;
@@ -218,9 +218,8 @@ RtScene::CacheStats RtScene::addCacheStatsPass(RenderGraph& graph, GraphBuffer s
         stats.tailMiss_ += counters[RtCacheStatTailMiss * RtCacheStatsBuckets + bucket];
     }
 
-    const GraphBuffer readback = graph.importBuffer("gi cache stats readback", resources_,
-                                                    cache_.readback_[frame], Usage::None,
-                                                    Usage::None);
+    const GraphBuffer readback = graph.importBuffer(
+        "gi cache stats readback", resources_, cache_.readback_[frame], Usage::None, Usage::None);
     graph.addPass("gi cache stats")
         .read(statsBuffer, Usage::TransferSrc)
         .write(readback, Usage::TransferDst)
@@ -581,8 +580,9 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
         const VkDeviceAddress vertices = vertexPool + slot.vertex_ * sizeof(TerrainVertexGPUData);
         const VkDeviceAddress indices = indexPool + slot.index_ * sizeof(uint16_t);
         for (const StratumRange& range : slot.ranges_)
-            geometries.push_back(geometryRecord(indices + range.offset_ * sizeof(uint16_t), vertices,
-                                                sizeof(TerrainVertexGPUData), sizeof(uint16_t)));
+            geometries.push_back(geometryRecord(indices + range.offset_ * sizeof(uint16_t),
+                                                vertices, sizeof(TerrainVertexGPUData),
+                                                sizeof(uint16_t)));
     }
 
     HitTables& tables = hitTables_[frame];

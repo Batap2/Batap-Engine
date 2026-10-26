@@ -52,8 +52,7 @@ struct ShadowPass
     GPUResourceHandle buffer() const { return buffer_; }
 
    private:
-    void recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas,
-                     TerrainPass& terrain);
+    void recordAtlas(const PassContext& pass, const ShadowAtlasViews& atlas, TerrainPass& terrain);
 
     PassSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;

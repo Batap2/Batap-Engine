@@ -52,10 +52,9 @@ ImportResult importFile(std::string_view path, ImportOptions opts)
         if (decomp.ok)
         {
             out.kind = ImportResult::Kind::Decomposed;
-            for (const auto* written : {&decomp.bmeshPaths, &decomp.texturePaths,
-                                        &decomp.bmatPaths, &decomp.btplPaths})
-                out.writtenFiles.insert(out.writtenFiles.end(), written->begin(),
-                                        written->end());
+            for (const auto* written :
+                 {&decomp.bmeshPaths, &decomp.texturePaths, &decomp.bmatPaths, &decomp.btplPaths})
+                out.writtenFiles.insert(out.writtenFiles.end(), written->begin(), written->end());
         }
         else
         {

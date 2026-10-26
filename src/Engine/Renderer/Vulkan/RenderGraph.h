@@ -120,8 +120,8 @@ struct RenderGraph
     GraphImage importImage(std::string name, ResourceManager& resources, GPUResourceHandle image,
                            Usage in, Usage out);
     GraphBuffer importBuffer(std::string name, VkBuffer buffer, Usage in, Usage out);
-    GraphBuffer importBuffer(std::string name, ResourceManager& resources,
-                             GPUResourceHandle buffer, Usage in, Usage out);
+    GraphBuffer importBuffer(std::string name, ResourceManager& resources, GPUResourceHandle buffer,
+                             Usage in, Usage out);
 
     GraphPass& addPass(std::string name, GraphQueue queue = GraphQueue::Graphics);
 

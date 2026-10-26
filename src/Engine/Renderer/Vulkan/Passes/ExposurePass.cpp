@@ -20,13 +20,13 @@ namespace
 constexpr float kBrightenTau = 0.4f;
 constexpr float kDarkenTau = 1.5f;
 constexpr float kMiddleGrey = 0.18f;
-}
+}  // namespace
 
 ExposurePass::ExposurePass(const PassSetup& setup) : setup_(setup)
 {
     ResourceManager& resources = setup_.resources_;
-    grid_ = resources.createTarget(ExposureGridSize, ExposureGridSize,
-                                   ResourceFormat::R32G32_FLOAT, "exposure grid");
+    grid_ = resources.createTarget(ExposureGridSize, ExposureGridSize, ResourceFormat::R32G32_FLOAT,
+                                   "exposure grid");
     block_ = resources.createTarget(ExposureGridSize / ExposureReduceBlock,
                                     ExposureGridSize / ExposureReduceBlock,
                                     ResourceFormat::R32G32_FLOAT, "exposure block");
@@ -56,8 +56,7 @@ void ExposurePass::buildPipelines(const ShaderModules& modules)
     reducePipeline_ = build(modules[ExposureReducePS]);
 }
 
-float ExposurePass::update(uint32_t frame, entt::entity camera, const Camera_C& settings,
-                           float dt)
+float ExposurePass::update(uint32_t frame, entt::entity camera, const Camera_C& settings, float dt)
 {
     if (camera != camera_)
     {
@@ -80,10 +79,9 @@ float ExposurePass::update(uint32_t frame, entt::entity camera, const Camera_C& 
         if (sums[1] > 0.f)
         {
             const float averageLuminance = std::exp2(sums[0] / sums[1]);
-            const float target =
-                std::clamp(ev100ForExposure(kMiddleGrey / averageLuminance) -
-                               settings.exposureCompensation_,
-                           settings.minEv100_, std::max(settings.minEv100_, settings.maxEv100_));
+            const float target = std::clamp(
+                ev100ForExposure(kMiddleGrey / averageLuminance) - settings.exposureCompensation_,
+                settings.minEv100_, std::max(settings.minEv100_, settings.maxEv100_));
             const float tau = target > ev100_ ? kBrightenTau : kDarkenTau;
             ev100_ += (target - ev100_) * (1.f - std::exp(-dt / tau));
         }
@@ -106,8 +104,8 @@ void ExposurePass::addPasses(RenderGraph& graph, GraphImage hdr, const PassConte
     const GraphBuffer readback = graph.importBuffer("exposure readback", resources,
                                                     readback_[frame], Usage::None, Usage::None);
 
-    const auto draw = [&](const char* name, GraphImage source, GraphImage target,
-                          VkPipeline pipeline)
+    const auto draw =
+        [&](const char* name, GraphImage source, GraphImage target, VkPipeline pipeline)
     {
         graph.addPass(name)
             .read(source, Usage::ShaderRead)

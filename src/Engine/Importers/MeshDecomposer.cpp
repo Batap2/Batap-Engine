@@ -5,13 +5,13 @@
 
 #include "MeshDecomposer.h"
 
-#include "Shaders/ShaderInterop.h"
 #include "Assets/Texture.h"
 #include "Serialization/BmatSerializer.h"
 #include "Serialization/BmeshSerializer.h"
 #include "Serialization/BtexSerializer.h"
 #include "Serialization/EntityDesc.h"
 #include "Serialization/EntitySerializer.h"
+#include "Shaders/ShaderInterop.h"
 
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
@@ -42,7 +42,7 @@ namespace batap
 // texCache: source image path + color space -> .btex path (relative to baseDir)
 struct ImportCaches
 {
-    std::unordered_map<uint32_t, std::string>    matCache;
+    std::unordered_map<uint32_t, std::string> matCache;
     std::unordered_map<std::string, std::string> imgCache;
     std::unordered_map<std::string, std::string> texCache;
 };
@@ -66,7 +66,8 @@ static void pushRel(std::vector<std::string>& out, const fs::path& p, std::strin
 static std::string sanitizeName(std::string name)
 {
     for (char& c : name)
-        if (c == '/' || c == '\\' || c == ':') c = '_';
+        if (c == '/' || c == '\\' || c == ':')
+            c = '_';
     return name;
 }
 
@@ -133,11 +134,14 @@ static Material extractMaterial(const aiMaterial* aiMat)
         mat.albedo[3] = color.a;
     }
     float val;
-    if (aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, val) == AI_SUCCESS) mat.roughness = val;
-    if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR,  val) == AI_SUCCESS) mat.metallic  = val;
+    if (aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, val) == AI_SUCCESS)
+        mat.roughness = val;
+    if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR, val) == AI_SUCCESS)
+        mat.metallic = val;
 
     mat.reflectivity = 1.f;
-    if (aiMat->Get(AI_MATKEY_SPECULAR_FACTOR, val) == AI_SUCCESS) mat.reflectivity = val;
+    if (aiMat->Get(AI_MATKEY_SPECULAR_FACTOR, val) == AI_SUCCESS)
+        mat.reflectivity = val;
 
     return mat;
 }
@@ -156,7 +160,8 @@ static fs::path extractEmbeddedImage(const aiScene* scene, const std::string& ra
     std::string name = tex->mFilename.length > 0 ? std::string(tex->mFilename.C_Str())
                                                  : std::string();
     name = sanitizeName(fs::path(name).stem().string());
-    if (name.empty()) name = "embedded_" + std::to_string(idx);
+    if (name.empty())
+        name = "embedded_" + std::to_string(idx);
 
     fs::create_directories(subDir);
 
@@ -167,9 +172,11 @@ static fs::path extractEmbeddedImage(const aiScene* scene, const std::string& ra
         for (int i = 0; i < 4 && tex->achFormatHint[i] != '\0'; ++i)
         {
             const unsigned char c = static_cast<unsigned char>(tex->achFormatHint[i]);
-            if (std::isalnum(c)) ext += static_cast<char>(std::tolower(c));
+            if (std::isalnum(c))
+                ext += static_cast<char>(std::tolower(c));
         }
-        if (ext.empty()) ext = "png";
+        if (ext.empty())
+            ext = "png";
 
         fs::path out = subDir / (name + "." + ext);
         std::ofstream f(out, std::ios::binary);
@@ -217,7 +224,8 @@ static fs::path resolveSourceImage(const aiMaterial* aiMat, aiTextureType texTyp
 
     const std::string rawPath = aiTexPath.C_Str();
     auto it = caches.imgCache.find(rawPath);
-    if (it != caches.imgCache.end()) return fs::path(it->second);
+    if (it != caches.imgCache.end())
+        return fs::path(it->second);
 
     fs::path out;
     if (rawPath[0] == '*')
@@ -247,8 +255,8 @@ static std::pair<fs::path, fs::path> splitPackedORM(const fs::path& src, const f
     unsigned char* pixels = stbi_load(src.string().c_str(), &w, &h, &channels, 4);
     if (!pixels)
     {
-        std::cerr << "[MeshDecomposer] Cannot decode packed metallic-roughness texture: "
-                  << src << "\n";
+        std::cerr << "[MeshDecomposer] Cannot decode packed metallic-roughness texture: " << src
+                  << "\n";
         return {src, src};  // fall back to the packed image on both slots
     }
 
@@ -277,27 +285,29 @@ static std::string writeBtexFor(const fs::path& srcImgPath, const fs::path& subD
                                 std::string_view baseDir, TextureColorSpace colorSpace,
                                 ImportCaches& caches)
 {
-    if (srcImgPath.empty()) return "";
+    if (srcImgPath.empty())
+        return "";
 
-    const bool        isLinear = (colorSpace == TextureColorSpace::Linear);
-    const char*       suffix   = isLinear ? "_linear" : "";
+    const bool isLinear = (colorSpace == TextureColorSpace::Linear);
+    const char* suffix = isLinear ? "_linear" : "";
     const std::string key = srcImgPath.generic_string() + (isLinear ? "|linear" : "|srgb");
 
     auto it = caches.texCache.find(key);
-    if (it != caches.texCache.end()) return it->second;
+    if (it != caches.texCache.end())
+        return it->second;
 
     TextureDesc desc;
     desc.sourcePath = fs::relative(srcImgPath, baseDir).generic_string();
     desc.colorSpace = colorSpace;
-    desc.filter     = TextureFilter::Linear;
-    desc.wrapU      = TextureWrap::Repeat;
-    desc.wrapV      = TextureWrap::Repeat;
-    desc.mipLevels  = 0;  // auto full mip chain
+    desc.filter = TextureFilter::Linear;
+    desc.wrapU = TextureWrap::Repeat;
+    desc.wrapV = TextureWrap::Repeat;
+    desc.mipLevels = 0;  // auto full mip chain
 
     fs::path btexPath = subDir / (srcImgPath.stem().string() + suffix + ".btex");
     writeBtex(desc, btexPath.string());
 
-    std::string rel      = fs::relative(btexPath, baseDir).generic_string();
+    std::string rel = fs::relative(btexPath, baseDir).generic_string();
     caches.texCache[key] = rel;
     return rel;
 }
@@ -311,12 +321,13 @@ static std::string getOrWriteTexture(const aiMaterial* aiMat, aiTextureType texT
     return writeBtexFor(src, subDir, baseDir, colorSpace, caches);
 }
 
-static std::string getOrWriteMaterial(uint32_t matIdx, const aiScene* scene,
-                                       const fs::path& subDir, std::string_view baseDir,
-                                       const fs::path& sourceDir, ImportCaches& caches)
+static std::string getOrWriteMaterial(uint32_t matIdx, const aiScene* scene, const fs::path& subDir,
+                                      std::string_view baseDir, const fs::path& sourceDir,
+                                      ImportCaches& caches)
 {
     auto it = caches.matCache.find(matIdx);
-    if (it != caches.matCache.end()) return it->second;
+    if (it != caches.matCache.end())
+        return it->second;
 
     const aiMaterial* aiMat = scene->mMaterials[matIdx];
     aiString aiName;
@@ -327,58 +338,54 @@ static std::string getOrWriteMaterial(uint32_t matIdx, const aiScene* scene,
 
     Material mat = extractMaterial(aiMat);
     MaterialDesc desc;
-    desc.mat              = &mat;
+    desc.mat = &mat;
     // glTF reports base color on BASE_COLOR, OBJ/FBX on DIFFUSE — assimp's glTF2 loader
     // fills both, so either order works there.
-    desc.albedoTexPath    = getOrWriteTexture(aiMat, aiTextureType_BASE_COLOR, scene,
-                                              sourceDir, subDir, baseDir,
-                                              TextureColorSpace::SRGB, caches);
+    desc.albedoTexPath = getOrWriteTexture(aiMat, aiTextureType_BASE_COLOR, scene, sourceDir,
+                                           subDir, baseDir, TextureColorSpace::SRGB, caches);
     if (desc.albedoTexPath.empty())
-        desc.albedoTexPath = getOrWriteTexture(aiMat, aiTextureType_DIFFUSE, scene,
-                                               sourceDir, subDir, baseDir,
-                                               TextureColorSpace::SRGB, caches);
+        desc.albedoTexPath = getOrWriteTexture(aiMat, aiTextureType_DIFFUSE, scene, sourceDir,
+                                               subDir, baseDir, TextureColorSpace::SRGB, caches);
     // OBJ/MTL uses HEIGHT for bump maps; try NORMALS first then HEIGHT
-    desc.normalTexPath    = getOrWriteTexture(aiMat, aiTextureType_NORMALS, scene,
-                                              sourceDir, subDir, baseDir,
-                                              TextureColorSpace::Linear, caches);
+    desc.normalTexPath = getOrWriteTexture(aiMat, aiTextureType_NORMALS, scene, sourceDir, subDir,
+                                           baseDir, TextureColorSpace::Linear, caches);
     if (desc.normalTexPath.empty())
-        desc.normalTexPath = getOrWriteTexture(aiMat, aiTextureType_HEIGHT, scene,
-                                               sourceDir, subDir, baseDir,
-                                               TextureColorSpace::Linear, caches);
+        desc.normalTexPath = getOrWriteTexture(aiMat, aiTextureType_HEIGHT, scene, sourceDir,
+                                               subDir, baseDir, TextureColorSpace::Linear, caches);
 
     // Same source image on both slots = glTF's packed metallicRoughness texture.
-    const fs::path roughSrc = resolveSourceImage(aiMat, aiTextureType_DIFFUSE_ROUGHNESS,
-                                                 scene, sourceDir, subDir, caches);
-    const fs::path metalSrc = resolveSourceImage(aiMat, aiTextureType_METALNESS,
-                                                 scene, sourceDir, subDir, caches);
+    const fs::path roughSrc = resolveSourceImage(aiMat, aiTextureType_DIFFUSE_ROUGHNESS, scene,
+                                                 sourceDir, subDir, caches);
+    const fs::path metalSrc =
+        resolveSourceImage(aiMat, aiTextureType_METALNESS, scene, sourceDir, subDir, caches);
     if (!roughSrc.empty() && roughSrc == metalSrc)
     {
         auto [roughImg, metalImg] = splitPackedORM(roughSrc, subDir);
-        desc.roughnessTexPath = writeBtexFor(roughImg, subDir, baseDir,
-                                             TextureColorSpace::Linear, caches);
-        desc.metallicTexPath  = writeBtexFor(metalImg, subDir, baseDir,
-                                             TextureColorSpace::Linear, caches);
+        desc.roughnessTexPath =
+            writeBtexFor(roughImg, subDir, baseDir, TextureColorSpace::Linear, caches);
+        desc.metallicTexPath =
+            writeBtexFor(metalImg, subDir, baseDir, TextureColorSpace::Linear, caches);
     }
     else
     {
-        desc.roughnessTexPath = writeBtexFor(roughSrc, subDir, baseDir,
-                                             TextureColorSpace::Linear, caches);
-        desc.metallicTexPath  = writeBtexFor(metalSrc, subDir, baseDir,
-                                             TextureColorSpace::Linear, caches);
+        desc.roughnessTexPath =
+            writeBtexFor(roughSrc, subDir, baseDir, TextureColorSpace::Linear, caches);
+        desc.metallicTexPath =
+            writeBtexFor(metalSrc, subDir, baseDir, TextureColorSpace::Linear, caches);
     }
 
     fs::path matPath = subDir / (name + ".bmat");
     writeBmat(desc, matPath.string());
 
-    std::string rel        = fs::relative(matPath, baseDir).generic_string();
+    std::string rel = fs::relative(matPath, baseDir).generic_string();
     caches.matCache[matIdx] = rel;
     return rel;
 }
 
 static void processNode(const aiNode* node, const aiScene* scene, const fs::path& subDir,
                         std::string_view baseDir, const fs::path& sourceDir,
-                        std::vector<EntityDesc>& entities,
-                        int parentIndex, DecomposeResult& result, ImportCaches& caches)
+                        std::vector<EntityDesc>& entities, int parentIndex, DecomposeResult& result,
+                        ImportCaches& caches)
 {
     aiVector3D pos, scale;
     aiQuaternion rot;
@@ -419,8 +426,7 @@ static void processNode(const aiNode* node, const aiScene* scene, const fs::path
         {
             const aiMesh* m = scene->mMeshes[node->mMeshes[i]];
             matDesc.paths[i] =
-                getOrWriteMaterial(m->mMaterialIndex, scene, subDir, baseDir, sourceDir,
-                                   caches);
+                getOrWriteMaterial(m->mMaterialIndex, scene, subDir, baseDir, sourceDir, caches);
         }
         desc.components.push_back(matDesc);
     }
@@ -509,8 +515,7 @@ DecomposeResult decomposeSourceFile(std::string_view sourcePath, std::string_vie
     fs::path sourceDir = fs::path(sourcePath).parent_path();
     std::vector<EntityDesc> entities;
     ImportCaches caches;
-    processNode(scene->mRootNode, scene, subDir, baseDir, sourceDir, entities, -1, result,
-                caches);
+    processNode(scene->mRootNode, scene, subDir, baseDir, sourceDir, entities, -1, result, caches);
     for (auto& [idx, rel] : caches.matCache)
         result.bmatPaths.push_back(rel);
     for (auto& [texKey, rel] : caches.texCache)

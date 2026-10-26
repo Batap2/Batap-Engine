@@ -6,23 +6,27 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "Game.h"
-#include "GameModuleLoader.h"
-#include "EditorIcons.h"
-#include "UI/UIPanels.h"
-#include "UI/UITheme.h"
-#include "FileDialog.h"
-#include "World.h"
 #include "Components/Camera_C.h"
 #include "Components/FreeCamController_C.h"
+#include "EditorIcons.h"
 #include "EigenTypes.h"
+#include "FileDialog.h"
+#include "Game.h"
+#include "GameModuleLoader.h"
+#include "UI/UIPanels.h"
+#include "UI/UITheme.h"
+#include "World.h"
 
 namespace batap
 {
 struct Engine;
 struct AssetManager;
 
-enum class AppState { SelectProject, Running };
+enum class AppState
+{
+    SelectProject,
+    Running
+};
 
 struct App
 {
@@ -69,14 +73,14 @@ struct App
     std::string scenePath_;
 
     Engine* ctx_ = nullptr;
-    World*   world_ = nullptr;
+    World* world_ = nullptr;
     AssetManager* assetManager_ = nullptr;
 
     UIPanels uiPanels_;
     EditorIcons editorIcons_;
 
-    AppState             state_ = AppState::SelectProject;
-    std::string          projectDir_;
+    AppState state_ = AppState::SelectProject;
+    std::string projectDir_;
     std::vector<std::string> recentProjects_;
 
     FileDialogMsgBus fileDialogMsgBus_;

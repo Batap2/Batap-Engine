@@ -26,13 +26,13 @@ struct Transform_C
     m4f worldMatrix() const { return world_.matrix(); }
     m4f localMatrix() const { return local_.matrix(); }
 
-    const v3f&   pos()   const { return localPosition_; }
-    const quatf& rot()   const { return localRotation_; }
-    const v3f&   scale() const { return localScale_; }
+    const v3f& pos() const { return localPosition_; }
+    const quatf& rot() const { return localRotation_; }
+    const v3f& scale() const { return localScale_; }
 
-    v3f   worldPos()   const { return world_.translation(); }
-    quatf worldRot()   const { return extractWorldRotation(world_); }
-    v3f   worldScale() const;
+    v3f worldPos() const { return world_.translation(); }
+    quatf worldRot() const { return extractWorldRotation(world_); }
+    v3f worldScale() const;
 
     // No constructor for entt
     static Transform_C fromPosRotScale(v3f pos, quatf rot, v3f scale)
@@ -40,7 +40,7 @@ struct Transform_C
         Transform_C t;
         t.localPosition_ = pos;
         t.localRotation_ = rot;
-        t.localScale_    = scale;
+        t.localScale_ = scale;
         return t;
     }
 

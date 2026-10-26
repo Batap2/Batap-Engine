@@ -46,8 +46,7 @@ int runEditor(const EditorConfig& cfg)
             {
                 // Headless re-import for scripts: rewrites the engine files next
                 // to the source (give --project first) and exits.
-                const ImportResult result =
-                    importFile(args[i + 1], ImportOptions{app.projectDir_});
+                const ImportResult result = importFile(args[i + 1], ImportOptions{app.projectDir_});
                 for (const std::string& file : result.writtenFiles)
                     std::cout << "[Import] " << file << "\n";
                 if (!result)

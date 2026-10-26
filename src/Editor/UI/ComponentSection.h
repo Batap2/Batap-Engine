@@ -77,7 +77,7 @@ struct ComponentSection
 
     explicit operator bool() const { return open_; }
 
-    ComponentSection(const ComponentSection&)            = delete;
+    ComponentSection(const ComponentSection&) = delete;
     ComponentSection& operator=(const ComponentSection&) = delete;
 
    private:

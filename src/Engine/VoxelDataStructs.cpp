@@ -46,8 +46,8 @@
 // 							chunkPos.y * GRID_SIZE + localPos.y,
 // 							chunkPos.z * GRID_SIZE + localPos.z
 // 						};
-// 						if (voxelPos.x >= minPos.x && voxelPos.y >= minPos.y && voxelPos.z >= minPos.z &&
-// 							voxelPos.x <= maxPos.x && voxelPos.y <= maxPos.y && voxelPos.z <= maxPos.z) {
+// 						if (voxelPos.x >= minPos.x && voxelPos.y >= minPos.y && voxelPos.z >=
+// minPos.z && 							voxelPos.x <= maxPos.x && voxelPos.y <= maxPos.y && voxelPos.z <= maxPos.z) {
 // 							result.push_back(voxel);
 // 						}
 // 					}

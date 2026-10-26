@@ -23,8 +23,8 @@ namespace
 struct ReflProbeTest
 {
     float alpha = 0.f;
-    bool beta_ = false;        // trailing '_' must be stripped
-    std::string gamma_;        // member with non-trivial ctor
+    bool beta_ = false;  // trailing '_' must be stripped
+    std::string gamma_;  // member with non-trivial ctor
 };
 static_assert(refl::fieldCount<ReflProbeTest>() == 3);
 static_assert(refl::fieldName<ReflProbeTest, 0>() == "alpha");
@@ -43,8 +43,7 @@ ComponentRegistry& ComponentRegistry::instance()
 
 void ComponentRegistry::add(ComponentType type)
 {
-    ThrowAssert(find(type.name) == nullptr,
-                "component registered twice: " + type.name);
+    ThrowAssert(find(type.name) == nullptr, "component registered twice: " + type.name);
     types_.push_back(std::move(type));
 }
 
@@ -153,9 +152,7 @@ void setVec3(const char* typeName)
         out = {v.x(), v.y(), v.z()};
     };
     slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO&)
-    {
-        *static_cast<M*>(f) = M{in[0].get<float>(), in[1].get<float>(), in[2].get<float>()};
-    };
+    { *static_cast<M*>(f) = M{in[0].get<float>(), in[1].get<float>(), in[2].get<float>()}; };
 }
 }  // namespace
 

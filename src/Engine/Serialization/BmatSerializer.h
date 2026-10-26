@@ -12,7 +12,7 @@ namespace batap
 // Empty string = no texture assigned.
 struct MaterialDesc
 {
-    Material*   mat = nullptr; // non-owning, must outlive the desc
+    Material* mat = nullptr;  // non-owning, must outlive the desc
     std::string albedoTexPath;
     std::string normalTexPath;
     std::string roughnessTexPath;
@@ -21,7 +21,7 @@ struct MaterialDesc
 
 struct MaterialFileData
 {
-    Material    mat;
+    Material mat;
     std::string albedoTexPath;
     std::string normalTexPath;
     std::string roughnessTexPath;

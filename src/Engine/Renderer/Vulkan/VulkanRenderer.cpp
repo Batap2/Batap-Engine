@@ -73,9 +73,8 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
         while (begin <= list.size())
         {
             const size_t comma = list.find(',', begin);
-            const std::string item = list.substr(begin, comma == std::string::npos
-                                                            ? std::string::npos
-                                                            : comma - begin);
+            const std::string item =
+                list.substr(begin, comma == std::string::npos ? std::string::npos : comma - begin);
             if (!item.empty())
                 dumpFrames_.push_back(std::strtoull(item.c_str(), nullptr, 10));
             if (comma == std::string::npos)
@@ -532,8 +531,8 @@ void Renderer::render()
     auto swapchainBarrier = [&](Usage from, Usage to)
     { BarrierBatch{}.image(swapchain_.images_[imageIndex], from, to, colorRange()).flush(cmd); };
 
-    const bool dumpThisFrame =
-        std::find(dumpFrames_.begin(), dumpFrames_.end(), frameCounter_) != dumpFrames_.end();
+    const bool dumpThisFrame = std::find(dumpFrames_.begin(), dumpFrames_.end(), frameCounter_) !=
+                               dumpFrames_.end();
     if (dumpThisFrame)
     {
         swapchainBarrier(Usage::ColorAttachment, Usage::TransferSrc);

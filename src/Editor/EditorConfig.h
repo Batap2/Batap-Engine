@@ -11,7 +11,7 @@ namespace batap
 {
 struct WindowDesc;
 struct EngineSettings;
-}
+}  // namespace batap
 
 namespace batap::editorConfig
 {

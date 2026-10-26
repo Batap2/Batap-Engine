@@ -13,7 +13,6 @@
 #include "Spatial/Ray.h"
 #include "ViewRect.h"
 
-
 #include <emhash/hash_table8.hpp>
 #include <entt/entt.hpp>
 

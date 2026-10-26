@@ -151,8 +151,7 @@ std::vector<uint8_t> ShaderCompiler::compile(const std::string& hlslPath, const 
     const std::wstring wTarget = widen(target);
     // The default include handler resolves against the working directory, so
     // without -I an include next to the source is not found.
-    const std::wstring wIncludeDir =
-        widen(std::filesystem::path(hlslPath).parent_path().string());
+    const std::wstring wIncludeDir = widen(std::filesystem::path(hlslPath).parent_path().string());
 
     const std::wstring wDefine = define ? widen(define) : std::wstring();
 

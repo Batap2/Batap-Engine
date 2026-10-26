@@ -2,14 +2,14 @@
 
 #include "AssetManager.h"
 #include "Engine.h"
-#include "Shaders/ShaderInterop.h"
 #include "Mesh.h"
-#include "Texture.h"
 #include "Renderer/ResourceManager.h"
 #include "Renderer/SkyIrradiance.h"
 #include "Serialization/BmatSerializer.h"
 #include "Serialization/BmeshSerializer.h"
 #include "Serialization/BtexSerializer.h"
+#include "Shaders/ShaderInterop.h"
+#include "Texture.h"
 #include "Utils/UIDGenerator.h"
 
 #include <algorithm>
@@ -115,20 +115,25 @@ static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& 
             const uint32_t i1 = data->indices[i + 1];
             const uint32_t i2 = data->indices[i + 2];
 
-            const v3f e1  = data->vertices[i1] - data->vertices[i0];
-            const v3f e2  = data->vertices[i2] - data->vertices[i0];
-            const v2f d1  = data->uvs[i1] - data->uvs[i0];
-            const v2f d2  = data->uvs[i2] - data->uvs[i0];
+            const v3f e1 = data->vertices[i1] - data->vertices[i0];
+            const v3f e2 = data->vertices[i2] - data->vertices[i0];
+            const v2f d1 = data->uvs[i1] - data->uvs[i0];
+            const v2f d2 = data->uvs[i2] - data->uvs[i0];
 
             const float det = d1.x() * d2.y() - d1.y() * d2.x();
-            if (std::abs(det) < 1e-8f) continue;
+            if (std::abs(det) < 1e-8f)
+                continue;
             const float f = 1.0f / det;
 
             const v3f T = (e1 * d2.y() - e2 * d1.y()) * f;
             const v3f B = (e2 * d1.x() - e1 * d2.x()) * f;
 
-            tanSum[i0] += T; tanSum[i1] += T; tanSum[i2] += T;
-            biSum[i0]  += B; biSum[i1]  += B; biSum[i2]  += B;
+            tanSum[i0] += T;
+            tanSum[i1] += T;
+            tanSum[i2] += T;
+            biSum[i0] += B;
+            biSum[i1] += B;
+            biSum[i2] += B;
         }
 
         for (size_t i = 0; i < vcount; ++i)
@@ -166,8 +171,7 @@ static bool buildMesh(const std::string& key, AssetManager& assetManager, Mesh& 
     return true;
 }
 
-static std::optional<AssetHandleAny> loadMesh(std::string_view relPath,
-                                              AssetManager& assetManager)
+static std::optional<AssetHandleAny> loadMesh(std::string_view relPath, AssetManager& assetManager)
 {
     const std::string key = std::string(relPath);
     if (auto existing = assetManager.getHandle<Mesh>(key))
@@ -227,8 +231,8 @@ static bool buildTexture(const std::string& key, AssetManager& assetManager, boo
     // decode image — force RGBA; HDR files use float per channel
     const bool isHdr = (extractExtension(desc.sourcePath) == "hdr");
     int w, h, channels;
-    float*    hdrPixels = nullptr;
-    uint8_t*  ldrPixels = nullptr;
+    float* hdrPixels = nullptr;
+    uint8_t* ldrPixels = nullptr;
 
     if (isHdr)
         hdrPixels = stbi_loadf(absSource.c_str(), &w, &h, &channels, 4);
@@ -237,24 +241,25 @@ static bool buildTexture(const std::string& key, AssetManager& assetManager, boo
 
     if (!hdrPixels && !ldrPixels)
     {
-        std::cerr << "[AssetLoader] stbi_load failed: " << absSource << " — " << stbi_failure_reason() << "\n";
+        std::cerr << "[AssetLoader] stbi_load failed: " << absSource << " — "
+                  << stbi_failure_reason() << "\n";
         return false;
     }
 
-    const uint32_t       bytesPerPixel = isHdr ? 16u : 4u;
-    const ResourceFormat resFmt        = isHdr ? ResourceFormat::R32G32B32A32_FLOAT
-                                                : ResourceFormat::R8G8B8A8_UNORM;
+    const uint32_t bytesPerPixel = isHdr ? 16u : 4u;
+    const ResourceFormat resFmt = isHdr ? ResourceFormat::R32G32B32A32_FLOAT
+                                        : ResourceFormat::R8G8B8A8_UNORM;
 
     auto* rm = assetManager.resourceManager_;
     const std::string prefix = key + "_" + std::to_string(next_uid64());
 
     // GPU resource + SRV (slot bindless)
     const auto gpuTex = rm->createImage2D(static_cast<uint32_t>(w), static_cast<uint32_t>(h),
-                                            resFmt, prefix + "_tex");
+                                          resFmt, prefix + "_tex");
 
     // The staging span is tightly packed, same layout as the decoded pixels
-    auto span = rm->requestTextureUpload(gpuTex, static_cast<uint32_t>(w),
-                                              static_cast<uint32_t>(h), resFmt);
+    auto span = rm->requestTextureUpload(gpuTex, static_cast<uint32_t>(w), static_cast<uint32_t>(h),
+                                         resFmt);
     const void* srcBytes = isHdr ? static_cast<const void*>(hdrPixels)
                                  : static_cast<const void*>(ldrPixels);
     std::memcpy(span.data(), srcBytes, span.size());
@@ -268,13 +273,13 @@ static bool buildTexture(const std::string& key, AssetManager& assetManager, boo
 
     // build runtime Texture
     tex = Texture{};
-    tex.bindlessIndex_    = rm->textureIndex(gpuTex);
-    tex.gpu_              = gpuTex;
-    tex.format_     = resFmt;
-    tex.colorSpace_    = isHdr ? TextureColorSpace::Linear : TextureColorSpace::SRGB;
-    tex.sizeX_         = static_cast<uint32_t>(w);
-    tex.sizeY_         = static_cast<uint32_t>(h);
-    tex.irradianceSH_  = hdriSH;
+    tex.bindlessIndex_ = rm->textureIndex(gpuTex);
+    tex.gpu_ = gpuTex;
+    tex.format_ = resFmt;
+    tex.colorSpace_ = isHdr ? TextureColorSpace::Linear : TextureColorSpace::SRGB;
+    tex.sizeX_ = static_cast<uint32_t>(w);
+    tex.sizeY_ = static_cast<uint32_t>(h);
+    tex.irradianceSH_ = hdriSH;
 
     return true;
 }
@@ -299,8 +304,7 @@ static std::optional<AssetHandleAny> loadTexture(std::string_view relPath,
 
 // Materials keep a bindless index, not a handle, so nothing else would move them
 // onto the image a reload just created.
-static void remapMaterialTexture(AssetManager& assetManager, uint32_t oldIndex,
-                                 uint32_t newIndex)
+static void remapMaterialTexture(AssetManager& assetManager, uint32_t oldIndex, uint32_t newIndex)
 {
     auto* arena = assetManager.getGPUArena<Material>();
     arena->forEach(
@@ -352,8 +356,7 @@ static bool reloadTexture(const std::string& key, AssetManager& assetManager, bo
     return true;
 }
 
-static std::optional<Material> buildMaterial(const std::string& key,
-                                             AssetManager& assetManager)
+static std::optional<Material> buildMaterial(const std::string& key, AssetManager& assetManager)
 {
     namespace fs = std::filesystem;
     const std::string absPath = (fs::path(assetManager.baseDir()) / key).string();
@@ -370,20 +373,23 @@ static std::optional<Material> buildMaterial(const std::string& key,
     // Resolve texture paths → bindless index.
     // Falls back to white texture (neutral multiplier) when path is empty or load fails.
     auto resolveTexIdx = [&](const std::string& texPath,
-                             const std::string& fallbackKey = "__default_white") -> uint32_t {
-        auto* fallbackTex       = assetManager.get<Texture>(fallbackKey);
+                             const std::string& fallbackKey = "__default_white") -> uint32_t
+    {
+        auto* fallbackTex = assetManager.get<Texture>(fallbackKey);
         const uint32_t fallback = fallbackTex ? fallbackTex->bindlessIndex_ : 0xFFFFFFFFu;
-        if (texPath.empty()) return fallback;
+        if (texPath.empty())
+            return fallback;
         const bool isBtex = (extractExtension(texPath) == "btex");
-        if (!loadTexture(texPath, assetManager, isBtex)) return fallback;
+        if (!loadTexture(texPath, assetManager, isBtex))
+            return fallback;
         auto* tex = assetManager.get<Texture>(texPath);
         return tex ? tex->bindlessIndex_ : fallback;
     };
 
-    mat.albedoTexIdx_    = resolveTexIdx(data->albedoTexPath);
-    mat.normalTexIdx_    = resolveTexIdx(data->normalTexPath, "__default_flat_normal");
+    mat.albedoTexIdx_ = resolveTexIdx(data->albedoTexPath);
+    mat.normalTexIdx_ = resolveTexIdx(data->normalTexPath, "__default_flat_normal");
     mat.roughnessTexIdx_ = resolveTexIdx(data->roughnessTexPath);
-    mat.metallicTexIdx_  = resolveTexIdx(data->metallicTexPath);
+    mat.metallicTexIdx_ = resolveTexIdx(data->metallicTexPath);
 
     return mat;
 }
@@ -420,64 +426,61 @@ static bool reloadMaterial(const std::string& key, AssetManager& assetManager)
 void createDefaultAssets(const Engine& ctx)
 {
     auto& assetManager = *ctx.assetManager_;
-    auto* rm           = assetManager.resourceManager_;
+    auto* rm = assetManager.resourceManager_;
 
     // ---- 1×1 white RGBA texture ----
     static constexpr uint8_t kWhite[4] = {255, 255, 255, 255};
-    const std::string texKey            = "__default_white";
-    const std::string prefix            = texKey + "_" + std::to_string(next_uid64());
+    const std::string texKey = "__default_white";
+    const std::string prefix = texKey + "_" + std::to_string(next_uid64());
 
-    const auto whiteGpu = rm->createImage2D(1, 1, ResourceFormat::R8G8B8A8_UNORM,
-                                              prefix + "_tex");
+    const auto whiteGpu = rm->createImage2D(1, 1, ResourceFormat::R8G8B8A8_UNORM, prefix + "_tex");
 
-    auto span = rm->requestTextureUpload(whiteGpu, 1, 1,
-                                              ResourceFormat::R8G8B8A8_UNORM);
+    auto span = rm->requestTextureUpload(whiteGpu, 1, 1, ResourceFormat::R8G8B8A8_UNORM);
     std::memcpy(span.data(), kWhite, 4);
 
     Texture whiteTex{};
-    whiteTex.bindlessIndex_    = rm->textureIndex(whiteGpu);
-    whiteTex.gpu_              = whiteGpu;
-    whiteTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
-    whiteTex.sizeX_      = 1;
-    whiteTex.sizeY_      = 1;
+    whiteTex.bindlessIndex_ = rm->textureIndex(whiteGpu);
+    whiteTex.gpu_ = whiteGpu;
+    whiteTex.format_ = ResourceFormat::R8G8B8A8_UNORM;
+    whiteTex.sizeX_ = 1;
+    whiteTex.sizeY_ = 1;
     assetManager.emplace<Texture>("__default_white", texKey, whiteTex);
 
     // ---- 1×1 flat normal texture (128, 128, 255) → tangent-space (0,0,1) ----
     static constexpr uint8_t kFlatNormal[4] = {128, 128, 255, 255};
-    const std::string flatNrmKey    = "__default_flat_normal";
+    const std::string flatNrmKey = "__default_flat_normal";
     const std::string flatNrmPrefix = flatNrmKey + "_" + std::to_string(next_uid64());
 
-    const auto flatGpu = rm->createImage2D(1, 1, ResourceFormat::R8G8B8A8_UNORM,
-                                             flatNrmPrefix + "_tex");
+    const auto flatGpu =
+        rm->createImage2D(1, 1, ResourceFormat::R8G8B8A8_UNORM, flatNrmPrefix + "_tex");
 
-    auto flatSpan = rm->requestTextureUpload(flatGpu, 1, 1,
-                                                  ResourceFormat::R8G8B8A8_UNORM);
+    auto flatSpan = rm->requestTextureUpload(flatGpu, 1, 1, ResourceFormat::R8G8B8A8_UNORM);
     std::memcpy(flatSpan.data(), kFlatNormal, 4);
 
     Texture flatNrmTex{};
-    flatNrmTex.bindlessIndex_    = rm->textureIndex(flatGpu);
-    flatNrmTex.gpu_              = flatGpu;
-    flatNrmTex.format_     = ResourceFormat::R8G8B8A8_UNORM;
-    flatNrmTex.sizeX_      = 1;
-    flatNrmTex.sizeY_      = 1;
+    flatNrmTex.bindlessIndex_ = rm->textureIndex(flatGpu);
+    flatNrmTex.gpu_ = flatGpu;
+    flatNrmTex.format_ = ResourceFormat::R8G8B8A8_UNORM;
+    flatNrmTex.sizeX_ = 1;
+    flatNrmTex.sizeY_ = 1;
     assetManager.emplace<Texture>("__default_flat_normal", flatNrmKey, flatNrmTex);
 
     // ---- Default material — slot 0 in the GPU arena ----
     // Albedo/roughness/metallic → white (neutral ×1.0 multiplier).
     // Normal → flat normal (0,0,1 in tangent space = vertex normal passthrough).
-    const uint32_t whiteIdx   = whiteTex.bindlessIndex_;
+    const uint32_t whiteIdx = whiteTex.bindlessIndex_;
     const uint32_t flatNrmIdx = flatNrmTex.bindlessIndex_;
     Material defMat{};
-    defMat.albedo[0]        = 0.9f;
-    defMat.albedo[1]        = 0.9f;
-    defMat.albedo[2]        = 0.9f;
-    defMat.albedo[3]        = 1.0f;
-    defMat.roughness        = 0.5f;
-    defMat.metallic         = 0.0f;
-    defMat.albedoTexIdx_    = whiteIdx;
-    defMat.normalTexIdx_    = flatNrmIdx;
+    defMat.albedo[0] = 0.9f;
+    defMat.albedo[1] = 0.9f;
+    defMat.albedo[2] = 0.9f;
+    defMat.albedo[3] = 1.0f;
+    defMat.roughness = 0.5f;
+    defMat.metallic = 0.0f;
+    defMat.albedoTexIdx_ = whiteIdx;
+    defMat.normalTexIdx_ = flatNrmIdx;
     defMat.roughnessTexIdx_ = whiteIdx;
-    defMat.metallicTexIdx_  = whiteIdx;
+    defMat.metallicTexIdx_ = whiteIdx;
     assetManager.emplace<Material>("__default_material", "__default_material", defMat);
 
     Material unlitMat = defMat;
@@ -492,9 +495,12 @@ std::optional<AssetHandleAny> loadAsset(std::string_view path, AssetManager& ass
 {
     const auto ext = extractExtension(path);
 
-    if (ext == "bmesh") return loadMesh(path, assets);
-    if (ext == "bmat")  return loadMaterial(path, assets);
-    if (ext == "btex")  return loadTexture(path, assets, true);
+    if (ext == "bmesh")
+        return loadMesh(path, assets);
+    if (ext == "bmat")
+        return loadMaterial(path, assets);
+    if (ext == "btex")
+        return loadTexture(path, assets, true);
 
     if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "hdr")
         return loadTexture(path, assets, false);
@@ -509,9 +515,12 @@ std::optional<AssetHandleAny> loadAsset(std::string_view path, const Engine& ctx
 
 static bool reloadByKey(const std::string& key, std::string_view ext, AssetManager& assets)
 {
-    if (ext == "bmesh") return reloadMesh(key, assets);
-    if (ext == "bmat")  return reloadMaterial(key, assets);
-    if (ext == "btex")  return reloadTexture(key, assets, true);
+    if (ext == "bmesh")
+        return reloadMesh(key, assets);
+    if (ext == "bmat")
+        return reloadMaterial(key, assets);
+    if (ext == "btex")
+        return reloadTexture(key, assets, true);
 
     if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "hdr")
         return reloadTexture(key, assets, false);
@@ -528,8 +537,7 @@ bool reloadAsset(std::string_view path, AssetManager& assets)
     // sit in memory twice, once per separator. Both spellings are refreshed.
     std::string alt = key;
     const bool generic = alt.find('\\') == std::string::npos;
-    std::replace(alt.begin(), alt.end(), generic ? '/' : '\\',
-                 generic ? '\\' : '/');
+    std::replace(alt.begin(), alt.end(), generic ? '/' : '\\', generic ? '\\' : '/');
 
     bool reloaded = reloadByKey(key, ext, assets);
     if (alt != key)

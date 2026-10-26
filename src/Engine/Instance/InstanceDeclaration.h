@@ -44,7 +44,6 @@
 #include "Renderer/SkyIrradiance.h"
 #include "Shaders/ShaderInterop.h"
 
-
 #include "entt/entt.hpp"
 
 #include <algorithm>
@@ -246,11 +245,11 @@ struct LightInstance
             out.falloff_ = rect->falloff_;
             // The shader applies no cone when this is 0 or below.
             out.cosOuter_ = std::cos(std::clamp(rect->spreadAngle_, 0.f, 3.14159265f) * 0.5f);
-            out.shadowIndex_ = shadowIndexFor(
-                rect->castShadows_,
-                rect->spreadAngle_ <= RectShadowSingleViewMaxAngle ? ShadowLocalSingle
-                                                                   : ShadowLocalCube,
-                in.gpuIndex);
+            out.shadowIndex_ = shadowIndexFor(rect->castShadows_,
+                                              rect->spreadAngle_ <= RectShadowSingleViewMaxAngle
+                                                  ? ShadowLocalSingle
+                                                  : ShadowLocalCube,
+                                              in.gpuIndex);
             out.sourceRadius_ = 0.5f * std::hypot(rect->width_, rect->height_);
             if (trans)
             {

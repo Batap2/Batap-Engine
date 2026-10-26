@@ -4,15 +4,15 @@
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
-#include "Shaders/ShaderInterop.h"
 #include "Assets/Texture.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Skybox_C.h"
 #include "FileDialog.h"
-#include "Serialization/BmatSerializer.h"
 #include "Instance/InstanceManager.h"
 #include "Reflection/ComponentRegistry.h"
+#include "Serialization/BmatSerializer.h"
+#include "Shaders/ShaderInterop.h"
 #include "World.h"
 
 #include <imgui.h>
@@ -86,9 +86,8 @@ void AssetPickerPopup::openHdri(EntityHandle ent, const std::string& projectDir)
 }
 
 void AssetPickerPopup::openField(EntityHandle ent, const ComponentType& component,
-                                 const Field& field, AssetType type,
-                                 const std::string& projectDir, FieldElementFn element,
-                                 size_t elementIndex)
+                                 const Field& field, AssetType type, const std::string& projectDir,
+                                 FieldElementFn element, size_t elementIndex)
 {
     ent_ = ent;
     type_ = type;
@@ -121,7 +120,8 @@ void AssetPickerPopup::open(MaterialHandle mat, uint8_t channel, const std::stri
     pendingOpen_ = true;
 }
 
-static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel, uint32_t bindlessIndex)
+static void applyTexture(App& app, MaterialHandle matHandle, uint8_t channel,
+                         uint32_t bindlessIndex)
 {
     auto* mat = app.ctx_->assetManager_->get<Material>(matHandle);
     if (!mat)
@@ -176,16 +176,16 @@ bool applyToField(App& app, EntityHandle ent, const std::string& componentName, 
     switch (type)
     {
         case AssetType::Mesh:
-            *static_cast<MeshHandle*>(dst) =
-                picked ? std::get<MeshHandle>(*picked) : MeshHandle::null();
+            *static_cast<MeshHandle*>(dst) = picked ? std::get<MeshHandle>(*picked)
+                                                    : MeshHandle::null();
             break;
         case AssetType::Texture:
-            *static_cast<TextureHandle*>(dst) =
-                picked ? std::get<TextureHandle>(*picked) : TextureHandle::null();
+            *static_cast<TextureHandle*>(dst) = picked ? std::get<TextureHandle>(*picked)
+                                                       : TextureHandle::null();
             break;
         case AssetType::Material:
-            *static_cast<MaterialHandle*>(dst) =
-                picked ? std::get<MaterialHandle>(*picked) : MaterialHandle::null();
+            *static_cast<MaterialHandle*>(dst) = picked ? std::get<MaterialHandle>(*picked)
+                                                        : MaterialHandle::null();
             break;
     }
 
@@ -289,7 +289,8 @@ bool AssetPickerPopup::draw(App& app)
             {
                 // Assets are addressed by a project-relative path, so one saved
                 // outside the project would not resolve on the next load.
-                const auto rel = std::filesystem::relative(outPath, app.projectDir_).generic_string();
+                const auto rel =
+                    std::filesystem::relative(outPath, app.projectDir_).generic_string();
                 if (rel.empty() || rel.rfind("..", 0) == 0)
                     app.showToast("Material must be saved inside the project");
                 else if (writeBmat(Material{}, outPath))

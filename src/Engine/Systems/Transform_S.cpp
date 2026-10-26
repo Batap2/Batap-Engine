@@ -2,8 +2,8 @@
 
 #include "Components/EntityHandle.h"
 #include "Components/Hierarchy_C.h"
-#include "Systems/Hierarchy_S.h"
 #include "Instance/InstanceManager.h"
+#include "Systems/Hierarchy_S.h"
 
 #include "emhash/hash_set8.hpp"
 
@@ -350,7 +350,6 @@ bool Transform_S::flushDirty(entt::registry& reg, GPUInstanceManager& instanceMa
 
             const transform childPW = t.world_;
             const bool childParentDirty = dirtyHere;
-
 
             for (const auto ch : Hierarchy_S::children({&reg, it.e}))
             {

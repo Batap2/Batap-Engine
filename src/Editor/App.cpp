@@ -6,6 +6,7 @@
 #include "Components/Billboard_C.h"
 #include "Components/Camera_C.h"
 #include "Components/EditorOnly_C.h"
+#include "Components/Name_C.h"
 #include "Components/Transform_C.h"
 #include "EditorConfig.h"
 #include "Engine.h"
@@ -17,24 +18,21 @@
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
 #include "Systems/FreeCamController_S.h"
-#include "Components/Name_C.h"
 #include "Systems/Hierarchy_S.h"
 #include "UI/FieldUI.h"
 #include "UI/UIPanels.h"
 #include "UI/UITheme.h"
 #include "Utils/UIDGenerator.h"
 
-
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <cstdio>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <tuple>
-
 
 #if defined(_WIN32)
 // clang-format off
@@ -64,11 +62,25 @@ void extendWithSubtree(World& world, Engine& ctx, entt::entity e, AABB& box)
 
 auto camState(const v3f& pos, const FreeCamController_C& ctrl, const Camera_C& view)
 {
-    return std::tuple{pos.x(),          pos.y(),          pos.z(),          ctrl.yaw_,
-                      ctrl.pitch_,      ctrl.moveSpeed_,  ctrl.boostSpeed_, ctrl.mouseSensitivity_,
-                      ctrl.frame_.x(),  ctrl.frame_.y(),  ctrl.frame_.z(),  ctrl.frame_.w(),
-                      view.fov_,        view.znear_,      view.ev100_,      view.autoExposure_,
-                      view.exposureCompensation_,         view.minEv100_,   view.maxEv100_};
+    return std::tuple{pos.x(),
+                      pos.y(),
+                      pos.z(),
+                      ctrl.yaw_,
+                      ctrl.pitch_,
+                      ctrl.moveSpeed_,
+                      ctrl.boostSpeed_,
+                      ctrl.mouseSensitivity_,
+                      ctrl.frame_.x(),
+                      ctrl.frame_.y(),
+                      ctrl.frame_.z(),
+                      ctrl.frame_.w(),
+                      view.fov_,
+                      view.znear_,
+                      view.ev100_,
+                      view.autoExposure_,
+                      view.exposureCompensation_,
+                      view.minEv100_,
+                      view.maxEv100_};
 }
 
 editorConfig::Exposure exposureOf(const Camera_C& view)
@@ -88,8 +100,8 @@ void setExposure(Camera_C& view, const editorConfig::Exposure& exposure)
 
 auto exposureState(const Camera_C& view)
 {
-    return std::tuple{view.ev100_, view.autoExposure_, view.exposureCompensation_,
-                      view.minEv100_, view.maxEv100_};
+    return std::tuple{view.ev100_, view.autoExposure_, view.exposureCompensation_, view.minEv100_,
+                      view.maxEv100_};
 }
 }  // namespace
 
@@ -130,8 +142,8 @@ void App::focusEditorCamera(EntityHandle target)
     AABB box;
     extendWithSubtree(*world_, *ctx_, target.entity_, box);
     const v3f center = box.valid() ? box.center() : tc->worldPos();
-    const float radius =
-        box.valid() ? std::max(box.halfSize().norm(), kFocusMinRadius) : kFocusMinRadius;
+    const float radius = box.valid() ? std::max(box.halfSize().norm(), kFocusMinRadius)
+                                     : kFocusMinRadius;
 
     const float distance = radius / std::sin(cam.get<Camera_C>().fov_ * 0.5f);
     const v3f forward = cam.get<Transform_C>().rot() * -v3f::UnitZ();
@@ -241,15 +253,23 @@ void App::update()
         const char* who = tmpWho ? tmpWho : "Buggy";
         if (f == 100)
             uiPanels_.selectByName(*world_, who);
-        if (f == 150) { io.AddMousePosEvent(1094.f, 136.f); io.AddMouseButtonEvent(0, true); }
-        if (f == 152) io.AddMouseButtonEvent(0, false);
-        if (f == 154) io.AddMouseButtonEvent(0, true);
-        if (f == 156) io.AddMouseButtonEvent(0, false);
+        if (f == 150)
+        {
+            io.AddMousePosEvent(1094.f, 136.f);
+            io.AddMouseButtonEvent(0, true);
+        }
+        if (f == 152)
+            io.AddMouseButtonEvent(0, false);
+        if (f == 154)
+            io.AddMouseButtonEvent(0, true);
+        if (f == 156)
+            io.AddMouseButtonEvent(0, false);
         if (f >= 148 && f <= 175)
         {
             v3f pos = v3f::Zero();
             for (auto [e, n, tc] : world_->registry_.view<Name_C, Transform_C>().each())
-                if (n.name_ == who) pos = tc.pos();
+                if (n.name_ == who)
+                    pos = tc.pos();
             std::printf("TMP f%d active %u textInput %d pos %.6f %.6f %.6f\n", f,
                         ImGui::GetCurrentContext()->ActiveId, int(io.WantTextInput),
                         static_cast<double>(pos.x()), static_cast<double>(pos.y()),
@@ -401,10 +421,9 @@ void App::saveConfig()
     editorConfig::File file;
     file.theme = theme_;
     file.recent = recentProjects_;
-    file.camera = {editorCamCtrl_.moveSpeed_,        editorCamCtrl_.boostSpeed_,
-                   editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_,
-                   editorCamView_.znear_};
-    file.pose = {editorCamPos_,         editorCamCtrl_.yaw_,  editorCamCtrl_.pitch_,
+    file.camera = {editorCamCtrl_.moveSpeed_, editorCamCtrl_.boostSpeed_,
+                   editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_, editorCamView_.znear_};
+    file.pose = {editorCamPos_,         editorCamCtrl_.yaw_,        editorCamCtrl_.pitch_,
                  editorCamCtrl_.frame_, exposureOf(editorCamView_), !editorExposureFromScene_};
     file.hasPose = true;
 
@@ -421,9 +440,8 @@ void App::loadProjectCamera()
     // Seeded with the defaults just restored: a key the file does not carry
     // must come back as the component wrote it, not as a zero.
     editorConfig::File file;
-    file.camera = {editorCamCtrl_.moveSpeed_,        editorCamCtrl_.boostSpeed_,
-                   editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_,
-                   editorCamView_.znear_};
+    file.camera = {editorCamCtrl_.moveSpeed_, editorCamCtrl_.boostSpeed_,
+                   editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_, editorCamView_.znear_};
     editorConfig::read(file, projectDir_, {});
 
     editorCamCtrl_.moveSpeed_ = file.camera.moveSpeed;
@@ -444,8 +462,8 @@ void App::loadSceneCamera()
         return;
 
     editorConfig::File file;
-    file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_,
-                 editorCamCtrl_.frame_, exposureOf(editorCamView_)};
+    file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_, editorCamCtrl_.frame_,
+                 exposureOf(editorCamView_)};
     editorConfig::read(file, projectDir_, scene);
     editorExposureFromScene_ = !file.pose.hasExposure;
     if (!file.hasPose)

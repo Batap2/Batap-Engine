@@ -1,10 +1,9 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 #include "Bbox.h"
-
 
 // struct Voxel
 // {
@@ -38,5 +37,3 @@
 
 // 	void DEBUG_fill();
 // };
-
-

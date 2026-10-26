@@ -384,8 +384,9 @@ GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
-                      (depth ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-                             : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+                      (depth
+                           ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+                           : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     VmaAllocationCreateInfo allocInfo{};
@@ -500,8 +501,7 @@ std::span<std::byte> ResourceManager::requestPartialUpload(GPUResourceHandle des
     return {ptr, sizeBytes};
 }
 
-void ResourceManager::requestCopy(GPUResourceHandle dest, GPUResourceHandle src,
-                                  uint64_t sizeBytes)
+void ResourceManager::requestCopy(GPUResourceHandle dest, GPUResourceHandle src, uint64_t sizeBytes)
 {
     UploadRequest req{};
     req.dest = dest;
@@ -647,7 +647,7 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
 }
 
 void ResourceManager::recordBufferWrite(VkCommandBuffer cmd, GPUResourceHandle dest,
-                                       const void* data, uint64_t sizeBytes, uint64_t destOffset)
+                                        const void* data, uint64_t sizeBytes, uint64_t destOffset)
 {
     // vkCmdUpdateBuffer's spec limits.
     if (sizeBytes == 0 || sizeBytes > 65536 || sizeBytes % 4 != 0 || destOffset % 4 != 0)

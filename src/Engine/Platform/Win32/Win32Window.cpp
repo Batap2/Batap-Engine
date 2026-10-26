@@ -25,8 +25,8 @@
 #include "InputManager.h"
 #include "Renderer/Renderer.h"
 
-#include "imgui.h"
 #include "backends/imgui_impl_win32.h"
+#include "imgui.h"
 
 // Not declared by the backend header: the application is expected to forward
 // window messages to it itself.
@@ -199,11 +199,10 @@ void decodeEvent(InputManager& input, UINT message, WPARAM wParam, LPARAM lParam
             InputManager::MouseEvent e{};
             e.Type = InputManager::MouseEvent::Type::Click;
             e.KeyState = pressed ? KeyState::Pressed : KeyState::Released;
-            e.Button = (message == WM_LBUTTONDOWN || message == WM_LBUTTONUP)
-                           ? MouseButton::Left
-                           : (message == WM_RBUTTONDOWN || message == WM_RBUTTONUP)
-                                 ? MouseButton::Right
-                                 : MouseButton::Middle;
+            e.Button = (message == WM_LBUTTONDOWN || message == WM_LBUTTONUP) ? MouseButton::Left
+                       : (message == WM_RBUTTONDOWN || message == WM_RBUTTONUP)
+                           ? MouseButton::Right
+                           : MouseButton::Middle;
             e.ScreenPosition = input.MousePosition;
             input.feed(e);
             break;
@@ -322,8 +321,8 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             POINT pt{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
             ::ScreenToClient(hwnd, &pt);
 
-            const int border = ::GetSystemMetrics(SM_CYFRAME) +
-                               ::GetSystemMetrics(SM_CXPADDEDBORDER);
+            const int border =
+                ::GetSystemMetrics(SM_CYFRAME) + ::GetSystemMetrics(SM_CXPADDEDBORDER);
             if (pt.y < border)
                 return HTTOP;
 
@@ -369,20 +368,20 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 void registerWindowClass(HINSTANCE hInst, const wchar_t* className)
 {
     WNDCLASSEXW windowClass{};
-    windowClass.cbSize        = sizeof(WNDCLASSEXW);
-    windowClass.style         = CS_HREDRAW | CS_VREDRAW;
-    windowClass.lpfnWndProc   = &wndProc;
-    windowClass.hInstance     = hInst;
-    windowClass.hIcon         = ::LoadIconW(nullptr, nullptr);
+    windowClass.cbSize = sizeof(WNDCLASSEXW);
+    windowClass.style = CS_HREDRAW | CS_VREDRAW;
+    windowClass.lpfnWndProc = &wndProc;
+    windowClass.hInstance = hInst;
+    windowClass.hIcon = ::LoadIconW(nullptr, nullptr);
     // Unsuffixed: IDC_ARROW is an ANSI resource macro unless UNICODE is defined,
     // and the A/W distinction is meaningless for a stock system cursor.
-    windowClass.hCursor       = ::LoadCursor(nullptr, IDC_ARROW);
+    windowClass.hCursor = ::LoadCursor(nullptr, IDC_ARROW);
     // BLACK_BRUSH et pas COLOR_WINDOW : le bitmap de redirection DWM part
     // ainsi d'un alpha zéro, prérequis de la fenêtre transparente (et pour
     // une fenêtre opaque, un premier paint noir plutôt que blanc).
     windowClass.hbrBackground = static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH));
     windowClass.lpszClassName = className;
-    windowClass.hIconSm       = ::LoadIconW(nullptr, nullptr);
+    windowClass.hIconSm = ::LoadIconW(nullptr, nullptr);
 
     static ATOM atom = ::RegisterClassExW(&windowClass);
     assert(atom > 0 && "Failed to register window class");
@@ -393,14 +392,14 @@ void registerRawInputDevices(HWND hwnd)
     RAWINPUTDEVICE rid[2]{};
 
     rid[0].usUsagePage = 0x01;  // generic desktop
-    rid[0].usUsage     = 0x02;  // mouse
-    rid[0].dwFlags     = 0;
-    rid[0].hwndTarget  = hwnd;
+    rid[0].usUsage = 0x02;      // mouse
+    rid[0].dwFlags = 0;
+    rid[0].hwndTarget = hwnd;
 
     rid[1].usUsagePage = 0x01;
-    rid[1].usUsage     = 0x05;  // gamepad
-    rid[1].dwFlags     = 0;
-    rid[1].hwndTarget  = hwnd;
+    rid[1].usUsage = 0x05;  // gamepad
+    rid[1].dwFlags = 0;
+    rid[1].hwndTarget = hwnd;
 
     if (!::RegisterRawInputDevices(rid, 2, sizeof(RAWINPUTDEVICE)))
         std::cerr << "[Platform] Failed to register raw input devices.\n";
@@ -506,7 +505,8 @@ void platformMoveWindowToMonitor(void* nativeHandle, int screen)
 
     RECT window{};
     ::GetWindowRect(hwnd, &window);
-    const POINT at = centredOn(monitorOf(screen), window.right - window.left, window.bottom - window.top);
+    const POINT at =
+        centredOn(monitorOf(screen), window.right - window.left, window.bottom - window.top);
     ::SetWindowPos(hwnd, nullptr, at.x, at.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 
     if (maximized)
@@ -522,16 +522,17 @@ void* platformCreateWindow(const WindowDesc& desc)
 
     // WindowDesc is in logical units; DPI-aware Win32 wants pixels.
     const UINT dpi = ::GetDpiForSystem();
-    RECT windowRect{0, 0,
-                    ::MulDiv(static_cast<int>(desc.width), static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI),
-                    ::MulDiv(static_cast<int>(desc.height), static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI)};
+    RECT windowRect{
+        0, 0,
+        ::MulDiv(static_cast<int>(desc.width), static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI),
+        ::MulDiv(static_cast<int>(desc.height), static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI)};
     // No caption: the editor draws its own bar. WS_THICKFRAME keeps resizing,
     // snapping and the animations WS_POPUP alone loses.
-    constexpr DWORD kWindowStyle =
-        WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
+    constexpr DWORD kWindowStyle = WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
+                                   WS_SYSMENU;
     ::AdjustWindowRect(&windowRect, kWindowStyle, FALSE);
 
-    const int windowWidth  = windowRect.right - windowRect.left;
+    const int windowWidth = windowRect.right - windowRect.left;
     const int windowHeight = windowRect.bottom - windowRect.top;
 
     // Centred on the monitor the configuration names, the primary by default:
@@ -638,8 +639,7 @@ void platformShowWindow(void* nativeHandle, const WindowDesc& desc)
         return;
     }
     ::SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
-                   SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
-                       SWP_NOACTIVATE);
+                   SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     // Not activated: the focus stays where it was. Posted key messages reach
     // the window all the same.
     ::ShowWindow(hwnd, desc.focusOnShow ? SW_SHOW : SW_SHOWNOACTIVATE);
@@ -695,8 +695,8 @@ void platformSleepUntil(std::chrono::steady_clock::time_point target)
     // +1.5 us mean, p99 +78 us, for 0.73 ms of CPU per frame.
     static const HANDLE timer = []
     {
-        HANDLE t = ::CreateWaitableTimerExW(nullptr, nullptr,
-                                            CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+        HANDLE t = ::CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+                                            TIMER_ALL_ACCESS);
         return t ? t : ::CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
     }();
 

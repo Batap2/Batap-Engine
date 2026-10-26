@@ -1,7 +1,7 @@
 #include "AssetManager.h"
 
-#include "Shaders/ShaderInterop.h"
 #include "Mesh.h"
+#include "Shaders/ShaderInterop.h"
 #include "Texture.h"
 
 #include "AssetGPUArena.h"
@@ -24,11 +24,11 @@ void AssetManager::setBaseDir(std::string dir)
 
 AssetManager::AssetManager(ResourceManager* rm) : resourceManager_(rm)
 {
-    std::get<AssetSlotMap<Mesh>*>(maps_)    = new AssetSlotMap<Mesh>();
+    std::get<AssetSlotMap<Mesh>*>(maps_) = new AssetSlotMap<Mesh>();
     std::get<AssetSlotMap<Texture>*>(maps_) = new AssetSlotMap<Texture>();
 
-    std::get<AssetGPUArena<Material>*>(gpuArenas_) = new AssetGPUArena<Material>(
-        AssetGPUArena<Material>::create(*rm, 64, "MaterialArena"));
+    std::get<AssetGPUArena<Material>*>(gpuArenas_) =
+        new AssetGPUArena<Material>(AssetGPUArena<Material>::create(*rm, 64, "MaterialArena"));
 }
 
 std::string AssetManager::texturePathOf(uint32_t bindlessIndex) const
@@ -49,9 +49,11 @@ void AssetManager::saveAllAssets() const
     getGPUArena<Material>()->forEach(
         [&](AssetHandle<Material> key, const std::string& /*name*/, const std::string& relPath)
         {
-            if (relPath.empty() || isBuiltinAsset(relPath)) return;
+            if (relPath.empty() || isBuiltinAsset(relPath))
+                return;
             const auto* mat = getGPUArena<Material>()->get(key);
-            if (!mat) return;
+            if (!mat)
+                return;
 
             MaterialDesc desc;
             desc.mat = const_cast<Material*>(mat);

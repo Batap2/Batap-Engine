@@ -50,8 +50,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::shaders(VkShaderModule vs, VkS
 }
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::vertexAttribute(uint32_t location,
-                                                                  VkFormat format,
-                                                                  uint32_t stride)
+                                                                  VkFormat format, uint32_t stride)
 {
     VkVertexInputBindingDescription binding{};
     binding.binding = location;

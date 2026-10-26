@@ -148,8 +148,8 @@ void EntitySerializer::save(const std::vector<EntityDesc>& entities, const std::
     {
         nlohmann::json ej;
         ej["name"] = desc.name;
-        ej["parent"] =
-            desc.parentIndex >= 0 ? nlohmann::json(desc.parentIndex) : nlohmann::json(nullptr);
+        ej["parent"] = desc.parentIndex >= 0 ? nlohmann::json(desc.parentIndex)
+                                             : nlohmann::json(nullptr);
 
         auto& compsJ = ej["components"] = nlohmann::json::array();
         for (const auto& comp : desc.components)

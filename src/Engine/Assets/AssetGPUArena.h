@@ -49,9 +49,9 @@ struct AssetGPUArena
         return arena_.erase(k);
     }
 
-    bool          update(Key k, T v)       { return arena_.update(k, std::move(v)); }
-    const T*      get(Key k) const         { return arena_.get(k); }
-    bool          contains(Key k) const    { return arena_.contains(k); }
+    bool update(Key k, T v) { return arena_.update(k, std::move(v)); }
+    const T* get(Key k) const { return arena_.get(k); }
+    bool contains(Key k) const { return arena_.contains(k); }
     GPUResourceHandle bufferHandle() const { return arena_.bufferHandle(); }
 
     std::optional<Key> getKey(const std::string& path) const
@@ -99,10 +99,10 @@ struct AssetGPUArena
 
     using PairMap = std::unordered_map<std::pair<uint32_t, uint32_t>, std::string, PairHash>;
 
-    GPUArena<T, Key>                         arena_;
-    std::unordered_map<std::string, Key>     pathToKey_;
-    PairMap                                  keyToPath_;
-    PairMap                                  keyToName_;
+    GPUArena<T, Key> arena_;
+    std::unordered_map<std::string, Key> pathToKey_;
+    PairMap keyToPath_;
+    PairMap keyToName_;
 };
 
 }  // namespace batap

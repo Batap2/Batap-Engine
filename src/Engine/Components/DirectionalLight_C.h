@@ -23,8 +23,7 @@ struct ComponentAdmission<DirectionalLight_C>
     }
 };
 
-BATAP_COMPONENT(DirectionalLight_C, "directionalLight",
-                ComponentMeta{.color = ComponentColor::Orange},
-                fieldMeta<&DirectionalLight_C::intensity_>({.speed = 100.f, .min = 0.f,
-                                                            .max = 1e9f}));
+BATAP_COMPONENT(
+    DirectionalLight_C, "directionalLight", ComponentMeta{.color = ComponentColor::Orange},
+    fieldMeta<&DirectionalLight_C::intensity_>({.speed = 100.f, .min = 0.f, .max = 1e9f}));
 }  // namespace batap

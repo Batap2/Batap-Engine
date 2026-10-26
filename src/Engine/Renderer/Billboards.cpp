@@ -18,8 +18,8 @@ void Billboards::add(const Desc& desc)
     if (desc.orientation_ == Orientation::None)
         flags |= BillboardFixed;
 
-    records_.push_back({desc.pos_, desc.rot_, desc.size_, desc.tint_, desc.alpha_,
-                        desc.textureIdx_, desc.materialIdx_, flags, time_ + desc.seconds_});
+    records_.push_back({desc.pos_, desc.rot_, desc.size_, desc.tint_, desc.alpha_, desc.textureIdx_,
+                        desc.materialIdx_, flags, time_ + desc.seconds_});
 }
 
 BillboardQuad billboardQuad(const v3f& pos, const quatf& rot, const v2f& size,
@@ -47,8 +47,8 @@ BillboardQuad billboardQuad(const v3f& pos, const quatf& rot, const v2f& size,
         }
     }
 
-    const float scale =
-        sizeMode == Billboards::SizeMode::Screen ? dist * std::tan(cam.fov_ * 0.5f) : 0.5f;
+    const float scale = sizeMode == Billboards::SizeMode::Screen ? dist * std::tan(cam.fov_ * 0.5f)
+                                                                 : 0.5f;
 
     return {pos, right, up, size.x() * scale, size.y() * scale};
 }

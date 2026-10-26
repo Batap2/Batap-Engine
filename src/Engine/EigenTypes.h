@@ -28,7 +28,7 @@ using m2d = Eigen::Matrix2d;
 using m3d = Eigen::Matrix3d;
 using m4d = Eigen::Matrix4d;
 
-template<typename T, int R, int C>
+template <typename T, int R, int C>
 using MatRM = Eigen::Matrix<T, R, C, Eigen::RowMajor>;
 
 using m3f_rm = MatRM<float, 3, 3>;
@@ -36,8 +36,8 @@ using m4f_rm = MatRM<float, 4, 4>;
 using m3d_rm = MatRM<double, 3, 3>;
 using m4d_rm = MatRM<double, 4, 4>;
 
-using quatf      = Eigen::Quaternionf;
-using quatd      = Eigen::Quaterniond;
+using quatf = Eigen::Quaternionf;
+using quatd = Eigen::Quaterniond;
 
 // An RGB color. Distinct type on purpose: reflection keys serialization and
 // editor widgets on the field type, so `col3 tint_;` gets a color picker
@@ -50,40 +50,38 @@ struct col3 : v3f
 using angleaxisf = Eigen::AngleAxisf;
 using angleaxisd = Eigen::AngleAxisd;
 
-using affine3f   = Eigen::Affine3f;
+using affine3f = Eigen::Affine3f;
 using isometry3f = Eigen::Isometry3f;
-using affine3d   = Eigen::Affine3d;
+using affine3d = Eigen::Affine3d;
 using isometry3d = Eigen::Isometry3d;
 
 using transform = Eigen::Transform<float, 3, Eigen::Affine>;
 using transformd = Eigen::Transform<double, 3, Eigen::Affine>;
 
-using m4f_ref      = Eigen::Ref<m4f>;
-using m4f_cref     = Eigen::Ref<const m4f>;
-using v3f_ref      = Eigen::Ref<v3f>;
-using v3f_cref     = Eigen::Ref<const v3f>;
+using m4f_ref = Eigen::Ref<m4f>;
+using m4f_cref = Eigen::Ref<const m4f>;
+using v3f_ref = Eigen::Ref<v3f>;
+using v3f_cref = Eigen::Ref<const v3f>;
 
 inline m4f TRS(const v3f& translation, const quatf& rotation, const v3f& scale)
 {
     m4f m = m4f::Identity();
 
     // Rotation
-    m.block<3,3>(0,0) = rotation.normalized().toRotationMatrix();
+    m.block<3, 3>(0, 0) = rotation.normalized().toRotationMatrix();
 
     // Scale columns (Eigen column-major convention)
-    m.block<3,1>(0,0) *= scale.x();
-    m.block<3,1>(0,1) *= scale.y();
-    m.block<3,1>(0,2) *= scale.z();
+    m.block<3, 1>(0, 0) *= scale.x();
+    m.block<3, 1>(0, 1) *= scale.y();
+    m.block<3, 1>(0, 2) *= scale.z();
 
     // Translation
-    m.block<3,1>(0,3) = translation;
+    m.block<3, 1>(0, 3) = translation;
 
     return m;
 }
 
-inline transform TRS_Transform(const v3f& translation,
-                               const quatf& rotation,
-                               const v3f& scale)
+inline transform TRS_Transform(const v3f& translation, const quatf& rotation, const v3f& scale)
 {
     transform t = transform::Identity();
     t.linear() = rotation.normalized().toRotationMatrix() * scale.asDiagonal();

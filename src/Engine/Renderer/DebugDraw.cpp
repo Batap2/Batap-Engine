@@ -93,8 +93,8 @@ void DebugDraw::sphere(const v3f& center, float radius, const col3& color, float
 void DebugDraw::capsule(const transform& xform, float halfHeight, float radius, const col3& color,
                         float seconds)
 {
-    const transform top = xform * Eigen::Translation3f(0.f, halfHeight, 0.f) *
-                          Eigen::Scaling(radius, radius, radius);
+    const transform top =
+        xform * Eigen::Translation3f(0.f, halfHeight, 0.f) * Eigen::Scaling(radius, radius, radius);
     const transform bottom = xform * Eigen::Translation3f(0.f, -halfHeight, 0.f) *
                              Eigen::Scaling(radius, -radius, radius);
     const transform side = xform * Eigen::Scaling(radius, halfHeight, radius);

@@ -33,6 +33,6 @@ std::string SaveFileDialog(std::span<const FileDialogFilter> filters = {},
                            std::string_view defaultExtension = {});
 
 std::string OpenFolderDialog();
-void        OpenFolderDialogAsync(FileDialogMsgBus* bus, uint64_t id = 0);
+void OpenFolderDialogAsync(FileDialogMsgBus* bus, uint64_t id = 0);
 
 }  // namespace batap

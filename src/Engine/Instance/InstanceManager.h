@@ -226,7 +226,6 @@ struct InstancePools<TypeList<Instances...>>
     {
         std::apply([&](auto&... p) { (f(p), ...); }, pools_);
     }
-
 };
 
 // Assumes one rendering aspect per entity: holding two marker components would

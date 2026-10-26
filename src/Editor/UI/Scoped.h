@@ -13,7 +13,7 @@ struct ScopedID
     explicit ScopedID(int id) { ImGui::PushID(id); }
     ~ScopedID() { ImGui::PopID(); }
 
-    ScopedID(const ScopedID&)            = delete;
+    ScopedID(const ScopedID&) = delete;
     ScopedID& operator=(const ScopedID&) = delete;
 };
 
@@ -27,7 +27,7 @@ struct ScopedColor
     }
     ~ScopedColor() { ImGui::PopStyleColor(count_); }
 
-    ScopedColor(const ScopedColor&)            = delete;
+    ScopedColor(const ScopedColor&) = delete;
     ScopedColor& operator=(const ScopedColor&) = delete;
 
    private:
@@ -47,7 +47,7 @@ struct ScopedFont
             ImGui::PopFont();
     }
 
-    ScopedFont(const ScopedFont&)            = delete;
+    ScopedFont(const ScopedFont&) = delete;
     ScopedFont& operator=(const ScopedFont&) = delete;
 
    private:

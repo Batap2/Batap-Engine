@@ -397,13 +397,12 @@ static_assert(RtCacheCapacity % RtCacheResolveWidth == 0);
 template <class T>
 inline constexpr bool gpuStrideOk = sizeof(T) % 16 == 0;
 static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
-              gpuStrideOk<LightGPUData> && gpuStrideOk<Material> &&
-              gpuStrideOk<SkyboxGPUData> && gpuStrideOk<DebugVertexGPUData> &&
-              gpuStrideOk<DebugShapeGPUData> && gpuStrideOk<BillboardGPUData> &&
-              gpuStrideOk<ShadowGPUData> && gpuStrideOk<TerrainVertexGPUData> &&
-              gpuStrideOk<TerrainChunkGPUData> && gpuStrideOk<TerrainWorldGPUData> &&
-              gpuStrideOk<RtGeometryGPUData> && gpuStrideOk<RtInstanceGPUData> &&
-              gpuStrideOk<RtCacheValueGPUData>);
+              gpuStrideOk<LightGPUData> && gpuStrideOk<Material> && gpuStrideOk<SkyboxGPUData> &&
+              gpuStrideOk<DebugVertexGPUData> && gpuStrideOk<DebugShapeGPUData> &&
+              gpuStrideOk<BillboardGPUData> && gpuStrideOk<ShadowGPUData> &&
+              gpuStrideOk<TerrainVertexGPUData> && gpuStrideOk<TerrainChunkGPUData> &&
+              gpuStrideOk<TerrainWorldGPUData> && gpuStrideOk<RtGeometryGPUData> &&
+              gpuStrideOk<RtInstanceGPUData> && gpuStrideOk<RtCacheValueGPUData>);
 
 static_assert(offsetof(CameraGPUData, pos_) == 128 && offsetof(CameraGPUData, znear_) == 140);
 static_assert(offsetof(SkyboxGPUData, color1) == 160);

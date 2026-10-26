@@ -29,40 +29,44 @@ struct AssetPickerPopup
     // body's shape list): `element` maps the field's address and an index to
     // the handle inside it. It lives in the editor, so a game module reload
     // cannot leave it dangling.
-    using FieldElementFn = void* (*)(void* fieldPtr, size_t index);
+    using FieldElementFn = void* (*) (void* fieldPtr, size_t index);
     void openField(EntityHandle ent, const ComponentType& component, const Field& field,
-                   AssetType type, const std::string& projectDir,
-                   FieldElementFn element = nullptr, size_t elementIndex = 0);
+                   AssetType type, const std::string& projectDir, FieldElementFn element = nullptr,
+                   size_t elementIndex = 0);
     // True on the frame a pick or a clear was applied.
     bool draw(App& app);
 
-  private:
+   private:
     // Loads the asset at that path and assigns it to whatever opened the
     // picker. Shared by picking an existing file and creating a new one.
     bool applyPath(App& app, const std::filesystem::path& path);
     // Refills entries_ from projectDir_ + exts_, leaving the pick target alone.
     void rescan();
 
-    struct Entry { std::string name; std::filesystem::path path; };
+    struct Entry
+    {
+        std::string name;
+        std::filesystem::path path;
+    };
 
-    bool           pendingOpen_  = false;
-    bool           isHdriPick_   = false;
-    EntityHandle   ent_{};
-    AssetType      type_{AssetType::Mesh};
-    uint8_t        slotIndex_  = 0;
-    MaterialHandle matHandle_  = {};
-    uint8_t        texChannel_ = 0;  // 0=albedo 1=normal 2=roughness 3=metallic
+    bool pendingOpen_ = false;
+    bool isHdriPick_ = false;
+    EntityHandle ent_{};
+    AssetType type_{AssetType::Mesh};
+    uint8_t slotIndex_ = 0;
+    MaterialHandle matHandle_ = {};
+    uint8_t texChannel_ = 0;  // 0=albedo 1=normal 2=roughness 3=metallic
     // Field target: looked up by name and offset at apply time, so a hot
     // reload between opening and picking cannot leave a dangling pointer.
-    std::string    fieldComponent_;
-    size_t         fieldOffset_ = 0;
-    bool           isFieldPick_ = false;
+    std::string fieldComponent_;
+    size_t fieldOffset_ = 0;
+    bool isFieldPick_ = false;
     FieldElementFn fieldElement_ = nullptr;
-    size_t         fieldElementIndex_ = 0;
-    std::string        search_;
-    std::string              projectDir_;
+    size_t fieldElementIndex_ = 0;
+    std::string search_;
+    std::string projectDir_;
     std::vector<std::string> exts_;
-    std::vector<Entry>       entries_;
+    std::vector<Entry> entries_;
 };
 
 }  // namespace batap

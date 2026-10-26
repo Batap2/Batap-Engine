@@ -96,7 +96,7 @@ struct BeginFields
 
     explicit operator bool() const { return active_; }
 
-    BeginFields(const BeginFields&)            = delete;
+    BeginFields(const BeginFields&) = delete;
     BeginFields& operator=(const BeginFields&) = delete;
 
    private:
@@ -146,10 +146,26 @@ inline void WrapDragMouse()
 
     ImVec2 wrapped = pos;
     bool wrap = false;
-    if (pos.x <= minX)      { wrapped.x = maxX - 1; wrap = true; }
-    else if (pos.x >= maxX) { wrapped.x = minX + 1; wrap = true; }
-    if (pos.y <= minY)      { wrapped.y = maxY - 1; wrap = true; }
-    else if (pos.y >= maxY) { wrapped.y = minY + 1; wrap = true; }
+    if (pos.x <= minX)
+    {
+        wrapped.x = maxX - 1;
+        wrap = true;
+    }
+    else if (pos.x >= maxX)
+    {
+        wrapped.x = minX + 1;
+        wrap = true;
+    }
+    if (pos.y <= minY)
+    {
+        wrapped.y = maxY - 1;
+        wrap = true;
+    }
+    else if (pos.y >= maxY)
+    {
+        wrapped.y = minY + 1;
+        wrap = true;
+    }
 
     if (wrap)
         ImGui::TeleportMousePos(wrapped);
@@ -305,9 +321,9 @@ bool DragFloatN(std::span<T> v, float speed = 0.01f, float min = 0.0f, float max
 inline bool FieldDragFloat(const char* label, float* v, float speed = 1.0f, float min = 0.0f,
                            float max = 0.0f)
 {
-    return Field(label, [=] {
-        return DragValue("##v", v, ImGui::GetContentRegionAvail().x, speed, min, max);
-    });
+    return Field(
+        label,
+        [=] { return DragValue("##v", v, ImGui::GetContentRegionAvail().x, speed, min, max); });
 }
 
 inline bool FieldDragFloat3(const char* label, float* v, float speed = 1.0f)
@@ -320,8 +336,7 @@ inline bool FieldDragDouble3(const char* label, double* v, float speed = 1.0f)
     return Field(label, [=] { return DragFloatN(spanOf(v, 3), speed); });
 }
 
-inline bool DragGauge(float* v, float min, float max, float speed = 0.01f,
-                      const char* fmt = "%.2f")
+inline bool DragGauge(float* v, float min, float max, float speed = 0.01f, const char* fmt = "%.2f")
 {
     const ImVec2 p = ImGui::GetCursorScreenPos();
     const float w = ImGui::GetContentRegionAvail().x;
@@ -411,8 +426,7 @@ inline bool ComboField(const char* id, int* current, std::span<const char* const
     const float cx = p.x + w - pad - r;
     const float cy = p.y + h * 0.5f;
     ImGui::GetWindowDrawList()->AddTriangleFilled({cx - r, cy - r * 0.6f}, {cx + r, cy - r * 0.6f},
-                                                  {cx, cy + r * 0.8f},
-                                                  ImGui::GetColorU32(textDim));
+                                                  {cx, cy + r * 0.8f}, ImGui::GetColorU32(textDim));
     return changed;
 }
 

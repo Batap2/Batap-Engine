@@ -15,7 +15,7 @@ struct InspectorPanel
 {
     void draw(World& world, App& app, EntityHandle ent);
 
-  private:
+   private:
     void drawHeader(EntityHandle ent);
     void drawTransform(World& world, EntityHandle ent);
     void drawMesh(EntityHandle ent, App& app);
@@ -36,7 +36,7 @@ struct InspectorPanel
 
     // Cache for euler rotation
     std::optional<EntityHandle> rotationEditEntity_;
-    v3f   rotationEditEulerDeg_  = v3f::Zero();
+    v3f rotationEditEulerDeg_ = v3f::Zero();
     quatf rotationEditSourceQuat_ = quatf::Identity();
 
     AssetPickerPopup assetPicker_;

@@ -2,31 +2,31 @@
 
 #include "App.h"
 #include "Assets/AssetManager.h"
+#include "Components/Camera_C.h"
+#include "Components/FreeCamController_C.h"
+#include "Components/Name_C.h"
 #include "EditorConfig.h"
 #include "Engine.h"
+#include "FileDialog.h"
 #include "InputManager.h"
-#include "UserConfig.h"
+#include "Instance/InstanceManager.h"
 #include "LightGizmos.h"
+#include "Platform/PlatformWindow.h"
 #include "Renderer/DebugDraw.h"
 #include "Renderer/Tonemap.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
-#include "UI/ScreenSpace.h"
-#include "FileDialog.h"
-#include "Components/Camera_C.h"
-#include "Components/FreeCamController_C.h"
-#include "Components/Name_C.h"
-#include "Instance/InstanceManager.h"
-#include "UI/IconsMaterialDesign.h"
-#include "Platform/PlatformWindow.h"
-#include "UI/Field.h"
-#include "UI/Scoped.h"
-#include "UI/UITheme.h"
 #include "Systems/Bounds_S.h"
 #include "Systems/FreeCamController_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Terrain_S.h"
+#include "UI/Field.h"
+#include "UI/IconsMaterialDesign.h"
+#include "UI/Scoped.h"
+#include "UI/ScreenSpace.h"
+#include "UI/UITheme.h"
+#include "UserConfig.h"
 #include "World.h"
 
 #include <imgui.h>
@@ -50,8 +50,8 @@ constexpr ImGuiWindowFlags kFixedWindowFlags =
 
 // The bar and the rail lay their own content out by hand and have no scrollbar
 // to show where the wheel took them.
-constexpr ImGuiWindowFlags kNoScrollFlags =
-    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+constexpr ImGuiWindowFlags kNoScrollFlags = ImGuiWindowFlags_NoScrollbar |
+                                            ImGuiWindowFlags_NoScrollWithMouse;
 
 constexpr std::array kSceneFilter{FileDialogFilter{"Scene (.btpl)", "*.btpl"}};
 constexpr std::array kAnyAssetFilter{FileDialogFilter{"Assets", "*.*"}};
@@ -188,7 +188,9 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     {
         WindowDesc editor;
         editorConfig::readWindow(editor);
-        editorSettings_ = {editor.screen, editor.focusOnShow, editor.behindOnShow,
+        editorSettings_ = {editor.screen,
+                           editor.focusOnShow,
+                           editor.behindOnShow,
                            ctx.settings().rayTracing_,
                            static_cast<int>(ctx.settings().maxFps_),
                            static_cast<int>(ctx.settings().giBounces_),
@@ -203,10 +205,14 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
             userConfig::readWindow(config, game);
             userConfig::readRender(config, gameRender);
         }
-        gameSettings_ = {game.screen, game.focusOnShow, game.behindOnShow,
-                         gameRender.rayTracing_, static_cast<int>(gameRender.maxFps_),
+        gameSettings_ = {game.screen,
+                         game.focusOnShow,
+                         game.behindOnShow,
+                         gameRender.rayTracing_,
+                         static_cast<int>(gameRender.maxFps_),
                          static_cast<int>(gameRender.giBounces_),
-                         static_cast<int>(gameRender.giPasses_), gameRender.tonemap_};
+                         static_cast<int>(gameRender.giPasses_),
+                         gameRender.tonemap_};
     }
 
     const auto screenLabel = [&](int screen)
@@ -343,8 +349,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     ImGui::Separator();
     ImGui::Spacing();
 
-    const std::string gameTitle =
-        hasGame ? "Game  (" + app.gameExeName_ + ")" : std::string("Game  (no module loaded)");
+    const std::string gameTitle = hasGame ? "Game  (" + app.gameExeName_ + ")"
+                                          : std::string("Game  (no module loaded)");
     ImGui::BeginDisabled(!hasGame);
     const Change gameChange = section(gameTitle.c_str(), "game", gameSettings_);
     if (hasGame && gameChange == Render)
@@ -388,8 +394,8 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
 
         float left = kTopBarHeight + kBarItemGap;
 
-        const std::string sceneName =
-            app.scenePath_.empty() ? std::string("untitled") : fileStem(app.scenePath_);
+        const std::string sceneName = app.scenePath_.empty() ? std::string("untitled")
+                                                             : fileStem(app.scenePath_);
         ImGui::SetCursorPos({left, centredY(ImGui::GetTextLineHeight())});
         {
             ui::ScopedColor bright{{ImGuiCol_Text, ui::textBright}};
@@ -400,8 +406,7 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
         if (!app.projectDir_.empty())
         {
             ui::ScopedFont small{ui::smallFont};
-            const std::string project =
-                std::filesystem::path(app.projectDir_).filename().string();
+            const std::string project = std::filesystem::path(app.projectDir_).filename().string();
             ImGui::SetCursorPos({left, centredY(ImGui::GetTextLineHeight())});
             ImGui::TextDisabled("%s", project.c_str());
         }
@@ -551,16 +556,16 @@ void UIPanels::drawFileMenu(World& world, App& app)
             });
 
     if (ImGui::MenuItem("Open Scene..."))
-        app.openFileDialogAsyncWithAfterJob(
-            kSceneFilter,
-            [this, &app](std::vector<std::string>&& paths)
-            {
-                if (paths.empty())
-                    return;
-                EntitySerializer::clearSceneAndLoad(*app.world_, *app.ctx_, paths[0]);
-                app.setScenePath(paths[0]);
-                clearSelection();
-            });
+        app.openFileDialogAsyncWithAfterJob(kSceneFilter,
+                                            [this, &app](std::vector<std::string>&& paths)
+                                            {
+                                                if (paths.empty())
+                                                    return;
+                                                EntitySerializer::clearSceneAndLoad(
+                                                    *app.world_, *app.ctx_, paths[0]);
+                                                app.setScenePath(paths[0]);
+                                                clearSelection();
+                                            });
 
     if (ImGui::MenuItem("Save Scene..."))
     {
@@ -577,9 +582,8 @@ void UIPanels::drawFileMenu(World& world, App& app)
 void UIPanels::drawImportMenu(World& world, App& app, Engine& ctx)
 {
     if (ImGui::MenuItem("Import assets"))
-        app.openFileDialogAsyncWithAfterJob(kAnyAssetFilter,
-                                            [&app](std::vector<std::string>&& paths)
-                                            { app.importAssets(paths); });
+        app.openFileDialogAsyncWithAfterJob(
+            kAnyAssetFilter, [&app](std::vector<std::string>&& paths) { app.importAssets(paths); });
 
     if (ImGui::MenuItem("Load assets"))
         app.openFileDialogAsyncWithAfterJob(kTemplateFilter,
@@ -614,8 +618,8 @@ void UIPanels::drawEditorOptions(World& world, App& app)
     if (ImGui::IsItemHovered() || ImGui::IsItemActive())
         ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
     if (ImGui::IsItemActive())
-        optionsHeight_ = std::clamp(optionsHeight_ - ImGui::GetIO().MouseDelta.y,
-                                    kOptionsMinHeight, kOptionsMaxHeight);
+        optionsHeight_ = std::clamp(optionsHeight_ - ImGui::GetIO().MouseDelta.y, kOptionsMinHeight,
+                                    kOptionsMaxHeight);
 
     const ImVec2 windowPos = ImGui::GetWindowPos();
     const float ruleY = std::round(ImGui::GetItemRectMin().y + kOptionsGripHeight * 0.5f);
@@ -651,17 +655,18 @@ void UIPanels::drawEditorOptions(World& world, App& app)
                       {width, side}))
         gizmo_.local_ = !gizmo_.local_;
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Handles follow the entity axes or the world axes."
-                          " Scale is always local.");
+        ImGui::SetTooltip(
+            "Handles follow the entity axes or the world axes."
+            " Scale is always local.");
 
     const bool center = gizmo_.pivot_ == GizmoPivot::Center;
-    if (ImGui::Button(center ? ICON_MD_FILTER_CENTER_FOCUS "  Center"
-                             : ICON_MD_ADJUST "  Pivot",
+    if (ImGui::Button(center ? ICON_MD_FILTER_CENTER_FOCUS "  Center" : ICON_MD_ADJUST "  Pivot",
                       {width, side}))
         gizmo_.pivot_ = center ? GizmoPivot::Origin : GizmoPivot::Center;
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Place the handles on the transform origin"
-                          " or on the centre of the selection bounds.");
+        ImGui::SetTooltip(
+            "Place the handles on the transform origin"
+            " or on the centre of the selection bounds.");
 
     ImGui::Spacing();
     ImGui::TextDisabled("Snap (Ctrl)");
@@ -734,11 +739,9 @@ void UIPanels::drawCameraOptions(World& world, App& app)
             setFreeCamFrame(*controller, frame, cam.get<Transform_C>().rot());
             cameraFrameSource_ = controller->frame_;
         }
-        if (ui::Field("",
-                      [&] {
-                          return ImGui::Button("Reset frame",
-                                               {ImGui::GetContentRegionAvail().x, 0.0f});
-                      }))
+        if (ui::Field(
+                "", [&]
+                { return ImGui::Button("Reset frame", {ImGui::GetContentRegionAvail().x, 0.0f}); }))
             setFreeCamFrame(*controller, quatf::Identity(), cam.get<Transform_C>().rot());
     }
 }

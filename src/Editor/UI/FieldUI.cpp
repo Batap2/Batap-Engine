@@ -9,8 +9,8 @@
 #include "Components/RigidBody_C.h"
 #include "EigenTypes.h"
 #include "Instance/Spawnable.h"
-#include "UI/AssetPickerPopup.h"
 #include "Reflection/ComponentRegistry.h"
+#include "UI/AssetPickerPopup.h"
 #include "UI/AssetRow.h"
 #include "UI/Field.h"
 #include "UI/IconsMaterialDesign.h"
@@ -145,8 +145,7 @@ void setAssetHandle()
             if (!fieldCtx.app_ || !fieldCtx.picker_ || !fieldCtx.component_)
                 return false;
 
-            const std::string name =
-                ui::assetName(*fieldCtx.app_->ctx_->assetManager_, handle);
+            const std::string name = ui::assetName(*fieldCtx.app_->ctx_->assetManager_, handle);
             if (ui::AssetRow(Type, name))
                 fieldCtx.picker_->openField(fieldCtx.ent_, *fieldCtx.component_, f, Type,
                                             fieldCtx.app_->projectDir_);
@@ -170,7 +169,8 @@ void installFieldUI()
                                  f.meta.min, f.meta.max);
         });
 
-    set<bool>([](void* p, const Field&, FieldUIContext&) { return ImGui::Checkbox("##v", static_cast<bool*>(p)); });
+    set<bool>([](void* p, const Field&, FieldUIContext&)
+              { return ImGui::Checkbox("##v", static_cast<bool*>(p)); });
 
     set<int32_t>(
         [](void* p, const Field& f, FieldUIContext&)
@@ -205,11 +205,8 @@ void installFieldUI()
     setAssetHandle<Texture, AssetType::Texture>();
     setAssetHandle<Material, AssetType::Material>();
 
-    set<col3>(
-        [](void* p, const Field&, FieldUIContext&)
-        {
-            return ui::ColorField("##v", static_cast<col3*>(p)->data(), 3);
-        });
+    set<col3>([](void* p, const Field&, FieldUIContext&)
+              { return ui::ColorField("##v", static_cast<col3*>(p)->data(), 3); });
 
     set<std::vector<Shape>>(
         [](void* p, const Field& f, FieldUIContext& fieldCtx)
@@ -256,32 +253,28 @@ void installFieldUI()
                                                      0.001f, 10000.f);
                         break;
                     case Shape::Kind::Sphere:
-                        changed |=
-                            ImGui::DragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
+                        changed |= ImGui::DragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
                         break;
                     case Shape::Kind::Capsule:
+                        changed |= ImGui::DragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
                         changed |=
-                            ImGui::DragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
-                        changed |= ImGui::DragFloat("Half height", &s.halfHeight_, 0.01f, 0.001f,
-                                                    10000.f);
+                            ImGui::DragFloat("Half height", &s.halfHeight_, 0.01f, 0.001f, 10000.f);
                         break;
-                    case Shape::Kind::Mesh:
-                    {
+                    case Shape::Kind::Mesh: {
                         // The picker applies the pick itself (patch +
                         // markDirty), so the row reports no change of its own.
-                        AssetManager* assets =
-                            fieldCtx.app_ ? fieldCtx.app_->assetManager_ : nullptr;
-                        const std::string name =
-                            assets ? ui::assetName(*assets, s.mesh_) : std::string{};
+                        AssetManager* assets = fieldCtx.app_ ? fieldCtx.app_->assetManager_
+                                                             : nullptr;
+                        const std::string name = assets ? ui::assetName(*assets, s.mesh_)
+                                                        : std::string{};
                         const bool clicked =
                             ui::AssetRow(AssetType::Mesh, name, ImGui::CalcItemWidth());
                         ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
                         ImGui::TextUnformatted("Mesh");
                         if (clicked && assets && fieldCtx.picker_ && fieldCtx.component_)
                             fieldCtx.picker_->openField(fieldCtx.ent_, *fieldCtx.component_, f,
-                                                        AssetType::Mesh,
-                                                        fieldCtx.app_->projectDir_, meshOfShape,
-                                                        static_cast<size_t>(id));
+                                                        AssetType::Mesh, fieldCtx.app_->projectDir_,
+                                                        meshOfShape, static_cast<size_t>(id));
                         break;
                     }
                 }

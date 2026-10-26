@@ -16,6 +16,5 @@ struct ShadowSphere_C
     float radius_ = 0;
 };
 
-BATAP_COMPONENT(ShadowSphere_C, "shadowSphere",
-                ComponentMeta{.color = ComponentColor::Orange});
+BATAP_COMPONENT(ShadowSphere_C, "shadowSphere", ComponentMeta{.color = ComponentColor::Orange});
 }  // namespace batap

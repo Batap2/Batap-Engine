@@ -235,8 +235,7 @@ void drawMeshProxy(DebugDraw& dbg, const transform& xform, const v3f& half, cons
     const col3 hatch{color * 0.55f};
     for (int corner = 0; corner < 4; ++corner)
     {
-        const v3f a{half.x(), corner & 1 ? -half.y() : half.y(),
-                    corner & 2 ? -half.z() : half.z()};
+        const v3f a{half.x(), corner & 1 ? -half.y() : half.y(), corner & 2 ? -half.z() : half.z()};
         const v3f b = -a;
         dbg.line(xform * a, xform * b, hatch);
     }
@@ -425,7 +424,8 @@ void Physics_S::drawColliders(World& world)
                 case Shape::Kind::Mesh:
                     if (const Mesh* mesh = assets.get(s.mesh_); mesh && mesh->localBounds_.valid())
                     {
-                        const v3f center = (mesh->localBounds_.min_ + mesh->localBounds_.max_) * 0.5f;
+                        const v3f center =
+                            (mesh->localBounds_.min_ + mesh->localBounds_.max_) * 0.5f;
                         const v3f half = (mesh->localBounds_.max_ - mesh->localBounds_.min_) * 0.5f;
                         drawMeshProxy(dbg,
                                       xform * TRS_Transform(center.cwiseProduct(scale),

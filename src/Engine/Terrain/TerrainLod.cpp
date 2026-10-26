@@ -54,7 +54,8 @@ int32_t levelForCell(const TerrainGrid& grid, double cell)
     if (cell <= 0.0)
         return kMaxTerrainLevel;
     const double rootCell = cellSize(grid, 0);
-    const int32_t level = static_cast<int32_t>(std::ceil(std::log2(std::max(rootCell / cell, 1.0))));
+    const int32_t level =
+        static_cast<int32_t>(std::ceil(std::log2(std::max(rootCell / cell, 1.0))));
     return std::clamp(level, 0, kMaxTerrainLevel);
 }
 
@@ -274,9 +275,10 @@ ChunkKey shownAt(const FaceCoords& fc, const ChunkKeySet& shown, int32_t lo, int
     {
         const int32_t n = 1 << level;
         const double span = std::ldexp(2.0, -level);
-        const ChunkKey k{fc.face_, level,
-                         std::clamp(static_cast<int32_t>(std::floor((fc.u_ + 1.0) / span)), 0, n - 1),
-                         std::clamp(static_cast<int32_t>(std::floor((fc.v_ + 1.0) / span)), 0, n - 1)};
+        const ChunkKey k{
+            fc.face_, level,
+            std::clamp(static_cast<int32_t>(std::floor((fc.u_ + 1.0) / span)), 0, n - 1),
+            std::clamp(static_cast<int32_t>(std::floor((fc.v_ + 1.0) / span)), 0, n - 1)};
         if (shown.contains(k))
             return k;
     }

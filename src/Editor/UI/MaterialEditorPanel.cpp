@@ -38,8 +38,7 @@ std::string texLabelFromBindlessIndex(AssetManager& am, uint32_t bindlessIndex)
     return result;
 }
 
-void drawParameters(App& app, MaterialHandle handle, const Material& mat,
-                    AssetPickerPopup& picker)
+void drawParameters(App& app, MaterialHandle handle, const Material& mat, AssetPickerPopup& picker)
 {
     Material copy = mat;
     bool changed = false;
@@ -50,17 +49,17 @@ void drawParameters(App& app, MaterialHandle handle, const Material& mat,
         changed |= ui::FieldSlider("Roughness", &copy.roughness, 0.f, 1.f);
         changed |= ui::FieldSlider("Metallic", &copy.metallic, 0.f, 1.f);
         changed |= ui::FieldSlider("Reflectivity", &copy.reflectivity, 0.f, 1.f);
-        changed |= ui::Field("Shading",
-                             [&]
-                             {
-                                 static constexpr std::array<const char*, 2> kModels = {"Lit",
-                                                                                        "Unlit"};
-                                 int current = static_cast<int>(copy.shadingModel_);
-                                 if (!ui::ComboField("##shading", &current, kModels))
-                                     return false;
-                                 copy.shadingModel_ = static_cast<uint32_t>(current);
-                                 return true;
-                             });
+        changed |=
+            ui::Field("Shading",
+                      [&]
+                      {
+                          static constexpr std::array<const char*, 2> kModels = {"Lit", "Unlit"};
+                          int current = static_cast<int>(copy.shadingModel_);
+                          if (!ui::ComboField("##shading", &current, kModels))
+                              return false;
+                          copy.shadingModel_ = static_cast<uint32_t>(current);
+                          return true;
+                      });
     }
 
     if (changed)
@@ -115,8 +114,8 @@ void MaterialEditorPanel::draw(App& app)
         else
         {
             const std::string* path = am.getPath(material_);
-            const std::string name =
-                path ? std::filesystem::path(*path).stem().string() : std::string("unnamed");
+            const std::string name = path ? std::filesystem::path(*path).stem().string()
+                                          : std::string("unnamed");
             ImGui::SeparatorText(name.c_str());
 
             drawParameters(app, material_, *mat, assetPicker_);

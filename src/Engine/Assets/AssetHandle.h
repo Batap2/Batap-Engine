@@ -26,8 +26,8 @@ struct AssetHandle
     explicit operator bool() const { return generation != 0; }
 };
 
-using MeshHandle     = AssetHandle<Mesh>;
-using TextureHandle  = AssetHandle<Texture>;
+using MeshHandle = AssetHandle<Mesh>;
+using TextureHandle = AssetHandle<Texture>;
 using MaterialHandle = AssetHandle<Material>;
 
 using AssetHandleAny = std::variant<MeshHandle, TextureHandle, MaterialHandle>;

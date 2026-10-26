@@ -24,9 +24,12 @@ inline const char* assetIcon(AssetType type)
 {
     switch (type)
     {
-        case AssetType::Texture:  return ICON_MD_IMAGE;
-        case AssetType::Material: return ICON_MD_PALETTE;
-        case AssetType::Mesh:     break;
+        case AssetType::Texture:
+            return ICON_MD_IMAGE;
+        case AssetType::Material:
+            return ICON_MD_PALETTE;
+        case AssetType::Mesh:
+            break;
     }
     return ICON_MD_VIEW_IN_AR;
 }
@@ -35,9 +38,12 @@ inline ComponentColor assetColor(AssetType type)
 {
     switch (type)
     {
-        case AssetType::Texture:  return ComponentColor::Magenta;
-        case AssetType::Material: return ComponentColor::Yellow;
-        case AssetType::Mesh:     break;
+        case AssetType::Texture:
+            return ComponentColor::Magenta;
+        case AssetType::Material:
+            return ComponentColor::Yellow;
+        case AssetType::Mesh:
+            break;
     }
     return ComponentColor::Violet;
 }

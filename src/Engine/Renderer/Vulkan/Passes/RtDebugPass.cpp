@@ -13,13 +13,12 @@ RtDebugPass::~RtDebugPass()
 void RtDebugPass::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
-    pipeline_ = modules[RtDebugPS]
-                    ? GraphicsPipelineBuilder()
-                          .shaders(modules[SkyVS], modules[RtDebugPS])
-                          .colorFormat(setup_.colorFormat_)
-                          .depth(setup_.depthFormat_, false, VK_COMPARE_OP_ALWAYS)
-                          .build(setup_.ctx_.device_, setup_.rtLayout_)
-                    : VK_NULL_HANDLE;
+    pipeline_ = modules[RtDebugPS] ? GraphicsPipelineBuilder()
+                                         .shaders(modules[SkyVS], modules[RtDebugPS])
+                                         .colorFormat(setup_.colorFormat_)
+                                         .depth(setup_.depthFormat_, false, VK_COMPARE_OP_ALWAYS)
+                                         .build(setup_.ctx_.device_, setup_.rtLayout_)
+                                   : VK_NULL_HANDLE;
 }
 
 void RtDebugPass::record(const PassContext& pass)

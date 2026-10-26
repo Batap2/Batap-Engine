@@ -94,8 +94,7 @@ struct GPUArena
         if (data_.size() > gpuCapacity_)
         {
             grow(std::max(gpuCapacity_ * 2, data_.size()));
-            auto span =
-                rm_->requestUpload(resourceHandle_, data_.size() * sizeof(T));
+            auto span = rm_->requestUpload(resourceHandle_, data_.size() * sizeof(T));
             memcpy(span.data(), data_.data(), data_.size() * sizeof(T));
         }
         else

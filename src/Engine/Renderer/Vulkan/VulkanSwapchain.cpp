@@ -1,7 +1,7 @@
 // windows.h AVANT volk.h : volk saute alors ses propres typedefs Win32
 // minimaux, et vulkan_win32.h a les vrais types
 #if defined(_WIN32)
-  #include <windows.h>
+#include <windows.h>
 #endif
 
 #include "VulkanSwapchain.h"
@@ -34,7 +34,7 @@ VulkanSwapchain::VulkanSwapchain(VulkanContext& ctx, void* nativeLayer, bool tra
     if (vkCreateWin32SurfaceKHR(ctx_.instance_, &surfaceInfo, nullptr, &surface_) != VK_SUCCESS)
         throw std::runtime_error("VulkanSwapchain : vkCreateWin32SurfaceKHR");
 #else
-    (void)nativeLayer;
+    (void) nativeLayer;
     throw std::runtime_error("VulkanSwapchain : plateforme without surface implementation");
 #endif
 
@@ -51,7 +51,7 @@ VulkanSwapchain::VulkanSwapchain(VulkanContext& ctx, void* nativeLayer, bool tra
     semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // first frame don't wait
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;  // first frame don't wait
 
     for (auto& s : acquireSemaphores_)
         vkCreateSemaphore(ctx_.device_, &semInfo, nullptr, &s);
@@ -129,8 +129,8 @@ bool VulkanSwapchain::createSwapchain()
     swapchainInfo.imageColorSpace = chosen.colorSpace;
     swapchainInfo.imageExtent = extent_;
     swapchainInfo.imageArrayLayers = 1;
-    swapchainInfo.imageUsage =
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     swapchainInfo.preTransform = caps.currentTransform;
     swapchainInfo.compositeAlpha = compositeAlpha;
@@ -227,9 +227,9 @@ uint32_t VulkanSwapchain::acquire()
     waitFrame();
 
     uint32_t imageIndex = 0;
-    const VkResult result =
-        vkAcquireNextImageKHR(ctx_.device_, swapchain_, UINT64_MAX,
-                              acquireSemaphores_[ctx_.frameIndex_], VK_NULL_HANDLE, &imageIndex);
+    const VkResult result = vkAcquireNextImageKHR(ctx_.device_, swapchain_, UINT64_MAX,
+                                                  acquireSemaphores_[ctx_.frameIndex_],
+                                                  VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
         return OutOfDate;
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -267,8 +267,7 @@ void VulkanSwapchain::present(VkQueue queue, uint32_t imageIndex)
     presentInfo.pImageIndices = &imageIndex;
     const VkResult result = vkQueuePresentKHR(queue, &presentInfo);
     // OUT_OF_DATE ici : la frame est perdue mais l'acquire suivant recréera
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR &&
-        result != VK_ERROR_OUT_OF_DATE_KHR)
+    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR)
         throw std::runtime_error("VulkanSwapchain : vkQueuePresentKHR");
 
     ctx_.frameIndex_ = (ctx_.frameIndex_ + 1) % FramesInFlight;

@@ -12,17 +12,21 @@ namespace batap
 bool writeBmat(const MaterialDesc& desc, const std::string& outPath)
 {
     nlohmann::json j;
-    j["albedo"]     = {desc.mat->albedo[0], desc.mat->albedo[1],
-                       desc.mat->albedo[2], desc.mat->albedo[3]};
-    j["roughness"]    = desc.mat->roughness;
-    j["metallic"]     = desc.mat->metallic;
+    j["albedo"] = {desc.mat->albedo[0], desc.mat->albedo[1], desc.mat->albedo[2],
+                   desc.mat->albedo[3]};
+    j["roughness"] = desc.mat->roughness;
+    j["metallic"] = desc.mat->metallic;
     j["reflectivity"] = desc.mat->reflectivity;
     j["shadingModel"] = desc.mat->shadingModel_;
 
-    if (!desc.albedoTexPath.empty())    j["albedoTex"]    = desc.albedoTexPath;
-    if (!desc.normalTexPath.empty())    j["normalTex"]    = desc.normalTexPath;
-    if (!desc.roughnessTexPath.empty()) j["roughnessTex"] = desc.roughnessTexPath;
-    if (!desc.metallicTexPath.empty())  j["metallicTex"]  = desc.metallicTexPath;
+    if (!desc.albedoTexPath.empty())
+        j["albedoTex"] = desc.albedoTexPath;
+    if (!desc.normalTexPath.empty())
+        j["normalTex"] = desc.normalTexPath;
+    if (!desc.roughnessTexPath.empty())
+        j["roughnessTex"] = desc.roughnessTexPath;
+    if (!desc.metallicTexPath.empty())
+        j["metallicTex"] = desc.metallicTexPath;
 
     std::ofstream f(outPath);
     if (!f)
@@ -65,21 +69,29 @@ std::optional<MaterialFileData> readBmat(const std::string& path)
 
     if (j.contains("albedo") && j["albedo"].is_array() && j["albedo"].size() == 4)
     {
-        const auto& a     = j["albedo"];
+        const auto& a = j["albedo"];
         data.mat.albedo[0] = a[0].get<float>();
         data.mat.albedo[1] = a[1].get<float>();
         data.mat.albedo[2] = a[2].get<float>();
         data.mat.albedo[3] = a[3].get<float>();
     }
-    if (j.contains("roughness"))    data.mat.roughness    = j["roughness"].get<float>();
-    if (j.contains("metallic"))     data.mat.metallic     = j["metallic"].get<float>();
-    if (j.contains("reflectivity")) data.mat.reflectivity = j["reflectivity"].get<float>();
-    if (j.contains("shadingModel")) data.mat.shadingModel_ = j["shadingModel"].get<uint32_t>();
+    if (j.contains("roughness"))
+        data.mat.roughness = j["roughness"].get<float>();
+    if (j.contains("metallic"))
+        data.mat.metallic = j["metallic"].get<float>();
+    if (j.contains("reflectivity"))
+        data.mat.reflectivity = j["reflectivity"].get<float>();
+    if (j.contains("shadingModel"))
+        data.mat.shadingModel_ = j["shadingModel"].get<uint32_t>();
 
-    if (j.contains("albedoTex"))    data.albedoTexPath    = j["albedoTex"].get<std::string>();
-    if (j.contains("normalTex"))    data.normalTexPath    = j["normalTex"].get<std::string>();
-    if (j.contains("roughnessTex")) data.roughnessTexPath = j["roughnessTex"].get<std::string>();
-    if (j.contains("metallicTex"))  data.metallicTexPath  = j["metallicTex"].get<std::string>();
+    if (j.contains("albedoTex"))
+        data.albedoTexPath = j["albedoTex"].get<std::string>();
+    if (j.contains("normalTex"))
+        data.normalTexPath = j["normalTex"].get<std::string>();
+    if (j.contains("roughnessTex"))
+        data.roughnessTexPath = j["roughnessTex"].get<std::string>();
+    if (j.contains("metallicTex"))
+        data.metallicTexPath = j["metallicTex"].get<std::string>();
 
     return data;
 }

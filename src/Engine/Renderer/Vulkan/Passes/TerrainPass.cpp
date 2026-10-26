@@ -142,10 +142,9 @@ void TerrainPass::writeChunk(uint32_t instance, const Slot& slot,
     g.morphStart_ = params.morphStart_;
     g.morphEnd_ = params.morphEnd_;
     g.level_ = slot.level_;
-    std::memcpy(setup_.resources_
-                    .requestUpload(chunks_, sizeof(g), uint64_t{instance} * sizeof(g))
-                    .data(),
-                &g, sizeof(g));
+    std::memcpy(
+        setup_.resources_.requestUpload(chunks_, sizeof(g), uint64_t{instance} * sizeof(g)).data(),
+        &g, sizeof(g));
     stagedBytes_ += sizeof(g);
 }
 
@@ -220,11 +219,11 @@ void TerrainPass::upload(TerrainDraws& draws)
         slot.index_ = allocate(indices_, slot.indices_);
 
         const uint64_t vertexBytes = slot.vertices_ * vertices_.stride_;
-        std::memcpy(setup_.resources_
-                        .requestUpload(vertices_.buffer_, vertexBytes,
-                                       slot.vertex_ * vertices_.stride_)
-                        .data(),
-                    mesh.vertices_.data(), vertexBytes);
+        std::memcpy(
+            setup_.resources_
+                .requestUpload(vertices_.buffer_, vertexBytes, slot.vertex_ * vertices_.stride_)
+                .data(),
+            mesh.vertices_.data(), vertexBytes);
         const uint64_t indexBytes = slot.indices_ * indices_.stride_;
         std::memcpy(setup_.resources_
                         .requestUpload(indices_.buffer_, indexBytes, slot.index_ * indices_.stride_)
@@ -292,10 +291,10 @@ void TerrainPass::upload(TerrainDraws& draws)
         }
     }
 
-    draws.lastUpload_ = {slots_.size(), stagedBytes_,
-                         std::chrono::duration<double, std::milli>(
-                             std::chrono::steady_clock::now() - start)
-                             .count()};
+    draws.lastUpload_ = {
+        slots_.size(), stagedBytes_,
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
+            .count()};
 }
 
 void TerrainPass::recordDraws(const PassContext& pass, VkPipeline pipeline,
