@@ -210,6 +210,20 @@ GraphImage RenderGraph::importImage(std::string name, ResourceManager& resources
     return importImage(std::move(name), info, in, out);
 }
 
+GraphImage RenderGraph::importImage(std::string name, const GraphImageInfo& info, Usage out)
+{
+    const auto kept = keptUsages_.find(info.image_);
+    const GraphImage handle = importImage(
+        std::move(name), info, kept == keptUsages_.end() ? Usage::None : kept->second, out);
+    images_.back().kept_ = true;
+    return handle;
+}
+
+void RenderGraph::forget(VkImage image)
+{
+    keptUsages_.erase(image);
+}
+
 GraphBuffer RenderGraph::importBuffer(std::string name, VkBuffer buffer, Usage in, Usage out)
 {
     buffers_.push_back({std::move(name), buffer, in, out});
@@ -230,6 +244,15 @@ GraphPass& RenderGraph::addPass(std::string name, GraphQueue queue)
     pass.queue_ = queue;
     compiled_ = false;
     return pass;
+}
+
+void RenderGraph::reset()
+{
+    images_.clear();
+    buffers_.clear();
+    passes_.clear();
+    batches_.clear();
+    compiled_ = false;
 }
 
 uint32_t RenderGraph::textureIndex(GraphImage handle) const
@@ -436,6 +459,11 @@ void RenderGraph::compile()
                 exitBatch(state.tracking_).exits_.push_back({i, false, source, out, false, false});
         }
     }
+
+    for (size_t i = 0; i < images_.size(); ++i)
+        if (images_[i].kept_)
+            keptUsages_[images_[i].info_.image_] =
+                images_[i].out_ != Usage::None ? images_[i].out_ : imageStates[i].usage_;
 
     compiled_ = true;
 }

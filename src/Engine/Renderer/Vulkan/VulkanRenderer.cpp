@@ -102,7 +102,7 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
 }
 
 // The swapchain image must already be in TRANSFER_SRC when this runs.
-void Renderer::recordDumpCopy(VkCommandBuffer cmd, uint32_t imageIndex)
+void Renderer::recordDumpCopy(VkCommandBuffer cmd, VkImage image)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -122,8 +122,8 @@ void Renderer::recordDumpCopy(VkCommandBuffer cmd, uint32_t imageIndex)
     VkBufferImageCopy region{};
     region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
     region.imageExtent = {swapchain_.extent_.width, swapchain_.extent_.height, 1};
-    vkCmdCopyImageToBuffer(cmd, swapchain_.images_[imageIndex],
-                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dumpBuffer_, 1, &region);
+    vkCmdCopyImageToBuffer(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dumpBuffer_, 1,
+                           &region);
 }
 
 void Renderer::writeDump()
@@ -257,7 +257,6 @@ void Renderer::ensureSceneImage()
     viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &sceneView_) != VK_SUCCESS)
         throw std::runtime_error("Renderer(vk) : scene view");
-    sceneLastUsage_ = Usage::None;
 }
 
 void Renderer::retireTargets()
@@ -270,12 +269,14 @@ void Renderer::retireTargets()
     depthView_ = VK_NULL_HANDLE;
 
     if (sceneImage_ != VK_NULL_HANDLE)
+    {
         slot.push_back({sceneImage_, sceneAllocation_, sceneView_, sceneTextureSet_});
+        graph_.forget(sceneImage_);
+    }
     sceneImage_ = VK_NULL_HANDLE;
     sceneAllocation_ = nullptr;
     sceneView_ = VK_NULL_HANDLE;
     sceneTextureSet_ = VK_NULL_HANDLE;
-    sceneLastUsage_ = Usage::None;
 }
 
 void Renderer::destroyRetired(uint32_t slot)
@@ -385,30 +386,23 @@ void Renderer::setSceneGraph(SceneGraphFn fn)
     sceneGraph_ = std::move(fn);
 }
 
-bool Renderer::addScene(RenderGraph& graph, uint32_t frame, GraphBuffer uploads, VkImage image,
-                        VkImageView view, VkExtent2D extent, VkClearColorValue clearColor)
+bool Renderer::addScene(uint32_t frame, GraphBuffer uploads, GraphImage output, VkExtent2D extent,
+                        VkClearColorValue clearColor)
 {
     if (!sceneGraph_)
         return false;
 
-    const auto target = [&](const char* name, VkImage targetImage, VkImageView targetView,
-                            VkImageAspectFlags aspect, Usage in, Usage out)
-    {
-        GraphImageInfo info;
-        info.image_ = targetImage;
-        info.view_ = targetView;
-        info.extent_ = extent;
-        info.aspect_ = aspect;
-        return graph.importImage(name, info, in, out);
-    };
+    GraphImageInfo depth;
+    depth.image_ = depthImage_;
+    depth.view_ = depthView_;
+    depth.extent_ = extent;
+    depth.aspect_ = VK_IMAGE_ASPECT_DEPTH_BIT;
     RenderTargets targets;
-    targets.color_ = target("output", image, view, VK_IMAGE_ASPECT_COLOR_BIT,
-                            Usage::ColorAttachment, Usage::ColorAttachment);
-    targets.depth_ = target("depth", depthImage_, depthView_, VK_IMAGE_ASPECT_DEPTH_BIT,
-                            Usage::DepthAttachment, Usage::None);
+    targets.color_ = output;
+    targets.depth_ = graph_.importImage("depth", depth, Usage::DepthAttachment, Usage::None);
     targets.extent_ = extent;
     targets.clearColor_ = clearColor;
-    return sceneGraph_(graph, frame, targets, uploads);
+    return sceneGraph_(graph_, frame, targets, uploads);
 }
 
 void Renderer::beginFrame()
@@ -449,11 +443,11 @@ void Renderer::render()
     vkBeginCommandBuffer(cmd, &beginInfo);
     beginGpuFrameTime(cmd, frame);
 
-    RenderGraph graph;
+    graph_.reset();
     const GraphBuffer uploads =
-        graph.importBuffer("uploads", VK_NULL_HANDLE, Usage::AnyRead, Usage::AnyRead);
+        graph_.importBuffer("uploads", VK_NULL_HANDLE, Usage::AnyRead, Usage::AnyRead);
     if (resources_->hasUploads())
-        graph.addPass("uploads")
+        graph_.addPass("uploads")
             .write(uploads, Usage::TransferDst)
             .execute([this](GraphContext& c) { resources_->flushUploads(c.cmd()); });
 
@@ -462,32 +456,26 @@ void Renderer::render()
     const bool fullView = viewExtent_.width == swapchain_.extent_.width &&
                           viewExtent_.height == swapchain_.extent_.height;
 
-    VkImage swapImage = swapchain_.images_[imageIndex];
     const VkClearColorValue clearColor{{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
 
-    // Discard already drops the contents, so `from` here only says what must
-    // finish before the transition — hence a real usage rather than None:
     //   swapchain: None means TOP_OF_PIPE, earlier than the stage where the
     //     acquire semaphore is waited (COLOR_ATTACHMENT_OUTPUT), so the
     //     transition could overwrite an image the compositor is still reading;
-    //   scene image: the ImGui pass that read it last frame;
-    //   depth: one image for all frames in flight — wait on the depth tests of
-    //     the previous frame before reusing it.
+    GraphImageInfo swapInfo;
+    swapInfo.image_ = swapchain_.images_[imageIndex];
+    swapInfo.view_ = swapchain_.views_[imageIndex];
+    swapInfo.extent_ = swapchain_.extent_;
+    const GraphImage swapchain =
+        graph_.importImage("swapchain", swapInfo, Usage::ColorAttachment, Usage::Present);
+
     const bool intoSwapchain = !shownByUi && fullView;
+    GraphImage sceneImage;
     bool sceneDeclared = false;
     if (intoSwapchain)
     {
         // Nobody narrows or shows the view: straight into the swapchain. The
         // game never pays for the editor's scene image, not even its memory.
-        BarrierBatch{}
-            .image(swapImage, Usage::ColorAttachment, Usage::ColorAttachment, colorRange(),
-                   Discard::Yes)
-            .image(depthImage_, Usage::DepthAttachment, Usage::DepthAttachment, depthRange(),
-                   Discard::Yes)
-            .flush(cmd);
-
-        sceneDeclared = addScene(graph, frame, uploads, swapImage, swapchain_.views_[imageIndex],
-                                 swapchain_.extent_, clearColor);
+        sceneDeclared = addScene(frame, uploads, swapchain, swapchain_.extent_, clearColor);
     }
     else
     {
@@ -495,90 +483,49 @@ void Renderer::render()
         // without showing it simply sees no scene. The swapchain only gets
         // the UI.
         ensureSceneImage();
-        const Usage sceneFrom = sceneLastUsage_ == Usage::None ? Usage::ColorAttachment
-                                                               : sceneLastUsage_;
-        BarrierBatch{}
-            .image(sceneImage_, sceneFrom, Usage::ColorAttachment, colorRange(), Discard::Yes)
-            .image(depthImage_, Usage::DepthAttachment, Usage::DepthAttachment, depthRange(),
-                   Discard::Yes)
-            .image(swapImage, Usage::ColorAttachment, Usage::ColorAttachment, colorRange(),
-                   Discard::Yes)
-            .flush(cmd);
-
-        sceneDeclared =
-            addScene(graph, frame, uploads, sceneImage_, sceneView_, viewExtent_, clearColor);
-    }
-    graph.record(cmd);
-
-    if (!intoSwapchain)
-    {
-        if (sceneDeclared)
-        {
-            BarrierBatch{}
-                .image(sceneImage_, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
-                .flush(cmd);
-        }
-        else
-        {
-            // No camera: the image is shown anyway, so it gets the clear color.
-            BarrierBatch{}
-                .image(sceneImage_, Usage::ColorAttachment, Usage::TransferDst, colorRange(),
-                       Discard::Yes)
-                .flush(cmd);
-            const VkImageSubresourceRange range = colorRange();
-            vkCmdClearColorImage(cmd, sceneImage_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                 &clearColor, 1, &range);
-            BarrierBatch{}
-                .image(sceneImage_, Usage::TransferDst, Usage::ShaderRead, colorRange())
-                .flush(cmd);
-        }
-        sceneLastUsage_ = Usage::ShaderRead;
+        GraphImageInfo sceneInfo;
+        sceneInfo.image_ = sceneImage_;
+        sceneInfo.view_ = sceneView_;
+        sceneInfo.extent_ = viewExtent_;
+        sceneImage = graph_.importImage("scene image", sceneInfo, Usage::ShaderRead);
+        sceneDeclared = addScene(frame, uploads, sceneImage, viewExtent_, clearColor);
+        // No camera: the image is shown anyway, so it gets the clear color.
+        if (!sceneDeclared)
+            graph_.addPass("scene image clear").color(sceneImage, Load::Clear, clearColor);
     }
 
     const bool swapchainHasScene = intoSwapchain && sceneDeclared;
-    if (imguiFrameOpen_ || !swapchainHasScene)
+    const bool drawUi = imguiFrameOpen_;
+    if (drawUi)
     {
-        VkRenderingAttachmentInfo uiColor{};
-        uiColor.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        uiColor.imageView = swapchain_.views_[imageIndex];
-        uiColor.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        uiColor.loadOp = swapchainHasScene ? VK_ATTACHMENT_LOAD_OP_LOAD
-                                           : VK_ATTACHMENT_LOAD_OP_CLEAR;
-        uiColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        uiColor.clearValue.color = clearColor;
-
-        VkRenderingInfo uiInfo{};
-        uiInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-        uiInfo.renderArea = {{0, 0}, swapchain_.extent_};
-        uiInfo.layerCount = 1;
-        uiInfo.colorAttachmentCount = 1;
-        uiInfo.pColorAttachments = &uiColor;
-
-        vkCmdBeginRendering(cmd, &uiInfo);
-        if (imguiFrameOpen_)
-        {
-            ImGui::Render();
-            ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-            imguiFrameOpen_ = false;
-        }
-        vkCmdEndRendering(cmd);
+        ImGui::Render();
+        imguiFrameOpen_ = false;
     }
-
-    auto swapchainBarrier = [&](Usage from, Usage to)
-    { BarrierBatch{}.image(swapchain_.images_[imageIndex], from, to, colorRange()).flush(cmd); };
+    if (drawUi || !swapchainHasScene)
+    {
+        GraphPass& ui =
+            graph_.addPass("imgui")
+                .color(swapchain, swapchainHasScene ? Load::Keep : Load::Clear, clearColor)
+                .read(uploads, Usage::AnyRead)
+                .execute(
+                    [drawUi](GraphContext& c)
+                    {
+                        if (drawUi)
+                            ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), c.cmd());
+                    });
+        if (shownByUi)
+            ui.read(sceneImage, Usage::ShaderRead);
+    }
 
     const bool dumpThisFrame = std::find(dumpFrames_.begin(), dumpFrames_.end(), frameCounter_) !=
                                dumpFrames_.end();
     if (dumpThisFrame)
-    {
-        swapchainBarrier(Usage::ColorAttachment, Usage::TransferSrc);
-        recordDumpCopy(cmd, imageIndex);
-        swapchainBarrier(Usage::TransferSrc, Usage::Present);
-    }
-    else
-    {
-        swapchainBarrier(Usage::ColorAttachment, Usage::Present);
-    }
+        graph_.addPass("frame dump")
+            .read(swapchain, Usage::TransferSrc)
+            .execute([this, swapchain](GraphContext& c)
+                     { recordDumpCopy(c.cmd(), c.image(swapchain)); });
+
+    graph_.record(cmd);
 
     endGpuFrameTime(cmd, frame);
     vkEndCommandBuffer(cmd);

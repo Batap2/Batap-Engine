@@ -623,3 +623,68 @@ graphe refuse.
   seulement aux 3 premières. La barrière ajoutée ne se mesure donc que sur la
   lune : `moon_near_rt` 1,905 ms contre 1,894 ms en 1.8, `moon_far_rt` 2,029
   contre 1,994. C'est dans le bruit de la lune (~3 %).
+
+## 2.2 Swapchain, image de scène, ImGui, dump
+
+*Fait (2026-10-26)* : `Renderer::render` construit toute la frame dans
+`graph_`, un `RenderGraph` membre remis à zéro (`reset()`) à chaque frame.
+- Les passes, dans l'ordre : `uploads`, la scène, `scene image clear`
+  (l'éditeur sans caméra), `imgui`, `frame dump`.
+- La frontière disparaît : plus aucune barrière ni aucune scope écrite à la
+  main dans `VulkanRenderer.cpp`. Il ne reste de `BarrierBatch` que dans
+  `flushUploads`, pour les textures.
+
+Les imports :
+- **swapchain** : `ColorAttachment` → `Present`, importée après l'acquire.
+  `ColorAttachment` et non `None`, car l'acquire est attendu à
+  `COLOR_ATTACHMENT_OUTPUT` : la transition de la première écriture doit
+  s'enchaîner après ce sémaphore. Cette première écriture (le tonemap en
+  `DontCare`, ou ImGui en `Clear`) jette le contenu.
+- **image de scène** : avec le nouvel import sans `in`.
+- **profondeur** : `DepthAttachment` → `None`, comme avant.
+
+**État gardé d'une frame à l'autre.** `importImage(nom, info, out)` prend
+pour `in` l'usage où le graphe de la frame précédente a laissé l'image
+(`None` la première fois). `compile()` retient l'usage final : `out`, ou le
+dernier usage si `out` vaut `None`. `forget(image)` l'efface ; le `Renderer`
+l'appelle en retirant l'image de scène, car une nouvelle image peut recevoir
+le même `VkImage`. `sceneLastUsage_` disparaît.
+
+*Écarts* :
+- **La swapchain n'a pas d'état par image.** Elle entre toujours en
+  `ColorAttachment` et sa première écriture la jette, donc rien n'est à
+  retenir, ni à remettre à zéro à la recréation.
+- **L'effacement sans caméra** devient une passe raster `color(Clear)`, sans
+  dessin, au lieu de `vkCmdClearColorImage`. La valeur d'effacement est la
+  même.
+- **ImGui** : `ImGui::Render()` est appelé à la déclaration, et le
+  `RenderDrawData` dans `execute`. La passe lit `uploads` (icônes, vignettes)
+  et l'image de scène quand l'UI la montre.
+
+**Barrières par frame** : une de moins dans le jeu, deux de moins dans
+l'éditeur. Les jets doubles de 1.6 disparaissent (profondeur et sortie jetées
+par le `Renderer`, puis par le graphe), ainsi que la sortie `Color → Color`
+séparée.
+
+*Mesuré* :
+- `RenderGraphCheck` : 57 contrôles verts, dont 5 nouveaux sur l'état gardé :
+  première frame, sortie, frame suivante, après `forget`, sortie `None`.
+- Banc : raster identique au pixel sur les 9 cas, **éditeur compris** (le
+  chemin de l'image de scène et d'ImGui). RT dans le bruit, à part `room_rt`
+  (158 px, 1 niveau), la tolérance trop serrée de 1.2. GPU : comme en 2.1.
+- Validation : rien de nouveau.
+- **Redimensionnement** (script du scratchpad du 2026-10-26,
+  `resize_validation.py`) : éditeur debug avec la validation de
+  synchronisation, fenêtre redimensionnée 6 fois par `SetWindowPos` pendant
+  le run. Cela recrée la swapchain et retaille le viewport (`setViewExtent`,
+  donc une nouvelle image de scène). Résultat : 0 message en raster comme en
+  RT. Le dump final fait 1 386 × 694, la taille de la dernière fenêtre, et le
+  viewport y montre la scène.
+
+*Reste*, deux commentaires que le hook a refusé de reformuler, à corriger
+par Batap :
+- le « frame model » en tête de `VulkanRenderer.h` (« the scene records its
+  own scopes… »), faux depuis 1.5 ;
+- au-dessus de l'import de la swapchain, trois lignes d'origine gardées
+  telles quelles (« swapchain: None means TOP_OF_PIPE… ; »). Elles disent
+  pourquoi l'import n'est pas en `None`, mais elles sont tronquées.

@@ -12,6 +12,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace batap
@@ -119,12 +120,15 @@ struct RenderGraph
     GraphImage importImage(std::string name, const GraphImageInfo& info, Usage in, Usage out);
     GraphImage importImage(std::string name, ResourceManager& resources, GPUResourceHandle image,
                            Usage in, Usage out);
+    GraphImage importImage(std::string name, const GraphImageInfo& info, Usage out);
+    void forget(VkImage image);
     GraphBuffer importBuffer(std::string name, VkBuffer buffer, Usage in, Usage out);
     GraphBuffer importBuffer(std::string name, ResourceManager& resources, GPUResourceHandle buffer,
                              Usage in, Usage out);
 
     GraphPass& addPass(std::string name, GraphQueue queue = GraphQueue::Graphics);
 
+    void reset();
     void compile();
     void record(uint32_t batch, VkCommandBuffer cmd);
     void record(VkCommandBuffer cmd);
@@ -143,6 +147,7 @@ struct RenderGraph
         GraphImageInfo info_;
         Usage in_ = Usage::None;
         Usage out_ = Usage::None;
+        bool kept_ = false;
     };
 
     struct BufferResource
@@ -163,6 +168,7 @@ struct RenderGraph
     std::deque<GraphPass> passes_;
     std::vector<GraphBatch> batches_;
     bool compiled_ = false;
+    std::unordered_map<VkImage, Usage> keptUsages_;
 };
 
 struct GraphContext

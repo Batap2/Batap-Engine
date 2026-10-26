@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Handles.h"
-#include "Renderer/Vulkan/VulkanBarrier.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanRenderTargets.h"
 #include "Renderer/Vulkan/VulkanSwapchain.h"
@@ -93,8 +92,8 @@ struct Renderer
    private:
     void createDepthBuffer();
     void ensureSceneImage();
-    bool addScene(RenderGraph& graph, uint32_t frame, GraphBuffer uploads, VkImage image,
-                  VkImageView view, VkExtent2D extent, VkClearColorValue clearColor);
+    bool addScene(uint32_t frame, GraphBuffer uploads, GraphImage output, VkExtent2D extent,
+                  VkClearColorValue clearColor);
     // Frames in flight may still read a target: retired ones are destroyed
     // when their slot's fence has been waited on again.
     struct Retired
@@ -111,6 +110,7 @@ struct Renderer
     std::unique_ptr<ResourceManager> resources_;
     std::unique_ptr<ScenePasses> scenePasses_;
     SceneGraphFn sceneGraph_;
+    RenderGraph graph_;
 
     // Every target is the size of the view: the window unless a host narrows it.
     VkExtent2D viewExtent_{};
@@ -123,7 +123,6 @@ struct Renderer
     VkImage sceneImage_ = VK_NULL_HANDLE;
     VmaAllocation sceneAllocation_ = nullptr;
     VkImageView sceneView_ = VK_NULL_HANDLE;
-    Usage sceneLastUsage_ = Usage::None;
     VkDescriptorSet sceneTextureSet_ = VK_NULL_HANDLE;
     bool sceneShownByUi_ = false;
     std::array<std::vector<Retired>, FramesInFlight> retired_{};
@@ -142,7 +141,7 @@ struct Renderer
     bool imguiFrameOpen_ = false;
 
     // Debug: BATAP_DUMP_FRAME=N reads frame N back into frame_dump.png
-    void recordDumpCopy(VkCommandBuffer cmd, uint32_t imageIndex);
+    void recordDumpCopy(VkCommandBuffer cmd, VkImage image);
     void writeDump();
     uint64_t frameCounter_ = 0;
     std::vector<uint64_t> dumpFrames_;

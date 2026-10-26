@@ -303,7 +303,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 - [x] **2.1 Uploads.** `flushUploads` devient une passe en tête du graphe,
       qui écrit la ressource symbolique `uploads` (voir « Préparer plusieurs
       files », point 6). Elle reste `Graphics` jusqu'à 6.3.
-- [ ] **2.2 Swapchain, image de scène, ImGui, dump.** `Renderer::render`
+- [x] **2.2 Swapchain, image de scène, ImGui, dump.** `Renderer::render`
       construit le graphe :
       - swapchain importée après l'acquire, état final `Present` ;
       - image de scène de l'éditeur importée, son état gardé par le graphe :
