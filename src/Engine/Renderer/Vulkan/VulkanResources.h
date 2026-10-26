@@ -53,6 +53,8 @@ struct ResourceManager
 
 
     VkImage imageFor(GPUResourceHandle handle);
+    VkExtent2D extentFor(GPUResourceHandle image);
+    VkFormat formatFor(GPUResourceHandle image);
 
     void requestDestroy(GPUResourceHandle handle);
     uint32_t textureIndex(GPUResourceHandle image);

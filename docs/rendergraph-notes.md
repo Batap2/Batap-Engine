@@ -182,3 +182,102 @@ l'autre : du travail, pas une attente.
 - Les scènes GI sont trop légères pour juger un coût de barrière : 0,06 à
   0,33 ms par frame. La lune est le seul cas où un écart de quelques pour
   cent se verrait.
+
+## 1.1 `RenderGraph` sans client
+
+*Fait (2026-10-25)* : `Renderer/Vulkan/RenderGraph.{h,cpp}` (~800 lignes),
+`tools/RenderGraphCheck.cpp` (cible `SpaceFret_RenderGraphCheck`). Aucun code
+du moteur ne s'en sert encore.
+
+*L'API* :
+- `importImage(nom, GraphImageInfo, in, out)` et `importBuffer(nom, VkBuffer,
+  in, out)`. `GraphImageInfo` porte l'image, la vue, la taille, l'aspect et
+  l'index bindless. Pour une ressource du `ResourceManager`, une surcharge
+  prend son `GPUResourceHandle` et remplit tout (`extentFor` et `formatFor`
+  ajoutés au `ResourceManager`, `isDepthFormat` sorti dans
+  `VulkanFormats.h`). Swapchain, image de scène et profondeur passent par
+  `GraphImageInfo`.
+- `addPass(nom, file)` rend un `GraphPass&` qu'on enchaîne : `read`/`write`
+  (image ou buffer, avec un `Usage`), `color(image, Load, clear)`,
+  `depth(image, Load, clear)`, `execute(fonction)`. `Load` vaut `Keep`,
+  `Clear` ou `DontCare`.
+- `compile()`, puis `record(lot, cmd)` ; `record(cmd)` fait les deux pour un
+  graphe à un seul lot, et refuse sinon.
+- Dans `execute`, un `GraphContext` donne `cmd`, `image`, `view`, `extent`,
+  `textureIndex` et `buffer` d'une ressource déclarée par la passe.
+
+*Règles de la compilation* :
+- **Image** : une barrière quand le layout change, quand le dernier accès
+  écrivait, ou quand celui-ci écrit. Lecture après lecture du même usage :
+  rien.
+- **Buffer** : une écriture est rendue visible usage par usage. Une lecture
+  dont l'usage n'a pas encore vu la dernière écriture reçoit une barrière
+  depuis cette écriture. Une écriture attend toutes les lectures depuis la
+  précédente (une barrière par usage lu). À l'enregistrement, toutes les
+  barrières buffer d'une passe deviennent une seule barrière mémoire
+  globale.
+- **Contenu jeté** (`UNDEFINED`) : attachment en `Clear` ou `DontCare`, ou
+  import en `None`.
+- **storeOp** : `DONT_CARE` si aucune passe plus loin ne lit l'image et que
+  sa sortie est `None`, `STORE` sinon.
+- **Sorties** : la transition vers l'usage `out` se fait à la fin du lot du
+  dernier accès. Rien si l'import n'est pas touché et que `in == out`.
+- **Lots** : les passes consécutives d'une même file. Chaque ressource
+  retient le lot de son dernier écrivain, ses lecteurs depuis, et les files
+  qui ont vu la dernière écriture. Un accès d'une autre file attend le lot
+  de l'écrivain ; une écriture attend en plus les lots lecteurs des autres
+  files. Le producteur est marqué `signals_`, et la barrière du consommateur
+  `afterWait_`, que `record` refuse tant qu'il n'y a qu'un command buffer.
+
+*Écarts au texte du plan* :
+- **Erreurs** : `std::logic_error` dans les deux configs, pas en debug
+  seulement. Ça ne coûte que quelques comparaisons par passe, et le contrôle
+  doit pouvoir les attraper. `ThrowRuntime` n'a pas été utilisé : il fait
+  un `__debugbreak` en debug.
+- **Erreurs en plus de celles du plan** :
+  - une ressource deux fois dans la même passe ;
+  - un usage sans layout (`AnyRead`, `AccelerationStructureBuild`) sur une
+    image ;
+  - des attachments de tailles différentes ;
+  - une image de profondeur en attachment couleur, ou l'inverse ;
+  - un contenu importé utilisé d'abord sur une autre file que la graphique,
+    car on ne peut pas attendre du travail fait hors du graphe.
+- **Viewport** : le graphe pose `setViewportYUp` à la taille des attachments
+  après avoir ouvert la scope. Toutes les passes actuelles le font ; celles
+  qui dessinent par tuiles (atlas d'ombre) le reposent.
+- **`record(cmd)`** et non `execute(cmd)`, pour ne pas confondre avec le
+  `execute` d'une passe.
+
+*Détour du même jour, défait* : une première version mettait des types
+Vulkan dans l'API du graphe, Batap a demandé un graphe indépendant de l'API.
+Découpe faite : `Renderer/RenderGraph` neutre (handles, `Usage`, tailles,
+`compile()`) + `Renderer/Vulkan/VulkanRenderGraph` (table parallèle
+`VkImage`/`VkBuffer` par handle, callbacks, enregistrement), le test compilé
+sans lier le moteur. Audit par un second Fable : découpe cohérente,
+composition plutôt qu'héritage, quatre retouches. Puis Batap a jugé
+l'indépendance inutile : tout le reste du renderer est Vulkan, aucun second
+backend n'est prévu, et la découpe coûtait 770 → 1 031 lignes, deux tables
+par ressource et sept types au lieu de trois, pour une portabilité qui
+n'existe pas. Retour à la version Vulkan. Gardé du détour : le contrôle
+couleur/profondeur, `record(cmd)`, l'import par `GPUResourceHandle`, et le
+micro-banc. Leçon : chiffrer le coût d'une contrainte d'architecture avant
+de la construire.
+
+*Mesuré* :
+- `RenderGraphCheck` : 39 contrôles verts, en relwithdebinfo et en debug,
+  en moins d'une seconde.
+  - Images : 6 contrôles. Profondeur : 5. Sorties : 4. Buffers : 6.
+  - Refus : 10, dont les deux accès non déclarés à travers un
+    `GraphContext` et les deux attachments du mauvais aspect.
+  - Files : 8. Les lots et les attentes sont vérifiés avec trois files
+    simulées (`{0, 1, 2}`), puis avec une seule (`{0, 0, 0}`), où un graphe
+    compute + graphique + transfert donne un seul lot de trois passes.
+- Build sans aucun avertissement, malgré `-Wconversion`, `-Wshadow-all` et
+  `-Wunsafe-buffer-usage`.
+- Coût CPU, micro-banc hors moteur (`cl /O2`, scratchpad du 2026-10-25,
+  mesuré sur la version neutre, même algorithme) : une frame de 23 passes,
+  15 images, 10 buffers, 50 barrières, déclaration + compilation,
+  allocations comprises : **8,5 µs** (médiane sur 7 × 2000 frames, min 8,0,
+  max 9,1). Référence pour 4.5.
+- Banc d'images et validation non relancés : le graphe n'est appelé nulle
+  part, le build suffit (règle du plan pour la plomberie sans client).

@@ -40,9 +40,9 @@ au même endroit.
   l'ordre. Avec plusieurs files, c'est l'ordre de déclaration dans chaque file.
 - **Le vocabulaire est `Usage`** (`VulkanBarrier.h`). Une passe déclare
   `read(ressource, Usage::X)` et `write(ressource, Usage::Y)`. Le graphe
-  connaît le dernier usage de chaque ressource et émet un seul `BarrierBatch`
-  avant chaque passe. C'est le modèle des états D3D12 que `VulkanBarrier.h`
-  a déjà reconstruit, rendu automatique.
+  connaît le dernier usage de chaque ressource et émet un seul
+  `vkCmdPipelineBarrier2` avant chaque passe. C'est le modèle des états D3D12
+  que `VulkanBarrier.h` a déjà reconstruit, rendu automatique.
 - **Buffers : une barrière mémoire globale par point de synchro**, comme
   `BarrierBatch::memory` le justifie déjà. Le graphe trace quand même les
   accès buffer par buffer : ce sont eux qui donnent les dépendances, et plus
@@ -70,10 +70,16 @@ au même endroit.
   debug qu'elle les a déclarés. Un accès non déclaré est une barrière
   manquante : c'est là qu'on l'attrape. De même, lire une transitoire que
   personne n'a écrite dans la frame est une erreur.
-- **Compilation sans Vulkan.** Passes, accès et files entrent ; barrières et
+- **Compilation sans GPU.** Passes, accès et files entrent ; barrières et
   lots sortent, en handles et en `Usage`. Elle se teste sans GPU
   (`RenderGraphCheck`, comme `TerrainCheck`), y compris les cas à plusieurs
   files que la machine n'a pas.
+  - Règle d'image : barrière si le layout change, si le dernier accès
+    écrivait, ou si celui-ci écrit. Lecture après lecture : rien.
+  - **Le graphe est Vulkan**, comme le reste du renderer. Une découpe noyau
+    neutre / backend Vulkan a été faite et défaite le 2026-10-25 : sans
+    second backend elle n'achetait aucune portabilité, et coûtait deux
+    tables et quatre types de plus (notes de 1.1).
 - **Écartés :**
   - *Culling automatique* : il demande de versionner les ressources (chaque
     écriture crée une version) pour un gain nul, puisque le code décide déjà
@@ -246,20 +252,21 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 1 — Le noyau, passe par passe
 
-- [ ] **1.1 `RenderGraph` sans client.** `Renderer/Vulkan/RenderGraph.{h,cpp}` :
-      - import d'images et de buffers (usage d'entrée, usage de sortie) ;
+- [x] **1.1 `RenderGraph` sans client.** `Renderer/Vulkan/RenderGraph.{h,cpp}` :
+      - import d'images et de buffers (usage d'entrée, usage de sortie), par
+        objets Vulkan ou par `GPUResourceHandle` ;
       - passes : nom, file, accès, attachments, `execute` ;
-      - compilation en barrières par passe et en lots, sans Vulkan ;
-      - exécution d'un lot dans un command buffer donné, scope de rendu
+      - compilation en barrières par passe et en lots, sans GPU ;
+      - enregistrement d'un lot dans un command buffer donné, scope de rendu
         comprise ;
       - contexte d'exécution qui vérifie les accès.
 
       `RenderGraphCheck` (sans fenêtre) : lecture après écriture, lecture
       après lecture sans barrière, écriture après lecture, profondeur écrite
       puis échantillonnée, première écriture en `UNDEFINED`, `storeOp`
-      déduit, lecture sans écrivain refusée, accès non déclaré refusé ; et,
-      files simulées, une dépendance entre files qui donne deux lots et un
-      sémaphore.
+      déduit, lecture sans écrivain refusée, accès non déclaré refusé,
+      attachment du mauvais aspect refusé ; et, files simulées, une
+      dépendance entre files qui donne deux lots et un sémaphore.
       *Vérif* : `RenderGraphCheck` vert.
 - [ ] **1.2 Exposition.** `ExposurePass` : trois passes raster plus le
       readback, la HDR importée (`ShaderRead` en entrée et en sortie). Ses

@@ -358,15 +358,6 @@ GPUResourceHandle ResourceManager::createImage2D(uint32_t width, uint32_t height
     return handle;
 }
 
-namespace
-{
-bool isDepthFormat(VkFormat f)
-{
-    return f == VK_FORMAT_D32_SFLOAT || f == VK_FORMAT_D24_UNORM_S8_UINT ||
-           f == VK_FORMAT_D16_UNORM || f == VK_FORMAT_D32_SFLOAT_S8_UINT;
-}
-}  // namespace
-
 GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
                                                 ResourceFormat format,
                                                 std::optional<std::string_view> name)
@@ -445,6 +436,20 @@ uint32_t ResourceManager::textureIndex(GPUResourceHandle texture)
     auto it = images_.find(texture);
     assert(it != images_.end() && "textureIndex: not a texture");
     return it->second.textureIndex;
+}
+
+VkExtent2D ResourceManager::extentFor(GPUResourceHandle image)
+{
+    auto it = images_.find(image);
+    assert(it != images_.end() && "extentFor: not an image");
+    return {it->second.width, it->second.height};
+}
+
+VkFormat ResourceManager::formatFor(GPUResourceHandle image)
+{
+    auto it = images_.find(image);
+    assert(it != images_.end() && "formatFor: not an image");
+    return it->second.format;
 }
 
 #pragma clang diagnostic push
