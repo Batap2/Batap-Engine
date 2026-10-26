@@ -44,21 +44,19 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
     resources_ = std::make_unique<ResourceManager>(ctx_);
     resourceManager_ = resources_.get();
 
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolInfo.queueFamilyIndex = ctx_.graphicsQueueFamily_;
-    if (vkCreateCommandPool(ctx_.device_, &poolInfo, nullptr, &commandPool_) != VK_SUCCESS)
-        throw std::runtime_error("Renderer(vk) : command pool");
-
-    commandBuffers_.resize(FramesInFlight);
-    VkCommandBufferAllocateInfo cmdInfo{};
-    cmdInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmdInfo.commandPool = commandPool_;
-    cmdInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmdInfo.commandBufferCount = FramesInFlight;
-    if (vkAllocateCommandBuffers(ctx_.device_, &cmdInfo, commandBuffers_.data()) != VK_SUCCESS)
-        throw std::runtime_error("Renderer(vk) : command buffers");
+    const std::array<uint32_t, 1> families{ctx_.graphicsQueueFamily_};
+    submitQueues_.push_back({ctx_.graphicsQueue_, 0});
+    for (std::vector<CommandPool>& slot : commandPools_)
+        for (const uint32_t family : families)
+        {
+            VkCommandPoolCreateInfo poolInfo{};
+            poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+            poolInfo.queueFamilyIndex = family;
+            if (vkCreateCommandPool(ctx_.device_, &poolInfo, nullptr, &slot.emplace_back().pool_) !=
+                VK_SUCCESS)
+                throw std::runtime_error("Renderer(vk) : command pool");
+        }
 
     VkQueryPoolCreateInfo queryInfo{};
     queryInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
@@ -434,14 +432,11 @@ void Renderer::render()
     if (scenePasses_ && frameCounter_ % 30 == 0)
         scenePasses_->checkHotReload();
 
-    VkCommandBuffer cmd = commandBuffers_[frame];
-    vkResetCommandBuffer(cmd, 0);
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &beginInfo);
-    beginGpuFrameTime(cmd, frame);
+    for (CommandPool& pool : commandPools_[frame])
+    {
+        vkResetCommandPool(ctx_.device_, pool.pool_, 0);
+        pool.used_ = 0;
+    }
 
     graph_.reset();
     const GraphBuffer uploads =
@@ -525,16 +520,83 @@ void Renderer::render()
             .execute([this, swapchain](GraphContext& c)
                      { recordDumpCopy(c.cmd(), c.image(swapchain)); });
 
-    graph_.record(cmd);
-
-    endGpuFrameTime(cmd, frame);
-    vkEndCommandBuffer(cmd);
-    swapchain_.submit(cmd, ctx_.graphicsQueue_);
+    submitBatches(frame, imageIndex, swapchain);
     swapchain_.present(ctx_.graphicsQueue_, imageIndex);
 
     if (dumpThisFrame && dumpBuffer_)
         writeDump();
     ++frameCounter_;
+}
+
+VkCommandBuffer Renderer::beginCommandBuffer(uint32_t frame, uint32_t pool)
+{
+    CommandPool& commands = commandPools_[frame][pool];
+    if (commands.used_ == commands.buffers_.size())
+    {
+        VkCommandBufferAllocateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        info.commandPool = commands.pool_;
+        info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        info.commandBufferCount = 1;
+        VkCommandBuffer allocated = VK_NULL_HANDLE;
+        if (vkAllocateCommandBuffers(ctx_.device_, &info, &allocated) != VK_SUCCESS)
+            throw std::runtime_error("Renderer(vk) : command buffer");
+        commands.buffers_.push_back(allocated);
+    }
+    VkCommandBuffer cmd = commands.buffers_[commands.used_++];
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+    return cmd;
+}
+
+void Renderer::submitBatches(uint32_t frame, uint32_t imageIndex, GraphImage swapchain)
+{
+    graph_.compile();
+    const std::vector<GraphBatch>& batches = graph_.batches();
+    const uint32_t acquiredBy = graph_.firstBatch(swapchain);
+    const uint32_t presentedBy = graph_.lastBatch(swapchain);
+    if (acquiredBy >= batches.size() || presentedBy >= batches.size())
+        throw std::logic_error("Renderer: no pass touches the swapchain image");
+
+    for (uint32_t b = 0; b < batches.size(); ++b)
+    {
+        const bool last = b + 1 == batches.size();
+        const SubmitQueue& queue = submitQueues_[batches[b].queue_];
+        VkCommandBuffer cmd = beginCommandBuffer(frame, queue.pool_);
+        if (b == 0)
+            beginGpuFrameTime(cmd, frame);
+        graph_.record(b, cmd);
+        if (last)
+            endGpuFrameTime(cmd, frame);
+        vkEndCommandBuffer(cmd);
+
+        VkCommandBufferSubmitInfo commandInfo{};
+        commandInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandInfo.commandBuffer = cmd;
+        VkSemaphoreSubmitInfo acquired{};
+        acquired.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        acquired.semaphore = swapchain_.acquired();
+        acquired.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        VkSemaphoreSubmitInfo rendered{};
+        rendered.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        rendered.semaphore = swapchain_.rendered(imageIndex);
+        rendered.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+
+        VkSubmitInfo2 submit{};
+        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+        submit.waitSemaphoreInfoCount = b == acquiredBy ? 1u : 0u;
+        submit.pWaitSemaphoreInfos = &acquired;
+        submit.commandBufferInfoCount = 1;
+        submit.pCommandBufferInfos = &commandInfo;
+        submit.signalSemaphoreInfoCount = b == presentedBy ? 1u : 0u;
+        submit.pSignalSemaphoreInfos = &rendered;
+        if (vkQueueSubmit2(queue.queue_, 1, &submit,
+                           last ? swapchain_.frameFence() : VK_NULL_HANDLE) != VK_SUCCESS)
+            throw std::runtime_error("Renderer(vk) : vkQueueSubmit2");
+    }
 }
 
 void Renderer::resize(uint32_t w, uint32_t h)
@@ -619,7 +681,9 @@ Renderer::~Renderer()
     platformImGuiShutdown();
     ImGui::DestroyContext();
     vkDestroyQueryPool(ctx_.device_, frameQueries_, nullptr);
-    vkDestroyCommandPool(ctx_.device_, commandPool_, nullptr);
+    for (const std::vector<CommandPool>& slot : commandPools_)
+        for (const CommandPool& pool : slot)
+            vkDestroyCommandPool(ctx_.device_, pool.pool_, nullptr);
 }
 
 }  // namespace batap

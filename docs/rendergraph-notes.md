@@ -688,3 +688,55 @@ par Batap :
 - au-dessus de l'import de la swapchain, trois lignes d'origine gardées
   telles quelles (« swapchain: None means TOP_OF_PIPE… ; »). Elles disent
   pourquoi l'import n'est pas en `None`, mais elles sont tronquées.
+
+## 2.3 Lots et soumission
+
+*Fait (2026-10-26)* : `Renderer::submitBatches` compile le graphe, puis
+traite ses lots dans l'ordre. Pour chacun :
+- un command buffer pris dans le pool du slot et de la famille de sa file ;
+- l'enregistrement du lot (`record(lot, cmd)`) ;
+- un `vkQueueSubmit2`.
+
+Ce qui s'accroche aux lots :
+- l'attente de l'acquire, au premier lot qui touche la swapchain
+  (`RenderGraph::firstBatch`), à `COLOR_ATTACHMENT_OUTPUT` ;
+- le sémaphore du present, au dernier (`lastBatch`, donc celui de sa sortie
+  `Present`), à `ALL_COMMANDS` comme l'ancien `vkQueueSubmit` ;
+- la fence du slot, au dernier lot de la frame.
+
+`VulkanSwapchain::submit` disparaît. La swapchain ne fournit plus que ses
+objets de synchro : `acquired()`, `rendered(image)` et `frameFence()`.
+
+**Command pools** : un par slot de frame et par famille, avec
+`TRANSIENT_BIT`. Chacun est remis à zéro en entier (`vkResetCommandPool`)
+quand son slot revient, après la fence. Ses command buffers sont alloués à la
+demande, puis réutilisés. Il n'y a qu'une famille aujourd'hui.
+`submitQueues_` fait correspondre l'index de file d'un lot à une `VkQueue` :
+une seule entrée, la graphique, pour les trois `GraphQueue`.
+
+*Écarts* :
+- **Pas de sémaphore timeline encore.** Avec une seule file, il n'y a jamais
+  d'attente entre lots, et `record(lot, cmd)` refuse toujours un lot qui en
+  a. Ils arrivent en 6.2, comme le dit le plan.
+- **Le chrono de frame** : son timestamp de début est dans le premier lot,
+  celui de fin dans le dernier. Sur plusieurs files, ils ne seront plus
+  comparables : c'est pour 4.1.
+- **Le backend ImGui soumet lui-même** ses mises à jour de textures
+  (`vkQueueSubmit` puis `vkQueueWaitIdle`, dans `imgui_impl_vulkan.cpp`).
+  C'est du code tiers, hors du graphe.
+
+*Piège pour 6.2* : la fence ne couvre que le dernier lot, donc que sa file.
+Avec plusieurs files, `waitFrame` devra attendre les valeurs timeline de
+chaque file.
+
+*Mesuré* :
+- `RenderGraphCheck` : 60 contrôles verts, dont 3 nouveaux. Le premier et le
+  dernier lot de la swapchain sont vérifiés sur quatre lots simulés (acquire
+  au lot 1, present au lot 3), puis sur une seule file. Une image non touchée
+  prend le lot de sa sortie.
+- *Vérif* : `vkQueueSubmit2` n'apparaît plus que dans `submitBatches`, et
+  aucun `vkQueueSubmit` ne reste dans notre code.
+- Banc : raster identique au pixel sur les 9 cas, éditeur compris. RT dans
+  le bruit. GPU : comme en 2.2.
+- Validation : rien de nouveau. Redimensionnement de 2.2 rejoué : 0 message
+  en raster comme en RT.

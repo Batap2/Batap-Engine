@@ -234,26 +234,17 @@ uint32_t VulkanSwapchain::acquire()
         return OutOfDate;
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("VulkanSwapchain : vkAcquireNextImageKHR");
-    lastAcquired_ = imageIndex;
     return imageIndex;
 }
 
-void VulkanSwapchain::submit(VkCommandBuffer cmd, VkQueue queue)
+VkSemaphore VulkanSwapchain::acquired() const
 {
-    // On n'attend l'image acquise qu'au moment d'écrire dedans (pas avant)
-    const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    return acquireSemaphores_[ctx_.frameIndex_];
+}
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &acquireSemaphores_[ctx_.frameIndex_];
-    submitInfo.pWaitDstStageMask = &waitStage;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &cmd;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &renderSemaphores_[lastAcquired_];
-    if (vkQueueSubmit(queue, 1, &submitInfo, frameFences_[ctx_.frameIndex_]) != VK_SUCCESS)
-        throw std::runtime_error("VulkanSwapchain : vkQueueSubmit");
+VkFence VulkanSwapchain::frameFence() const
+{
+    return frameFences_[ctx_.frameIndex_];
 }
 
 void VulkanSwapchain::present(VkQueue queue, uint32_t imageIndex)

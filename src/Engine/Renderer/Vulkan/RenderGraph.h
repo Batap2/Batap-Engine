@@ -134,6 +134,8 @@ struct RenderGraph
     void record(VkCommandBuffer cmd);
 
     uint32_t textureIndex(GraphImage handle) const;
+    uint32_t firstBatch(GraphImage handle) const;
+    uint32_t lastBatch(GraphImage handle) const;
 
     const std::deque<GraphPass>& passes() const { return passes_; }
     const std::vector<GraphBatch>& batches() const { return batches_; }

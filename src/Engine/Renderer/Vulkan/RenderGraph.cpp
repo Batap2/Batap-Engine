@@ -260,6 +260,31 @@ uint32_t RenderGraph::textureIndex(GraphImage handle) const
     return images_.at(handle.index_).info_.textureIndex_;
 }
 
+uint32_t RenderGraph::firstBatch(GraphImage handle) const
+{
+    for (const GraphPass& pass : passes_)
+        for (const GraphAccess& access : pass.accesses_)
+            if (access.image_ && access.resource_ == handle.index_)
+                return pass.batch_;
+    return lastBatch(handle);
+}
+
+uint32_t RenderGraph::lastBatch(GraphImage handle) const
+{
+    for (uint32_t b = static_cast<uint32_t>(batches_.size()); b-- > 0;)
+    {
+        for (const GraphBarrier& exit : batches_[b].exits_)
+            if (exit.image_ && exit.resource_ == handle.index_)
+                return b;
+        const GraphBatch& batch = batches_[b];
+        for (uint32_t p = batch.firstPass_; p < batch.firstPass_ + batch.passCount_; ++p)
+            for (const GraphAccess& access : passes_[p].accesses_)
+                if (access.image_ && access.resource_ == handle.index_)
+                    return b;
+    }
+    return NoBatch;
+}
+
 const std::string& RenderGraph::resourceName(const GraphAccess& access) const
 {
     return access.image_ ? images_[access.resource_].name_ : buffers_[access.resource_].name_;

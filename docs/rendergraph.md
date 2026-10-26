@@ -313,7 +313,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       *Vérif* : le run éditeur du banc identique ; redimensionner le viewport
       ne donne aucune erreur de validation.
-- [ ] **2.3 Lots et soumission.** La compilation rend ses lots (un seul), le
+- [x] **2.3 Lots et soumission.** La compilation rend ses lots (un seul), le
       `Renderer` les soumet par `vkQueueSubmit2`, avec l'acquire et le
       present accrochés au lot de la swapchain. Command pools par slot de
       frame et par famille.

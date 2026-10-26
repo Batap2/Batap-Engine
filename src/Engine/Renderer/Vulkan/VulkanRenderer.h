@@ -127,8 +127,21 @@ struct Renderer
     bool sceneShownByUi_ = false;
     std::array<std::vector<Retired>, FramesInFlight> retired_{};
 
-    VkCommandPool commandPool_ = VK_NULL_HANDLE;
-    std::vector<VkCommandBuffer> commandBuffers_;
+    struct SubmitQueue
+    {
+        VkQueue queue_ = VK_NULL_HANDLE;
+        uint32_t pool_ = 0;
+    };
+    struct CommandPool
+    {
+        VkCommandPool pool_ = VK_NULL_HANDLE;
+        std::vector<VkCommandBuffer> buffers_;
+        uint32_t used_ = 0;
+    };
+    VkCommandBuffer beginCommandBuffer(uint32_t frame, uint32_t pool);
+    void submitBatches(uint32_t frame, uint32_t imageIndex, GraphImage swapchain);
+    std::vector<SubmitQueue> submitQueues_;
+    std::array<std::vector<CommandPool>, FramesInFlight> commandPools_{};
 
     std::vector<ResizeCallback> resizeCallbacks_;
     bool transparent_ = false;

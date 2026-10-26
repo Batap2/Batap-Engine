@@ -35,7 +35,9 @@ struct VulkanSwapchain
     // the start of the CPU frame, before the uploads are written. Idempotent.
     void waitFrame();
     uint32_t acquire();
-    void submit(VkCommandBuffer cmd, VkQueue queue);
+    VkSemaphore acquired() const;
+    VkSemaphore rendered(uint32_t imageIndex) const { return renderSemaphores_[imageIndex]; }
+    VkFence frameFence() const;
     void present(VkQueue queue, uint32_t imageIndex);
 
     VkFormat format_ = VK_FORMAT_UNDEFINED;
@@ -51,7 +53,6 @@ struct VulkanSwapchain
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
 
-    uint32_t lastAcquired_ = 0;
     bool frameWaited_ = false;
     bool transparent_ = false;
     bool vsync_ = false;
