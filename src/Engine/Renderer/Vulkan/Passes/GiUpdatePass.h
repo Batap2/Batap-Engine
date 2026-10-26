@@ -22,21 +22,17 @@ struct GiUpdatePass
     GiUpdatePass& operator=(const GiUpdatePass&) = delete;
 
     void buildPipelines(const ShaderModules& modules);
-    void resize(v2i frameSize);
+    static VkExtent2D updateExtent(VkExtent2D output);
     void addPasses(RenderGraph& graph, const RtSceneBuffers& rt, GraphBuffer uploads,
                    GraphBuffer frameConstants, const PassContext& pass, uint32_t frame,
-                   uint32_t passes);
+                   uint32_t passes, VkExtent2D output);
 
-    v2i size() const { return size_; }
     float gpuMs() const { return gpuMs_; }
 
    private:
     PassSetup setup_;
     VkPipeline updatePipeline_ = VK_NULL_HANDLE;
     VkPipeline resolvePipeline_ = VK_NULL_HANDLE;
-    GPUResourceHandle updateTarget_;
-    GPUResourceHandle resolveTarget_;
-    v2i size_ = v2i::Zero();
     VkQueryPool queries_ = VK_NULL_HANDLE;
     std::array<bool, FramesInFlight> written_{};
     float gpuMs_ = -1.f;

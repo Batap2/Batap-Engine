@@ -3,12 +3,12 @@
 #include "Renderer/ResourceFormat.h"
 #include "Renderer/Vulkan/RtScene.h"
 #include "Renderer/Vulkan/VulkanContext.h"
+#include "Renderer/Vulkan/VulkanFormats.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
 #include "Shaders/ShaderInterop.h"
 
 #include <algorithm>
-#include <optional>
 #include <string>
 
 namespace batap
@@ -42,27 +42,14 @@ void GiUpdatePass::buildPipelines(const ShaderModules& modules)
     resolvePipeline_ = build(modules[GiResolvePS], VK_FORMAT_R8_UNORM);
 }
 
-void GiUpdatePass::resize(v2i frameSize)
+VkExtent2D GiUpdatePass::updateExtent(VkExtent2D output)
 {
-    if (!resolveTarget_.valid())
-        resolveTarget_ = setup_.resources_.createTarget(static_cast<uint32_t>(kResolveWidth),
-                                                        static_cast<uint32_t>(kResolveHeight),
-                                                        ResourceFormat::R8_UNORM, std::nullopt);
-
-    const v2i size{std::max((frameSize.x() + 3) / 4, 1), std::max((frameSize.y() + 3) / 4, 1)};
-    if (updateTarget_.valid() && size == size_)
-        return;
-    if (updateTarget_.valid())
-        setup_.resources_.requestDestroy(updateTarget_);
-    size_ = size;
-    updateTarget_ = setup_.resources_.createTarget(static_cast<uint32_t>(size.x()),
-                                                   static_cast<uint32_t>(size.y()),
-                                                   ResourceFormat::R8G8B8A8_UNORM, std::nullopt);
+    return {std::max((output.width + 3) / 4, 1u), std::max((output.height + 3) / 4, 1u)};
 }
 
 void GiUpdatePass::addPasses(RenderGraph& graph, const RtSceneBuffers& rt, GraphBuffer uploads,
                              GraphBuffer frameConstants, const PassContext& pass, uint32_t frame,
-                             uint32_t passes)
+                             uint32_t passes, VkExtent2D output)
 {
     const VkDevice device = setup_.ctx_.device_;
     const uint32_t first = frame * 2;
@@ -104,11 +91,12 @@ void GiUpdatePass::addPasses(RenderGraph& graph, const RtSceneBuffers& rt, Graph
         written_[frame] = true;
     }
 
-    ResourceManager& resources = setup_.resources_;
-    const auto importTarget = [&](const char* name, GPUResourceHandle target)
-    { return graph.importImage(name, resources, target, Usage::ShaderRead, Usage::ShaderRead); };
-    const GraphImage updateTarget = importTarget("gi update target", updateTarget_);
-    const GraphImage resolveTarget = importTarget("gi resolve target", resolveTarget_);
+    const GraphImage updateTarget = graph.createImage(
+        "gi update target", {updateExtent(output), toVkFormat(ResourceFormat::R8G8B8A8_UNORM)});
+    const GraphImage resolveTarget = graph.createImage(
+        "gi resolve target",
+        {{static_cast<uint32_t>(kResolveWidth), static_cast<uint32_t>(kResolveHeight)},
+         toVkFormat(ResourceFormat::R8_UNORM)});
 
     const auto draw = [&](std::string name, GraphImage target, VkPipeline pipeline,
                           uint32_t index) -> GraphPass&

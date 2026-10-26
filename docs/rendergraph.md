@@ -321,7 +321,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 3 — Ressources créées par le graphe
 
-- [ ] **3.1 Transitoires.** `createImage(nom, desc)`, recyclage par
+- [x] **3.1 Transitoires.** `createImage(nom, desc)`, recyclage par
       description, libération différée, bits d'usage déduits, slot bindless.
       Premiers clients : les cibles de l'exposition et de la mise à jour GI.
       `GiUpdatePass::resize` disparaît.

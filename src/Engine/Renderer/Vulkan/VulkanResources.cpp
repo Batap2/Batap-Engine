@@ -362,11 +362,24 @@ GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
                                                 ResourceFormat format,
                                                 std::optional<std::string_view> name)
 {
+    const VkFormat vkFormat = toVkFormat(format);
+    return createTarget(width, height, vkFormat,
+                        VK_IMAGE_USAGE_SAMPLED_BIT |
+                            (isDepthFormat(vkFormat) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+                                                     : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT),
+                        name);
+}
+
+GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height, VkFormat format,
+                                                VkImageUsageFlags usage,
+                                                std::optional<std::string_view> name)
+{
     GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
                                     : GPUResourceHandle(GPUResourceType::StaticResource);
 
     Image image{};
-    image.format = toVkFormat(format);
+    image.format = format;
     image.width = width;
     image.height = height;
     image.mipLevels = 1;
@@ -383,10 +396,7 @@ GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
     imageInfo.arrayLayers = 1;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
-                      (depth
-                           ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-                           : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    imageInfo.usage = usage;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     VmaAllocationCreateInfo allocInfo{};
@@ -405,21 +415,25 @@ GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
     if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &image.view) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : target view");
 
-    image.textureIndex = allocTextureIndex();
+    image.textureIndex = UINT32_MAX;
+    if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
+    {
+        image.textureIndex = allocTextureIndex();
 
-    VkDescriptorImageInfo descriptor{};
-    descriptor.imageView = image.view;
-    descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkDescriptorImageInfo descriptor{};
+        descriptor.imageView = image.view;
+        descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkWriteDescriptorSet write{};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = textureSet_;
-    write.dstBinding = TexturesBinding;
-    write.dstArrayElement = image.textureIndex;
-    write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    write.pImageInfo = &descriptor;
-    vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = textureSet_;
+        write.dstBinding = TexturesBinding;
+        write.dstArrayElement = image.textureIndex;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        write.pImageInfo = &descriptor;
+        vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
+    }
 
     images_.emplace(handle, image);
     return handle;
@@ -687,7 +701,8 @@ void ResourceManager::requestDestroy(GPUResourceHandle handle)
     }
     if (auto it = images_.find(handle); it != images_.end())
     {
-        textureFree_.push_back(it->second.textureIndex);
+        if (it->second.textureIndex != UINT32_MAX)
+            textureFree_.push_back(it->second.textureIndex);
         destroyQueues_[currentFrame()].images.push_back(it->second);
         images_.erase(it);
     }

@@ -1,5 +1,6 @@
 #include "Renderer/Vulkan/RenderGraph.h"
 
+#include "Renderer/EngineConfig.h"
 #include "Renderer/Vulkan/VulkanFormats.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
@@ -33,6 +34,32 @@ bool canWrite(Usage usage)
             return false;
     }
     return true;
+}
+
+VkImageUsageFlags imageUsage(Usage usage)
+{
+    switch (usage)
+    {
+        case Usage::TransferSrc:
+            return VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        case Usage::TransferDst:
+            return VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        case Usage::ShaderRead:
+            return VK_IMAGE_USAGE_SAMPLED_BIT;
+        case Usage::ShaderWrite:
+            return VK_IMAGE_USAGE_STORAGE_BIT;
+        case Usage::ColorAttachment:
+            return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        case Usage::DepthAttachment:
+            return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        case Usage::None:
+        case Usage::Present:
+        case Usage::AnyRead:
+        case Usage::AccelerationStructureBuild:
+        case Usage::AccelerationStructureRead:
+            return 0;
+    }
+    return 0;
 }
 
 bool hasLayout(Usage usage)
@@ -224,6 +251,66 @@ void RenderGraph::forget(VkImage image)
     keptUsages_.erase(image);
 }
 
+void RenderGraph::setAllocator(GraphAllocator allocator)
+{
+    allocator_ = std::move(allocator);
+}
+
+GraphImage RenderGraph::createImage(std::string name, const GraphImageDesc& desc)
+{
+    ImageResource& image = images_.emplace_back();
+    image.name_ = std::move(name);
+    image.info_.extent_ = desc.extent_;
+    image.info_.aspect_ = isDepthFormat(desc.format_) ? VK_IMAGE_ASPECT_DEPTH_BIT
+                                                      : VK_IMAGE_ASPECT_COLOR_BIT;
+    image.transient_ = true;
+    image.desc_ = desc;
+    compiled_ = false;
+    return GraphImage{static_cast<uint32_t>(images_.size() - 1)};
+}
+
+void RenderGraph::allocateTransients()
+{
+    std::vector<VkImageUsageFlags> usages(images_.size(), 0);
+    for (const GraphPass& pass : passes_)
+        for (const GraphAccess& access : pass.accesses_)
+            if (access.image_ && access.resource_ < images_.size())
+                usages[access.resource_] |= imageUsage(access.usage_);
+
+    for (size_t i = 0; i < images_.size(); ++i)
+    {
+        ImageResource& image = images_[i];
+        if (!image.transient_ || image.physical_ != UINT32_MAX || usages[i] == 0)
+            continue;
+        const GraphImageDesc& desc = image.desc_;
+        const auto free = std::find_if(transients_.begin(), transients_.end(),
+                                       [&](const Transient& t)
+                                       {
+                                           return t.frame_ != frame_ && t.usage_ == usages[i] &&
+                                                  t.desc_.format_ == desc.format_ &&
+                                                  t.desc_.extent_.width == desc.extent_.width &&
+                                                  t.desc_.extent_.height == desc.extent_.height;
+                                       });
+        if (free != transients_.end())
+            image.physical_ = static_cast<uint32_t>(free - transients_.begin());
+        else
+        {
+            if (!allocator_.create_)
+                throw std::logic_error("render graph: '" + image.name_ +
+                                       "' is created by the graph, which has no allocator");
+            Transient& created = transients_.emplace_back();
+            created.desc_ = desc;
+            created.usage_ = usages[i];
+            created.info_ = allocator_.create_(image.name_, desc, usages[i]);
+            image.physical_ = static_cast<uint32_t>(transients_.size() - 1);
+        }
+        Transient& physical = transients_[image.physical_];
+        physical.frame_ = frame_;
+        image.info_ = physical.info_;
+        image.in_ = physical.last_;
+    }
+}
+
 GraphBuffer RenderGraph::importBuffer(std::string name, VkBuffer buffer, Usage in, Usage out)
 {
     buffers_.push_back({std::move(name), buffer, in, out});
@@ -253,11 +340,27 @@ void RenderGraph::reset()
     passes_.clear();
     batches_.clear();
     compiled_ = false;
+
+    ++frame_;
+    std::erase_if(transients_,
+                  [&](const Transient& t)
+                  {
+                      if (frame_ - t.frame_ <= FramesInFlight)
+                          return false;
+                      if (allocator_.destroy_)
+                          allocator_.destroy_(t.info_);
+                      return true;
+                  });
 }
 
 uint32_t RenderGraph::textureIndex(GraphImage handle) const
 {
-    return images_.at(handle.index_).info_.textureIndex_;
+    const ImageResource& image = images_.at(handle.index_);
+    if (image.transient_ && image.physical_ == UINT32_MAX)
+        throw std::logic_error("render graph: '" + image.name_ +
+                               "' is created by the graph, its texture index is known after "
+                               "compile()");
+    return image.info_.textureIndex_;
 }
 
 uint32_t RenderGraph::firstBatch(GraphImage handle) const
@@ -292,6 +395,7 @@ const std::string& RenderGraph::resourceName(const GraphAccess& access) const
 
 void RenderGraph::compile()
 {
+    allocateTransients();
     batches_.clear();
     for (uint32_t p = 0; p < passes_.size(); ++p)
     {
@@ -310,7 +414,8 @@ void RenderGraph::compile()
     {
         imageStates[i].usage_ = images_[i].in_;
         imageStates[i].written_ = canWrite(images_[i].in_);
-        imageStates[i].tracking_.hasContent_ = images_[i].in_ != Usage::None;
+        imageStates[i].tracking_.hasContent_ = !images_[i].transient_ &&
+                                               images_[i].in_ != Usage::None;
         imageStates[i].tracking_.seenBy_ = graphicsBit;
     }
     std::vector<BufferState> bufferStates(buffers_.size());
@@ -486,9 +591,13 @@ void RenderGraph::compile()
     }
 
     for (size_t i = 0; i < images_.size(); ++i)
+    {
         if (images_[i].kept_)
             keptUsages_[images_[i].info_.image_] =
                 images_[i].out_ != Usage::None ? images_[i].out_ : imageStates[i].usage_;
+        if (images_[i].physical_ != UINT32_MAX)
+            transients_[images_[i].physical_].last_ = imageStates[i].usage_;
+    }
 
     compiled_ = true;
 }

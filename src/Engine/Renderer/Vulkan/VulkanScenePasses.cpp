@@ -431,11 +431,8 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
 
     RtSceneBuffers rt;
     if (rayTracing)
-    {
         rt = rtScene_->addPasses(graph, uploads, frame, *reg, *instanceM, *ctx.assetManager_,
                                  terrain_, args.camera_);
-        giUpdate_.resize(ctx.getFrameSize());
-    }
 
     if (!hdrTarget_.valid() || hdrExtent_.width != targets.extent_.width ||
         hdrExtent_.height != targets.extent_.height)
@@ -453,8 +450,9 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
     frameData_.exposure_ =
         exposure_.update(frame, args.camera_, reg->get<Camera_C>(args.camera_), dt);
     frameData_.frameIndex_ = ++giFrame_;
-    frameData_.giWidth_ = static_cast<uint32_t>(giUpdate_.size().x());
-    frameData_.giHeight_ = static_cast<uint32_t>(giUpdate_.size().y());
+    const VkExtent2D giExtent = GiUpdatePass::updateExtent(targets.extent_);
+    frameData_.giWidth_ = giExtent.width;
+    frameData_.giHeight_ = giExtent.height;
     frameData_.giMaxAge_ = static_cast<uint32_t>(std::lround(3.f / dt));
     frameData_.giDt_ = dt;
     frameData_.giBounces_ = std::clamp(ctx.settings().giBounces_, 1u, 4u);
@@ -495,7 +493,8 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
 
     if (rayTracing)
     {
-        giUpdate_.addPasses(graph, rt, uploads, frameConstants, pass, frame, frameData_.giPasses_);
+        giUpdate_.addPasses(graph, rt, uploads, frameConstants, pass, frame, frameData_.giPasses_,
+                            targets.extent_);
         const RtScene::CacheStats stats = rtScene_->addCacheStatsPass(graph, rt.cacheStats_, frame);
         if (args.showGiCache_ && giFrame_ % 120 == 0)
             std::cout << "[GI] cache: " << stats.occupied_ << " / " << RtCacheCapacity

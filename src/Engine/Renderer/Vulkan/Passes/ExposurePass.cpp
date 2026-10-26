@@ -4,6 +4,7 @@
 #include "Renderer/ResourceFormat.h"
 #include "Renderer/Vulkan/RenderGraph.h"
 #include "Renderer/Vulkan/VulkanContext.h"
+#include "Renderer/Vulkan/VulkanFormats.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
 #include "Shaders/ShaderInterop.h"
@@ -24,15 +25,8 @@ constexpr float kMiddleGrey = 0.18f;
 
 ExposurePass::ExposurePass(const PassSetup& setup) : setup_(setup)
 {
-    ResourceManager& resources = setup_.resources_;
-    grid_ = resources.createTarget(ExposureGridSize, ExposureGridSize, ResourceFormat::R32G32_FLOAT,
-                                   "exposure grid");
-    block_ = resources.createTarget(ExposureGridSize / ExposureReduceBlock,
-                                    ExposureGridSize / ExposureReduceBlock,
-                                    ResourceFormat::R32G32_FLOAT, "exposure block");
-    total_ = resources.createTarget(1, 1, ResourceFormat::R32G32_FLOAT, "exposure total");
     for (GPUResourceHandle& readback : readback_)
-        readback = resources.createMappedBuffer(2 * sizeof(float), "exposure readback");
+        readback = setup_.resources_.createMappedBuffer(2 * sizeof(float), "exposure readback");
 }
 
 ExposurePass::~ExposurePass()
@@ -95,13 +89,12 @@ void ExposurePass::addPasses(RenderGraph& graph, GraphImage hdr, GraphBuffer fra
     if (!auto_)
         return;
 
-    ResourceManager& resources = setup_.resources_;
-    const auto importTarget = [&](const char* name, GPUResourceHandle target)
-    { return graph.importImage(name, resources, target, Usage::ShaderRead, Usage::ShaderRead); };
-    const GraphImage grid = importTarget("exposure grid", grid_);
-    const GraphImage block = importTarget("exposure block", block_);
-    const GraphImage total = importTarget("exposure total", total_);
-    const GraphBuffer readback = graph.importBuffer("exposure readback", resources,
+    const auto createTarget = [&](const char* name, uint32_t size)
+    { return graph.createImage(name, {{size, size}, toVkFormat(ResourceFormat::R32G32_FLOAT)}); };
+    const GraphImage grid = createTarget("exposure grid", ExposureGridSize);
+    const GraphImage block = createTarget("exposure block", ExposureGridSize / ExposureReduceBlock);
+    const GraphImage total = createTarget("exposure total", 1);
+    const GraphBuffer readback = graph.importBuffer("exposure readback", setup_.resources_,
                                                     readback_[frame], Usage::None, Usage::None);
 
     const auto draw = [&](const char* name, GraphImage source, GraphImage target,

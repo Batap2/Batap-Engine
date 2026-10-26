@@ -51,6 +51,21 @@ struct GraphImageInfo
     VkExtent2D extent_{};
     VkImageAspectFlags aspect_ = VK_IMAGE_ASPECT_COLOR_BIT;
     uint32_t textureIndex_ = UINT32_MAX;
+    GPUResourceHandle resource_{};
+};
+
+struct GraphImageDesc
+{
+    VkExtent2D extent_{};
+    VkFormat format_ = VK_FORMAT_UNDEFINED;
+};
+
+struct GraphAllocator
+{
+    std::function<GraphImageInfo(const std::string& name, const GraphImageDesc& desc,
+                                 VkImageUsageFlags usage)>
+        create_;
+    std::function<void(const GraphImageInfo& image)> destroy_;
 };
 
 struct GraphAccess
@@ -122,6 +137,8 @@ struct RenderGraph
                            Usage in, Usage out);
     GraphImage importImage(std::string name, const GraphImageInfo& info, Usage out);
     void forget(VkImage image);
+    void setAllocator(GraphAllocator allocator);
+    GraphImage createImage(std::string name, const GraphImageDesc& desc);
     GraphBuffer importBuffer(std::string name, VkBuffer buffer, Usage in, Usage out);
     GraphBuffer importBuffer(std::string name, ResourceManager& resources, GPUResourceHandle buffer,
                              Usage in, Usage out);
@@ -150,6 +167,18 @@ struct RenderGraph
         Usage in_ = Usage::None;
         Usage out_ = Usage::None;
         bool kept_ = false;
+        bool transient_ = false;
+        GraphImageDesc desc_{};
+        uint32_t physical_ = UINT32_MAX;
+    };
+
+    struct Transient
+    {
+        GraphImageDesc desc_;
+        VkImageUsageFlags usage_ = 0;
+        GraphImageInfo info_;
+        Usage last_ = Usage::None;
+        uint64_t frame_ = 0;
     };
 
     struct BufferResource
@@ -161,6 +190,7 @@ struct RenderGraph
     };
 
     const std::string& resourceName(const GraphAccess& access) const;
+    void allocateTransients();
     void recordBarriers(VkCommandBuffer cmd, const std::vector<GraphBarrier>& barriers) const;
     void recordPass(GraphPass& pass, VkCommandBuffer cmd);
 
@@ -171,6 +201,9 @@ struct RenderGraph
     std::vector<GraphBatch> batches_;
     bool compiled_ = false;
     std::unordered_map<VkImage, Usage> keptUsages_;
+    GraphAllocator allocator_;
+    std::vector<Transient> transients_;
+    uint64_t frame_ = 0;
 };
 
 struct GraphContext

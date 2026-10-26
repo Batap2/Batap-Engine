@@ -1,6 +1,7 @@
 #include "VulkanRenderer.h"
 
 #include "VulkanBarrier.h"
+#include "VulkanFormats.h"
 #include "VulkanMemory.h"
 #include "VulkanResources.h"
 #include "VulkanScenePasses.h"
@@ -43,6 +44,22 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
 
     resources_ = std::make_unique<ResourceManager>(ctx_);
     resourceManager_ = resources_.get();
+    graph_.setAllocator(
+        {[this](const std::string&, const GraphImageDesc& desc, VkImageUsageFlags usage)
+         {
+             const GPUResourceHandle image = resources_->createTarget(
+                 desc.extent_.width, desc.extent_.height, desc.format_, usage);
+             GraphImageInfo info;
+             info.image_ = resources_->imageFor(image);
+             info.view_ = resources_->viewFor(image);
+             info.extent_ = desc.extent_;
+             info.aspect_ = isDepthFormat(desc.format_) ? VK_IMAGE_ASPECT_DEPTH_BIT
+                                                        : VK_IMAGE_ASPECT_COLOR_BIT;
+             info.textureIndex_ = resources_->textureIndex(image);
+             info.resource_ = image;
+             return info;
+         },
+         [this](const GraphImageInfo& image) { resources_->requestDestroy(image.resource_); }});
 
     const std::array<uint32_t, 1> families{ctx_.graphicsQueueFamily_};
     submitQueues_.push_back({ctx_.graphicsQueue_, 0});

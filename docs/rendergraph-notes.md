@@ -740,3 +740,64 @@ chaque file.
   le bruit. GPU : comme en 2.2.
 - Validation : rien de nouveau. Redimensionnement de 2.2 rejoué : 0 message
   en raster comme en RT.
+
+## 3.1 Transitoires
+
+*Fait (2026-10-26)* : `graph.createImage(nom, {extent, format})` rend une
+image créée par le graphe. `compile()` lui donne une image physique.
+- **Recyclage** : par description et bits d'usage. Une image physique déjà
+  prise dans la frame n'est pas redonnée : deux transitoires de même
+  description reçoivent deux images.
+- **Libération** : une image physique sans demande pendant `FramesInFlight`
+  frames est rendue à `reset()`, par l'allocateur (`requestDestroy` dans le
+  moteur).
+- **Bits d'usage déduits** des accès de la frame : `ShaderRead` → `SAMPLED`,
+  `TransferSrc` → `TRANSFER_SRC`, etc.
+- **Slot bindless** seulement si l'image est échantillonnée : un slot exige
+  `SAMPLED`. `textureIndex()` d'une transitoire avant `compile()` est
+  refusé.
+- **D'une frame à l'autre** : une transitoire part sans contenu, et une
+  lecture avant toute écriture est refusée. Sa première écriture attend
+  le dernier usage de la même image physique dans sa frame précédente,
+  usage gardé dans le pool. Il n'y a pas de sortie : `storeOp` vaut
+  `DONT_CARE` après le dernier lecteur.
+
+Les clients :
+- **exposition** : grille, bloc et total ;
+- **mise à jour GI** : les cibles de mise à jour et de résolution.
+  `GiUpdatePass::resize` et `size()` disparaissent ; le quart de la sortie
+  vient de `GiUpdatePass::updateExtent(targets.extent_)`, qui sert aussi aux
+  constantes de frame.
+
+*Écarts* :
+- **Pas de taille « fraction de la sortie » dans la description** : elle
+  est absolue, et l'appelant calcule la fraction à partir de
+  `targets.extent_` (qui vaut `getFrameSize()`). Le resize reste
+  automatique : une nouvelle taille est une nouvelle description.
+- **L'allocateur est injecté** (`GraphAllocator` : `create_`, `destroy_`),
+  pour que `RenderGraphCheck` teste le recyclage sans GPU. Le `Renderer`
+  branche une nouvelle surcharge de `ResourceManager::createTarget(l, h,
+  VkFormat, usage)`, à laquelle l'ancienne délègue.
+- **Handles sans nom** pour les images physiques. Un handle nommé est le
+  hash du nom : l'ancienne taille d'une transitoire, gardée pendant le délai
+  de libération, et la nouvelle entreraient en collision dans
+  `ResourceManager::images_`.
+- Les cibles GI ne sont plus lues par personne : elles n'ont plus que
+  `COLOR_ATTACHMENT`, sans slot, et leur dernière écriture a un `storeOp`
+  `DONT_CARE`. Le total de l'exposition n'a plus de slot non plus. Les
+  sorties de ces images (`→ ShaderRead`) disparaissent.
+- `frameData_.giWidth_` et `giHeight_` sont calculés à chaque frame, raster
+  compris. Seul `GiUpdatePS` les lit.
+
+*Mesuré* :
+- `RenderGraphCheck` : 73 contrôles verts, dont 13 nouveaux sur les
+  transitoires :
+  - bits déduits, slot, index refusé avant `compile()` ;
+  - réutilisation, attente de la frame d'avant, nouvelle taille ;
+  - libération au bon moment, deux images pour deux transitoires ;
+  - `storeOp` `STORE` puis `DONT_CARE`, lecture sans écrivain refusée.
+- Banc : raster identique au pixel sur les 9 cas, dont `room` (l'exposition,
+  donc la même EV à la frame 600). RT dans le bruit, à part `room_rt`
+  (92 px, 1 niveau), la tolérance de 1.2.
+- Validation : rien de nouveau. Redimensionnement : 0 message en raster
+  comme en RT, alors que la cible GI change de taille à chaque fois.

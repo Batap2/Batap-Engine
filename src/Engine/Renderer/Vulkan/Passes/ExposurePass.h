@@ -31,9 +31,6 @@ struct ExposurePass
     PassSetup setup_;
     VkPipeline measurePipeline_ = VK_NULL_HANDLE;
     VkPipeline reducePipeline_ = VK_NULL_HANDLE;
-    GPUResourceHandle grid_;
-    GPUResourceHandle block_;
-    GPUResourceHandle total_;
     std::array<GPUResourceHandle, FramesInFlight> readback_;
     std::array<bool, FramesInFlight> measured_{};
     entt::entity camera_ = entt::null;
