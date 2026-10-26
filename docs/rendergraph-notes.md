@@ -470,3 +470,69 @@ transitions d'image.
   2 à 11 %. À remesurer machine libre, en particulier les petites scènes,
   où les trois transitions de la frontière pourraient se voir (quelques µs
   sur ~80 µs).
+
+## 1.7 Structures d'accélération
+
+*Fait (2026-10-26)* : `RtScene::updateBlases` et `buildTlas` deviennent
+`RtScene::addPasses(graph, …)`, qui rend un `RtSceneBuffers` (TLAS, BLAS,
+clés, valeurs et compteurs du cache). `GiCacheBuffers` disparaît, ainsi que
+les getters `cacheKeys()`, `cacheValues()` et `cacheStats()`. Les six
+`BarrierBatch` de `RtScene` disparaissent aussi. Il y a six passes, dans cet
+ordre :
+- `blas compaction`, `blas build`, `blas compacted sizes` et `tlas build`,
+  en `Compute`. Les deux premières n'existent que les frames qui ont du
+  travail ;
+- `gi cache clear` (la première frame RT) et `gi cache stats reset`, en
+  `Graphics`, **après** la TLAS : en phase 6, cela fera deux lots au lieu
+  de quatre.
+
+Les imports :
+- `blases` : toutes les BLAS en une ressource, sans `VkBuffer`, puisque la
+  barrière buffer est globale. Import `AccelerationStructureRead` →
+  `AccelerationStructureRead` ;
+- `tlas`, `tlas scratch` et `blas scratch` : les vrais buffers, en `None` →
+  `None` (TLAS et scratch par slot, scratch des BLAS neuf) ;
+- compteurs du cache en `TransferSrc` → `TransferSrc`, au lieu de
+  `ShaderWrite` → `TransferSrc` : leur remise à zéro est entrée dans le
+  graphe.
+
+Les lecteurs déclarent `tlas` et `blases` en `AccelerationStructureRead` :
+les passes `gi update i` et `scene`. Pas `gi resolve`, qui ne trace pas.
+`AccelerationStructureRead` couvre les étages vertex, fragment et compute,
+avec l'accès `ACCELERATION_STRUCTURE_READ`. Il n'a pas de layout : une image
+qui l'utilise est refusée.
+
+**Barrières** : une frame RT sans BLAS à construire passe de 3
+`vkCmdPipelineBarrier2` à 1 dans `RtScene`. Il reste le `TransferSrc →
+TransferDst` des compteurs. Le `TransferDst → ShaderWrite` des compteurs et
+le `ASBuild → ASRead` de la TLAS partent dans la barrière de `gi update 0`.
+
+*Écarts* :
+- **Les tables de hit et les instances de la TLAS ne sont pas déclarées.**
+  Elles sont mappées, écrites par le CPU dans le slot de la frame, donc
+  visibles à la soumission.
+- **La première écriture de BLAS d'une frame attend les ray queries
+  d'avant** (`ASRead → ASBuild`), alors que la mémoire écrite est neuve : le
+  graphe ne distingue pas les BLAS. Cela n'arrive que les frames qui
+  construisent.
+- **Les pointeurs des builds de BLAS** (`pGeometries`, plages) sont posés
+  dans `execute`, vers la copie des entrées que la lambda capture.
+
+*Piège pour 6.4* : avec des files séparées, `blases` (du contenu importé)
+serait lu d'abord sur la file compute, et le graphe refuse ce cas. Il faudra
+attendre le lot graphique de la frame précédente, ou ne plus le refuser pour
+une lecture après lecture.
+
+*Mesuré* (RTX 5070, 1280 × 728, machine libre) :
+- `RenderGraphCheck` : 48 contrôles verts en relwithdebinfo et en debug. Il
+  y en a 9 nouveaux : 8 sur la séquence BLAS/TLAS, avec et sans BLAS
+  construite, et le refus d'une image en `AccelerationStructureRead`.
+- Banc : raster identique au pixel sur les 9 cas, RT dans le bruit.
+- Validation : rien de nouveau, toujours le WAW de `room` de 0.2. Les runs
+  RT construisent et compactent des BLAS dans leurs 60 frames (4 fois sur
+  `moon_near`).
+- GPU, un run : RT −1 à −2 % sur les scènes GI (`gi_sun_rt` 0,235 →
+  0,230 ms), alors que leur bruit est sous 1 %. `moon_near_rt` vaut
+  1,887 ms, contre 1,90 en 0.3. En raster, que l'étape ne touche pas, les
+  scènes GI prennent +1 à +3 % (`gi_sun` 0,083 → 0,085 ms) : c'est sans doute
+  la frontière de 1.6, enfin mesurable.

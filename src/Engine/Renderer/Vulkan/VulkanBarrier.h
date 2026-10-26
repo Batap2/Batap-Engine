@@ -35,6 +35,7 @@ enum class Usage : uint8_t
     Present,                     // handed to the compositor
     AnyRead,                     // read by anything, anywhere — global barriers only
     AccelerationStructureBuild,  // written or read by an acceleration structure build
+    AccelerationStructureRead,
 };
 
 // Keeps the source usage's stage and access but forces oldLayout to UNDEFINED:
@@ -94,6 +95,11 @@ inline UsageInfo usageInfo(Usage usage)
                     VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR |
                         VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
                     VK_IMAGE_LAYOUT_UNDEFINED};
+        case Usage::AccelerationStructureRead:
+            return {VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT |
+                        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT |
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR, VK_IMAGE_LAYOUT_UNDEFINED};
     }
 
     // Fallback outside the switch: no default label, so adding a Usage without

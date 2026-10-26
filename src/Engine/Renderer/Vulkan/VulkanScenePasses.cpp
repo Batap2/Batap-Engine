@@ -429,11 +429,12 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     const size_t shadowEntries = instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
     shadow_.reserve(shadowEntries);
 
+    RenderGraph graph;
+    RtSceneBuffers rt;
     if (rayTracing)
     {
-        rtScene_->updateBlases(cmd, frame, *reg, *ctx.assetManager_, terrain_);
-        rtScene_->buildTlas(cmd, frame, *reg, *instanceM, *ctx.assetManager_, terrain_,
-                            args.camera_);
+        rt = rtScene_->addPasses(graph, frame, *reg, *instanceM, *ctx.assetManager_, terrain_,
+                                 args.camera_);
         giUpdate_.resize(ctx.getFrameSize());
     }
 
@@ -492,7 +493,6 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
                 pass.push_.*InstanceT::CountField = static_cast<uint32_t>(pool.size());
         });
 
-    RenderGraph graph;
     const GraphBuffer frameConstants = graph.importBuffer("frame constants", resources_,
                                                           frameConstants_, Usage::None, Usage::None);
     graph.addPass("frame constants")
@@ -501,19 +501,10 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
             [frameConstants, data = frameData_](GraphContext& c)
             { vkCmdUpdateBuffer(c.cmd(), c.buffer(frameConstants), 0, sizeof data, &data); });
 
-    GiCacheBuffers cache;
     if (rayTracing)
     {
-        cache = {
-            graph.importBuffer("gi cache keys", resources_, rtScene_->cacheKeys(),
-                               Usage::ShaderRead, Usage::ShaderRead),
-            graph.importBuffer("gi cache values", resources_, rtScene_->cacheValues(),
-                               Usage::ShaderRead, Usage::ShaderRead),
-            graph.importBuffer("gi cache stats", resources_, rtScene_->cacheStats(),
-                               Usage::ShaderWrite, Usage::TransferSrc),
-        };
-        giUpdate_.addPasses(graph, cache, frameConstants, pass, frame, frameData_.giPasses_);
-        const RtScene::CacheStats stats = rtScene_->addCacheStatsPass(graph, cache.stats_, frame);
+        giUpdate_.addPasses(graph, rt, frameConstants, pass, frame, frameData_.giPasses_);
+        const RtScene::CacheStats stats = rtScene_->addCacheStatsPass(graph, rt.cacheStats_, frame);
         if (args.showGiCache_ && giFrame_ % 120 == 0)
             std::cout << "[GI] cache: " << stats.occupied_ << " / " << RtCacheCapacity
                       << " cells, +" << stats.inserted_ << " inserted, " << stats.failed_
@@ -577,7 +568,10 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     if (shadowEntries != 0)
         scene.read(shadows, Usage::ShaderRead);
     if (rayTracing)
-        scene.read(cache.keys_, Usage::ShaderRead).read(cache.values_, Usage::ShaderRead);
+        scene.read(rt.cacheKeys_, Usage::ShaderRead)
+            .read(rt.cacheValues_, Usage::ShaderRead)
+            .read(rt.tlas_, Usage::AccelerationStructureRead)
+            .read(rt.blases_, Usage::AccelerationStructureRead);
 
     exposure_.addPasses(graph, hdr, frameConstants, pass, frame);
 

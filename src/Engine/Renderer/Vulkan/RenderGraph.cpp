@@ -29,6 +29,7 @@ bool canWrite(Usage usage)
         case Usage::ShaderRead:
         case Usage::Present:
         case Usage::AnyRead:
+        case Usage::AccelerationStructureRead:
             return false;
     }
     return true;
@@ -36,7 +37,8 @@ bool canWrite(Usage usage)
 
 bool hasLayout(Usage usage)
 {
-    return usage != Usage::AnyRead && usage != Usage::AccelerationStructureBuild;
+    return usage != Usage::AnyRead && usage != Usage::AccelerationStructureBuild &&
+           usage != Usage::AccelerationStructureRead;
 }
 
 VkAttachmentLoadOp loadOp(Load load)

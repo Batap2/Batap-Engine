@@ -1,6 +1,7 @@
 #include "Renderer/Vulkan/Passes/GiUpdatePass.h"
 
 #include "Renderer/ResourceFormat.h"
+#include "Renderer/Vulkan/RtScene.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
@@ -59,7 +60,7 @@ void GiUpdatePass::resize(v2i frameSize)
                                                    ResourceFormat::R8G8B8A8_UNORM, std::nullopt);
 }
 
-void GiUpdatePass::addPasses(RenderGraph& graph, const GiCacheBuffers& cache,
+void GiUpdatePass::addPasses(RenderGraph& graph, const RtSceneBuffers& rt,
                              GraphBuffer frameConstants, const PassContext& pass, uint32_t frame,
                              uint32_t passes)
 {
@@ -109,12 +110,13 @@ void GiUpdatePass::addPasses(RenderGraph& graph, const GiCacheBuffers& cache,
     const GraphImage updateTarget = importTarget("gi update target", updateTarget_);
     const GraphImage resolveTarget = importTarget("gi resolve target", resolveTarget_);
 
-    const auto draw = [&](std::string name, GraphImage target, VkPipeline pipeline, uint32_t index)
+    const auto draw = [&](std::string name, GraphImage target, VkPipeline pipeline,
+                          uint32_t index) -> GraphPass&
     {
-        graph.addPass(std::move(name))
-            .write(cache.keys_, Usage::ShaderWrite)
-            .write(cache.values_, Usage::ShaderWrite)
-            .write(cache.stats_, Usage::ShaderWrite)
+        return graph.addPass(std::move(name))
+            .write(rt.cacheKeys_, Usage::ShaderWrite)
+            .write(rt.cacheValues_, Usage::ShaderWrite)
+            .write(rt.cacheStats_, Usage::ShaderWrite)
             .read(frameConstants, Usage::ShaderRead)
             .color(target, Load::DontCare)
             .execute(
@@ -129,7 +131,9 @@ void GiUpdatePass::addPasses(RenderGraph& graph, const GiCacheBuffers& cache,
                 });
     };
     for (uint32_t i = 0; i < std::max(passes, 1u); ++i)
-        draw("gi update " + std::to_string(i), updateTarget, updatePipeline_, i);
+        draw("gi update " + std::to_string(i), updateTarget, updatePipeline_, i)
+            .read(rt.tlas_, Usage::AccelerationStructureRead)
+            .read(rt.blases_, Usage::AccelerationStructureRead);
     draw("gi resolve", resolveTarget, resolvePipeline_, pass.push_.instanceIndex_);
 
     if (queries != VK_NULL_HANDLE)

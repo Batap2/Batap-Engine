@@ -287,7 +287,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       passe.
 - [x] **1.6 Tonemap et debug.** La sortie (`RenderTargets::color_`) importée,
       la profondeur en `Load`.
-- [ ] **1.7 Structures d'accélération.** BLAS, compaction et TLAS en passes
+- [x] **1.7 Structures d'accélération.** BLAS, compaction et TLAS en passes
       `Compute` (servies par la file graphique), l'effacement du cache en
       passe `Graphics` ; AS et scratch importés comme buffers.
       `Usage::AccelerationStructureRead` ajouté (voir Pièges). Les barrières

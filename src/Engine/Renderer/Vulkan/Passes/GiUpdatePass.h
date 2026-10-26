@@ -11,12 +11,7 @@
 
 namespace batap
 {
-struct GiCacheBuffers
-{
-    GraphBuffer keys_;
-    GraphBuffer values_;
-    GraphBuffer stats_;
-};
+struct RtSceneBuffers;
 
 struct GiUpdatePass
 {
@@ -28,7 +23,7 @@ struct GiUpdatePass
 
     void buildPipelines(const ShaderModules& modules);
     void resize(v2i frameSize);
-    void addPasses(RenderGraph& graph, const GiCacheBuffers& cache, GraphBuffer frameConstants,
+    void addPasses(RenderGraph& graph, const RtSceneBuffers& rt, GraphBuffer frameConstants,
                    const PassContext& pass, uint32_t frame, uint32_t passes);
 
     v2i size() const { return size_; }

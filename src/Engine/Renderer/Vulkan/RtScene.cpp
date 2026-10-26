@@ -21,6 +21,7 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 
 namespace batap
 {
@@ -202,6 +203,43 @@ RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), re
         readback = resources_.createMappedBuffer(statsBytes, std::nullopt);
 }
 
+RtSceneBuffers RtScene::addPasses(RenderGraph& graph, uint32_t frame, entt::registry& reg,
+                                  GPUInstanceManager& instances, AssetManager& assets,
+                                  const TerrainPass& terrain, entt::entity camera)
+{
+    RtSceneBuffers buffers;
+    buffers.blases_ = graph.importBuffer("blases", VK_NULL_HANDLE, Usage::AccelerationStructureRead,
+                                         Usage::AccelerationStructureRead);
+    updateBlases(graph, buffers.blases_, frame, reg, assets, terrain);
+    buffers.tlas_ =
+        buildTlas(graph, buffers.blases_, frame, reg, instances, assets, terrain, camera);
+
+    buffers.cacheKeys_ = graph.importBuffer("gi cache keys", resources_, cache_.keys_,
+                                            Usage::ShaderRead, Usage::ShaderRead);
+    buffers.cacheValues_ = graph.importBuffer("gi cache values", resources_, cache_.values_,
+                                              Usage::ShaderRead, Usage::ShaderRead);
+    buffers.cacheStats_ = graph.importBuffer("gi cache stats", resources_, cache_.stats_,
+                                             Usage::TransferSrc, Usage::TransferSrc);
+    if (cache_.clear_)
+    {
+        graph.addPass("gi cache clear")
+            .write(buffers.cacheKeys_, Usage::TransferDst)
+            .write(buffers.cacheValues_, Usage::TransferDst)
+            .execute(
+                [keys = buffers.cacheKeys_, values = buffers.cacheValues_](GraphContext& c)
+                {
+                    vkCmdFillBuffer(c.cmd(), c.buffer(keys), 0, VK_WHOLE_SIZE, 0u);
+                    vkCmdFillBuffer(c.cmd(), c.buffer(values), 0, VK_WHOLE_SIZE, 0u);
+                });
+        cache_.clear_ = false;
+    }
+    graph.addPass("gi cache stats reset")
+        .write(buffers.cacheStats_, Usage::TransferDst)
+        .execute([stats = buffers.cacheStats_](GraphContext& c)
+                 { vkCmdFillBuffer(c.cmd(), c.buffer(stats), 0, VK_WHOLE_SIZE, 0u); });
+    return buffers;
+}
+
 RtScene::CacheStats RtScene::addCacheStatsPass(RenderGraph& graph, GraphBuffer statsBuffer,
                                                uint32_t frame)
 {
@@ -252,8 +290,8 @@ RtScene::~RtScene()
     vkDestroyDescriptorSetLayout(ctx_.device_, setLayout_, nullptr);
 }
 
-void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
-                           AssetManager& assets, const TerrainPass& terrain)
+void RtScene::updateBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame,
+                           entt::registry& reg, AssetManager& assets, const TerrainPass& terrain)
 {
     for (const Blas& blas : retired_[frame])
     {
@@ -280,7 +318,7 @@ void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& 
                       return true;
                   });
 
-    compactBlases(cmd, frame);
+    compactBlases(graph, blases, frame);
 
     // One geometry per submesh, or per stratum for a chunk: a hit's geometry
     // index names its material.
@@ -329,7 +367,7 @@ void RtScene::updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& 
     if (inputs.firstGeometry_.empty())
         return;
 
-    const std::vector<Blas> built = buildBlases(cmd, frame, inputs);
+    const std::vector<Blas> built = buildBlases(graph, blases, frame, std::move(inputs));
     for (size_t i = 0; i < meshes.size(); ++i)
     {
         Blas blas = built[i];
@@ -370,8 +408,8 @@ RtScene::Blas RtScene::createBlas(uint64_t size)
     return blas;
 }
 
-std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, uint32_t frame,
-                                                const BlasInputs& inputs)
+std::vector<RtScene::Blas> RtScene::buildBlases(RenderGraph& graph, GraphBuffer blases,
+                                                uint32_t frame, BlasInputs inputs)
 {
     const size_t count = inputs.firstGeometry_.size();
     const auto endGeometry = [&](size_t i)
@@ -387,7 +425,6 @@ std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, uint32_t fr
 
     std::vector<Blas> built(count);
     std::vector<VkAccelerationStructureBuildGeometryInfoKHR> infos(count);
-    std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> rangePointers(count);
     std::vector<uint64_t> scratchOffsets(count);
     uint64_t scratchBytes = 0;
     uint64_t triangles = 0;
@@ -403,7 +440,6 @@ std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, uint32_t fr
         info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
         info.geometryCount = endGeometry(i) - first;
         info.pGeometries = &inputs.geometries_[first];
-        rangePointers[i] = &inputs.ranges_[first];
 
         VkAccelerationStructureBuildSizesInfoKHR sizes{};
         sizes.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
@@ -439,12 +475,6 @@ std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, uint32_t fr
         if (vkCreateQueryPool(ctx_.device_, &poolInfo, nullptr, &queries.pool_) != VK_SUCCESS)
             throw std::runtime_error("RtScene : query pool");
     }
-    vkCmdResetQueryPool(cmd, queries.pool_, 0, static_cast<uint32_t>(count));
-
-    vkCmdBuildAccelerationStructuresKHR(cmd, static_cast<uint32_t>(count), infos.data(),
-                                        rangePointers.data());
-    BarrierBatch{}.memory(Usage::AccelerationStructureBuild, Usage::AnyRead).flush(cmd);
-    resources_.requestDestroy(scratch);
 
     std::vector<VkAccelerationStructureKHR> handles(count);
     for (size_t i = 0; i < count; ++i)
@@ -453,17 +483,48 @@ std::vector<RtScene::Blas> RtScene::buildBlases(VkCommandBuffer cmd, uint32_t fr
         built[i].query_ = static_cast<uint32_t>(i);
         built[i].querySlot_ = frame;
     }
-    vkCmdWriteAccelerationStructuresPropertiesKHR(
-        cmd, static_cast<uint32_t>(count), handles.data(),
-        VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, queries.pool_, 0);
     queries.count_ = static_cast<uint32_t>(count);
+
+    const GraphBuffer scratchBuffer =
+        graph.importBuffer("blas scratch", resources_, scratch, Usage::None, Usage::None);
+    resources_.requestDestroy(scratch);
+    graph.addPass("blas build", GraphQueue::Compute)
+        .write(blases, Usage::AccelerationStructureBuild)
+        .write(scratchBuffer, Usage::AccelerationStructureBuild)
+        .execute(
+            [geometries = std::move(inputs), buildInfos = std::move(infos),
+             pool = queries.pool_](GraphContext& c) mutable
+            {
+                // Into this lambda's own inputs: std::function may have copied it.
+                std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> ranges(
+                    buildInfos.size());
+                for (size_t i = 0; i < buildInfos.size(); ++i)
+                {
+                    const uint32_t first = geometries.firstGeometry_[i];
+                    buildInfos[i].pGeometries = &geometries.geometries_[first];
+                    ranges[i] = &geometries.ranges_[first];
+                }
+                const auto blasCount = static_cast<uint32_t>(buildInfos.size());
+                vkCmdResetQueryPool(c.cmd(), pool, 0, blasCount);
+                vkCmdBuildAccelerationStructuresKHR(c.cmd(), blasCount, buildInfos.data(),
+                                                    ranges.data());
+            });
+    graph.addPass("blas compacted sizes", GraphQueue::Compute)
+        .read(blases, Usage::AccelerationStructureBuild)
+        .execute(
+            [blasHandles = std::move(handles), pool = queries.pool_](GraphContext& c)
+            {
+                vkCmdWriteAccelerationStructuresPropertiesKHR(
+                    c.cmd(), static_cast<uint32_t>(blasHandles.size()), blasHandles.data(),
+                    VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, pool, 0);
+            });
 
     std::cout << "[RT] " << count << " BLAS : " << triangles << " triangles, " << bytes
               << " octets (scratch " << scratchBytes << ")\n";
     return built;
 }
 
-void RtScene::compactBlases(VkCommandBuffer cmd, uint32_t frame)
+void RtScene::compactBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame)
 {
     CompactionQueries& queries = queries_[frame];
     if (queries.count_ == 0)
@@ -475,7 +536,7 @@ void RtScene::compactBlases(VkCommandBuffer cmd, uint32_t frame)
                           VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
     queries.count_ = 0;
 
-    uint32_t count = 0;
+    std::vector<VkCopyAccelerationStructureInfoKHR> copies;
     uint64_t before = 0;
     uint64_t after = 0;
     const auto compact = [&](Blas& blas)
@@ -485,14 +546,12 @@ void RtScene::compactBlases(VkCommandBuffer cmd, uint32_t frame)
         Blas compacted = createBlas(sizes[*blas.query_]);
         compacted.source_ = blas.source_;
 
-        VkCopyAccelerationStructureInfoKHR copy{};
+        VkCopyAccelerationStructureInfoKHR& copy = copies.emplace_back();
         copy.sType = VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR;
         copy.src = blas.handle_;
         copy.dst = compacted.handle_;
         copy.mode = VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR;
-        vkCmdCopyAccelerationStructureKHR(cmd, &copy);
 
-        ++count;
         before += blas.size_;
         after += compacted.size_;
         retired_[frame].push_back(blas);
@@ -502,24 +561,26 @@ void RtScene::compactBlases(VkCommandBuffer cmd, uint32_t frame)
         compact(blas);
     for (auto& [chunk, blas] : chunkBlases_)
         compact(blas);
-    if (count == 0)
+    if (copies.empty())
         return;
 
-    BarrierBatch{}.memory(Usage::AccelerationStructureBuild, Usage::AnyRead).flush(cmd);
-    std::cout << "[RT] compaction de " << count << " BLAS : " << before << " -> " << after
+    std::cout << "[RT] compaction de " << copies.size() << " BLAS : " << before << " -> " << after
               << " octets\n";
+    graph.addPass("blas compaction", GraphQueue::Compute)
+        .write(blases, Usage::AccelerationStructureBuild)
+        .execute(
+            [compactions = std::move(copies)](GraphContext& c)
+            {
+                for (const VkCopyAccelerationStructureInfoKHR& copy : compactions)
+                    vkCmdCopyAccelerationStructureKHR(c.cmd(), &copy);
+            });
 }
 
-void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
-                        GPUInstanceManager& instances, AssetManager& assets,
-                        const TerrainPass& terrain, entt::entity camera)
+GraphBuffer RtScene::buildTlas(RenderGraph& graph, GraphBuffer blases, uint32_t frame,
+                               entt::registry& reg, GPUInstanceManager& instances,
+                               AssetManager& assets, const TerrainPass& terrain,
+                               entt::entity camera)
 {
-    if (cache_.clear_)
-        clearCache(cmd);
-    BarrierBatch{}.memory(Usage::TransferSrc, Usage::TransferDst).flush(cmd);
-    vkCmdFillBuffer(cmd, resources_.bufferFor(cache_.stats_), 0, VK_WHOLE_SIZE, 0u);
-    BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderWrite).flush(cmd);
-
     // Relative to the render camera
     const v3d eye = reg.get<Transform_C>(camera).world().translation().cast<double>();
 
@@ -603,16 +664,27 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
         std::memcpy(resources_.mappedFor(tlas.instances_).data(), tlasInstances.data(),
                     count * sizeof(VkAccelerationStructureInstanceKHR));
 
-    const VkAccelerationStructureGeometryKHR geometry =
-        instancesGeometry(resources_.deviceAddress(tlas.instances_));
-    VkAccelerationStructureBuildGeometryInfoKHR info = tlasBuildInfo(geometry);
-    info.dstAccelerationStructure = tlas.handle_;
-    info.scratchData.deviceAddress = resources_.deviceAddress(tlas.scratch_);
-    VkAccelerationStructureBuildRangeInfoKHR range{};
-    range.primitiveCount = count;
-    const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
-    vkCmdBuildAccelerationStructuresKHR(cmd, 1, &info, &ranges);
-    BarrierBatch{}.memory(Usage::AccelerationStructureBuild, Usage::AnyRead).flush(cmd);
+    const GraphBuffer tlasBuffer =
+        graph.importBuffer("tlas", resources_, tlas.buffer_, Usage::None, Usage::None);
+    const GraphBuffer scratch =
+        graph.importBuffer("tlas scratch", resources_, tlas.scratch_, Usage::None, Usage::None);
+    graph.addPass("tlas build", GraphQueue::Compute)
+        .read(blases, Usage::AccelerationStructureBuild)
+        .write(tlasBuffer, Usage::AccelerationStructureBuild)
+        .write(scratch, Usage::AccelerationStructureBuild)
+        .execute(
+            [geometry = instancesGeometry(resources_.deviceAddress(tlas.instances_)),
+             handle = tlas.handle_, scratchAddress = resources_.deviceAddress(tlas.scratch_),
+             count](GraphContext& c)
+            {
+                VkAccelerationStructureBuildGeometryInfoKHR info = tlasBuildInfo(geometry);
+                info.dstAccelerationStructure = handle;
+                info.scratchData.deviceAddress = scratchAddress;
+                VkAccelerationStructureBuildRangeInfoKHR range{};
+                range.primitiveCount = count;
+                const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
+                vkCmdBuildAccelerationStructuresKHR(c.cmd(), 1, &info, &ranges);
+            });
 
     VkWriteDescriptorSetAccelerationStructureKHR tlasWrite{};
     tlasWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
@@ -638,6 +710,7 @@ void RtScene::buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg
                        resources_.bufferFor(cache_.stats_));
     vkUpdateDescriptorSets(ctx_.device_, static_cast<uint32_t>(writes.size()), writes.data(), 0,
                            nullptr);
+    return tlasBuffer;
 }
 
 void RtScene::reserveHitTables(HitTables& tables, uint32_t geometries, uint32_t instances)
@@ -658,14 +731,6 @@ void RtScene::reserveHitTables(HitTables& tables, uint32_t geometries, uint32_t 
         tables.instances_ = resources_.createMappedBuffer(uint64_t{tables.instanceCapacity_} *
                                                           sizeof(RtInstanceGPUData));
     }
-}
-
-void RtScene::clearCache(VkCommandBuffer cmd)
-{
-    vkCmdFillBuffer(cmd, resources_.bufferFor(cache_.keys_), 0, VK_WHOLE_SIZE, 0u);
-    vkCmdFillBuffer(cmd, resources_.bufferFor(cache_.values_), 0, VK_WHOLE_SIZE, 0u);
-    BarrierBatch{}.memory(Usage::TransferDst, Usage::ShaderWrite).flush(cmd);
-    cache_.clear_ = false;
 }
 
 // The slot's previous frame is done with the old one.

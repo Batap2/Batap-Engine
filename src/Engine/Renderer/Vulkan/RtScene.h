@@ -5,6 +5,7 @@
 #include "Assets/AssetHandle.h"
 #include "Handles.h"
 #include "Renderer/EngineConfig.h"
+#include "Renderer/Vulkan/RenderGraph.h"
 
 #include "entt/entt.hpp"
 
@@ -21,8 +22,15 @@ struct ResourceManager;
 struct AssetManager;
 struct TerrainPass;
 struct GPUInstanceManager;
-struct GraphBuffer;
-struct RenderGraph;
+
+struct RtSceneBuffers
+{
+    GraphBuffer tlas_;
+    GraphBuffer blases_;
+    GraphBuffer cacheKeys_;
+    GraphBuffer cacheValues_;
+    GraphBuffer cacheStats_;
+};
 
 struct RtScene
 {
@@ -32,18 +40,12 @@ struct RtScene
     RtScene(const RtScene&) = delete;
     RtScene& operator=(const RtScene&) = delete;
 
-    void updateBlases(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
-                      AssetManager& assets, const TerrainPass& terrain);
-    void buildTlas(VkCommandBuffer cmd, uint32_t frame, entt::registry& reg,
-                   GPUInstanceManager& instances, AssetManager& assets, const TerrainPass& terrain,
-                   entt::entity camera);
+    RtSceneBuffers addPasses(RenderGraph& graph, uint32_t frame, entt::registry& reg,
+                             GPUInstanceManager& instances, AssetManager& assets,
+                             const TerrainPass& terrain, entt::entity camera);
 
     VkDescriptorSetLayout setLayout() const { return setLayout_; }
     VkDescriptorSet set(uint32_t frame) const { return sets_[frame]; }
-
-    GPUResourceHandle cacheKeys() const { return cache_.keys_; }
-    GPUResourceHandle cacheValues() const { return cache_.values_; }
-    GPUResourceHandle cacheStats() const { return cache_.stats_; }
 
     struct CacheStats
     {
@@ -101,14 +103,19 @@ struct RtScene
     };
 
     struct BlasInputs;
+    void updateBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame, entt::registry& reg,
+                      AssetManager& assets, const TerrainPass& terrain);
+    GraphBuffer buildTlas(RenderGraph& graph, GraphBuffer blases, uint32_t frame,
+                          entt::registry& reg, GPUInstanceManager& instances, AssetManager& assets,
+                          const TerrainPass& terrain, entt::entity camera);
     VkAccelerationStructureKHR createAccelerationStructure(GPUResourceHandle buffer, uint64_t size,
                                                            VkAccelerationStructureTypeKHR type);
     Blas createBlas(uint64_t size);
-    std::vector<Blas> buildBlases(VkCommandBuffer cmd, uint32_t frame, const BlasInputs& inputs);
-    void compactBlases(VkCommandBuffer cmd, uint32_t frame);
+    std::vector<Blas> buildBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame,
+                                  BlasInputs inputs);
+    void compactBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame);
     void growTlas(Tlas& tlas, uint32_t instances);
     void reserveHitTables(HitTables& tables, uint32_t geometries, uint32_t instances);
-    void clearCache(VkCommandBuffer cmd);
 
     VulkanContext& ctx_;
     ResourceManager& resources_;
