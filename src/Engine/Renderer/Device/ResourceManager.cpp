@@ -394,63 +394,12 @@ GPUResourceHandle ResourceManager::createImage2D(uint32_t width, uint32_t height
                                                  ResourceFormat format,
                                                  std::optional<std::string_view> name)
 {
-    GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
-                                    : GPUResourceHandle(GPUResourceType::StaticResource);
-
-    Image image{};
-    image.format = toVkFormat(format);
-    image.width = width;
-    image.height = height;
     // Full chain down to 1×1; flushUploads generates the levels by blit.
-    image.mipLevels = static_cast<uint32_t>(std::bit_width(std::max(width, height)));
-
-    VkImageCreateInfo imageInfo{};
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.format = image.format;
-    imageInfo.extent = {width, height, 1};
-    imageInfo.mipLevels = image.mipLevels;
-    imageInfo.arrayLayers = 1;
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-
-    if (vmaCreateImage(allocator_, &imageInfo, &allocInfo, &image.image, &image.allocation,
-                       nullptr) != VK_SUCCESS)
-        throw std::runtime_error("ResourceManager(vk) : createImage2D");
-
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = image.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = image.format;
-    viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, image.mipLevels, 0, 1};
-    if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &image.view) != VK_SUCCESS)
-        throw std::runtime_error("ResourceManager(vk) : image view");
-
-    image.textureIndex = allocTextureIndex();
-
-    VkDescriptorImageInfo descriptor{};
-    descriptor.imageView = image.view;
-    descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    VkWriteDescriptorSet write{};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = textureSet_;
-    write.dstBinding = TexturesBinding;
-    write.dstArrayElement = image.textureIndex;
-    write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    write.pImageInfo = &descriptor;
-    vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
-
-    images_.emplace(handle, image);
-    return handle;
+    const uint32_t mipLevels = static_cast<uint32_t>(std::bit_width(std::max(width, height)));
+    return createImageInternal(width, height, toVkFormat(format),
+                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                   VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                               mipLevels, name);
 }
 
 GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
@@ -470,6 +419,14 @@ GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
                                                 VkImageUsageFlags usage,
                                                 std::optional<std::string_view> name)
 {
+    return createImageInternal(width, height, format, usage, 1, name);
+}
+
+GPUResourceHandle ResourceManager::createImageInternal(uint32_t width, uint32_t height,
+                                                       VkFormat format, VkImageUsageFlags usage,
+                                                       uint32_t mipLevels,
+                                                       std::optional<std::string_view> name)
+{
     GPUResourceHandle handle = name ? GPUResourceHandle(GPUResourceType::StaticResource, *name)
                                     : GPUResourceHandle(GPUResourceType::StaticResource);
 
@@ -477,7 +434,7 @@ GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
     image.format = format;
     image.width = width;
     image.height = height;
-    image.mipLevels = 1;
+    image.mipLevels = mipLevels;
 
     const bool depth = isDepthFormat(image.format);
     const VkImageAspectFlags aspect = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
@@ -487,7 +444,7 @@ GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
     imageInfo.format = image.format;
     imageInfo.extent = {width, height, 1};
-    imageInfo.mipLevels = 1;
+    imageInfo.mipLevels = mipLevels;
     imageInfo.arrayLayers = 1;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -499,16 +456,16 @@ GPUResourceHandle ResourceManager::createTarget(uint32_t width, uint32_t height,
 
     if (vmaCreateImage(allocator_, &imageInfo, &allocInfo, &image.image, &image.allocation,
                        nullptr) != VK_SUCCESS)
-        throw std::runtime_error("ResourceManager(vk) : createTarget");
+        throw std::runtime_error("ResourceManager(vk) : createImage");
 
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = image.image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = image.format;
-    viewInfo.subresourceRange = {aspect, 0, 1, 0, 1};
+    viewInfo.subresourceRange = {aspect, 0, mipLevels, 0, 1};
     if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &image.view) != VK_SUCCESS)
-        throw std::runtime_error("ResourceManager(vk) : target view");
+        throw std::runtime_error("ResourceManager(vk) : image view");
 
     image.textureIndex = UINT32_MAX;
     if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)

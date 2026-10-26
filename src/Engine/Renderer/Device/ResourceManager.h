@@ -141,6 +141,9 @@ struct ResourceManager
 
     Buffer createBufferInternal(uint64_t sizeBytes, VkBufferUsageFlags usage,
                                 VkDeviceSize minAlignment = 1, bool mapped = false);
+    GPUResourceHandle createImageInternal(uint32_t width, uint32_t height, VkFormat format,
+                                          VkImageUsageFlags usage, uint32_t mipLevels,
+                                          std::optional<std::string_view> name);
     Buffer createStagingBuffer(uint64_t sizeBytes, std::byte*& outMapped);
     std::byte* stagingAlloc(uint64_t size, UploadRequest& req);
 
