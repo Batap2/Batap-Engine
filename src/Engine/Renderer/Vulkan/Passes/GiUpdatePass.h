@@ -5,11 +5,19 @@
 #include "Renderer/EngineConfig.h"
 #include "Renderer/Vulkan/Passes/Pass.h"
 #include "Renderer/Vulkan/Passes/ShaderCatalog.h"
+#include "Renderer/Vulkan/RenderGraph.h"
 
 #include <array>
 
 namespace batap
 {
+struct GiCacheBuffers
+{
+    GraphBuffer keys_;
+    GraphBuffer values_;
+    GraphBuffer stats_;
+};
+
 struct GiUpdatePass
 {
     explicit GiUpdatePass(const PassSetup& setup) : setup_(setup) {}
@@ -20,14 +28,13 @@ struct GiUpdatePass
 
     void buildPipelines(const ShaderModules& modules);
     void resize(v2i frameSize);
-    void record(const PassContext& pass, uint32_t frame, uint32_t passes);
+    void addPasses(RenderGraph& graph, const GiCacheBuffers& cache, const PassContext& pass,
+                   uint32_t frame, uint32_t passes);
 
     v2i size() const { return size_; }
     float gpuMs() const { return gpuMs_; }
 
    private:
-    void draw(const PassContext& pass, GPUResourceHandle target, v2i size, VkPipeline pipeline);
-
     PassSetup setup_;
     VkPipeline updatePipeline_ = VK_NULL_HANDLE;
     VkPipeline resolvePipeline_ = VK_NULL_HANDLE;

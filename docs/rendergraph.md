@@ -273,7 +273,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       barrières et sa scope disparaissent.
       *Vérif* : `test_auto_exposure` identique, readback compris (même EV
       sur 600 frames).
-- [ ] **1.3 Mise à jour GI.** `GiUpdatePass` : N passes de mise à jour et la
+- [x] **1.3 Mise à jour GI.** `GiUpdatePass` : N passes de mise à jour et la
       résolution ; les buffers du cache (`RtScene`) importés ; la copie des
       compteurs en passe. Les barrières `ShaderRead → ShaderWrite` de
       `ScenePasses::record` disparaissent. Le pool de requêtes reste

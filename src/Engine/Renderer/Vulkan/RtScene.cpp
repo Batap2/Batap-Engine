@@ -7,6 +7,7 @@
 #include "EigenTypes.h"
 #include "Instance/InstanceManager.h"
 #include "Renderer/Vulkan/Passes/TerrainPass.h"
+#include "Renderer/Vulkan/RenderGraph.h"
 #include "Renderer/Vulkan/VulkanBarrier.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanFormats.h"
@@ -201,7 +202,8 @@ RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), re
         readback = resources_.createMappedBuffer(statsBytes, std::nullopt);
 }
 
-RtScene::CacheStats RtScene::copyCacheStats(VkCommandBuffer cmd, uint32_t frame)
+RtScene::CacheStats RtScene::addCacheStatsPass(RenderGraph& graph, GraphBuffer statsBuffer,
+                                               uint32_t frame)
 {
     CacheStats stats;
     const std::span<const std::byte> mapped = resources_.mappedFor(cache_.readback_[frame]);
@@ -216,11 +218,19 @@ RtScene::CacheStats RtScene::copyCacheStats(VkCommandBuffer cmd, uint32_t frame)
         stats.tailMiss_ += counters[RtCacheStatTailMiss * RtCacheStatsBuckets + bucket];
     }
 
-    BarrierBatch{}.memory(Usage::ShaderWrite, Usage::TransferSrc).flush(cmd);
-    VkBufferCopy copy{};
-    copy.size = sizeof(counters);
-    vkCmdCopyBuffer(cmd, resources_.bufferFor(cache_.stats_),
-                    resources_.bufferFor(cache_.readback_[frame]), 1, &copy);
+    const GraphBuffer readback = graph.importBuffer("gi cache stats readback", resources_,
+                                                    cache_.readback_[frame], Usage::None,
+                                                    Usage::None);
+    graph.addPass("gi cache stats")
+        .read(statsBuffer, Usage::TransferSrc)
+        .write(readback, Usage::TransferDst)
+        .execute(
+            [statsBuffer, readback](GraphContext& c)
+            {
+                VkBufferCopy copy{};
+                copy.size = sizeof(uint32_t) * RtCacheStatCount * RtCacheStatsBuckets;
+                vkCmdCopyBuffer(c.cmd(), c.buffer(statsBuffer), c.buffer(readback), 1, &copy);
+            });
     return stats;
 }
 

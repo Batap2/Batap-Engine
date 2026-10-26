@@ -1,7 +1,6 @@
 #include "Renderer/Vulkan/Passes/GiUpdatePass.h"
 
 #include "Renderer/ResourceFormat.h"
-#include "Renderer/Vulkan/VulkanBarrier.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
@@ -9,6 +8,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <string>
 
 namespace batap
 {
@@ -16,7 +16,7 @@ namespace
 {
 constexpr int kResolveWidth = static_cast<int>(RtCacheResolveWidth);
 constexpr int kResolveHeight = static_cast<int>(RtCacheCapacity / RtCacheResolveWidth);
-}
+}  // namespace
 
 GiUpdatePass::~GiUpdatePass()
 {
@@ -44,9 +44,9 @@ void GiUpdatePass::buildPipelines(const ShaderModules& modules)
 void GiUpdatePass::resize(v2i frameSize)
 {
     if (!resolveTarget_.valid())
-        resolveTarget_ = setup_.resources_.createTarget(
-            static_cast<uint32_t>(kResolveWidth), static_cast<uint32_t>(kResolveHeight),
-            ResourceFormat::R8_UNORM, std::nullopt);
+        resolveTarget_ = setup_.resources_.createTarget(static_cast<uint32_t>(kResolveWidth),
+                                                        static_cast<uint32_t>(kResolveHeight),
+                                                        ResourceFormat::R8_UNORM, std::nullopt);
 
     const v2i size{std::max((frameSize.x() + 3) / 4, 1), std::max((frameSize.y() + 3) / 4, 1)};
     if (updateTarget_.valid() && size == size_)
@@ -59,9 +59,13 @@ void GiUpdatePass::resize(v2i frameSize)
                                                    ResourceFormat::R8G8B8A8_UNORM, std::nullopt);
 }
 
-void GiUpdatePass::record(const PassContext& pass, uint32_t frame, uint32_t passes)
+void GiUpdatePass::addPasses(RenderGraph& graph, const GiCacheBuffers& cache,
+                             const PassContext& pass, uint32_t frame, uint32_t passes)
 {
     const VkDevice device = setup_.ctx_.device_;
+    const uint32_t first = frame * 2;
+    uint32_t resetFirst = first;
+    uint32_t resetCount = 0;
     if (queries_ == VK_NULL_HANDLE)
     {
         VkQueryPoolCreateInfo info{};
@@ -71,72 +75,68 @@ void GiUpdatePass::record(const PassContext& pass, uint32_t frame, uint32_t pass
         if (vkCreateQueryPool(device, &info, nullptr, &queries_) != VK_SUCCESS)
             queries_ = VK_NULL_HANDLE;
         // A query is undefined until its first reset, which must be recorded.
-        if (queries_ != VK_NULL_HANDLE)
-            vkCmdResetQueryPool(pass.cmd_, queries_, 0, info.queryCount);
+        resetFirst = 0;
+        resetCount = info.queryCount;
         written_.fill(false);
     }
-    const uint32_t first = frame * 2;
-    if (queries_ != VK_NULL_HANDLE && written_[frame])
+    else if (written_[frame])
     {
         uint64_t ticks[2]{};
-        if (vkGetQueryPoolResults(device, queries_, first, 2, sizeof ticks, ticks,
-                                  sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
-            gpuMs_ = static_cast<float>(ticks[1] - ticks[0]) * setup_.ctx_.timestampPeriodNs_ *
-                     1e-6f;
-        vkCmdResetQueryPool(pass.cmd_, queries_, first, 2);
+        if (vkGetQueryPoolResults(device, queries_, first, 2, sizeof ticks, ticks, sizeof(uint64_t),
+                                  VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+            gpuMs_ =
+                static_cast<float>(ticks[1] - ticks[0]) * setup_.ctx_.timestampPeriodNs_ * 1e-6f;
+        resetCount = 2;
     }
-    if (queries_ != VK_NULL_HANDLE)
+    const VkQueryPool queries = queries_;
+    if (queries != VK_NULL_HANDLE)
     {
-        vkCmdWriteTimestamp(pass.cmd_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_, first);
+        graph.addPass("gi timer start")
+            .execute(
+                [queries, first, resetFirst, resetCount](GraphContext& c)
+                {
+                    if (resetCount != 0)
+                        vkCmdResetQueryPool(c.cmd(), queries, resetFirst, resetCount);
+                    vkCmdWriteTimestamp(c.cmd(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries, first);
+                });
         written_[frame] = true;
     }
 
-    PassContext update = pass;
-    for (uint32_t i = 0; i < std::max(passes, 1u); ++i)
+    ResourceManager& resources = setup_.resources_;
+    const auto importTarget = [&](const char* name, GPUResourceHandle target)
+    { return graph.importImage(name, resources, target, Usage::ShaderRead, Usage::ShaderRead); };
+    const GraphImage updateTarget = importTarget("gi update target", updateTarget_);
+    const GraphImage resolveTarget = importTarget("gi resolve target", resolveTarget_);
+
+    const auto draw = [&](std::string name, GraphImage target, VkPipeline pipeline, uint32_t index)
     {
-        update.push_.instanceIndex_ = i;
-        draw(update, updateTarget_, size_, updatePipeline_);
-        BarrierBatch{}.memory(Usage::ShaderWrite, Usage::ShaderWrite).flush(pass.cmd_);
-    }
-    draw(pass, resolveTarget_, v2i{kResolveWidth, kResolveHeight}, resolvePipeline_);
+        graph.addPass(std::move(name))
+            .write(cache.keys_, Usage::ShaderWrite)
+            .write(cache.values_, Usage::ShaderWrite)
+            .write(cache.stats_, Usage::ShaderWrite)
+            .color(target, Load::DontCare)
+            .execute(
+                [pass, pipeline, index](GraphContext& c)
+                {
+                    PassContext context = pass;
+                    context.cmd_ = c.cmd();
+                    context.push_.instanceIndex_ = index;
+                    vkCmdBindPipeline(context.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                    pushDraw(context, context.push_);
+                    vkCmdDraw(context.cmd_, 3, 1, 0, 0);
+                });
+    };
+    for (uint32_t i = 0; i < std::max(passes, 1u); ++i)
+        draw("gi update " + std::to_string(i), updateTarget, updatePipeline_, i);
+    draw("gi resolve", resolveTarget, resolvePipeline_, pass.push_.instanceIndex_);
 
-    if (queries_ != VK_NULL_HANDLE)
-        vkCmdWriteTimestamp(pass.cmd_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_, first + 1);
-}
-
-void GiUpdatePass::draw(const PassContext& pass, GPUResourceHandle target, v2i size,
-                        VkPipeline pipeline)
-{
-    const VkImage image = setup_.resources_.imageFor(target);
-    BarrierBatch{}
-        .image(image, Usage::ShaderRead, Usage::ColorAttachment, colorRange(), Discard::Yes)
-        .flush(pass.cmd_);
-
-    VkRenderingAttachmentInfo color{};
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color.imageView = setup_.resources_.viewFor(target);
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    const auto width = static_cast<uint32_t>(size.x());
-    const auto height = static_cast<uint32_t>(size.y());
-    VkRenderingInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    info.renderArea = {{0, 0}, {width, height}};
-    info.layerCount = 1;
-    info.colorAttachmentCount = 1;
-    info.pColorAttachments = &color;
-
-    vkCmdBeginRendering(pass.cmd_, &info);
-    setViewportYUp(pass.cmd_, width, height);
-    vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    pushDraw(pass, pass.push_);
-    vkCmdDraw(pass.cmd_, 3, 1, 0, 0);
-    vkCmdEndRendering(pass.cmd_);
-
-    BarrierBatch{}
-        .image(image, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
-        .flush(pass.cmd_);
+    if (queries != VK_NULL_HANDLE)
+        graph.addPass("gi timer end")
+            .execute(
+                [queries, first](GraphContext& c)
+                {
+                    vkCmdWriteTimestamp(c.cmd(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries,
+                                        first + 1);
+                });
 }
 }  // namespace batap

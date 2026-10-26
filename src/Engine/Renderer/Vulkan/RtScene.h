@@ -21,6 +21,8 @@ struct ResourceManager;
 struct AssetManager;
 struct TerrainPass;
 struct GPUInstanceManager;
+struct GraphBuffer;
+struct RenderGraph;
 
 struct RtScene
 {
@@ -39,6 +41,10 @@ struct RtScene
     VkDescriptorSetLayout setLayout() const { return setLayout_; }
     VkDescriptorSet set(uint32_t frame) const { return sets_[frame]; }
 
+    GPUResourceHandle cacheKeys() const { return cache_.keys_; }
+    GPUResourceHandle cacheValues() const { return cache_.values_; }
+    GPUResourceHandle cacheStats() const { return cache_.stats_; }
+
     struct CacheStats
     {
         uint32_t occupied_ = 0;
@@ -47,7 +53,7 @@ struct RtScene
         uint32_t evicted_ = 0;
         uint32_t tailMiss_ = 0;
     };
-    CacheStats copyCacheStats(VkCommandBuffer cmd, uint32_t frame);
+    CacheStats addCacheStatsPass(RenderGraph& graph, GraphBuffer statsBuffer, uint32_t frame);
 
    private:
     struct Blas

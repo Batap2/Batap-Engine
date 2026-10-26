@@ -503,11 +503,10 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     pass.cmd_ = cmd;
     pass.layout_ = pipelineLayout_;
     pass.push_.cameraIndex_ = camID;
-    pass.push_.debugFlags_ = (args.showShadowCascades_ ? DebugShadowCascades : 0u) |
-                             (args.showRtFirstHit_ ? DebugRtFirstHit : 0u) |
-                             (args.showGiCells_ ? DebugGiCells : 0u) |
-                             (args.showGiSides_ ? DebugGiSides : 0u) |
-                             (args.showGiCache_ ? DebugGiCache : 0u);
+    pass.push_.debugFlags_ =
+        (args.showShadowCascades_ ? DebugShadowCascades : 0u) |
+        (args.showRtFirstHit_ ? DebugRtFirstHit : 0u) | (args.showGiCells_ ? DebugGiCells : 0u) |
+        (args.showGiSides_ ? DebugGiSides : 0u) | (args.showGiCache_ ? DebugGiCache : 0u);
     pass.reg_ = reg;
     pass.instanceManager_ = instanceM;
     pass.assetManager_ = ctx.assetManager_.get();
@@ -522,16 +521,24 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
 
     if (rayTracing)
     {
-        BarrierBatch{}.memory(Usage::ShaderRead, Usage::ShaderWrite).flush(cmd);
-        giUpdate_.record(pass, frame, frameData_.giPasses_);
-        const RtScene::CacheStats stats = rtScene_->copyCacheStats(cmd, frame);
-        BarrierBatch{}.memory(Usage::ShaderWrite, Usage::ShaderRead).flush(cmd);
+        RenderGraph giGraph;
+        const GiCacheBuffers cache{
+            giGraph.importBuffer("gi cache keys", resources_, rtScene_->cacheKeys(),
+                                 Usage::ShaderRead, Usage::ShaderRead),
+            giGraph.importBuffer("gi cache values", resources_, rtScene_->cacheValues(),
+                                 Usage::ShaderRead, Usage::ShaderRead),
+            giGraph.importBuffer("gi cache stats", resources_, rtScene_->cacheStats(),
+                                 Usage::ShaderWrite, Usage::TransferSrc),
+        };
+        giUpdate_.addPasses(giGraph, cache, pass, frame, frameData_.giPasses_);
+        const RtScene::CacheStats stats = rtScene_->addCacheStatsPass(giGraph, cache.stats_, frame);
+        giGraph.record(cmd);
         if (args.showGiCache_ && giFrame_ % 120 == 0)
             std::cout << "[GI] cache: " << stats.occupied_ << " / " << RtCacheCapacity
                       << " cells, +" << stats.inserted_ << " inserted, " << stats.failed_
                       << " failed, " << stats.evicted_ << " evicted, " << stats.tailMiss_
-                      << " tail misses; " << frameData_.giPasses_
-                      << " passes, " << giUpdate_.gpuMs() << " ms\n";
+                      << " tail misses; " << frameData_.giPasses_ << " passes, "
+                      << giUpdate_.gpuMs() << " ms\n";
     }
 
     const std::array<ShadowAtlasViews, 2> shadowAtlases{{

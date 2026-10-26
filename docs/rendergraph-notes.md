@@ -325,3 +325,45 @@ buffer de la frame. Il y a quatre passes : mesure, réduction, total, readback.
 - Chrono de la lune bruité ce soir : la référence est à 11–12 ms en raster,
   contre 5,3 ms en 0.3. La lune n'est pas en auto-exposition, donc son
   graphe est vide : rien à voir avec l'étape.
+
+## 1.3 Mise à jour GI
+
+*Fait (2026-10-26)* : `GiUpdatePass::record` devient `addPasses(graph, cache,
+pass, frame, passes)`, et `RtScene::copyCacheStats` devient
+`addCacheStatsPass(graph, stats, frame)`. `RtScene` expose ses trois buffers
+de cache (`cacheKeys`, `cacheValues`, `cacheStats`). Dans la branche RT,
+`ScenePasses::record` construit un graphe `giGraph` :
+- clés et valeurs importées en `ShaderRead` → `ShaderRead` (leur dernier
+  lecteur est la scène de la frame précédente) ;
+- compteurs importés en `ShaderWrite` → `TransferSrc`. Le remplissage à zéro
+  de `buildTlas` les laisse en `ShaderWrite`, et la frame suivante attend
+  `TransferSrc` avant de les remettre à zéro ;
+- N passes `gi update i`, puis `gi resolve`. Chacune écrit les trois buffers
+  en `ShaderWrite` et sa cible en `Load::DontCare` ;
+- `gi cache stats` lit les compteurs en `TransferSrc` et écrit le readback
+  du slot, importé en `None` → `None`.
+
+Les deux barrières écrites à la main dans `ScenePasses` disparaissent :
+- `ShaderRead → ShaderWrite` devient la barrière de la première mise à jour ;
+- `ShaderWrite → ShaderRead` devient la sortie des clés et des valeurs.
+
+On passe de 3N + 5 barrières à N + 3 : de 11 à 5 avec les 2 passes par
+défaut. Entre deux mises à jour, le `ShaderWrite → ShaderWrite` global et le
+`Color → Color` (avec discard) de la cible partent dans le même
+`vkCmdPipelineBarrier2`.
+
+*Écart* : le chrono GI garde son pool de requêtes, mais le reset et les deux
+timestamps passent dans deux passes sans accès, `gi timer start` et `gi timer
+end`. Une passe sans attachment n'ouvre pas de scope, or
+`vkCmdResetQueryPool` y est interdit. Ces deux passes disparaissent en 4.1.
+
+*Mesuré* :
+- Banc : raster identique au pixel sur les 9 cas, RT dans le bruit
+  (`gi_spot_rt` : 7 840 px / 2, contre 6 928 px / 1 entre les deux runs de la
+  référence).
+- Validation : rien de nouveau. Les accès des shaders aux buffers du cache
+  sont vérifiés, grâce à l'heuristique activée en 0.2.
+- GPU des cas GI en RT : −1 % (`gi_sun_rt` 0,235 → 0,234 ms), dans le bruit.
+- Non vérifiée : la valeur du chrono GI, qui ne s'affiche qu'avec la vue
+  debug du cache. La validation passe la séquence reset/timestamps sans
+  erreur.
