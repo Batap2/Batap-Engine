@@ -635,10 +635,6 @@ void ResourceManager::flushUploads(VkCommandBuffer cmd)
         image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
-    // Buffer copies of this flush: one global dependency covers them all — no
-    // layouts to transition, and cache flushes are not per-range anyway.
-    BarrierBatch{}.memory(Usage::TransferDst, Usage::AnyRead).flush(cmd);
-
     uploadRequests_.clear();
 
     auto& retire = destroyQueues_[currentFrame()].buffers;

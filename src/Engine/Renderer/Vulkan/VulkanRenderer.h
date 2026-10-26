@@ -73,8 +73,8 @@ struct Renderer
 
     ScenePasses* scenePasses();
 
-    using SceneGraphFn =
-        std::function<bool(RenderGraph& graph, uint32_t frame, const RenderTargets& targets)>;
+    using SceneGraphFn = std::function<bool(RenderGraph& graph, uint32_t frame,
+                                            const RenderTargets& targets, GraphBuffer uploads)>;
     void setSceneGraph(SceneGraphFn fn);
 
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
@@ -93,8 +93,8 @@ struct Renderer
    private:
     void createDepthBuffer();
     void ensureSceneImage();
-    bool recordScene(VkCommandBuffer cmd, uint32_t frame, VkImage image, VkImageView view,
-                     VkExtent2D extent, VkClearColorValue clearColor);
+    bool addScene(RenderGraph& graph, uint32_t frame, GraphBuffer uploads, VkImage image,
+                  VkImageView view, VkExtent2D extent, VkClearColorValue clearColor);
     // Frames in flight may still read a target: retired ones are destroyed
     // when their slot's fence has been waited on again.
     struct Retired

@@ -74,6 +74,7 @@ struct ResourceManager
                            uint64_t sizeBytes, uint64_t destOffset = 0);
 
     void beginFrame();
+    bool hasUploads() const { return !uploadRequests_.empty(); }
     void flushUploads(VkCommandBuffer cmd);
 
     VkBuffer bufferFor(GPUResourceHandle handle);

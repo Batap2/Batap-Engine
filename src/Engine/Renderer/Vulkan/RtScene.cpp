@@ -203,14 +203,15 @@ RtScene::RtScene(VulkanContext& ctx, ResourceManager& resources) : ctx_(ctx), re
         readback = resources_.createMappedBuffer(statsBytes, std::nullopt);
 }
 
-RtSceneBuffers RtScene::addPasses(RenderGraph& graph, uint32_t frame, entt::registry& reg,
-                                  GPUInstanceManager& instances, AssetManager& assets,
-                                  const TerrainPass& terrain, entt::entity camera)
+RtSceneBuffers RtScene::addPasses(RenderGraph& graph, GraphBuffer uploads, uint32_t frame,
+                                  entt::registry& reg, GPUInstanceManager& instances,
+                                  AssetManager& assets, const TerrainPass& terrain,
+                                  entt::entity camera)
 {
     RtSceneBuffers buffers;
     buffers.blases_ = graph.importBuffer("blases", VK_NULL_HANDLE, Usage::AccelerationStructureRead,
                                          Usage::AccelerationStructureRead);
-    updateBlases(graph, buffers.blases_, frame, reg, assets, terrain);
+    updateBlases(graph, buffers.blases_, uploads, frame, reg, assets, terrain);
     buffers.tlas_ =
         buildTlas(graph, buffers.blases_, frame, reg, instances, assets, terrain, camera);
 
@@ -290,8 +291,9 @@ RtScene::~RtScene()
     vkDestroyDescriptorSetLayout(ctx_.device_, setLayout_, nullptr);
 }
 
-void RtScene::updateBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame,
-                           entt::registry& reg, AssetManager& assets, const TerrainPass& terrain)
+void RtScene::updateBlases(RenderGraph& graph, GraphBuffer blases, GraphBuffer uploads,
+                           uint32_t frame, entt::registry& reg, AssetManager& assets,
+                           const TerrainPass& terrain)
 {
     for (const Blas& blas : retired_[frame])
     {
@@ -367,7 +369,7 @@ void RtScene::updateBlases(RenderGraph& graph, GraphBuffer blases, uint32_t fram
     if (inputs.firstGeometry_.empty())
         return;
 
-    const std::vector<Blas> built = buildBlases(graph, blases, frame, std::move(inputs));
+    const std::vector<Blas> built = buildBlases(graph, blases, uploads, frame, std::move(inputs));
     for (size_t i = 0; i < meshes.size(); ++i)
     {
         Blas blas = built[i];
@@ -409,7 +411,8 @@ RtScene::Blas RtScene::createBlas(uint64_t size)
 }
 
 std::vector<RtScene::Blas> RtScene::buildBlases(RenderGraph& graph, GraphBuffer blases,
-                                                uint32_t frame, BlasInputs inputs)
+                                                GraphBuffer uploads, uint32_t frame,
+                                                BlasInputs inputs)
 {
     const size_t count = inputs.firstGeometry_.size();
     const auto endGeometry = [&](size_t i)
@@ -489,6 +492,7 @@ std::vector<RtScene::Blas> RtScene::buildBlases(RenderGraph& graph, GraphBuffer 
         graph.importBuffer("blas scratch", resources_, scratch, Usage::None, Usage::None);
     resources_.requestDestroy(scratch);
     graph.addPass("blas build", GraphQueue::Compute)
+        .read(uploads, Usage::AnyRead)
         .write(blases, Usage::AccelerationStructureBuild)
         .write(scratchBuffer, Usage::AccelerationStructureBuild)
         .execute(

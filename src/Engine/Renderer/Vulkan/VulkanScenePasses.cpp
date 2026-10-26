@@ -404,7 +404,7 @@ void ScenePasses::fitCascades(entt::registry& reg, GPUInstanceManager& instances
 }
 
 bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTargets& targets,
-                            const SceneRenderArgs& args, Engine& ctx)
+                            GraphBuffer uploads, const SceneRenderArgs& args, Engine& ctx)
 {
     auto* reg = args.reg_;
     auto* instanceM = args.instanceManager_;
@@ -432,8 +432,8 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
     RtSceneBuffers rt;
     if (rayTracing)
     {
-        rt = rtScene_->addPasses(graph, frame, *reg, *instanceM, *ctx.assetManager_, terrain_,
-                                 args.camera_);
+        rt = rtScene_->addPasses(graph, uploads, frame, *reg, *instanceM, *ctx.assetManager_,
+                                 terrain_, args.camera_);
         giUpdate_.resize(ctx.getFrameSize());
     }
 
@@ -495,7 +495,7 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
 
     if (rayTracing)
     {
-        giUpdate_.addPasses(graph, rt, frameConstants, pass, frame, frameData_.giPasses_);
+        giUpdate_.addPasses(graph, rt, uploads, frameConstants, pass, frame, frameData_.giPasses_);
         const RtScene::CacheStats stats = rtScene_->addCacheStatsPass(graph, rt.cacheStats_, frame);
         if (args.showGiCache_ && giFrame_ % 120 == 0)
             std::cout << "[GI] cache: " << stats.occupied_ << " / " << RtCacheCapacity
@@ -518,7 +518,7 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
     }};
     const GraphBuffer shadows =
         graph.importBuffer("shadows", resources_, shadow_.buffer(), Usage::None, Usage::ShaderRead);
-    shadow_.addPasses(graph, shadows, pass, shadowAtlases, shadowEntries, terrain_);
+    shadow_.addPasses(graph, shadows, uploads, pass, shadowAtlases, shadowEntries, terrain_);
 
     const GraphImage hdr =
         graph.importImage("hdr", resources_, hdrTarget_, Usage::ShaderRead, Usage::ShaderRead);
@@ -529,6 +529,7 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
             .color(hdr, Load::Clear, targets.clearColor_)
             // Reversed Z (Camera_C::make_proj): the far plane is 0.
             .depth(targets.depth_, Load::Clear, 0.f)
+            .read(uploads, Usage::AnyRead)
             .read(frameConstants, Usage::ShaderRead)
             .read(shadowAtlases[0].atlas_, Usage::ShaderRead)
             .read(shadowAtlases[1].atlas_, Usage::ShaderRead)
@@ -554,6 +555,7 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
     graph.addPass("tonemap")
         .color(targets.color_, Load::DontCare)
         .depth(targets.depth_, Load::Keep)
+        .read(uploads, Usage::AnyRead)
         .read(hdr, Usage::ShaderRead)
         .read(frameConstants, Usage::ShaderRead)
         .execute(

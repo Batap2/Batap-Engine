@@ -11,7 +11,8 @@ void bindScene(Engine& ctx, World& world)
 {
     auto* passes = ctx.renderer_->scenePasses();
     ctx.renderer_->setSceneGraph(
-        [&ctx, &world, passes](RenderGraph& graph, uint32_t frame, const RenderTargets& targets)
-        { return passes->addPasses(graph, frame, targets, world.renderArgs(), ctx); });
+        [&ctx, &world, passes](RenderGraph& graph, uint32_t frame, const RenderTargets& targets,
+                               GraphBuffer uploads)
+        { return passes->addPasses(graph, frame, targets, uploads, world.renderArgs(), ctx); });
 }
 }  // namespace batap

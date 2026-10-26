@@ -59,9 +59,9 @@ void ShadowPass::buildPipelines(const ShaderModules& modules)
                     .build(setup_.ctx_.device_, setup_.layout_);
 }
 
-void ShadowPass::addPasses(RenderGraph& graph, GraphBuffer shadows, const PassContext& pass,
-                           std::span<const ShadowAtlasViews> atlases, size_t entryCount,
-                           TerrainPass& terrain)
+void ShadowPass::addPasses(RenderGraph& graph, GraphBuffer shadows, GraphBuffer uploads,
+                           const PassContext& pass, std::span<const ShadowAtlasViews> atlases,
+                           size_t entryCount, TerrainPass& terrain)
 {
     if (entryCount == 0 || entryCount > capacity_)
         return;
@@ -109,6 +109,7 @@ void ShadowPass::addPasses(RenderGraph& graph, GraphBuffer shadows, const PassCo
         // An untouched texel lights whatever samples it.
         graph.addPass(atlas.name_)
             .depth(atlas.atlas_, Load::Clear, 1.f)
+            .read(uploads, Usage::AnyRead)
             .read(shadows, Usage::ShaderRead)
             .execute(
                 [pass, views = atlas.views_, pipeline = pipeline_,

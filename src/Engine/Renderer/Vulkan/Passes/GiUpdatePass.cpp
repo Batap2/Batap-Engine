@@ -60,7 +60,7 @@ void GiUpdatePass::resize(v2i frameSize)
                                                    ResourceFormat::R8G8B8A8_UNORM, std::nullopt);
 }
 
-void GiUpdatePass::addPasses(RenderGraph& graph, const RtSceneBuffers& rt,
+void GiUpdatePass::addPasses(RenderGraph& graph, const RtSceneBuffers& rt, GraphBuffer uploads,
                              GraphBuffer frameConstants, const PassContext& pass, uint32_t frame,
                              uint32_t passes)
 {
@@ -131,6 +131,7 @@ void GiUpdatePass::addPasses(RenderGraph& graph, const RtSceneBuffers& rt,
     };
     for (uint32_t i = 0; i < std::max(passes, 1u); ++i)
         draw("gi update " + std::to_string(i), updateTarget, updatePipeline_, i)
+            .read(uploads, Usage::AnyRead)
             .read(rt.tlas_, Usage::AccelerationStructureRead)
             .read(rt.blases_, Usage::AccelerationStructureRead);
     draw("gi resolve", resolveTarget, resolvePipeline_, pass.push_.instanceIndex_);

@@ -40,9 +40,9 @@ struct RtScene
     RtScene(const RtScene&) = delete;
     RtScene& operator=(const RtScene&) = delete;
 
-    RtSceneBuffers addPasses(RenderGraph& graph, uint32_t frame, entt::registry& reg,
-                             GPUInstanceManager& instances, AssetManager& assets,
-                             const TerrainPass& terrain, entt::entity camera);
+    RtSceneBuffers addPasses(RenderGraph& graph, GraphBuffer uploads, uint32_t frame,
+                             entt::registry& reg, GPUInstanceManager& instances,
+                             AssetManager& assets, const TerrainPass& terrain, entt::entity camera);
 
     VkDescriptorSetLayout setLayout() const { return setLayout_; }
     VkDescriptorSet set(uint32_t frame) const { return sets_[frame]; }
@@ -103,16 +103,16 @@ struct RtScene
     };
 
     struct BlasInputs;
-    void updateBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame, entt::registry& reg,
-                      AssetManager& assets, const TerrainPass& terrain);
+    void updateBlases(RenderGraph& graph, GraphBuffer blases, GraphBuffer uploads, uint32_t frame,
+                      entt::registry& reg, AssetManager& assets, const TerrainPass& terrain);
     GraphBuffer buildTlas(RenderGraph& graph, GraphBuffer blases, uint32_t frame,
                           entt::registry& reg, GPUInstanceManager& instances, AssetManager& assets,
                           const TerrainPass& terrain, entt::entity camera);
     VkAccelerationStructureKHR createAccelerationStructure(GPUResourceHandle buffer, uint64_t size,
                                                            VkAccelerationStructureTypeKHR type);
     Blas createBlas(uint64_t size);
-    std::vector<Blas> buildBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame,
-                                  BlasInputs inputs);
+    std::vector<Blas> buildBlases(RenderGraph& graph, GraphBuffer blases, GraphBuffer uploads,
+                                  uint32_t frame, BlasInputs inputs);
     void compactBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame);
     void growTlas(Tlas& tlas, uint32_t instances);
     void reserveHitTables(HitTables& tables, uint32_t geometries, uint32_t instances);

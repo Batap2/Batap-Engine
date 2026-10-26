@@ -385,13 +385,12 @@ void Renderer::setSceneGraph(SceneGraphFn fn)
     sceneGraph_ = std::move(fn);
 }
 
-bool Renderer::recordScene(VkCommandBuffer cmd, uint32_t frame, VkImage image, VkImageView view,
-                           VkExtent2D extent, VkClearColorValue clearColor)
+bool Renderer::addScene(RenderGraph& graph, uint32_t frame, GraphBuffer uploads, VkImage image,
+                        VkImageView view, VkExtent2D extent, VkClearColorValue clearColor)
 {
     if (!sceneGraph_)
         return false;
 
-    RenderGraph graph;
     const auto target = [&](const char* name, VkImage targetImage, VkImageView targetView,
                             VkImageAspectFlags aspect, Usage in, Usage out)
     {
@@ -409,10 +408,7 @@ bool Renderer::recordScene(VkCommandBuffer cmd, uint32_t frame, VkImage image, V
                             Usage::DepthAttachment, Usage::None);
     targets.extent_ = extent;
     targets.clearColor_ = clearColor;
-    if (!sceneGraph_(graph, frame, targets))
-        return false;
-    graph.record(cmd);
-    return true;
+    return sceneGraph_(graph, frame, targets, uploads);
 }
 
 void Renderer::beginFrame()
@@ -453,7 +449,13 @@ void Renderer::render()
     vkBeginCommandBuffer(cmd, &beginInfo);
     beginGpuFrameTime(cmd, frame);
 
-    resources_->flushUploads(cmd);
+    RenderGraph graph;
+    const GraphBuffer uploads =
+        graph.importBuffer("uploads", VK_NULL_HANDLE, Usage::AnyRead, Usage::AnyRead);
+    if (resources_->hasUploads())
+        graph.addPass("uploads")
+            .write(uploads, Usage::TransferDst)
+            .execute([this](GraphContext& c) { resources_->flushUploads(c.cmd()); });
 
     const bool shownByUi = sceneShownByUi_;
     sceneShownByUi_ = false;
@@ -471,8 +473,9 @@ void Renderer::render()
     //   scene image: the ImGui pass that read it last frame;
     //   depth: one image for all frames in flight — wait on the depth tests of
     //     the previous frame before reusing it.
-    bool swapchainHasScene = false;
-    if (!shownByUi && fullView)
+    const bool intoSwapchain = !shownByUi && fullView;
+    bool sceneDeclared = false;
+    if (intoSwapchain)
     {
         // Nobody narrows or shows the view: straight into the swapchain. The
         // game never pays for the editor's scene image, not even its memory.
@@ -483,8 +486,8 @@ void Renderer::render()
                    Discard::Yes)
             .flush(cmd);
 
-        swapchainHasScene = recordScene(cmd, frame, swapImage, swapchain_.views_[imageIndex],
-                                        swapchain_.extent_, clearColor);
+        sceneDeclared = addScene(graph, frame, uploads, swapImage, swapchain_.views_[imageIndex],
+                                 swapchain_.extent_, clearColor);
     }
     else
     {
@@ -502,7 +505,14 @@ void Renderer::render()
                    Discard::Yes)
             .flush(cmd);
 
-        if (recordScene(cmd, frame, sceneImage_, sceneView_, viewExtent_, clearColor))
+        sceneDeclared =
+            addScene(graph, frame, uploads, sceneImage_, sceneView_, viewExtent_, clearColor);
+    }
+    graph.record(cmd);
+
+    if (!intoSwapchain)
+    {
+        if (sceneDeclared)
         {
             BarrierBatch{}
                 .image(sceneImage_, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
@@ -525,6 +535,7 @@ void Renderer::render()
         sceneLastUsage_ = Usage::ShaderRead;
     }
 
+    const bool swapchainHasScene = intoSwapchain && sceneDeclared;
     if (imguiFrameOpen_ || !swapchainHasScene)
     {
         VkRenderingAttachmentInfo uiColor{};

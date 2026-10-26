@@ -300,7 +300,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 2 — La frame entière
 
-- [ ] **2.1 Uploads.** `flushUploads` devient une passe en tête du graphe,
+- [x] **2.1 Uploads.** `flushUploads` devient une passe en tête du graphe,
       qui écrit la ressource symbolique `uploads` (voir « Préparer plusieurs
       files », point 6). Elle reste `Graphics` jusqu'à 6.3.
 - [ ] **2.2 Swapchain, image de scène, ImGui, dump.** `Renderer::render`

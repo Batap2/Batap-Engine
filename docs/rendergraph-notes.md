@@ -571,3 +571,55 @@ de chaque `execute` qui dessine : ombres, GI, scène, exposition, tonemap.
   de nouveau.
 - **GPU** : comme en 1.7, à 1 % près. `gi_sun_rt` vaut 0,232 ms contre
   0,230 ms, `moon_near_rt` 1,894 ms contre 1,887 ms.
+
+## 2.1 Uploads
+
+*Fait (2026-10-26)* : le graphe est maintenant créé en tête de
+`Renderer::render`, avant la frontière. Sa première passe, `uploads`, appelle
+`flushUploads` et écrit `uploads`, une ressource symbolique sans `VkBuffer`.
+- La passe n'est ajoutée que s'il y a des requêtes
+  (`ResourceManager::hasUploads`).
+- La barrière globale qui terminait `flushUploads` disparaît : le graphe la
+  pose avant le premier lecteur.
+- Les barrières d'images (mips, passage en lecture) restent dans
+  `flushUploads`, car les textures ne sont pas des ressources du graphe.
+
+Les lecteurs déclarent `uploads` en `AnyRead`, qui couvre aussi les buffers
+de sommets et d'index : `blas build`, les deux atlas d'ombre, `gi update i`,
+`scene` et `tonemap` (pour le debug draw). L'exposition et `gi resolve` ne le
+déclarent pas : leurs shaders ne lisent que la HDR, le cache et les
+constantes de frame.
+
+`recordScene` devient `addScene(graph, …)`. Le graphe est enregistré une
+seule fois par frame, même sans caméra : il ne porte alors que les uploads.
+`SceneGraphFn` et `ScenePasses::addPasses` prennent la `GraphBuffer` des
+uploads.
+
+**Import `AnyRead` → `AnyRead`, et une barrière de plus.** Au début d'une
+frame, ce que les uploads précédents ont écrit est déjà visible, et la frame
+d'avant peut encore le lire.
+- Une frame qui monte quelque chose reçoit donc `AnyRead → TransferDst`
+  avant ses copies, ce que l'ancien code ne faisait pas. Cela ferme une course
+  sur les buffers statiques réécrits en place, pendant que la frame d'avant
+  les lit : les matériaux du `GPUArena`, les pools du terrain. La validation
+  ne l'a jamais vue dans le banc.
+- Une frame sans upload n'a aucune barrière, comme avant.
+
+*Piège pour 6.3* : c'est le même que pour `blases` en 6.4. `uploads` porte du
+contenu importé, et serait écrit d'abord par la file de transfert, cas que le
+graphe refuse.
+
+*Mesuré* :
+- `RenderGraphCheck` : 52 contrôles verts, dont 4 nouveaux (les copies après
+  les lectures d'avant, le premier lecteur, les lecteurs suivants, une frame
+  sans upload).
+- Banc : raster identique au pixel, RT dans le bruit. `room_rt` est sorti
+  `DIFFÉRENT` au premier run (100 px), puis 111 et 165 px en relance, et
+  73 px sur le binaire final. Ce sont des pixels isolés à 1 niveau : la
+  tolérance trop serrée notée en 1.2.
+- Validation : rien de nouveau.
+- Frames qui montent quelque chose, mesurées par un compteur temporaire
+  (retiré depuis) : la lune en a à chaque frame, les scènes GI et `room`
+  seulement aux 3 premières. La barrière ajoutée ne se mesure donc que sur la
+  lune : `moon_near_rt` 1,905 ms contre 1,894 ms en 1.8, `moon_far_rt` 2,029
+  contre 1,994. C'est dans le bruit de la lune (~3 %).

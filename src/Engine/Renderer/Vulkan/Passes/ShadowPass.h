@@ -46,9 +46,9 @@ struct ShadowPass
     // Before the frame set is written: growing replaces the buffer it binds.
     void reserve(size_t entryCount);
 
-    void addPasses(RenderGraph& graph, GraphBuffer shadows, const PassContext& pass,
-                   std::span<const ShadowAtlasViews> atlases, size_t entryCount,
-                   TerrainPass& terrain);
+    void addPasses(RenderGraph& graph, GraphBuffer shadows, GraphBuffer uploads,
+                   const PassContext& pass, std::span<const ShadowAtlasViews> atlases,
+                   size_t entryCount, TerrainPass& terrain);
 
     GPUResourceHandle buffer() const { return buffer_; }
 
