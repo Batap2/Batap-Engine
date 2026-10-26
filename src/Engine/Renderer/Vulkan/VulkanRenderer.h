@@ -90,7 +90,6 @@ struct Renderer
     VulkanSwapchain swapchain_;
 
    private:
-    void createDepthBuffer();
     void ensureSceneImage();
     bool addScene(uint32_t frame, GraphBuffer uploads, GraphImage output, VkExtent2D extent,
                   VkClearColorValue clearColor);
@@ -114,9 +113,6 @@ struct Renderer
 
     // Every target is the size of the view: the window unless a host narrows it.
     VkExtent2D viewExtent_{};
-    VkImage depthImage_ = VK_NULL_HANDLE;
-    VmaAllocation depthAllocation_ = nullptr;
-    VkImageView depthView_ = VK_NULL_HANDLE;
 
     // In the swapchain's format. Null until a host narrows or shows the view:
     // the game renders straight into the swapchain and never allocates it.

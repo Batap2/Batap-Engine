@@ -59,6 +59,7 @@ struct ScenePasses
 
     VulkanContext& ctx_;
     ResourceManager& resources_;
+    VkFormat depthFormat_ = VK_FORMAT_UNDEFINED;
 
     VkDescriptorSetLayout frameSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorPool framePool_ = VK_NULL_HANDLE;
@@ -74,8 +75,6 @@ struct ScenePasses
     GPUResourceHandle ltcMat_;
     GPUResourceHandle ltcAmp_;
     GPUResourceHandle frameConstants_;
-    GPUResourceHandle hdrTarget_;
-    VkExtent2D hdrExtent_{};
     FrameGPUData frameData_{};
     uint32_t giFrame_ = 0;
     std::vector<ShadowView> cascadeViews_;

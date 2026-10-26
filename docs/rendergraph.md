@@ -325,7 +325,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       description, libération différée, bits d'usage déduits, slot bindless.
       Premiers clients : les cibles de l'exposition et de la mise à jour GI.
       `GiUpdatePass::resize` disparaît.
-- [ ] **3.2 HDR et profondeur.** `hdrTarget_` et son resize disparaissent de
+- [x] **3.2 HDR et profondeur.** `hdrTarget_` et son resize disparaissent de
       `ScenePasses`, `createDepthBuffer` et la profondeur de `retireTargets`
       du `Renderer`.
       *Vérif* : redimensionner la fenêtre et le viewport de l'éditeur ; le

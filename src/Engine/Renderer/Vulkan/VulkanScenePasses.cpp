@@ -126,6 +126,7 @@ ScenePasses::ScenePasses(VulkanContext& ctx, ResourceManager& resources, VkForma
                          VkFormat depthFormat)
     : ctx_(ctx),
       resources_(resources),
+      depthFormat_(depthFormat),
       frameSetLayout_(createFrameSetLayout(ctx.device_)),
       framePool_(createFramePool(ctx.device_)),
       frameSets_(allocFrameSets(ctx.device_, framePool_, frameSetLayout_)),
@@ -434,17 +435,6 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
         rt = rtScene_->addPasses(graph, uploads, frame, *reg, *instanceM, *ctx.assetManager_,
                                  terrain_, args.camera_);
 
-    if (!hdrTarget_.valid() || hdrExtent_.width != targets.extent_.width ||
-        hdrExtent_.height != targets.extent_.height)
-    {
-        if (hdrTarget_.valid())
-            resources_.requestDestroy(hdrTarget_);
-        hdrTarget_ = resources_.createTarget(targets.extent_.width, targets.extent_.height,
-                                             HdrFormat, "hdr color");
-        hdrExtent_ = targets.extent_;
-    }
-
-    frameData_.hdrTexture_ = resources_.textureIndex(hdrTarget_);
     const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
     frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
     frameData_.exposure_ =
@@ -483,13 +473,19 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
                 pass.push_.*InstanceT::CountField = static_cast<uint32_t>(pool.size());
         });
 
+    const GraphImage hdr = graph.createImage("hdr", {targets.extent_, toVkFormat(HdrFormat)});
+    const GraphImage depth = graph.createImage("depth", {targets.extent_, depthFormat_});
+
     const GraphBuffer frameConstants = graph.importBuffer("frame constants", resources_,
                                                           frameConstants_, Usage::None, Usage::None);
     graph.addPass("frame constants")
         .write(frameConstants, Usage::TransferDst)
         .execute(
-            [frameConstants, data = frameData_](GraphContext& c)
-            { vkCmdUpdateBuffer(c.cmd(), c.buffer(frameConstants), 0, sizeof data, &data); });
+            [frameConstants, hdr, data = frameData_](GraphContext& c) mutable
+            {
+                data.hdrTexture_ = c.graph_.textureIndex(hdr);
+                vkCmdUpdateBuffer(c.cmd(), c.buffer(frameConstants), 0, sizeof data, &data);
+            });
 
     if (rayTracing)
     {
@@ -519,15 +515,12 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
         graph.importBuffer("shadows", resources_, shadow_.buffer(), Usage::None, Usage::ShaderRead);
     shadow_.addPasses(graph, shadows, uploads, pass, shadowAtlases, shadowEntries, terrain_);
 
-    const GraphImage hdr =
-        graph.importImage("hdr", resources_, hdrTarget_, Usage::ShaderRead, Usage::ShaderRead);
-
     const bool rtFirstHit = rayTracing && (pass.push_.debugFlags_ & DebugRtFirstHit) != 0u;
     GraphPass& scene =
         graph.addPass("scene")
             .color(hdr, Load::Clear, targets.clearColor_)
             // Reversed Z (Camera_C::make_proj): the far plane is 0.
-            .depth(targets.depth_, Load::Clear, 0.f)
+            .depth(depth, Load::Clear, 0.f)
             .read(uploads, Usage::AnyRead)
             .read(frameConstants, Usage::ShaderRead)
             .read(shadowAtlases[0].atlas_, Usage::ShaderRead)
@@ -553,7 +546,7 @@ bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarg
 
     graph.addPass("tonemap")
         .color(targets.color_, Load::DontCare)
-        .depth(targets.depth_, Load::Keep)
+        .depth(depth, Load::Keep)
         .read(uploads, Usage::AnyRead)
         .read(hdr, Usage::ShaderRead)
         .read(frameConstants, Usage::ShaderRead)

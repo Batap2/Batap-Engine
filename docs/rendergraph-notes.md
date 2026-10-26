@@ -801,3 +801,41 @@ Les clients :
   (92 px, 1 niveau), la tolérance de 1.2.
 - Validation : rien de nouveau. Redimensionnement : 0 message en raster
   comme en RT, alors que la cible GI change de taille à chaque fois.
+
+## 3.2 HDR et profondeur
+
+*Fait (2026-10-26)* : la HDR et la profondeur sont des transitoires, créées
+dans `ScenePasses::addPasses` à la taille de `targets.extent_`.
+- **`ScenePasses`** : `hdrTarget_`, `hdrExtent_` et leur resize
+  disparaissent. Le format de profondeur, déjà passé au constructeur pour
+  les pipelines, est gardé (`depthFormat_`).
+- **`Renderer`** : `createDepthBuffer`, les trois membres de la profondeur
+  et sa ligne dans `retireTargets` disparaissent. `RenderTargets` perd
+  `depth_` : seule la scène s'en sert, donc c'est elle qui la crée.
+
+**L'index bindless de la HDR** (`FrameGPUData::hdrTexture_`) n'est plus
+connu à la déclaration. La passe `frame constants` le prend dans son
+`execute`, par `graph.textureIndex(hdr)` après la compilation, hors de la
+vérification des accès. C'est le cas prévu dans les pièges du plan : la
+passe qui écrit l'index ne déclare pas la HDR, ce sont les passes qui
+l'échantillonnent (exposition, tonemap).
+
+Bits déduits : `COLOR_ATTACHMENT | SAMPLED` pour la HDR,
+`DEPTH_STENCIL_ATTACHMENT` seul pour la profondeur, comme avant. Le
+`TRANSFER_SRC` que `createTarget` donnait à la HDR disparaît.
+
+*Vérif* : redimensionnement de la fenêtre de l'éditeur, 6 fois, avec un log
+temporaire (retiré depuis) du nombre d'images physiques du graphe à chaque
+changement :
+- **raster** : 2 images (HDR, profondeur). Chaque resize passe à 4, puis
+  revient à 2 trois frames plus tard (290 → 293, 380 → 383, …) ;
+- **RT** : 4 images (avec les deux cibles GI). Chaque resize passe à 7,
+  puis revient à 4 trois frames plus tard. La cible de résolution GI garde
+  sa taille, elle est réutilisée.
+
+*Mesuré* :
+- `RenderGraphCheck` vert, avec les mêmes 73 contrôles.
+- Banc : raster identique au pixel sur les 9 cas, éditeur compris. RT dans
+  le bruit.
+- Validation : rien de nouveau. Redimensionnement sous validation : 0
+  message en raster comme en RT.

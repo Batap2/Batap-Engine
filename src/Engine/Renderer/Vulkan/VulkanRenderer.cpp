@@ -40,7 +40,6 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
     width_ = swapchain_.extent_.width;
     height_ = swapchain_.extent_.height;
     viewExtent_ = swapchain_.extent_;
-    createDepthBuffer();
 
     resources_ = std::make_unique<ResourceManager>(ctx_);
     resourceManager_ = resources_.get();
@@ -207,37 +206,6 @@ float Renderer::gpuFrameMedianMs() const
     return *middle;
 }
 
-void Renderer::createDepthBuffer()
-{
-    VkImageCreateInfo imageInfo{};
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.format = DepthFormat;
-    imageInfo.extent = {viewExtent_.width, viewExtent_.height, 1};
-    imageInfo.mipLevels = 1;
-    imageInfo.arrayLayers = 1;
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-
-    if (vmaCreateImage(ctx_.allocator_, &imageInfo, &allocInfo, &depthImage_, &depthAllocation_,
-                       nullptr) != VK_SUCCESS)
-        throw std::runtime_error("Renderer(vk) : depth image");
-
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = depthImage_;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = DepthFormat;
-    viewInfo.subresourceRange = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
-    if (vkCreateImageView(ctx_.device_, &viewInfo, nullptr, &depthView_) != VK_SUCCESS)
-        throw std::runtime_error("Renderer(vk) : depth view");
-}
-
 // Made on first use: only a host that narrows or shows the view ever needs it.
 void Renderer::ensureSceneImage()
 {
@@ -277,12 +245,6 @@ void Renderer::ensureSceneImage()
 void Renderer::retireTargets()
 {
     auto& slot = retired_[ctx_.frameIndex_];
-    if (depthImage_ != VK_NULL_HANDLE)
-        slot.push_back({depthImage_, depthAllocation_, depthView_, VK_NULL_HANDLE});
-    depthImage_ = VK_NULL_HANDLE;
-    depthAllocation_ = nullptr;
-    depthView_ = VK_NULL_HANDLE;
-
     if (sceneImage_ != VK_NULL_HANDLE)
     {
         slot.push_back({sceneImage_, sceneAllocation_, sceneView_, sceneTextureSet_});
@@ -407,14 +369,8 @@ bool Renderer::addScene(uint32_t frame, GraphBuffer uploads, GraphImage output, 
     if (!sceneGraph_)
         return false;
 
-    GraphImageInfo depth;
-    depth.image_ = depthImage_;
-    depth.view_ = depthView_;
-    depth.extent_ = extent;
-    depth.aspect_ = VK_IMAGE_ASPECT_DEPTH_BIT;
     RenderTargets targets;
     targets.color_ = output;
-    targets.depth_ = graph_.importImage("depth", depth, Usage::DepthAttachment, Usage::None);
     targets.extent_ = extent;
     targets.clearColor_ = clearColor;
     return sceneGraph_(graph_, frame, targets, uploads);
@@ -627,7 +583,6 @@ void Renderer::resize(uint32_t w, uint32_t h)
     width_ = swapchain_.extent_.width;
     height_ = swapchain_.extent_.height;
     viewExtent_ = swapchain_.extent_;
-    createDepthBuffer();
 
     for (auto& cb : resizeCallbacks_)
         cb(width_, height_);
@@ -642,7 +597,6 @@ void Renderer::setViewExtent(uint32_t w, uint32_t h)
     // The scene image comes back on its next use, at the new size.
     retireTargets();
     viewExtent_ = {w, h};
-    createDepthBuffer();
     for (auto& cb : resizeCallbacks_)
         cb(w, h);
 }

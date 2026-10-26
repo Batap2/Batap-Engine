@@ -9,7 +9,6 @@ namespace batap
 struct RenderTargets
 {
     GraphImage color_;
-    GraphImage depth_;
     VkExtent2D extent_{};
     VkClearColorValue clearColor_{};
 };
