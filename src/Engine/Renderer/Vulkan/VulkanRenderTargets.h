@@ -2,14 +2,14 @@
 
 #include <volk.h>
 
+#include "Renderer/Vulkan/RenderGraph.h"
+
 namespace batap
 {
 struct RenderTargets
 {
-    VkImage colorImage_ = VK_NULL_HANDLE;
-    VkImageView color_ = VK_NULL_HANDLE;
-    VkImage depthImage_ = VK_NULL_HANDLE;
-    VkImageView depth_ = VK_NULL_HANDLE;
+    GraphImage color_;
+    GraphImage depth_;
     VkExtent2D extent_{};
     VkClearColorValue clearColor_{};
 };

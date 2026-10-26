@@ -6,6 +6,8 @@
 
 #include "entt/entt.hpp"
 
+#include <array>
+
 namespace batap
 {
 struct VulkanContext;
@@ -23,18 +25,32 @@ struct PassSetup
     VkPipelineLayout rtLayout_ = VK_NULL_HANDLE;
 };
 
-// A pass records into an already-open rendering: the descriptor sets are bound
-// and push_ already carries cameraIndex_ and the pool counts.
 struct PassContext
 {
     VkCommandBuffer cmd_ = VK_NULL_HANDLE;
     VkPipelineLayout layout_ = VK_NULL_HANDLE;
+    VkPipelineLayout rtLayout_ = VK_NULL_HANDLE;
+    std::array<VkDescriptorSet, 2> sets_{};
+    VkDescriptorSet rtSet_ = VK_NULL_HANDLE;
     DrawPush push_{};
     entt::registry* reg_ = nullptr;
     GPUInstanceManager* instanceManager_ = nullptr;
     AssetManager* assetManager_ = nullptr;
     bool rayTracing_ = false;
 };
+
+inline PassContext bindPass(const PassContext& pass, VkCommandBuffer cmd)
+{
+    PassContext bound = pass;
+    bound.cmd_ = cmd;
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass.layout_, 0,
+                            static_cast<uint32_t>(pass.sets_.size()), pass.sets_.data(), 0,
+                            nullptr);
+    if (pass.rtSet_ != VK_NULL_HANDLE)
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass.rtLayout_, RayTracingSet,
+                                1, &pass.rtSet_, 0, nullptr);
+    return bound;
+}
 
 inline void pushDraw(const PassContext& pass, const DrawPush& push)
 {

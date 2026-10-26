@@ -403,8 +403,8 @@ void ScenePasses::fitCascades(entt::registry& reg, GPUInstanceManager& instances
     warnedCascades_ = tooClose;
 }
 
-bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTargets& targets,
-                         const SceneRenderArgs& args, Engine& ctx)
+bool ScenePasses::addPasses(RenderGraph& graph, uint32_t frame, const RenderTargets& targets,
+                            const SceneRenderArgs& args, Engine& ctx)
 {
     auto* reg = args.reg_;
     auto* instanceM = args.instanceManager_;
@@ -429,7 +429,6 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     const size_t shadowEntries = instanceM->pool<LightInstance>().size() * MaxShadowViewsPerLight;
     shadow_.reserve(shadowEntries);
 
-    RenderGraph graph;
     RtSceneBuffers rt;
     if (rayTracing)
     {
@@ -463,19 +462,12 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
 
     writeFrameSet(frame, args, ctx);
 
-    const VkDescriptorSet sets[2] = {resources_.textureSet(), frameSets_[frame]};
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 2, sets, 0,
-                            nullptr);
-    if (rayTracing)
-    {
-        const VkDescriptorSet rtSet = rtScene_->set(frame);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rtPipelineLayout_,
-                                RayTracingSet, 1, &rtSet, 0, nullptr);
-    }
-
     PassContext pass{};
-    pass.cmd_ = cmd;
     pass.layout_ = pipelineLayout_;
+    pass.rtLayout_ = rtPipelineLayout_;
+    pass.sets_ = {resources_.textureSet(), frameSets_[frame]};
+    if (rayTracing)
+        pass.rtSet_ = rtScene_->set(frame);
     pass.push_.cameraIndex_ = camID;
     pass.push_.debugFlags_ =
         (args.showShadowCascades_ ? DebugShadowCascades : 0u) |
@@ -530,36 +522,20 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
 
     const GraphImage hdr =
         graph.importImage("hdr", resources_, hdrTarget_, Usage::ShaderRead, Usage::ShaderRead);
-    const auto target = [&](const char* name, VkImage image, VkImageView view,
-                            VkImageAspectFlags aspect, Usage in, Usage out)
-    {
-        GraphImageInfo info;
-        info.image_ = image;
-        info.view_ = view;
-        info.extent_ = targets.extent_;
-        info.aspect_ = aspect;
-        return graph.importImage(name, info, in, out);
-    };
-    const GraphImage depth = target("depth", targets.depthImage_, targets.depth_,
-                                    VK_IMAGE_ASPECT_DEPTH_BIT, Usage::DepthAttachment, Usage::None);
-    const GraphImage output =
-        target("output", targets.colorImage_, targets.color_, VK_IMAGE_ASPECT_COLOR_BIT,
-               Usage::ColorAttachment, Usage::ColorAttachment);
 
     const bool rtFirstHit = rayTracing && (pass.push_.debugFlags_ & DebugRtFirstHit) != 0u;
     GraphPass& scene =
         graph.addPass("scene")
             .color(hdr, Load::Clear, targets.clearColor_)
             // Reversed Z (Camera_C::make_proj): the far plane is 0.
-            .depth(depth, Load::Clear, 0.f)
+            .depth(targets.depth_, Load::Clear, 0.f)
             .read(frameConstants, Usage::ShaderRead)
             .read(shadowAtlases[0].atlas_, Usage::ShaderRead)
             .read(shadowAtlases[1].atlas_, Usage::ShaderRead)
             .execute(
                 [this, pass, rtFirstHit](GraphContext& c)
                 {
-                    PassContext context = pass;
-                    context.cmd_ = c.cmd();
+                    const PassContext context = bindPass(pass, c.cmd());
                     if (rtFirstHit)
                         rtDebug_.record(context);
                     else
@@ -576,22 +552,19 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
     exposure_.addPasses(graph, hdr, frameConstants, pass, frame);
 
     graph.addPass("tonemap")
-        .color(output, Load::DontCare)
-        .depth(depth, Load::Keep)
+        .color(targets.color_, Load::DontCare)
+        .depth(targets.depth_, Load::Keep)
         .read(hdr, Usage::ShaderRead)
         .read(frameConstants, Usage::ShaderRead)
         .execute(
             [this, pass](GraphContext& c)
             {
-                PassContext context = pass;
-                context.cmd_ = c.cmd();
+                const PassContext context = bindPass(pass, c.cmd());
                 tonemap_.record(context);
                 // After the sky: it writes no depth, so it would paint over any wire drawn
                 // against the background.
                 debug_.record(context);
             });
-
-    graph.record(cmd);
     return true;
 }
 

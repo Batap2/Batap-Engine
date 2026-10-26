@@ -41,8 +41,8 @@ struct ScenePasses
     ScenePasses& operator=(const ScenePasses&) = delete;
 
     // False without a camera: nothing recorded, the caller owns the clear.
-    bool record(VkCommandBuffer cmd, uint32_t frame, const RenderTargets& targets,
-                const SceneRenderArgs& args, Engine& ctx);
+    bool addPasses(RenderGraph& graph, uint32_t frame, const RenderTargets& targets,
+                   const SceneRenderArgs& args, Engine& ctx);
 
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
     void uploadBillboards(const Billboards& billboards);

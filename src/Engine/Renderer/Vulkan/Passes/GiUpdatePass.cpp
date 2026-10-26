@@ -122,8 +122,7 @@ void GiUpdatePass::addPasses(RenderGraph& graph, const RtSceneBuffers& rt,
             .execute(
                 [pass, pipeline, index](GraphContext& c)
                 {
-                    PassContext context = pass;
-                    context.cmd_ = c.cmd();
+                    PassContext context = bindPass(pass, c.cmd());
                     context.push_.instanceIndex_ = index;
                     vkCmdBindPipeline(context.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
                     pushDraw(context, context.push_);

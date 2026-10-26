@@ -114,8 +114,7 @@ void ShadowPass::addPasses(RenderGraph& graph, GraphBuffer shadows, const PassCo
                 [pass, views = atlas.views_, pipeline = pipeline_,
                  &resources = setup_.resources_, &terrain](GraphContext& c)
                 {
-                    PassContext shadowPass = pass;
-                    shadowPass.cmd_ = c.cmd();
+                    PassContext shadowPass = bindPass(pass, c.cmd());
                     for (const ShadowView& view : views)
                     {
                         shadowPass.push_.shadowViewIndex_ = view.entry_;

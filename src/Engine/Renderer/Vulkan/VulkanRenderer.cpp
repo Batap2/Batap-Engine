@@ -380,9 +380,39 @@ void Renderer::uploadTerrain(TerrainDraws& draws)
         scenePasses_->uploadTerrain(draws);
 }
 
-void Renderer::setSceneRecord(SceneRecordFn fn)
+void Renderer::setSceneGraph(SceneGraphFn fn)
 {
-    sceneRecord_ = std::move(fn);
+    sceneGraph_ = std::move(fn);
+}
+
+bool Renderer::recordScene(VkCommandBuffer cmd, uint32_t frame, VkImage image, VkImageView view,
+                           VkExtent2D extent, VkClearColorValue clearColor)
+{
+    if (!sceneGraph_)
+        return false;
+
+    RenderGraph graph;
+    const auto target = [&](const char* name, VkImage targetImage, VkImageView targetView,
+                            VkImageAspectFlags aspect, Usage in, Usage out)
+    {
+        GraphImageInfo info;
+        info.image_ = targetImage;
+        info.view_ = targetView;
+        info.extent_ = extent;
+        info.aspect_ = aspect;
+        return graph.importImage(name, info, in, out);
+    };
+    RenderTargets targets;
+    targets.color_ = target("output", image, view, VK_IMAGE_ASPECT_COLOR_BIT,
+                            Usage::ColorAttachment, Usage::ColorAttachment);
+    targets.depth_ = target("depth", depthImage_, depthView_, VK_IMAGE_ASPECT_DEPTH_BIT,
+                            Usage::DepthAttachment, Usage::None);
+    targets.extent_ = extent;
+    targets.clearColor_ = clearColor;
+    if (!sceneGraph_(graph, frame, targets))
+        return false;
+    graph.record(cmd);
+    return true;
 }
 
 void Renderer::beginFrame()
@@ -431,10 +461,7 @@ void Renderer::render()
                           viewExtent_.height == swapchain_.extent_.height;
 
     VkImage swapImage = swapchain_.images_[imageIndex];
-    RenderTargets targets{};
-    targets.depthImage_ = depthImage_;
-    targets.depth_ = depthView_;
-    targets.clearColor_ = {{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
+    const VkClearColorValue clearColor{{0.0f, 0.0f, 0.0f, transparent_ ? 0.0f : 1.0f}};
 
     // Discard already drops the contents, so `from` here only says what must
     // finish before the transition — hence a real usage rather than None:
@@ -456,10 +483,8 @@ void Renderer::render()
                    Discard::Yes)
             .flush(cmd);
 
-        targets.colorImage_ = swapImage;
-        targets.color_ = swapchain_.views_[imageIndex];
-        targets.extent_ = swapchain_.extent_;
-        swapchainHasScene = sceneRecord_ && sceneRecord_(cmd, frame, targets);
+        swapchainHasScene = recordScene(cmd, frame, swapImage, swapchain_.views_[imageIndex],
+                                        swapchain_.extent_, clearColor);
     }
     else
     {
@@ -477,10 +502,7 @@ void Renderer::render()
                    Discard::Yes)
             .flush(cmd);
 
-        targets.colorImage_ = sceneImage_;
-        targets.color_ = sceneView_;
-        targets.extent_ = viewExtent_;
-        if (sceneRecord_ && sceneRecord_(cmd, frame, targets))
+        if (recordScene(cmd, frame, sceneImage_, sceneView_, viewExtent_, clearColor))
         {
             BarrierBatch{}
                 .image(sceneImage_, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
@@ -495,7 +517,7 @@ void Renderer::render()
                 .flush(cmd);
             const VkImageSubresourceRange range = colorRange();
             vkCmdClearColorImage(cmd, sceneImage_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                 &targets.clearColor_, 1, &range);
+                                 &clearColor, 1, &range);
             BarrierBatch{}
                 .image(sceneImage_, Usage::TransferDst, Usage::ShaderRead, colorRange())
                 .flush(cmd);
@@ -512,7 +534,7 @@ void Renderer::render()
         uiColor.loadOp = swapchainHasScene ? VK_ATTACHMENT_LOAD_OP_LOAD
                                            : VK_ATTACHMENT_LOAD_OP_CLEAR;
         uiColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        uiColor.clearValue.color = targets.clearColor_;
+        uiColor.clearValue.color = clearColor;
 
         VkRenderingInfo uiInfo{};
         uiInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;

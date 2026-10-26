@@ -292,7 +292,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       passe `Graphics` ; AS et scratch importés comme buffers.
       `Usage::AccelerationStructureRead` ajouté (voir Pièges). Les barrières
       de `RtScene` disparaissent.
-- [ ] **1.8 `ScenePasses` déclare, n'enregistre plus.** `record(cmd, …)`
+- [x] **1.8 `ScenePasses` déclare, n'enregistre plus.** `record(cmd, …)`
       devient `addPasses(graph, …)`. Il reste une frontière : la sortie et la
       profondeur, au `Renderer`.
       *Vérif* : `BarrierBatch` n'apparaît plus que dans `RenderGraph.cpp`,

@@ -536,3 +536,38 @@ une lecture après lecture.
   1,887 ms, contre 1,90 en 0.3. En raster, que l'étape ne touche pas, les
   scènes GI prennent +1 à +3 % (`gi_sun` 0,083 → 0,085 ms) : c'est sans doute
   la frontière de 1.6, enfin mesurable.
+
+## 1.8 `ScenePasses` déclare, n'enregistre plus
+
+*Fait (2026-10-26)* : `ScenePasses::record(cmd, …)` devient `addPasses(graph,
+…)`, qui ne touche plus aucun command buffer. Le graphe est construit par le
+`Renderer`, dans `Renderer::recordScene` :
+- il importe la sortie (`ColorAttachment` → `ColorAttachment`) et la
+  profondeur (`DepthAttachment` → `None`) ;
+- il appelle le callback de `bindScene`. `setSceneRecord` devient
+  `setSceneGraph` ;
+- il enregistre le graphe.
+
+`RenderTargets` porte maintenant deux `GraphImage` au lieu des `VkImage` et
+des vues.
+
+**Chaque passe qui dessine lie les descriptor sets elle-même.** `record` les
+liait une fois, sur `cmd`, avant le graphe. Ils entrent dans `PassContext`
+(`sets_`, `rtSet_`, `rtLayout_`), et `bindPass(pass, cmd)` les lie au début
+de chaque `execute` qui dessine : ombres, GI, scène, exposition, tonemap.
+- Je n'ai pas fait de passe « bind » en tête de graphe : en phase 6, les lots
+  iront dans des command buffers différents (« Préparer plusieurs files »,
+  point 3).
+- Coût : en RT, jusqu'à ~16 `vkCmdBindDescriptorSets` par frame au lieu de 2.
+  Rien de visible au chrono.
+
+*Vérif* :
+- **`BarrierBatch`** n'apparaît plus, hors de sa définition, que dans
+  `VulkanRenderer.cpp` (la frontière, l'image de scène, la swapchain) et dans
+  `flushUploads`. `RenderGraph.cpp` n'en a jamais utilisé : il émet ses
+  `vkCmdPipelineBarrier2` lui-même.
+- **`vkCmdBeginRendering`** : seulement le graphe et la scope d'ImGui.
+- **Banc** : raster identique au pixel, RT dans le bruit. Validation : rien
+  de nouveau.
+- **GPU** : comme en 1.7, à 1 % près. `gi_sun_rt` vaut 0,232 ms contre
+  0,230 ms, `moon_near_rt` 1,894 ms contre 1,887 ms.

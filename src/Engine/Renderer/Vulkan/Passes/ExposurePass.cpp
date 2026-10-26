@@ -113,8 +113,7 @@ void ExposurePass::addPasses(RenderGraph& graph, GraphImage hdr, GraphBuffer fra
             .execute(
                 [pass, source, pipeline](GraphContext& c)
                 {
-                    PassContext context = pass;
-                    context.cmd_ = c.cmd();
+                    PassContext context = bindPass(pass, c.cmd());
                     context.push_.instanceIndex_ = c.textureIndex(source);
                     vkCmdBindPipeline(context.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
                     pushDraw(context, context.push_);

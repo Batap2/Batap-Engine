@@ -10,8 +10,8 @@ namespace batap
 void bindScene(Engine& ctx, World& world)
 {
     auto* passes = ctx.renderer_->scenePasses();
-    ctx.renderer_->setSceneRecord(
-        [&ctx, &world, passes](VkCommandBuffer cmd, uint32_t frame, const RenderTargets& targets)
-        { return passes->record(cmd, frame, targets, world.renderArgs(), ctx); });
+    ctx.renderer_->setSceneGraph(
+        [&ctx, &world, passes](RenderGraph& graph, uint32_t frame, const RenderTargets& targets)
+        { return passes->addPasses(graph, frame, targets, world.renderArgs(), ctx); });
 }
 }  // namespace batap
