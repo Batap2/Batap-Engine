@@ -268,7 +268,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       attachment du mauvais aspect refusé ; et, files simulées, une
       dépendance entre files qui donne deux lots et un sémaphore.
       *Vérif* : `RenderGraphCheck` vert.
-- [ ] **1.2 Exposition.** `ExposurePass` : trois passes raster plus le
+- [x] **1.2 Exposition.** `ExposurePass` : trois passes raster plus le
       readback, la HDR importée (`ShaderRead` en entrée et en sortie). Ses
       barrières et sa scope disparaissent.
       *Vérif* : `test_auto_exposure` identique, readback compris (même EV

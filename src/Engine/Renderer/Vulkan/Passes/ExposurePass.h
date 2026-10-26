@@ -10,6 +10,8 @@
 namespace batap
 {
 struct Camera_C;
+struct GraphImage;
+struct RenderGraph;
 
 struct ExposurePass
 {
@@ -21,12 +23,9 @@ struct ExposurePass
 
     void buildPipelines(const ShaderModules& modules);
     float update(uint32_t frame, entt::entity camera, const Camera_C& settings, float dt);
-    void record(const PassContext& pass, uint32_t frame);
+    void addPasses(RenderGraph& graph, GraphImage hdr, const PassContext& pass, uint32_t frame);
 
    private:
-    void draw(const PassContext& pass, GPUResourceHandle target, uint32_t size,
-              VkPipeline pipeline, uint32_t source);
-
     PassSetup setup_;
     VkPipeline measurePipeline_ = VK_NULL_HANDLE;
     VkPipeline reducePipeline_ = VK_NULL_HANDLE;

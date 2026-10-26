@@ -1,5 +1,6 @@
 #include "VulkanScenePasses.h"
 
+#include "RenderGraph.h"
 #include "VulkanBarrier.h"
 #include "VulkanContext.h"
 #include "VulkanFormats.h"
@@ -556,7 +557,12 @@ bool ScenePasses::record(VkCommandBuffer cmd, uint32_t frame, const RenderTarget
         .image(hdrImage, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
         .memory(Usage::DepthAttachment, Usage::DepthAttachment)
         .flush(cmd);
-    exposure_.record(pass, frame);
+
+    RenderGraph graph;
+    const GraphImage hdr =
+        graph.importImage("hdr", resources_, hdrTarget_, Usage::ShaderRead, Usage::ShaderRead);
+    exposure_.addPasses(graph, hdr, pass, frame);
+    graph.record(cmd);
 
     color.imageView = targets.color_;
     color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;

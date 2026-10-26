@@ -281,3 +281,47 @@ de la construire.
   max 9,1). Référence pour 4.5.
 - Banc d'images et validation non relancés : le graphe n'est appelé nulle
   part, le build suffit (règle du plan pour la plomberie sans client).
+
+## 1.2 Exposition
+
+*Fait (2026-10-26)* : `ExposurePass::record` devient `addPasses(graph, hdr,
+pass, frame)`, et `draw()` disparaît avec ses barrières et sa scope.
+`ScenePasses::record` construit un `RenderGraph` juste après la scène : il y
+importe la HDR (`ShaderRead` → `ShaderRead`), et l'enregistre dans le command
+buffer de la frame. Il y a quatre passes : mesure, réduction, total, readback.
+- La grille, le bloc et le total sont importés en `ShaderRead` →
+  `ShaderRead`. Le readback du slot est importé en `None` → `None` : aucune
+  barrière, comme avant.
+- On passe de 8 `vkCmdPipelineBarrier2` à 5 (une par passe, plus la sortie du
+  total), avec les mêmes transitions. Le `ColorAttachment → ShaderRead` de la
+  grille part avec le discard du bloc. Le total va de `ColorAttachment` à
+  `TransferSrc` en une seule barrière, sans passer par `ShaderRead`.
+
+*Écart* : la passe de mesure pousse l'index de la HDR dans `instanceIndex_`
+(avant : 0), pour que les trois dessins partagent la même lambda.
+`ExposureMeasurePS` ne lit pas cet index : il prend `frame.hdrTexture_`.
+
+*Mesuré* (RTX 5070, 1280 × 728) :
+- Banc : raster identique au pixel sur les 9 cas, RT dans le bruit.
+  Validation : rien de nouveau. Le WAW du readback de 0.2 est toujours là
+  (10 messages dans `room`), sans changement.
+- `room` GPU : 0,133 → 0,133 ms en raster, 0,273 → 0,272 ms en RT.
+- EV sur 600 frames, mesurée par un log `[EV]` temporaire (retiré depuis) :
+  - en raster, l'EV finale vaut **16,0209503 au bit près** dans les 6 runs
+    (2 avant, 4 après) ;
+  - pendant la convergence (frames 7 à ~60), le même binaire n'est pas exact
+    d'un run à l'autre. Avant/avant : 2e-6. Après/après : 6,7 à 8,6e-6.
+    Avant/après : 2e-6 à 1,6e-5. C'est la même distribution ;
+  - en RT : avant/avant 2,8e-4, avant/après 4,6e-5 à 2,7e-4.
+
+*Pièges trouvés* :
+- **L'EV raster n'est pas déterministe** (seuls les derniers bits du float
+  bougent, pendant la convergence). Non analysé. Ce n'est pas le readback :
+  il est lu après la fence de son slot. « Même EV » veut donc dire même EV
+  finale, avec le même bruit.
+- **Tolérance de `room_rt` trop serrée** : la référence a mesuré 40 px
+  entre ses deux runs, mais les runs suivants donnent 59 à 220 px, avant
+  comme après le changement. 2 runs sur 5 ont dépassé 2 × 40 px.
+- Chrono de la lune bruité ce soir : la référence est à 11–12 ms en raster,
+  contre 5,3 ms en 0.3. La lune n'est pas en auto-exposition, donc son
+  graphe est vide : rien à voir avec l'étape.

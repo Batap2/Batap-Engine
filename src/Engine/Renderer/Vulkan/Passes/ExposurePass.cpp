@@ -2,7 +2,7 @@
 
 #include "Components/Camera_C.h"
 #include "Renderer/ResourceFormat.h"
-#include "Renderer/Vulkan/VulkanBarrier.h"
+#include "Renderer/Vulkan/RenderGraph.h"
 #include "Renderer/Vulkan/VulkanContext.h"
 #include "Renderer/Vulkan/VulkanPipelines.h"
 #include "Renderer/Vulkan/VulkanResources.h"
@@ -91,61 +91,55 @@ float ExposurePass::update(uint32_t frame, entt::entity camera, const Camera_C& 
     return exposureForEv100(ev100_);
 }
 
-void ExposurePass::record(const PassContext& pass, uint32_t frame)
+void ExposurePass::addPasses(RenderGraph& graph, GraphImage hdr, const PassContext& pass,
+                             uint32_t frame)
 {
     if (!auto_)
         return;
 
     ResourceManager& resources = setup_.resources_;
-    draw(pass, grid_, ExposureGridSize, measurePipeline_, 0);
-    draw(pass, block_, ExposureGridSize / ExposureReduceBlock, reducePipeline_,
-         resources.textureIndex(grid_));
-    draw(pass, total_, 1, reducePipeline_, resources.textureIndex(block_));
+    const auto importTarget = [&](const char* name, GPUResourceHandle target)
+    { return graph.importImage(name, resources, target, Usage::ShaderRead, Usage::ShaderRead); };
+    const GraphImage grid = importTarget("exposure grid", grid_);
+    const GraphImage block = importTarget("exposure block", block_);
+    const GraphImage total = importTarget("exposure total", total_);
+    const GraphBuffer readback = graph.importBuffer("exposure readback", resources,
+                                                    readback_[frame], Usage::None, Usage::None);
 
-    const VkImage total = resources.imageFor(total_);
-    BarrierBatch{}.image(total, Usage::ShaderRead, Usage::TransferSrc, colorRange()).flush(pass.cmd_);
-    VkBufferImageCopy region{};
-    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-    region.imageExtent = {1, 1, 1};
-    vkCmdCopyImageToBuffer(pass.cmd_, total, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           resources.bufferFor(readback_[frame]), 1, &region);
-    BarrierBatch{}.image(total, Usage::TransferSrc, Usage::ShaderRead, colorRange()).flush(pass.cmd_);
+    const auto draw = [&](const char* name, GraphImage source, GraphImage target,
+                          VkPipeline pipeline)
+    {
+        graph.addPass(name)
+            .read(source, Usage::ShaderRead)
+            .color(target, Load::DontCare)
+            .execute(
+                [pass, source, pipeline](GraphContext& c)
+                {
+                    PassContext context = pass;
+                    context.cmd_ = c.cmd();
+                    context.push_.instanceIndex_ = c.textureIndex(source);
+                    vkCmdBindPipeline(context.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                    pushDraw(context, context.push_);
+                    vkCmdDraw(context.cmd_, 3, 1, 0, 0);
+                });
+    };
+    draw("exposure measure", hdr, grid, measurePipeline_);
+    draw("exposure reduce", grid, block, reducePipeline_);
+    draw("exposure total", block, total, reducePipeline_);
+
+    graph.addPass("exposure readback")
+        .read(total, Usage::TransferSrc)
+        .write(readback, Usage::TransferDst)
+        .execute(
+            [total, readback](GraphContext& c)
+            {
+                VkBufferImageCopy region{};
+                region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+                region.imageExtent = {1, 1, 1};
+                vkCmdCopyImageToBuffer(c.cmd(), c.image(total),
+                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, c.buffer(readback), 1,
+                                       &region);
+            });
     measured_[frame] = true;
-}
-
-void ExposurePass::draw(const PassContext& pass, GPUResourceHandle target, uint32_t size,
-                        VkPipeline pipeline, uint32_t source)
-{
-    const VkImage image = setup_.resources_.imageFor(target);
-    BarrierBatch{}
-        .image(image, Usage::ShaderRead, Usage::ColorAttachment, colorRange(), Discard::Yes)
-        .flush(pass.cmd_);
-
-    VkRenderingAttachmentInfo color{};
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color.imageView = setup_.resources_.viewFor(target);
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    VkRenderingInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    info.renderArea = {{0, 0}, {size, size}};
-    info.layerCount = 1;
-    info.colorAttachmentCount = 1;
-    info.pColorAttachments = &color;
-
-    vkCmdBeginRendering(pass.cmd_, &info);
-    setViewportYUp(pass.cmd_, size, size);
-    vkCmdBindPipeline(pass.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    DrawPush push = pass.push_;
-    push.instanceIndex_ = source;
-    pushDraw(pass, push);
-    vkCmdDraw(pass.cmd_, 3, 1, 0, 0);
-    vkCmdEndRendering(pass.cmd_);
-
-    BarrierBatch{}
-        .image(image, Usage::ColorAttachment, Usage::ShaderRead, colorRange())
-        .flush(pass.cmd_);
 }
 }  // namespace batap
