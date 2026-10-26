@@ -1,3 +1,3 @@
 #pragma once
 
-#include "Renderer/Vulkan/VulkanResources.h"
+#include "Renderer/Device/ResourceManager.h"

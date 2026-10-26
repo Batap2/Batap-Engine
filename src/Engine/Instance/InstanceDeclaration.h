@@ -455,7 +455,7 @@ inline ComponentMask markerComponentMask()
 }
 
 // Bindings the pools claim. The other half of the check — that every binding
-// ends up written by someone, pool or not — lives in ScenePasses::writeFrameSet,
+// ends up written by someone, pool or not — lives in SceneFrame::writeFrameSet,
 // the only place that knows the non-pool writers.
 template <class InstanceList>
 struct FrameSetBindings;

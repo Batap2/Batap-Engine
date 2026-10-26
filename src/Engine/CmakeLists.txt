@@ -141,7 +141,7 @@ if(NOT DXC_EXE)
 endif()
 
 # Le même SDK fournit l'API runtime (hot reload) : headers dxc/dxcapi.h
-# (VulkanShaderCompiler) et libdxcompiler (chargée à l'exécution ;
+# (ShaderCompiler) et libdxcompiler (chargée à l'exécution ;
 # BATAP_DXC_LIB_DIR sert de chemin de secours quand DYLD/PATH ne la couvre pas).
 get_filename_component(_dxc_bin_dir "${DXC_EXE}" DIRECTORY)
 target_include_directories(Batap_Engine SYSTEM PRIVATE "${Vulkan_INCLUDE_DIR}")

@@ -117,8 +117,11 @@ void Engine::beginFrame()
 
     ++frameNumber_;
     if (viewRectFrame_ + 1 < frameNumber_)
-        applyViewRect({v2i::Zero(), v2i(static_cast<int>(renderer_->width_),
-                                        static_cast<int>(renderer_->height_))});
+    {
+        const VkExtent2D extent = renderer_->swapchain_.extent_;
+        applyViewRect(
+            {v2i::Zero(), v2i(static_cast<int>(extent.width), static_cast<int>(extent.height))});
+    }
 }
 
 ViewRect Engine::viewRect() const
@@ -135,7 +138,8 @@ void Engine::setViewRect(const ViewRect& rect)
 
 void Engine::applyViewRect(const ViewRect& rect)
 {
-    const v2i window(static_cast<int>(renderer_->width_), static_cast<int>(renderer_->height_));
+    const VkExtent2D extent = renderer_->swapchain_.extent_;
+    const v2i window(static_cast<int>(extent.width), static_cast<int>(extent.height));
     viewOrigin_ = rect.origin_.cwiseMax(0).cwiseMin(window);
     const v2i size = rect.size_.cwiseMin(window - viewOrigin_).cwiseMax(1);
     renderer_->setViewExtent(static_cast<uint32_t>(size.x()), static_cast<uint32_t>(size.y()));

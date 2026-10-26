@@ -24,8 +24,8 @@ using float4x4 = float[16];
 enum DescriptorSetIndex : uint
 {
     BindlessSet = 0,    // owned by ResourceManager
-    FrameSet = 1,       // owned by ScenePasses
-    RayTracingSet = 2,  // owned by RtScene
+    FrameSet = 1,       // owned by FrameBindings
+    RayTracingSet = 2,  // owned by FrameBindings
 };
 
 enum RayTracingSetBinding : uint
@@ -270,7 +270,7 @@ enum TonemapOperator : uint
 
 struct FrameGPUData
 {
-    // Renderer/LtcTables.h
+    // Renderer/Scene/LtcTables.h
     uint ltcMatTexture_;
     uint ltcAmpTexture_;
     uint frameIndex_;

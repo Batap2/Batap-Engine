@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit rendu Batap</title>
+<style>
+:root{
+  --bg:#f6f6f3; --panel:#ffffff; --ink:#1c1e22; --muted:#5f6670; --line:#d8dbe0; --soft:#eef0f2;
+  --device:#4e79a7; --graph:#8e6bbf; --frame:#2a9d8f; --feature:#e08a2b; --draw:#4c9f50; --cpu:#8b929b; --fwd:#b5bac2;
+  --dead:#d1495b; --accent:#d9622b; --ok:#3c9a5f;
+  --d-ren:#2a9d8f; --d-sp:#8e6bbf; --d-rt:#c0587e; --d-gi:#e0a62b; --d-sh:#4e79a7; --d-ex:#6b8e23;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --bg:#131519; --panel:#1b1e23; --ink:#e6e8eb; --muted:#9aa2ad; --line:#323840; --soft:#22262c; }
+}
+:root[data-theme="dark"]{ --bg:#131519; --panel:#1b1e23; --ink:#e6e8eb; --muted:#9aa2ad; --line:#323840; --soft:#22262c; }
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+code,.mono{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:.92em}
+a{color:var(--accent)}
+header{padding:28px 16px 8px;max-width:1180px;margin:0 auto}
+header h1{margin:0 0 4px;font-size:26px}
+header p{margin:0;color:var(--muted)}
+nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+nav div{max-width:1180px;margin:0 auto;padding:8px 16px;display:flex;gap:6px 14px;flex-wrap:wrap;font-size:13.5px}
+nav a{color:var(--muted);text-decoration:none}
+nav a:hover{color:var(--ink)}
+main{max-width:1180px;margin:0 auto;padding:0 16px 80px}
+section{margin-top:44px}
+h2{font-size:21px;margin:0 0 6px;padding-top:8px}
+h2 .num{color:var(--accent);margin-right:8px}
+h3{font-size:16px;margin:22px 0 8px}
+.lead{color:var(--muted);margin:0 0 16px;max-width:880px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;border-top:3px solid var(--c,var(--line))}
+.kpi .v{font-size:26px;font-weight:650;line-height:1.1}
+.kpi .t{font-size:13.5px;color:var(--muted);margin-top:4px}
+ul.tight{margin:6px 0;padding-left:20px}
+ul.tight li{margin:3px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--panel)}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--soft);font-weight:600}
+.tw{overflow-x:auto;border-radius:10px;border:1px solid var(--line)}
+.tw table{border:none}
+.tw th:first-child,.tw td:first-child{border-left:none}
+.tw th:last-child,.tw td:last-child{border-right:none}
+.tw tr:first-child th{border-top:none}
+.tw tr:last-child td{border-bottom:none}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);margin:8px 0 12px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;background:var(--c);display:inline-block}
+.ln{width:26px;height:0;border-top:2px solid var(--c);display:inline-block}
+.ln.dash{border-top-style:dashed}
+.r-device{--c:var(--device)} .r-graph{--c:var(--graph)} .r-frame{--c:var(--frame)} .r-feature{--c:var(--feature)}
+.r-draw{--c:var(--draw)} .r-cpu{--c:var(--cpu)} .r-fwd{--c:var(--fwd)} .r-dead{--c:var(--dead)}
+
+/* file map */
+.fmap{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.folder{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.folder h4{margin:0 0 2px;font-size:14.5px;font-family:ui-monospace,Consolas,monospace}
+.folder .meta{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.folder .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:0 0 10px;background:var(--soft)}
+.folder .bar i{display:block;background:var(--c)}
+.files{display:flex;flex-wrap:wrap;gap:5px}
+.f{font:12px/1.25 ui-monospace,Consolas,monospace;padding:4px 6px 4px 7px;border-radius:5px;border:1px solid var(--line);border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 9%,var(--panel));max-width:100%}
+.f em{font-style:normal;color:var(--muted);margin-left:4px}
+.f.dead{outline:2px solid var(--dead);outline-offset:-1px}
+.f.vest{outline:2px dashed var(--dead);outline-offset:-1px}
+.sub{width:100%;font-size:11.5px;color:var(--muted);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.04em}
+
+/* layered diagrams */
+.dia{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.canvas{position:relative;min-width:1040px;padding:18px 16px 6px}
+.row{display:flex;gap:12px;align-items:center;margin:0 0 40px;position:relative;z-index:1}
+.row:last-child{margin-bottom:12px}
+.row>.lab{width:104px;flex:none;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;line-height:1.3}
+.cells{display:flex;gap:10px;flex-wrap:nowrap;align-items:stretch}
+.grp{display:flex;gap:8px;padding:12px 8px 8px;border:1px dashed var(--muted);border-radius:9px;position:relative;background:color-mix(in srgb,var(--panel) 85%,var(--soft))}
+.grp>.gl{position:absolute;top:-9px;left:8px;background:var(--panel);padding:0 5px;font-size:11px;color:var(--muted);white-space:nowrap}
+.grp.bad{border-color:var(--dead)}
+.grp.bad>.gl{color:var(--dead)}
+.n{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:6px;padding:6px 8px;font-size:12px;line-height:1.3;min-width:92px;max-width:220px;position:relative;cursor:default;transition:box-shadow .15s}
+.n b{display:block;font:600 12.5px/1.25 ui-monospace,Consolas,monospace}
+.n small{display:block;color:var(--muted);font-size:11.5px}
+.n.big{min-width:250px;max-width:330px}
+.n:hover{box-shadow:0 0 0 2px var(--c)}
+svg.edges{position:absolute;left:0;top:0;z-index:1;pointer-events:none;overflow:visible}
+.canvas.abs{width:1130px;min-width:1130px;padding:0}
+.abs .n{position:absolute;max-width:none;min-width:0;z-index:2}
+.abs .box{position:absolute;border:1px dashed var(--muted);border-radius:10px;z-index:0}
+.abs .box.inner{background:color-mix(in srgb,var(--panel) 70%,var(--soft));border-color:var(--line)}
+.abs .box>.gl{position:absolute;top:-9px;left:10px;background:var(--panel);padding:0 6px;font-size:11px;color:var(--muted);white-space:nowrap}
+.abs .lane{position:absolute;left:14px;width:96px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;line-height:1.3}
+svg.edges path{fill:none;stroke-width:1.6;transition:opacity .15s}
+svg.edges path.own{stroke:var(--muted)}
+svg.edges path.call{stroke:var(--muted);stroke-dasharray:5 4}
+svg.edges path.pass{stroke:var(--accent);stroke-width:2.2}
+svg.edges path.bad{stroke:var(--dead);stroke-width:2.2;stroke-dasharray:6 4}
+svg.edges path.dep{stroke:var(--line);stroke-width:1.4}
+svg.edges text{font:11px system-ui,sans-serif;fill:var(--muted);paint-order:stroke;stroke:var(--panel);stroke-width:4px}
+.dia.focus svg.edges path:not(.hl){opacity:.12}
+.dia.focus svg.edges text:not(.hl){opacity:.12}
+
+/* timeline */
+.tl{display:flex;flex-wrap:wrap;gap:8px 4px;align-items:flex-start}
+.p{display:inline-flex;flex-direction:column;gap:3px}
+.p>span{font:12px/1.2 ui-monospace,Consolas,monospace;padding:5px 8px;border-radius:5px;background:var(--c);color:#fff;white-space:nowrap}
+.p>span.opt{background:transparent;color:var(--ink);border:1.5px dashed var(--c)}
+.p>i{font-style:normal;font-size:11px;color:var(--muted);padding-left:2px;max-width:200px}
+.arrow{color:var(--muted);padding:4px 2px;font-size:13px}
+.d-ren{--c:var(--d-ren)} .d-sp{--c:var(--d-sp)} .d-rt{--c:var(--d-rt)} .d-gi{--c:var(--d-gi)} .d-sh{--c:var(--d-sh)} .d-ex{--c:var(--d-ex)}
+
+/* topic spread */
+.topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}
+.topic{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.topic h4{margin:0 0 8px;font-size:14.5px;display:flex;justify-content:space-between;align-items:baseline}
+.topic h4 .cnt{font-size:22px;font-weight:650;color:var(--c,var(--ink))}
+.topic ul{margin:0;padding-left:18px;font-size:13px}
+.topic li{margin:2px 0}
+
+/* ref stacks */
+.stacks{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.stack{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.stack h4{margin:0 0 2px;font-size:15px}
+.stack .meta{font-size:12px;color:var(--muted);margin-bottom:10px}
+.layer{border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 10%,var(--panel));border-radius:5px;padding:6px 8px;margin:6px 0;font-size:12.5px}
+.layer b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.layer code{font-size:11.5px;overflow-wrap:anywhere}
+.layer.warn{border-left-color:var(--dead);background:color-mix(in srgb,var(--dead) 10%,var(--panel))}
+
+pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;font:12.5px/1.5 ui-monospace,Consolas,monospace;margin:0}
+pre .c{color:var(--muted)}
+pre .k{color:var(--graph)}
+pre .h{background:color-mix(in srgb,var(--accent) 16%,transparent);border-radius:3px}
+.vocab{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.vocab .card{border-top:3px solid var(--c)}
+.vocab h4{margin:0 0 6px;font-size:15px}
+.vocab p{margin:0;font-size:13.5px}
+.rules li{margin:5px 0}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;background:var(--soft);color:var(--muted);margin-left:4px;vertical-align:1px}
+.bad-t{color:var(--dead);font-weight:600}
+.ok-t{color:var(--ok);font-weight:600}
+.step{border-left:3px solid var(--accent);padding:2px 0 2px 12px;margin:12px 0}
+.step h4{margin:0 0 3px;font-size:14.5px}
+.step p{margin:0;font-size:13.5px}
+.note{font-size:13px;color:var(--muted)}
+footer{max-width:1180px;margin:0 auto;padding:20px 16px 40px;color:var(--muted);font-size:12.5px}
+@media (max-width:640px){ header h1{font-size:21px} .kpi .v{font-size:22px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Audit — passes de rendu et render graph</h1>
+  <p>Moteur Batap, <code>engine/src/Engine/Renderer/</code> au commit <code>0d17992</code> (2026-10-26). Tout ce qui est compté ici l'a été dans le code ; les chiffres des autres moteurs viennent de leurs dépôts publics, sauf mention « de mémoire ».</p>
+  <p style="margin-top:8px"><b>Migration faite le même jour</b> (R.1 à R.7, un seul commit) : les sections 2 à 6 décrivent l'état d'avant, la section 8 l'état actuel. Mesuré après : 67 fichiers, 11 233 lignes ; banc raster identique au pixel, RT dans le bruit, validation sans nouveau message.</p>
+</header>
+<nav><div>
+  <a href="#verdict">1 Verdict</a><a href="#frame">2 Une frame</a><a href="#fichiers">3 Fichiers</a><a href="#structs">4 Structs</a><a href="#sujets">5 Où vit quoi</a><a href="#mort">6 Mort et vestiges</a><a href="#refs">7 Références</a><a href="#ideal">8 Idéal</a><a href="#avantapres">9 Avant / après</a><a href="#migration">10 Migration</a>
+</div></nav>
+<main>
+
+<!-- 1 -->
+<section id="verdict">
+<h2><span class="num">1</span>Verdict</h2>
+<p class="lead">Le graphe lui-même est propre et à la bonne taille. Le désordre est autour de lui : les fichiers sont encore rangés selon la séparation « neutre / Vulkan » de l'époque DX12, et le mot <em>Pass</em> veut dire deux choses.</p>
+<div class="kpis">
+  <div class="kpi" style="--c:var(--ok)"><div class="v">1 008 lignes</div><div class="t"><code>RenderGraph.{h,cpp}</code> : 2 fichiers, testé sans GPU (73 contrôles). Granite a aussi 2 fichiers ; kajiya-rg en a 10, Filament 27. <b>Rien à réorganiser dedans.</b></div></div>
+  <div class="kpi" style="--c:var(--dead)"><div class="v">0 / 3</div><div class="t">dossiers qui ne contiennent qu'un seul rôle. 70 fichiers, 11 288 lignes, rangés en <code>Renderer/</code>, <code>Vulkan/</code>, <code>Vulkan/Passes/</code>.</div></div>
+  <div class="kpi" style="--c:var(--dead)"><div class="v">10 → 3</div><div class="t">structs nommés <code>XxxPass</code>, dont 3 déclarent vraiment des passes du graphe. Les 7 autres dessinent dans une passe ouverte par <code>ScenePasses</code>.</div></div>
+  <div class="kpi" style="--c:var(--feature)"><div class="v">6 fichiers</div><div class="t">appellent <code>graph.addPass</code>, à 3 niveaux (frame, scène, sous-objets). 3 d'entre eux ne sont pas dans <code>Passes/</code>.</div></div>
+  <div class="kpi" style="--c:var(--feature)"><div class="v">671 lignes</div><div class="t"><code>ScenePasses</code> : ordre de la frame, descripteurs, layouts, hot reload, atlas d'ombre, fit des cascades, tables LTC, 10 sous-objets.</div></div>
+  <div class="kpi" style="--c:var(--dead)"><div class="v">≈ 130 lignes</div><div class="t">de code mort ou de vestiges de l'avant-graphe, plus une doc entière (<code>renderer.md</code>, 182 lignes de DX12). Liste en §6.</div></div>
+</div>
+<p class="note" style="margin-top:12px">Le nombre de fichiers n'est pas le problème : l'idéal en a 67 contre 70. Ce qui change : un dossier = un rôle, nom de fichier = nom du struct, des dépendances qui ne vont que vers le bas.</p>
+</section>
+
+<!-- 2 -->
+<section id="frame">
+<h2><span class="num">2</span>Une frame aujourd'hui, passe par passe</h2>
+<p class="lead">Les passes du graphe dans l'ordre de déclaration (qui est l'ordre d'exécution). Couleur = fichier qui appelle <code>addPass</code>. Pointillé = passe conditionnelle. Sous <code>scene</code> et <code>tonemap</code> : les structs <code>XxxPass</code> qui dessinent dedans sans être des passes.</p>
+<div class="legend">
+  <span class="d-ren"><i class="sw"></i>VulkanRenderer.cpp</span>
+  <span class="d-sp"><i class="sw"></i>VulkanScenePasses.cpp</span>
+  <span class="d-rt"><i class="sw"></i>RtScene.cpp</span>
+  <span class="d-gi"><i class="sw"></i>Passes/GiUpdatePass.cpp</span>
+  <span class="d-sh"><i class="sw"></i>Passes/ShadowPass.cpp</span>
+  <span class="d-ex"><i class="sw"></i>Passes/ExposurePass.cpp</span>
+</div>
+<h3>Raster, jeu, auto-exposition : 12 passes, 4 fichiers</h3>
+<div class="card"><div class="tl">
+  <div class="p d-ren"><span class="opt">uploads</span><i>si des uploads attendent</i></div><span class="arrow">→</span>
+  <div class="p d-sp"><span>frame constants</span></div><span class="arrow">→</span>
+  <div class="p d-sh"><span>shadow entries</span></div><span class="arrow">→</span>
+  <div class="p d-sh"><span>local shadow atlas</span></div><span class="arrow">→</span>
+  <div class="p d-sh"><span>cascade shadow atlas</span></div><span class="arrow">→</span>
+  <div class="p d-sp"><span>scene</span><i>GeometryPass · TerrainPass · BillboardPass · SkyPass</i></div><span class="arrow">→</span>
+  <div class="p d-ex"><span>exposure measure</span></div><span class="arrow">→</span>
+  <div class="p d-ex"><span>exposure reduce</span></div><span class="arrow">→</span>
+  <div class="p d-ex"><span>exposure total</span></div><span class="arrow">→</span>
+  <div class="p d-ex"><span>exposure readback</span></div><span class="arrow">→</span>
+  <div class="p d-sp"><span>tonemap</span><i>TonemapPass · DebugPass</i></div><span class="arrow">→</span>
+  <div class="p d-ren"><span>imgui</span></div>
+</div></div>
+<h3>Ray tracing (2 passes GI par défaut) : 19 passes, 6 fichiers</h3>
+<div class="card"><div class="tl">
+  <div class="p d-ren"><span class="opt">uploads</span></div><span class="arrow">→</span>
+  <div class="p d-rt"><span class="opt">blas build</span><i>+ compacted sizes, compaction : quand un mesh ou un chunk change</i></div><span class="arrow">→</span>
+  <div class="p d-rt"><span>tlas build</span></div><span class="arrow">→</span>
+  <div class="p d-rt"><span class="opt">gi cache clear</span><i>1ʳᵉ frame</i></div><span class="arrow">→</span>
+  <div class="p d-rt"><span>gi cache stats reset</span></div><span class="arrow">→</span>
+  <div class="p d-sp"><span>frame constants</span></div><span class="arrow">→</span>
+  <div class="p d-gi"><span>gi timer start</span></div><span class="arrow">→</span>
+  <div class="p d-gi"><span>gi update 0</span></div><span class="arrow">→</span>
+  <div class="p d-gi"><span>gi update 1</span></div><span class="arrow">→</span>
+  <div class="p d-gi"><span>gi resolve</span></div><span class="arrow">→</span>
+  <div class="p d-gi"><span>gi timer end</span></div><span class="arrow">→</span>
+  <div class="p d-rt"><span>gi cache stats</span></div><span class="arrow">→</span>
+  <div class="p d-sh"><span>shadow entries</span></div><span class="arrow">→</span>
+  <div class="p d-sh"><span class="opt">local shadow atlas</span><i>lumières rect seulement, les autres sont tracées</i></div><span class="arrow">→</span>
+  <div class="p d-sp"><span>scene</span><i>idem, ou RtDebugPass seul (vue premier hit)</i></div><span class="arrow">→</span>
+  <div class="p d-ex"><span>exposure ×4</span></div><span class="arrow">→</span>
+  <div class="p d-sp"><span>tonemap</span></div><span class="arrow">→</span>
+  <div class="p d-ren"><span>imgui</span></div>
+</div></div>
+<p class="note">Éditeur : <code>scene image clear</code> (sans caméra) et <code>frame dump</code> (<code>BATAP_DUMP_FRAME</code>) viennent aussi de <code>VulkanRenderer.cpp</code>. L'ordre se lit dans deux fonctions (<code>Renderer::render</code>, <code>ScenePasses::addPasses</code>), mais quatre autres fichiers y insèrent leurs passes : pour savoir ce que fait la frame, il faut en ouvrir six.</p>
+</section>
+
+<!-- 3 -->
+<section id="fichiers">
+<h2><span class="num">3</span>Carte des fichiers aujourd'hui</h2>
+<p class="lead">Chaque fichier coloré par ce qu'il fait vraiment (lu dans le code), avec son nombre de lignes. La barre sous le nom du dossier montre le mélange des rôles (part des fichiers). Contour rouge plein = code mort dedans ; pointillé = vestige.</p>
+<div class="legend">
+  <span class="r-device"><i class="sw"></i>Device (parle à Vulkan)</span>
+  <span class="r-graph"><i class="sw"></i>Graphe</span>
+  <span class="r-frame"><i class="sw"></i>Frame / orchestration</span>
+  <span class="r-feature"><i class="sw"></i>Feature (déclare des passes, garde un état GPU)</span>
+  <span class="r-draw"><i class="sw"></i>Dessine dans une passe ouverte</span>
+  <span class="r-cpu"><i class="sw"></i>Listes CPU, données, réglages</span>
+  <span class="r-fwd"><i class="sw"></i>Relais d'include</span>
+</div>
+<div class="fmap">
+  <div class="folder">
+    <h4>Renderer/</h4>
+    <div class="meta">20 fichiers · 3 298 lignes (dont 2 116 de tables LTC)</div>
+    <div class="bar"><i class="r-cpu" style="width:70%"></i><i class="r-feature" style="width:10%"></i><i class="r-frame" style="width:5%"></i><i class="r-device" style="width:5%"></i><i class="r-fwd" style="width:10%"></i></div>
+    <div class="files">
+      <span class="f r-cpu">Billboards.h<em>109</em></span><span class="f r-cpu">Billboards.cpp<em>93</em></span>
+      <span class="f r-cpu">DebugDraw.h<em>77</em></span><span class="f r-cpu">DebugDraw.cpp<em>122</em></span>
+      <span class="f r-cpu">DebugShapeMesh.h<em>21</em></span><span class="f r-cpu">DebugShapeMesh.cpp<em>115</em></span>
+      <span class="f r-cpu">TerrainDraws.h<em>79</em></span><span class="f r-cpu">TerrainDraws.cpp<em>50</em></span>
+      <span class="f r-cpu">SkyIrradiance.h<em>24</em></span><span class="f r-cpu">SkyIrradiance.cpp<em>107</em></span>
+      <span class="f r-cpu">LtcTables.h<em>18</em></span><span class="f r-cpu">LtcTables.cpp<em>2098</em></span>
+      <span class="f r-cpu">Tonemap.h<em>33</em></span><span class="f r-cpu">EngineConfig.h<em>20</em></span>
+      <span class="f r-feature">ShadowCascades.h<em>66</em></span><span class="f r-feature">ShadowCascades.cpp<em>203</em></span>
+      <span class="f r-frame">SceneBinding.h<em>24</em></span>
+      <span class="f r-device">ResourceFormat.h<em>31</em></span>
+      <span class="f r-fwd">Renderer.h<em>5</em></span><span class="f r-fwd">ResourceManager.h<em>3</em></span>
+    </div>
+    <p class="note" style="margin:10px 0 0">Censé être « neutre ». En fait : les listes que remplit le gameplay, de la math d'ombre, un calcul d'asset (<code>SkyIrradiance</code>, lu seulement par <code>Assets/</code>), la moitié de <code>bindScene</code> et deux relais.</p>
+  </div>
+  <div class="folder">
+    <h4>Renderer/Vulkan/</h4>
+    <div class="meta">26 fichiers · 6 261 lignes</div>
+    <div class="bar"><i class="r-device" style="width:50%"></i><i class="r-graph" style="width:11.5%"></i><i class="r-frame" style="width:23%"></i><i class="r-feature" style="width:15.5%"></i></div>
+    <div class="files">
+      <span class="sub">device</span>
+      <span class="f r-device">VulkanContext.h<em>39</em></span><span class="f r-device">VulkanContext.cpp<em>188</em></span>
+      <span class="f r-device">VulkanSwapchain.h<em>66</em></span><span class="f r-device">VulkanSwapchain.cpp<em>268</em></span>
+      <span class="f r-device dead">VulkanResources.h<em>188</em></span><span class="f r-device dead">VulkanResources.cpp<em>794</em></span>
+      <span class="f r-device dead">VulkanPipelines.h<em>64</em></span><span class="f r-device dead">VulkanPipelines.cpp<em>242</em></span>
+      <span class="f r-device">VulkanShaderCompiler.h<em>26</em></span><span class="f r-device">VulkanShaderCompiler.cpp<em>212</em></span>
+      <span class="f r-device">VulkanFormats.h<em>99</em></span><span class="f r-device">VulkanMemory.h<em>14</em></span><span class="f r-device">GameVulkan.cpp<em>16</em></span>
+      <span class="sub">graphe</span>
+      <span class="f r-graph dead">RenderGraph.h<em>225</em></span><span class="f r-graph dead">RenderGraph.cpp<em>783</em></span>
+      <span class="f r-graph vest">VulkanBarrier.h<em>203</em></span>
+      <span class="sub">frame</span>
+      <span class="f r-frame vest">VulkanRenderer.h<em>169</em></span><span class="f r-frame vest">VulkanRenderer.cpp<em>660</em></span>
+      <span class="f r-frame">VulkanScenePasses.h<em>97</em></span><span class="f r-frame vest">VulkanScenePasses.cpp<em>574</em></span>
+      <span class="f r-frame">VulkanSceneBinding.cpp<em>18</em></span><span class="f r-frame vest">VulkanRenderTargets.h<em>15</em></span>
+      <span class="sub">features</span>
+      <span class="f r-feature">RtScene.h<em>133</em></span><span class="f r-feature">RtScene.cpp<em>771</em></span>
+      <span class="f r-feature">LocalShadowAllocator.h<em>67</em></span><span class="f r-feature">LocalShadowAllocator.cpp<em>330</em></span>
+    </div>
+    <p class="note" style="margin:10px 0 0">Tout le moteur est Vulkan : le dossier ne sépare plus rien. Les noms de fichier ne sont pas ceux des structs (<code>VulkanRenderer.h</code> → <code>Renderer</code>, <code>VulkanResources.h</code> → <code>ResourceManager</code>).</p>
+  </div>
+  <div class="folder">
+    <h4>Renderer/Vulkan/Passes/</h4>
+    <div class="meta">24 fichiers · 1 729 lignes</div>
+    <div class="bar"><i class="r-draw" style="width:67%"></i><i class="r-feature" style="width:25%"></i><i class="r-frame" style="width:8%"></i></div>
+    <div class="files">
+      <span class="sub">déclarent des passes du graphe</span>
+      <span class="f r-feature">ShadowPass.h<em>62</em></span><span class="f r-feature">ShadowPass.cpp<em>131</em></span>
+      <span class="f r-feature">ExposurePass.h<em>40</em></span><span class="f r-feature">ExposurePass.cpp<em>135</em></span>
+      <span class="f r-feature">GiUpdatePass.h<em>40</em></span><span class="f r-feature">GiUpdatePass.cpp<em>136</em></span>
+      <span class="sub">ne font que dessiner</span>
+      <span class="f r-draw">GeometryPass.h<em>24</em></span><span class="f r-draw">GeometryPass.cpp<em>48</em></span>
+      <span class="f r-draw">TerrainPass.h<em>106</em></span><span class="f r-draw">TerrainPass.cpp<em>329</em></span>
+      <span class="f r-draw">BillboardPass.h<em>34</em></span><span class="f r-draw">BillboardPass.cpp<em>90</em></span>
+      <span class="f r-draw">SkyPass.h<em>23</em></span><span class="f r-draw">SkyPass.cpp<em>36</em></span>
+      <span class="f r-draw">RtDebugPass.h<em>23</em></span><span class="f r-draw">RtDebugPass.cpp<em>30</em></span>
+      <span class="f r-draw">TonemapPass.h<em>23</em></span><span class="f r-draw">TonemapPass.cpp<em>31</em></span>
+      <span class="f r-draw">DebugPass.h<em>53</em></span><span class="f r-draw">DebugPass.cpp<em>122</em></span>
+      <span class="f r-draw">MeshDraws.h<em>14</em></span><span class="f r-draw">MeshDraws.cpp<em>67</em></span>
+      <span class="sub">ni l'un ni l'autre</span>
+      <span class="f r-frame">Pass.h<em>61</em></span><span class="f r-frame">ShaderCatalog.h<em>71</em></span>
+    </div>
+    <p class="note" style="margin:10px 0 0">Le dossier s'appelle « Passes » mais 7 de ses 10 structs n'en sont pas. <code>Pass.h</code> ne définit pas une passe : <code>PassSetup</code> et <code>PassContext</code>, le contexte de draw.</p>
+  </div>
+</div>
+</section>
+
+<!-- 4 -->
+<section id="structs">
+<h2><span class="num">4</span>Qui possède qui, qui appelle qui — aujourd'hui</h2>
+<p class="lead">Les structs du rendu et leurs liens. Survoler un bloc isole ses liens. Les flèches orange arrivent toutes au graphe : chacune est un endroit qui y ajoute des passes. Les rouges sont des liens latéraux entre « passes » : un sous-objet qui dépend d'un autre sous-objet du même niveau.</p>
+<div class="legend">
+  <span style="--c:var(--muted)"><i class="ln"></i>possède</span>
+  <span style="--c:var(--muted)"><i class="ln dash"></i>appelle</span>
+  <span style="--c:var(--accent)"><i class="ln"></i>ajoute des passes au graphe</span>
+  <span style="--c:var(--dead)"><i class="ln dash"></i>lien latéral / double chemin</span>
+  <span style="--c:var(--line)"><i class="ln"></i>dépend de</span>
+</div>
+<div class="dia" id="dia-now"><div class="canvas abs" style="height:740px" data-edges='[
+  ["eng","ren","own"],
+  ["world","ren","call","setSceneGraph",{"to":"right"}],
+  ["world","sp","call","addPasses",{"to":"right"}],
+  ["editor","ren","call","sceneTexture",{"to":"right"}],
+  ["ren","sp","own"],
+  ["ren","rg","pass","uploads, imgui, dump",{"from":"right","to":"left"}],
+  ["sp","rg","pass","frame constants, scene, tonemap",{"from":"right","to":"left"}],
+  ["sp","members","own"],
+  ["shadow","rg","pass"],["expo","rg","pass"],["giu","rg","pass"],["rts","rg","pass"],
+  ["shadow","ter","bad","recordShadow"],
+  ["rts","ter","bad","slots des chunks"],
+  ["lsa","shadow","bad","ShadowView",{"lt":0.22}],
+  ["giu","rts","bad","",{"from":"right","to":"left"}],
+  ["gdraw","pctx","dep"],["gdraw","pip","dep"],
+  ["rg","bar","dep","Usage"],
+  ["rm","bar","bad","BarrierBatch des uploads"]
+]'>
+  <div class="lane" style="top:24px">Moteur</div>
+  <div class="lane" style="top:126px">Frame</div>
+  <div class="lane" style="top:230px">Scène</div>
+  <div class="lane" style="top:336px">Déclarent des passes</div>
+  <div class="lane" style="top:452px">Dessinent</div>
+  <div class="lane" style="top:542px">Aides</div>
+  <div class="lane" style="top:658px">Device</div>
+  <div class="lane" style="top:184px;left:962px">Graphe</div>
+
+  <div class="n r-cpu" data-id="eng" style="left:130px;top:10px;width:130px"><b>Engine</b><small>Engine.cpp</small></div>
+  <div class="n r-frame" data-id="world" style="left:560px;top:10px;width:240px"><b>bindScene</b><small>SceneBinding.h + VulkanSceneBinding.cpp</small></div>
+  <div class="n r-cpu" data-id="editor" style="left:840px;top:10px;width:150px"><b>Éditeur</b><small>App, ScenePanel</small></div>
+
+  <div class="n r-frame" data-id="ren" style="left:130px;top:100px;width:300px"><b>Renderer</b><small>VulkanRenderer.cpp · 660 l.</small><small>swapchain, lots, ImGui + polices, image de scène faite main, dump PNG, chrono de frame</small></div>
+  <div class="n r-frame" data-id="sp" style="left:130px;top:205px;width:300px"><b>ScenePasses</b><small>VulkanScenePasses.cpp · 574 l.</small><small>ordre · frame set · layouts · hot reload · atlas · fit des cascades · LTC · frame constants</small></div>
+  <div class="n r-graph" data-id="rg" style="left:960px;top:205px;width:165px"><b>RenderGraph</b><small>+ GraphContext · 1 008 l.</small></div>
+
+  <div class="box" data-id="members" style="left:115px;top:305px;width:870px;height:295px"><span class="gl">membres de ScenePasses</span></div>
+  <div class="box inner" style="left:125px;top:322px;width:555px;height:66px"><span class="gl">ajoutent des passes au graphe</span></div>
+  <div class="n r-feature" data-id="shadow" style="left:135px;top:334px;width:115px"><b>ShadowPass</b><small>Passes/</small></div>
+  <div class="n r-feature" data-id="expo" style="left:260px;top:334px;width:120px"><b>ExposurePass</b><small>Passes/</small></div>
+  <div class="n r-feature" data-id="giu" style="left:390px;top:334px;width:120px"><b>GiUpdatePass</b><small>Passes/</small></div>
+  <div class="n r-feature" data-id="rts" style="left:530px;top:334px;width:140px"><b>RtScene</b><small>Vulkan/ · 904 l.</small></div>
+  <div class="n r-feature" data-id="lsa" style="left:740px;top:334px;width:180px"><b>LocalShadowAllocator</b><small>Vulkan/ · aide</small></div>
+
+  <div class="box inner" data-id="gdraw" style="left:125px;top:432px;width:850px;height:62px"><span class="gl">dessinent dans « scene » ou « tonemap », n'ajoutent rien au graphe</span></div>
+  <div class="n r-draw" data-id="geo" style="left:135px;top:444px;width:108px"><b>GeometryPass</b></div>
+  <div class="n r-draw" data-id="ter" style="left:251px;top:444px;width:140px"><b>TerrainPass</b><small>+ pools GPU des chunks</small></div>
+  <div class="n r-draw" data-id="bb" style="left:399px;top:444px;width:112px"><b>BillboardPass</b></div>
+  <div class="n r-draw" data-id="sky" style="left:519px;top:444px;width:90px"><b>SkyPass</b></div>
+  <div class="n r-draw" data-id="rtd" style="left:617px;top:444px;width:106px"><b>RtDebugPass</b></div>
+  <div class="n r-draw" data-id="tone" style="left:731px;top:444px;width:110px"><b>TonemapPass</b></div>
+  <div class="n r-draw" data-id="dbg" style="left:849px;top:444px;width:100px"><b>DebugPass</b></div>
+
+  <div class="n r-frame" data-id="pctx" style="left:135px;top:528px;width:200px"><b>PassSetup · PassContext</b><small>Passes/Pass.h</small></div>
+  <div class="n r-frame" data-id="cat" style="left:350px;top:528px;width:130px"><b>ShaderCatalog</b><small>Passes/</small></div>
+
+  <div class="n r-device" data-id="rm" style="left:130px;top:645px;width:180px"><b>ResourceManager</b><small>VulkanResources · uploads</small></div>
+  <div class="n r-device" data-id="ctx" style="left:320px;top:645px;width:130px"><b>VulkanContext</b></div>
+  <div class="n r-device" data-id="sw" style="left:460px;top:645px;width:145px"><b>VulkanSwapchain</b></div>
+  <div class="n r-device" data-id="pip" style="left:615px;top:645px;width:200px"><b>GraphicsPipelineBuilder</b><small>VulkanPipelines</small></div>
+  <div class="n r-device" data-id="sc" style="left:825px;top:645px;width:140px"><b>ShaderCompiler</b></div>
+  <div class="n r-graph" data-id="bar" style="left:960px;top:645px;width:165px"><b>VulkanBarrier.h</b><small>Usage + BarrierBatch</small></div>
+</div></div>
+<p class="note">Non tracé pour la lisibilité : le <code>Renderer</code> possède aussi <code>VulkanContext</code>, <code>VulkanSwapchain</code>, <code>ResourceManager</code> et le <code>RenderGraph</code> ; les assets et les instances atteignent <code>ResourceManager</code> par <code>renderer.resourceManager_</code>.</p>
+<p class="note">Lecture : 6 flèches orange vers le graphe, de 3 niveaux différents. 4 liens rouges entre sous-objets : <code>ShadowPass</code> prend un <code>TerrainPass&amp;</code> pour dessiner les ombres du terrain (<code>ShadowPass.h:51</code>), <code>RtScene</code> lit les slots de <code>TerrainPass</code> (<code>RtScene.h:151</code>), <code>LocalShadowAllocator.h</code> inclut <code>Passes/ShadowPass.h</code> pour <code>ShadowView</code>, <code>GiUpdatePass</code> dépend des tampons de <code>RtScene</code>. Et deux chemins de barrières : celui du graphe et <code>BarrierBatch</code> dans les uploads.</p>
+</section>
+
+<!-- 5 -->
+<section id="sujets">
+<h2><span class="num">5</span>Où vit chaque sujet</h2>
+<p class="lead">Le test « en un coup d'œil » : pour toucher un sujet, combien d'endroits faut-il ouvrir ?</p>
+<div class="topics">
+  <div class="topic" style="--c:var(--dead)"><h4>Ombres <span class="cnt">6</span></h4><ul>
+    <li><code>EngineConfig.h</code> — tailles d'atlas, classes de tuiles</li>
+    <li><code>ShadowCascades.{h,cpp}</code> — fit des sphères (racine)</li>
+    <li><code>Vulkan/LocalShadowAllocator</code> — tuiles des lumières locales</li>
+    <li><code>Passes/ShadowPass</code> — <code>ShadowView</code>, entrées, passes d'atlas</li>
+    <li><code>VulkanScenePasses</code> — possède les 2 atlas, <code>fitCascades</code> (63 l.), les vues</li>
+    <li><code>Systems/CascadeLight_S</code> — quelle lumière pilote les cascades</li>
+  </ul></div>
+  <div class="topic" style="--c:var(--dead)"><h4>GI <span class="cnt">3</span></h4><ul>
+    <li><code>Vulkan/RtScene</code> — tampons du cache, effacement, stats, readback</li>
+    <li><code>Passes/GiUpdatePass</code> — mise à jour, résolution, son propre chrono</li>
+    <li><code>VulkanScenePasses</code> — 6 champs <code>gi*</code> de <code>FrameGPUData</code>, log des stats</li>
+  </ul></div>
+  <div class="topic" style="--c:var(--feature)"><h4>Terrain côté GPU <span class="cnt">4</span></h4><ul>
+    <li><code>Passes/TerrainPass</code> — pools, chunks, draws, draws d'ombre (435 l.)</li>
+    <li><code>Passes/ShadowPass</code> — appelle <code>recordShadow</code></li>
+    <li><code>Vulkan/RtScene</code> — BLAS des chunks</li>
+    <li><code>Renderer</code> → <code>ScenePasses</code> — relais de l'upload</li>
+  </ul></div>
+  <div class="topic" style="--c:var(--feature)"><h4>Lignes de debug <span class="cnt">4</span></h4><ul>
+    <li><code>DebugDraw</code> — liste CPU</li>
+    <li><code>DebugShapeMesh</code> — géométrie fil de fer (racine, lue par <code>DebugPass</code> seul)</li>
+    <li><code>Passes/DebugPass</code> — draws</li>
+    <li><code>VulkanScenePasses</code> — dessinées dans la passe « tonemap »</li>
+  </ul></div>
+  <div class="topic" style="--c:var(--feature)"><h4>Tonemap <span class="cnt">3</span></h4><ul>
+    <li><code>Tonemap.h</code> — table des opérateurs (UI + scène)</li>
+    <li><code>Passes/TonemapPass</code> — un draw plein écran</li>
+    <li><code>VulkanScenePasses</code> — déclare la passe, écrit l'opérateur</li>
+  </ul></div>
+  <div class="topic" style="--c:var(--feature)"><h4>Uploads des listes CPU <span class="cnt">3 relais</span></h4><ul>
+    <li><code>Engine</code> → <code>Renderer::uploadX</code> → <code>ScenePasses::uploadX</code> → <code>XPass::upload</code></li>
+    <li>×3 : debug, billboards, terrain (<code>VulkanRenderer.cpp:343</code>, <code>VulkanScenePasses.cpp:220</code>)</li>
+  </ul></div>
+  <div class="topic" style="--c:var(--feature)"><h4>Chronos GPU <span class="cnt">2</span></h4><ul>
+    <li><code>Renderer</code> — frame entière (0.3)</li>
+    <li><code>GiUpdatePass</code> — son pool + 2 passes « gi timer »</li>
+    <li>Prévu : les deux remplacés par 4.1</li>
+  </ul></div>
+  <div class="topic" style="--c:var(--ok)"><h4>Exposition <span class="cnt">1</span></h4><ul>
+    <li><code>Passes/ExposurePass</code> — état, 4 passes, readback. <span class="ok-t">Le bon modèle</span> : c'est déjà une feature complète.</li>
+  </ul></div>
+</div>
+</section>
+
+<!-- 6 -->
+<section id="mort">
+<h2><span class="num">6</span>Ce qui ne sert plus, ou plus comme prévu</h2>
+<p class="lead">Chaque ligne a été vérifiée par recherche des appelants dans le moteur, l'éditeur et le jeu (<code>tools/</code>, <code>Systems/</code> compris).</p>
+<div class="tw"><table>
+<tr><th>#</th><th>Quoi</th><th>Preuve</th><th>Pourquoi c'est encore là</th><th>Action</th><th>Lignes</th></tr>
+<tr><td>1</td><td><code>RenderGraph::record(cmd)</code> (un seul lot)</td><td><code>RenderGraph.cpp:724</code> ; seul appelant : <code>RenderGraphCheck</code>, qui vérifie qu'il refuse</td><td>Phase 1 : le graphe tournait dans le command buffer existant. Depuis 2.3 le <code>Renderer</code> appelle <code>record(lot, cmd)</code></td><td>supprimer, et son contrôle</td><td>−11</td></tr>
+<tr><td>2</td><td><code>BarrierBatch</code>, <code>Discard</code>, <code>colorRange</code></td><td>5 appels, tous dans <code>flushUploads</code> (<code>VulkanResources.cpp:574–647</code>) ; le graphe construit ses barrières lui-même (<code>RenderGraph.cpp:605</code>)</td><td>Reste des 34 appels d'avant le graphe. L'en-tête le présente encore comme <em>la</em> façon de faire une barrière</td><td>privé dans <code>VulkanResources.cpp</code> ; <code>Usage</code> seul dans <code>Usage.h</code></td><td>0 (déplacé)</td></tr>
+<tr><td>3</td><td><code>depthRange()</code></td><td><code>VulkanBarrier.h:118</code>, 0 appel</td><td>—</td><td>supprimer</td><td>−6</td></tr>
+<tr><td>4</td><td><code>ResourceManager::recordBufferWrite</code></td><td><code>VulkanResources.cpp:659</code>, 0 appel</td><td>Les passes « frame constants » et « shadow entries » appellent <code>vkCmdUpdateBuffer</code> elles-mêmes</td><td>supprimer</td><td>−12</td></tr>
+<tr><td>5</td><td><code>GraphicsPipelineBuilder::dynamicDepthBias</code></td><td><code>VulkanPipelines.cpp:114</code>, 0 appel</td><td>—</td><td>supprimer</td><td>−8</td></tr>
+<tr><td>6</td><td><code>ResourceManager::shadowSampler()</code></td><td><code>VulkanResources.h:88</code>, 0 appel</td><td>Le sampler est immuable dans le set 0</td><td>supprimer l'accesseur</td><td>−1</td></tr>
+<tr><td>7</td><td>Image de scène faite main + <code>Retired</code>, <code>retireTargets</code>, <code>destroyRetired</code></td><td><code>VulkanRenderer.cpp:210–275</code> : <code>vmaCreateImage</code> à la main</td><td>Depuis 3.2 c'est la dernière cible hors <code>ResourceManager</code> ; <code>Retired</code> ne sert plus qu'à elle</td><td><code>createTarget</code> + <code>requestDestroy</code> ; garder seulement le retrait différé du set ImGui</td><td>≈ −50</td></tr>
+<tr><td>8</td><td><code>Renderer::width_</code>, <code>height_</code></td><td><code>VulkanRenderer.h:84</code> ; 1 lecteur, <code>Engine.cpp:120</code></td><td>Doublon de <code>swapchain_.extent_</code></td><td>supprimer</td><td>−5</td></tr>
+<tr><td>9</td><td><code>VulkanRenderTargets.h</code></td><td>15 lignes, un struct de 3 champs</td><td>Il tenait la profondeur et les vues avant 1.6 et 3.2</td><td>fondre dans l'en-tête de la scène</td><td>−1 fichier</td></tr>
+<tr><td>10</td><td>Commentaire « Frame model »</td><td><code>VulkanRenderer.h:28</code></td><td>Décrit la frame d'avant le graphe et renvoie à <code>vulkan.md §10</code>, qui parle de MoltenVK</td><td>supprimer</td><td>−8</td></tr>
+<tr><td>11</td><td>ImGui déclare une profondeur</td><td><code>VulkanRenderer.cpp:308</code> et <code>:326</code></td><td>La passe « imgui » n'a plus de profondeur depuis 2.2. La validation ne dit rien, mais la déclaration et son commentaire sont faux</td><td><code>VK_FORMAT_UNDEFINED</code>, supprimer le commentaire</td><td>−2</td></tr>
+<tr><td>12</td><td><code>PassSetup</code> recopié 10 fois</td><td><code>VulkanScenePasses.cpp:141–160</code></td><td>Les 6 mêmes arguments ; seul le format couleur change</td><td>un setup partagé</td><td>≈ −15</td></tr>
+<tr><td>13</td><td>Docs périmées</td><td><code>renderer.md</code> : 182 lignes, 100 % DX12 (CommandQueue, DescriptorHeapAllocator, FenceManager…) ; <code>vulkan.md §9</code> : frame d'avant le graphe, cite <code>VulkanSceneRenderer.cpp</code> et <code>SceneRenderer.h</code>, qui n'existent plus ; <code>engine.md:60</code> : <code>ScenePasses::record()</code></td><td>Jamais repassées après DX12 → Vulkan, puis après le graphe</td><td>supprimer <code>renderer.md</code>, réécrire les deux autres passages</td><td>−182 (doc)</td></tr>
+</table></div>
+<p class="note" style="margin-top:10px">Pas morts, en attente : le chrono de <code>GiUpdatePass</code> (son pool et ses deux passes « gi timer ») et celui de la frame dans le <code>Renderer</code>, que 4.1 remplace. Les tampons symboliques <code>uploads</code> et <code>blases</code> (<code>VK_NULL_HANDLE</code>) sont voulus (plan, « Préparer plusieurs files », point 6).</p>
+</section>
+
+<!-- 7 -->
+<section id="refs">
+<h2><span class="num">7</span>Comment font les architectures les plus claires</h2>
+<p class="lead">Quatre moteurs dont le rendu est construit autour d'un graphe, choisis parce que leur rangement se lit sans ouvrir le code. Le graphe de kajiya est le plus proche de nous : Vulkan, GI en ray tracing avec un cache d'irradiance.</p>
+<div class="legend">
+  <span class="r-device"><i class="sw"></i>Device</span><span class="r-graph"><i class="sw"></i>Cœur du graphe</span><span class="r-feature"><i class="sw"></i>Features</span><span class="r-frame"><i class="sw"></i>Ordre de la frame</span>
+</div>
+<div class="stacks">
+  <div class="stack"><h4>kajiya</h4><div class="meta">Embark · Rust · Vulkan · RT GI</div>
+    <div class="layer r-frame"><b>Ordre de la frame</b><code>world_render_passes.rs</code> : une fonction, 24 appels de haut en bas</div>
+    <div class="layer r-feature"><b>Features</b><code>renderers/</code> : 23 fichiers, un par sujet (<code>ircache</code>, <code>rtdgi</code>, <code>rtr</code>, <code>ssgi</code>, <code>taa</code>, <code>shadows</code>, <code>sky</code>…)</div>
+    <div class="layer r-graph"><b>Graphe</b>crate <code>kajiya-rg</code> : 10 fichiers, 134 Ko</div>
+    <div class="layer r-device"><b>Device</b>crate <code>kajiya-backend</code></div>
+  </div>
+  <div class="stack"><h4>Granite</h4><div class="meta">Themaister · C++ · Vulkan</div>
+    <div class="layer r-frame"><b>Ordre de la frame</b>le code de l'application</div>
+    <div class="layer r-feature"><b>Features</b><code>renderer/post/</code> : 8 features × <code>.hpp/.cpp</code> (<code>hdr</code>, <code>ssao</code>, <code>ssr</code>, <code>temporal</code>, <code>smaa</code>…)</div>
+    <div class="layer r-graph"><b>Graphe</b><code>render_graph.{hpp,cpp}</code> : 2 fichiers, 164 Ko</div>
+    <div class="layer r-device"><b>Device</b><code>vulkan/</code></div>
+  </div>
+  <div class="stack"><h4>Filament</h4><div class="meta">Google · C++ · plusieurs API</div>
+    <div class="layer r-frame"><b>Ordre de la frame</b><code>Renderer.cpp</code> <span class="tag">de mémoire</span></div>
+    <div class="layer r-feature"><b>Features</b>un gestionnaire par sujet : <code>PostProcessManager</code>, <code>ShadowMapManager</code> <span class="tag">de mémoire</span></div>
+    <div class="layer r-graph"><b>Graphe</b><code>src/fg/</code> : 20 + <code>details/</code> 7 = 27 fichiers, 183 Ko (blackboard, viewer compris)</div>
+    <div class="layer warn"><b>Piège</b><code>RenderPass</code> = liste de draws exécutée dans une passe du graphe : notre double sens</div>
+  </div>
+  <div class="stack"><h4>Unreal RDG</h4><div class="meta">Epic · C++ · plusieurs RHI · <span class="tag">de mémoire</span></div>
+    <div class="layer r-frame"><b>Ordre de la frame</b><code>FDeferredShadingSceneRenderer::Render</code></div>
+    <div class="layer r-feature"><b>Features</b><code>Renderer/Private/&lt;Sujet&gt;/</code> : <code>PostProcess/</code>, <code>Shadows/</code>, <code>Lumen/</code>…</div>
+    <div class="layer r-graph"><b>Graphe</b><code>RenderCore/Public/RenderGraph*.h</code>, une vingtaine d'en-têtes</div>
+    <div class="layer r-device"><b>Device</b><code>RHI/</code></div>
+  </div>
+</div>
+
+<h3>Forme d'une feature, dans leurs propres mots</h3>
+<div class="grid2">
+<pre><span class="c">// Granite — renderer/post/hdr.hpp : une fonction libre</span>
+void setup_hdr_postprocess(RenderGraph &amp;graph, const FrameParameters &amp;frame,
+                           const std::string &amp;input, const std::string &amp;output,
+                           const HDROptions &amp;options,
+                           const HDRDynamicExposureInterface *iface = nullptr);</pre>
+<pre><span class="c">// kajiya — renderers/ssgi.rs : état persistant + render()</span>
+pub struct SsgiRenderer { ssgi_tex: PingPongTemporalResource }
+
+pub fn render(&amp;mut self,
+              rg: &amp;mut rg::TemporalRenderGraph,
+              gbuffer_depth: &amp;GbufferDepth,
+              reprojection_map: &amp;rg::Handle&lt;Image&gt;,
+              prev_radiance: &amp;rg::Handle&lt;Image&gt;,
+              bindless_descriptor_set: vk::DescriptorSet)
+    -&gt; rg::ReadOnlyHandle&lt;Image&gt;
+<span class="c">// ajoute 4 passes : ssao, ssao spatial, ssao upsample, ssao temporal</span></pre>
+</div>
+
+<h3>Comparaison</h3>
+<div class="tw"><table>
+<tr><th></th><th>Cœur du graphe</th><th>Où vivent les features</th><th>Forme d'une feature</th><th>Où se lit l'ordre de la frame</th><th>Le mot « pass »</th></tr>
+<tr><td><b>kajiya</b></td><td>10 fichiers, 134 Ko, à part (crate)</td><td>1 dossier, 1 fichier par sujet</td><td>struct à état + <code>render(rg, entrées) → sortie</code></td><td>1 fonction</td><td>passe du graphe ; la feature s'appelle « Renderer »</td></tr>
+<tr><td><b>Granite</b></td><td>2 fichiers, 164 Ko</td><td>1 dossier, 1 paire par sujet</td><td>fonction libre <code>setup_xxx(graph, entrée, sortie)</code></td><td>l'application</td><td>passe du graphe</td></tr>
+<tr><td><b>Filament</b></td><td>27 fichiers, 183 Ko</td><td>un gestionnaire par sujet</td><td><code>fg.addPass&lt;Data&gt;(nom, setup, execute)</code></td><td><code>Renderer.cpp</code></td><td class="bad-t">deux sens (RenderPass = draws)</td></tr>
+<tr><td><b>Unreal</b></td><td>~20 en-têtes</td><td>1 dossier par sujet</td><td>fonction libre <code>AddTonemapPass(GraphBuilder, View, Inputs)</code></td><td>1 fonction</td><td>passe du graphe ; les draws sont des « mesh draw commands »</td></tr>
+<tr><td><b>Batap</b></td><td class="ok-t">3 fichiers, 44 Ko</td><td class="bad-t">éparpillées : Passes/ (3), Vulkan/ (2), ScenePasses, Renderer</td><td><code>XxxPass::addPasses(graph, …)</code> ou rien</td><td>2 fonctions + 4 fichiers qui insèrent</td><td class="bad-t">deux sens (10 *Pass, 3 en sont)</td></tr>
+</table></div>
+
+<h3>Ce qu'ils ont tous, et ce qu'on ne prend pas</h3>
+<div class="grid2">
+<div class="card"><b>Le motif commun : 4 couches, dépendances vers le bas</b><ol class="rules" style="margin:8px 0 0;padding-left:20px">
+  <li><b>Device</b> — l'API : contexte, swapchain, ressources, pipelines.</li>
+  <li><b>Graphe</b> — seul dans son coin, ne connaît aucune feature.</li>
+  <li><b>Features</b> — une feature = un fichier ou un dossier : son état GPU persistant, et une fonction qui ajoute ses passes, entrées en arguments, sorties en retour.</li>
+  <li><b>Ordre de la frame</b> — un seul endroit appelle les features de haut en bas. C'est la table des matières.</li>
+</ol><p class="note" style="margin:8px 0 0">Chez nous : 1 et 2 sont en place. 3 est éparpillé, 4 est à moitié là.</p></div>
+<div class="card"><b>Ce qu'on ne copie pas</b><ul class="tight">
+  <li>Ressources nommées par chaîne (Granite) : nos handles typés attrapent plus d'erreurs.</li>
+  <li>Blackboard (Frostbite, Filament, Unreal) : à 20 passes, passer les handles en arguments se lit mieux qu'un sac partagé.</li>
+  <li>Culling et aliasing : déjà écartés par le plan (aliasing en option 5.4).</li>
+  <li>Une couche « neutre » : faite et défaite le 2026-10-25, sans second backend elle n'achète rien.</li>
+</ul></div>
+</div>
+</section>
+
+<!-- 8 -->
+<section id="ideal">
+<h2><span class="num">8</span>L'idéal pour Batap</h2>
+<p class="lead">Le motif commun, appliqué tel quel : aucun type nouveau qui ne remplace pas un ancien, aucune couche d'abstraction, le cœur du graphe intact. Ce sont des déplacements, des renommages et trois découpes.</p>
+
+<h3>Un mot, un sens</h3>
+<div class="vocab">
+  <div class="card r-graph" style="--c:var(--graph)"><h4>Passe</h4><p>Un nœud du graphe : <code>graph.addPass("scene")</code>. Rien d'autre ne s'appelle <em>Pass</em>.</p></div>
+  <div class="card" style="--c:var(--feature)"><h4>Feature</h4><p>Un struct qui garde un état GPU d'une frame à l'autre et expose <code>addPasses(graph, entrées) → sorties</code>. Avec la frame, c'est le seul à appeler <code>addPass</code>. Modèle : <code>ExposurePass</code> aujourd'hui.</p></div>
+  <div class="card" style="--c:var(--draw)"><h4>Drawer</h4><p>Enregistre des draws dans une passe déjà ouverte : pipeline, push, draw. N'inclut jamais <code>RenderGraph.h</code>.</p></div>
+  <div class="card" style="--c:var(--cpu)"><h4>Liste</h4><p>Ce que le gameplay remplit côté CPU, sans Vulkan : <code>Billboards</code>, <code>DebugDraw</code>, <code>TerrainDraws</code>.</p></div>
+</div>
+<h3>Règles</h3>
+<ul class="rules">
+  <li><b>Dossier = rôle.</b> Un coup d'œil à l'arborescence dit qui fait quoi.</li>
+  <li><b>Nom de fichier = nom du struct principal.</b> <code>Renderer</code> est dans <code>Renderer.h</code>, <code>ResourceManager</code> dans <code>ResourceManager.h</code>.</li>
+  <li><b>Dépendances vers le bas seulement :</b> Renderer → Scene → Features → Draws → Device, et Features → Graph → Device. Une feature peut utiliser un drawer (les ombres dessinent les meshes) ; deux features ne se connaissent pas : c'est <code>SceneFrame</code> qui passe la sortie de l'une en entrée de l'autre.</li>
+  <li><b>La racine de <code>Renderer/</code> = ce que le reste du moteur inclut.</b> Mesuré : 10 en-têtes (<code>Renderer</code>, <code>ResourceManager</code>, <code>SceneBinding</code>, les 3 listes, <code>EngineConfig</code>, <code>ResourceFormat</code>, <code>Tonemap</code>, <code>SkyIrradiance</code>). Les includes hors du rendu ne changent pas.</li>
+</ul>
+
+<h3>Carte des fichiers idéale — 67 fichiers</h3>
+<div class="fmap">
+  <div class="folder">
+    <h4>Renderer/ <span class="tag">API publique</span></h4>
+    <div class="meta">16 fichiers · ce que l'extérieur inclut</div>
+    <div class="files">
+      <span class="f r-frame">Renderer.{h,cpp}<em>← VulkanRenderer</em></span>
+      <span class="f r-frame">SceneBinding.{h,cpp}<em>← + VulkanSceneBinding</em></span>
+      <span class="f r-fwd">ResourceManager.h<em>relais</em></span>
+      <span class="f r-cpu">Billboards.{h,cpp}</span><span class="f r-cpu">DebugDraw.{h,cpp}</span><span class="f r-cpu">TerrainDraws.{h,cpp}</span>
+      <span class="f r-cpu">EngineConfig.h</span><span class="f r-cpu">ResourceFormat.h</span><span class="f r-cpu">Tonemap.h</span><span class="f r-cpu">SkyIrradiance.{h,cpp}</span>
+    </div>
+  </div>
+  <div class="folder">
+    <h4>Renderer/Device/</h4>
+    <div class="meta">16 fichiers · ce qui enveloppe Vulkan</div>
+    <div class="files">
+      <span class="f r-device">VulkanContext.{h,cpp}</span><span class="f r-device">VulkanSwapchain.{h,cpp}</span>
+      <span class="f r-device">ResourceManager.{h,cpp}<em>← VulkanResources</em></span>
+      <span class="f r-device">Pipelines.{h,cpp}</span><span class="f r-device">ShaderCompiler.{h,cpp}</span>
+      <span class="f r-device">ShaderLibrary.{h,cpp}<em>← ShaderCatalog + chargement + hot reload</em></span>
+      <span class="f r-device">Usage.h<em>← VulkanBarrier.h</em></span>
+      <span class="f r-device">Formats.h</span><span class="f r-device">Memory.h</span><span class="f r-device">GameVulkan.cpp</span>
+    </div>
+  </div>
+  <div class="folder">
+    <h4>Renderer/Graph/</h4>
+    <div class="meta">2 fichiers · ne connaît ni scène ni feature</div>
+    <div class="files"><span class="f r-graph">RenderGraph.{h,cpp}<em>inchangé</em></span></div>
+  </div>
+  <div class="folder">
+    <h4>Renderer/Scene/</h4>
+    <div class="meta">6 fichiers · l'ordre de la frame</div>
+    <div class="files">
+      <span class="f r-frame">SceneFrame.{h,cpp}<em>← ScenePasses, ≈ 250 l.</em></span>
+      <span class="f r-frame">FrameBindings.{h,cpp}<em>← frame set + layouts</em></span>
+      <span class="f r-cpu">LtcTables.{h,cpp}</span>
+    </div>
+  </div>
+  <div class="folder">
+    <h4>Renderer/Features/</h4>
+    <div class="meta">14 fichiers · un sous-dossier par sujet</div>
+    <div class="files">
+      <span class="sub">Shadows/</span>
+      <span class="f r-feature">Shadows.{h,cpp}<em>← ShadowPass + atlas + fitCascades</em></span>
+      <span class="f r-feature">LocalShadowAllocator.{h,cpp}</span><span class="f r-feature">ShadowCascades.{h,cpp}</span>
+      <span class="sub">RayTracing/</span>
+      <span class="f r-feature">AccelerationStructures.{h,cpp}<em>← RtScene, partie AS</em></span>
+      <span class="sub">Gi/</span>
+      <span class="f r-feature">GiCache.{h,cpp}<em>← RtScene, partie cache</em></span>
+      <span class="f r-feature">GiUpdate.{h,cpp}<em>← GiUpdatePass</em></span>
+      <span class="sub">Exposure/</span>
+      <span class="f r-feature">Exposure.{h,cpp}<em>← ExposurePass</em></span>
+    </div>
+  </div>
+  <div class="folder">
+    <h4>Renderer/Draws/</h4>
+    <div class="meta">13 fichiers · jamais <code>addPass</code></div>
+    <div class="files">
+      <span class="f r-draw">DrawContext.h<em>← Pass.h</em></span>
+      <span class="f r-draw">MeshDrawer.{h,cpp}<em>← GeometryPass + MeshDraws</em></span>
+      <span class="f r-draw">TerrainDrawer.{h,cpp}<em>← TerrainPass</em></span>
+      <span class="f r-draw">BillboardDrawer.{h,cpp}<em>← BillboardPass</em></span>
+      <span class="f r-draw">DebugDrawer.{h,cpp}<em>← DebugPass</em></span><span class="f r-draw">DebugShapeMesh.{h,cpp}</span>
+      <span class="f r-draw">FullscreenDrawers.{h,cpp}<em>← Sky + Tonemap + RtDebug</em></span>
+    </div>
+  </div>
+</div>
+<p class="note">Trois découpes seulement : <code>RtScene</code> (904 l.) en structures d'accélération et cache GI ; <code>ScenePasses</code> (671 l.) en <code>SceneFrame</code>, <code>FrameBindings</code>, et ce qui part vers <code>Shadows</code> et <code>ShaderLibrary</code> ; l'image de scène de l'éditeur passe par <code>ResourceManager</code>. Les noms (<code>Device</code>, <code>Drawer</code>, <code>SceneFrame</code>) sont des propositions, seul compte qu'il y en ait un par rôle.</p>
+
+<h3>Qui possède qui, qui appelle qui — idéal</h3>
+<div class="dia" id="dia-ideal"><div class="canvas abs" style="height:700px" data-edges='[
+  ["eng","ren","own"],
+  ["world","ren","call","setSceneGraph",{"to":"right"}],
+  ["editor","ren","call","sceneTexture",{"to":"right"}],
+  ["ren","sf","call","addPasses"],
+  ["ren","rg","pass","uploads, imgui, dump",{"from":"right","to":"left"}],
+  ["sf","rg","pass","frame constants, scene, tonemap",{"from":"right","to":"left"}],
+  ["sf","owned","own"],
+  ["shadows","rg","pass"],["as","rg","pass"],["gi","rg","pass"],["ex","rg","pass"],
+  ["shadows","gdraws","call","casters"],
+  ["as","gdraws","dep","slots du terrain"],
+  ["gdraws","pip","dep"],["gdraws","sl","dep"],
+  ["rg","us","dep"],
+  ["rm","us","dep"]
+]'>
+  <div class="lane" style="top:24px">Moteur</div>
+  <div class="lane" style="top:126px">Frame</div>
+  <div class="lane" style="top:230px">Scène</div>
+  <div class="lane" style="top:338px">Features</div>
+  <div class="lane" style="top:446px">Draws</div>
+  <div class="lane" style="top:614px">Device</div>
+  <div class="lane" style="top:184px;left:962px">Graphe</div>
+
+  <div class="n r-cpu" data-id="eng" style="left:130px;top:10px;width:130px"><b>Engine</b><small>Engine.cpp</small></div>
+  <div class="n r-frame" data-id="world" style="left:560px;top:10px;width:240px"><b>bindScene</b><small>SceneBinding.{h,cpp}</small></div>
+  <div class="n r-cpu" data-id="editor" style="left:840px;top:10px;width:150px"><b>Éditeur</b><small>App, ScenePanel</small></div>
+
+  <div class="n r-frame" data-id="ren" style="left:130px;top:100px;width:300px"><b>Renderer</b><small>Renderer.cpp · ≈ 600 l.</small><small>swapchain, lots, soumission, ImGui, dump</small></div>
+  <div class="n r-frame" data-id="sf" style="left:130px;top:205px;width:300px"><b>SceneFrame</b><small>Scene/ · ≈ 250 l.</small><small>l'ordre de la frame, rien d'autre ; FrameBindings à côté</small></div>
+  <div class="n r-graph" data-id="rg" style="left:960px;top:205px;width:165px"><b>RenderGraph</b><small>Graph/ · inchangé</small></div>
+
+  <div class="box" data-id="owned" style="left:115px;top:305px;width:870px;height:205px"><span class="gl">possédés par SceneFrame</span></div>
+  <div class="n r-feature" data-id="shadows" style="left:135px;top:325px;width:210px"><b>Features/Shadows/</b><small>Shadows · LocalShadowAllocator · ShadowCascades</small></div>
+  <div class="n r-feature" data-id="as" style="left:360px;top:325px;width:190px"><b>Features/RayTracing/</b><small>AccelerationStructures</small></div>
+  <div class="n r-feature" data-id="gi" style="left:565px;top:325px;width:150px"><b>Features/Gi/</b><small>GiCache · GiUpdate</small></div>
+  <div class="n r-feature" data-id="ex" style="left:730px;top:325px;width:160px"><b>Features/Exposure/</b><small>Exposure</small></div>
+
+  <div class="box inner" data-id="gdraws" style="left:125px;top:420px;width:850px;height:76px"><span class="gl">Draws/ — dessinent dans une passe ouverte, jamais addPass</span></div>
+  <div class="n r-draw" style="left:135px;top:434px;width:120px"><b>MeshDrawer</b></div>
+  <div class="n r-draw" style="left:263px;top:434px;width:130px"><b>TerrainDrawer</b></div>
+  <div class="n r-draw" style="left:401px;top:434px;width:140px"><b>BillboardDrawer</b></div>
+  <div class="n r-draw" style="left:549px;top:434px;width:120px"><b>DebugDrawer</b></div>
+  <div class="n r-draw" style="left:677px;top:434px;width:170px"><b>FullscreenDrawers</b><small>ciel, tonemap, premier hit RT</small></div>
+  <div class="n r-draw" style="left:855px;top:434px;width:110px"><b>DrawContext</b></div>
+
+  <div class="n r-device" data-id="rm" style="left:130px;top:600px;width:200px"><b>ResourceManager</b><small>uploads, BarrierBatch privé</small></div>
+  <div class="n r-device" data-id="ctx" style="left:340px;top:600px;width:130px"><b>VulkanContext</b></div>
+  <div class="n r-device" data-id="sw" style="left:480px;top:600px;width:145px"><b>VulkanSwapchain</b></div>
+  <div class="n r-device" data-id="pip" style="left:635px;top:600px;width:110px"><b>Pipelines</b></div>
+  <div class="n r-device" data-id="sl" style="left:755px;top:600px;width:170px"><b>ShaderLibrary</b><small>catalogue, hot reload</small></div>
+  <div class="n r-device" data-id="us" style="left:960px;top:600px;width:165px"><b>Usage.h</b><small>Usage → stage, accès, layout</small></div>
+</div></div>
+<p class="note">Plus aucune flèche rouge. Les flèches orange partent de deux niveaux seulement (frame, features). <code>GiUpdate</code> ne connaît plus <code>RtScene</code> : <code>SceneFrame</code> lui passe la TLAS et le cache en arguments, comme kajiya passe ses handles.</p>
+
+<h3>Le même code, écrit des deux façons</h3>
+<p class="note">À gauche, l'extrait réel de <code>ScenePasses::addPasses</code> (raccourci aux <code>…</code>). À droite, ce qu'il devient : la table des matières de la frame, comme <code>world_render_passes.rs</code>. Les passes déclarées et l'image produite sont les mêmes.</p>
+<div class="grid2">
+<pre><span class="c">// Aujourd'hui — VulkanScenePasses.cpp:407-563 (156 l.)</span>
+localShadowsAlloc_.allocate(*reg, *instanceM, args.camera_,
+                            ctx.getFrameSize(), rayTracing, shadowViews_);
+if (rayTracing) cascadeViews_.clear();
+else fitCascades(*reg, *instanceM, args.camera_, …); <span class="c">// 63 l. plus haut</span>
+shadow_.reserve(shadowEntries);
+RtSceneBuffers rt;
+if (rayTracing)
+    rt = rtScene_-&gt;addPasses(graph, uploads, frame, *reg, *instanceM,
+                             *ctx.assetManager_, terrain_, args.camera_);
+frameData_.tonemap_ = …; frameData_.exposure_ = exposure_.update(…);
+frameData_.giWidth_ = …;  <span class="c">// 10 champs de FrameGPUData</span>
+writeFrameSet(frame, args, ctx);               <span class="c">// descripteurs</span>
+PassContext pass{}; …                          <span class="c">// 20 l. de contexte</span>
+const GraphImage hdr = graph.createImage("hdr", …);
+const GraphImage depth = graph.createImage("depth", …);
+graph.addPass("frame constants")…;
+if (rayTracing) {
+    giUpdate_.addPasses(graph, rt, uploads, frameConstants, pass, …);
+    const auto stats = rtScene_-&gt;addCacheStatsPass(graph, rt.cacheStats_, frame);
+    if (args.showGiCache_ &amp;&amp; giFrame_ % 120 == 0) std::cout &lt;&lt; …;
+}
+const std::array&lt;ShadowAtlasViews, 2&gt; shadowAtlases{…};
+shadow_.addPasses(graph, shadows, uploads, pass, shadowAtlases, …, terrain_);
+graph.addPass("scene")…execute(… geometry_ terrain_ billboards_ sky_ …);
+exposure_.addPasses(graph, hdr, frameConstants, pass, frame);
+graph.addPass("tonemap")…execute(… tonemap_ debug_ …);</pre>
+<pre><span class="c">// Idéal — Scene/SceneFrame.cpp (esquisse, noms proposés)</span>
+bool SceneFrame::addPasses(RenderGraph&amp; graph, const SceneInputs&amp; in)
+{
+    const DrawContext draw = bindings_.update(in);
+    AccelerationStructures::Output as{};
+    GiCache::Output gi{};
+    if (in.rayTracing_)
+    {
+        as = accelerationStructures_.addPasses(graph, in);
+        gi = giCache_.addPasses(graph);
+    }
+    const GraphBuffer constants = addFrameConstants(graph, in);
+    if (in.rayTracing_)
+        giUpdate_.addPasses(graph, as, gi, constants, draw);
+    const Shadows::Output shadows = shadows_.addPasses(graph, in, draw);
+    const SceneImages scene = addScenePass(graph, in, draw, shadows, as, gi);
+    exposure_.addPasses(graph, scene.hdr_, constants, draw);
+    addTonemapPass(graph, in, draw, scene);
+    return true;
+}
+<span class="c">// fitCascades, l'atlas et ShadowView vivent dans Shadows/ ;
+// les champs gi* et le log des stats dans Gi/ ;
+// writeFrameSet dans FrameBindings.
+// SceneInputs = RenderTargets + uploads + SceneRenderArgs + Engine&amp;
+// d'aujourd'hui, regroupés (un type remplace un type).</span></pre>
+</div>
+</section>
+
+<!-- 9 -->
+<section id="avantapres">
+<h2><span class="num">9</span>Avant / après, en chiffres</h2>
+<div class="tw"><table>
+<tr><th>Mesure</th><th>Aujourd'hui</th><th>Idéal</th></tr>
+<tr><td>Fichiers dans <code>Renderer/</code></td><td>70</td><td>67</td></tr>
+<tr><td>Lignes</td><td>11 288</td><td>≈ 11 150 (−130 de code mort)</td></tr>
+<tr><td>Dossiers</td><td>3</td><td>6, plus 4 sous-dossiers de features</td></tr>
+<tr><td>Dossiers à un seul rôle</td><td class="bad-t">0 / 3</td><td class="ok-t">6 / 6</td></tr>
+<tr><td>Structs nommés <code>*Pass</code></td><td class="bad-t">10, dont 3 déclarent des passes</td><td class="ok-t">0 : le mot est réservé aux passes du graphe</td></tr>
+<tr><td>Fichiers qui appellent <code>addPass</code></td><td>6, à 3 niveaux, dont 3 hors de <code>Passes/</code></td><td>7, seulement <code>Renderer.cpp</code>, <code>Scene/</code>, <code>Features/</code></td></tr>
+<tr><td>Liens latéraux entre sous-objets</td><td class="bad-t">4</td><td class="ok-t">0</td></tr>
+<tr><td>Endroits pour les ombres</td><td>6</td><td>1 dossier, plus <code>CascadeLight_S</code></td></tr>
+<tr><td>Endroits pour la GI</td><td>3</td><td>1 dossier</td></tr>
+<tr><td>Fichiers dont le nom n'est pas celui du struct</td><td>6</td><td>0</td></tr>
+<tr><td>Orchestration de la scène</td><td><code>ScenePasses</code>, 671 l., 8 responsabilités</td><td><code>SceneFrame</code>, ≈ 250 l., l'ordre seulement</td></tr>
+<tr><td>Cœur du graphe</td><td>1 008 l.</td><td>997 l. (−<code>record(cmd)</code>)</td></tr>
+<tr><td>Types</td><td>—</td><td>+3 (<code>GiCache</code>, <code>FrameBindings</code>, <code>ShaderLibrary</code>) −3 (<code>RenderTargets</code>, <code>GeometryPass</code> fondu, 3 plein écran → 1) : ±0</td></tr>
+<tr><td>Chemins de barrières</td><td>2, dont un présenté comme public</td><td>2 tant que les uploads de mips restent hors du graphe (5.3) ; <code>BarrierBatch</code> privé aux uploads</td></tr>
+</table></div>
+</section>
+
+<!-- 10 -->
+<section id="migration">
+<h2><span class="num">10</span>Migration proposée — rien n'est commencé</h2>
+<p class="lead">Une étape = un commit, sur les règles du plan du graphe : image identique au banc (raster et RT, éditeur compris), <code>RenderGraphCheck</code> vert, validation sans nouveau message. Les sources sont ramassées par <code>GLOB_RECURSE</code> : déplacer un fichier ne touche pas CMake, mais demande un rebuild propre (ccache perd les dépendances d'en-têtes).</p>
+<div class="step"><h4>R.1 Nettoyage du mort — ≈ −130 lignes, 0 déplacement</h4><p>Les lignes 1 à 12 du §6, plus <code>renderer.md</code>. Risque faible : tout est sans appelant, sauf l'image de scène (vérif : banc éditeur, redimensionnement sous validation).</p></div>
+<div class="step"><h4>R.2 Renommer les drawers — 7 structs, 16 fichiers</h4><p><code>GeometryPass</code> + <code>MeshDraws</code> → <code>MeshDrawer</code>, <code>TerrainPass</code> → <code>TerrainDrawer</code>, etc. ; <code>Sky</code>, <code>Tonemap</code>, <code>RtDebug</code> → <code>FullscreenDrawers</code>. Pur renommage : le banc ne peut pas bouger.</p></div>
+<div class="step"><h4>R.3 Découper <code>RtScene</code> — AS d'un côté, cache GI de l'autre</h4><p>Le cache (≈ 100 l. : tampons, effacement, stats, readback) rejoint <code>GiUpdate</code> dans <code>Gi/</code> ; les champs <code>gi*</code> et le log quittent <code>ScenePasses</code>.</p></div>
+<div class="step"><h4>R.4 Regrouper les ombres</h4><p><code>ShadowPass</code> + <code>fitCascades</code> + les deux atlas + <code>LocalShadowAllocator</code> + <code>ShadowCascades</code> dans <code>Shadows/</code> ; <code>ShadowView</code> dans <code>Shadows.h</code>. Supprime le lien <code>LocalShadowAllocator → ShadowPass.h</code>.</p></div>
+<div class="step"><h4>R.5 Vider <code>ScenePasses</code></h4><p>Descripteurs et layouts → <code>FrameBindings</code> ; catalogue, chargement des shaders et hot reload → <code>ShaderLibrary</code> ; ce qui reste devient <code>SceneFrame</code>.</p></div>
+<div class="step"><h4>R.6 Dossiers par rôle</h4><p>Les fichiers vont dans <code>Device/</code>, <code>Graph/</code>, <code>Scene/</code>, <code>Features/</code>, <code>Draws/</code> ; noms de fichier = noms de struct ; le relais <code>Renderer.h</code> devient le vrai fichier. 167 lignes <code>#include</code> internes à <code>Renderer/</code> à réécrire, 2 dehors (<code>tools/RenderGraphCheck.cpp</code>, <code>tools/ShadowCheck.cpp</code>) : les en-têtes publics gardent leur chemin.</p></div>
+<div class="step"><h4>R.7 Docs</h4><p>Réécrire <code>vulkan.md §9</code> et le schéma de <code>engine.md</code> d'après cette page, ou les remplacer par un lien vers elle.</p></div>
+<p class="note">R.1 ne dépend de rien et peut passer à tout moment. R.2 à R.6 gagnent à passer avant 4.2 (fenêtre « Render graph ») : elle affichera les noms des passes et des fichiers, autant qu'ils soient les définitifs.</p>
+</section>
+</main>
+<footer>Généré le 2026-10-26 à partir du code (<code>engine</code> 0d17992). Fichier local, sans dépendance réseau : <code>engine/docs/audit-rendu/index.html</code>.</footer>
+
+<script>
+(function(){
+  const NS='http://www.w3.org/2000/svg';
+  const COLOR={own:'muted',call:'muted',pass:'accent',bad:'dead',dep:'muted'};
+  function defaultSides(ra,rb){
+    if(rb.top>=ra.bottom-4)return['bottom','top'];
+    if(rb.bottom<=ra.top+4)return['top','bottom'];
+    return['bottom','bottom'];
+  }
+  function point(r,side,off,base){
+    const cx=r.left+r.width/2-base.left,cy=r.top+r.height/2-base.top;
+    if(side==='top')return{x:cx+off,y:r.top-base.top,nx:0,ny:-1};
+    if(side==='bottom')return{x:cx+off,y:r.bottom-base.top,nx:0,ny:1};
+    if(side==='left')return{x:r.left-base.left,y:cy+off,nx:-1,ny:0};
+    return{x:r.right-base.left,y:cy+off,nx:1,ny:0};
+  }
+  function draw(canvas){
+    let svg=canvas.querySelector(':scope > svg.edges');
+    if(!svg){svg=document.createElementNS(NS,'svg');svg.setAttribute('class','edges');canvas.prepend(svg);}
+    const id=canvas.parentNode.id;
+    const base=canvas.getBoundingClientRect();
+    svg.setAttribute('width',canvas.scrollWidth);svg.setAttribute('height',canvas.scrollHeight);
+    svg.innerHTML='';
+    const defs=document.createElementNS(NS,'defs');
+    Object.keys(COLOR).forEach(k=>{
+      const m=document.createElementNS(NS,'marker');
+      m.setAttribute('id','m-'+k+'-'+id);m.setAttribute('viewBox','0 0 10 10');
+      m.setAttribute('refX','9');m.setAttribute('refY','5');
+      m.setAttribute('markerWidth','7');m.setAttribute('markerHeight','7');m.setAttribute('orient','auto');
+      const p=document.createElementNS(NS,'path');p.setAttribute('d','M0,0 L10,5 L0,10 z');
+      p.setAttribute('style','fill:var(--'+COLOR[k]+')');
+      m.appendChild(p);defs.appendChild(m);
+    });
+    svg.appendChild(defs);
+
+    const items=[];
+    JSON.parse(canvas.dataset.edges||'[]').forEach(([a,b,kind,label,opt])=>{
+      const A=canvas.querySelector('[data-id="'+a+'"]'),B=canvas.querySelector('[data-id="'+b+'"]');
+      if(!A||!B)return;
+      const ra=A.getBoundingClientRect(),rb=B.getBoundingClientRect();
+      const s=defaultSides(ra,rb);
+      items.push({a,b,kind,label,opt,ra,rb,sa:(opt&&opt.from)||s[0],sb:(opt&&opt.to)||s[1],oa:0,ob:0});
+    });
+
+    // Spread the edges sharing a side of a node, ordered by where their other end lies.
+    const slots={};
+    const add=(key,item,end,r,side,other)=>{
+      (slots[key]=slots[key]||{r,side,list:[]}).list.push({item,end,
+        sort:(side==='top'||side==='bottom')?other.left+other.width/2:other.top+other.height/2});
+    };
+    items.forEach(it=>{add(it.a+'|'+it.sa,it,'a',it.ra,it.sa,it.rb);add(it.b+'|'+it.sb,it,'b',it.rb,it.sb,it.ra);});
+    Object.values(slots).forEach(({r,side,list})=>{
+      list.sort((p,q)=>p.sort-q.sort);
+      const len=(side==='top'||side==='bottom')?r.width:r.height;
+      const step=Math.min(16,len/(list.length+1));
+      list.forEach((e,i)=>{e.item['o'+e.end]=(i-(list.length-1)/2)*step;});
+    });
+
+    items.forEach(it=>{
+      const p1=point(it.ra,it.sa,it.oa,base),p2=point(it.rb,it.sb,it.ob,base);
+      const dx=Math.abs(p2.x-p1.x),dy=Math.abs(p2.y-p1.y);
+      const sameSide=p1.ny!==0&&p1.ny===p2.ny;
+      const k=(p)=>p.ny!==0?(sameSide?Math.min(40,18+dx*0.05):Math.max(20,dy*0.5)):Math.max(30,dx*0.5);
+      const k1=k(p1),k2=k(p2);
+      const d=`M${p1.x},${p1.y} C${p1.x+p1.nx*k1},${p1.y+p1.ny*k1} ${p2.x+p2.nx*k2},${p2.y+p2.ny*k2} ${p2.x},${p2.y}`;
+      const path=document.createElementNS(NS,'path');
+      path.setAttribute('d',d);path.setAttribute('class',it.kind);
+      path.setAttribute('marker-end','url(#m-'+it.kind+'-'+id+')');
+      path.dataset.a=it.a;path.dataset.b=it.b;
+      svg.appendChild(path);
+      if(it.label){
+        const mid=path.getPointAtLength(path.getTotalLength()*((it.opt&&it.opt.lt)||0.5));
+        const t=document.createElementNS(NS,'text');
+        t.setAttribute('x',mid.x);t.setAttribute('y',mid.y-5);t.setAttribute('text-anchor','middle');
+        t.textContent=it.label;t.dataset.a=it.a;t.dataset.b=it.b;
+        svg.appendChild(t);
+      }
+    });
+  }
+  function hook(canvas){
+    const dia=canvas.parentNode;
+    canvas.querySelectorAll('[data-id]').forEach(n=>{
+      n.addEventListener('mouseenter',()=>{
+        const nid=n.dataset.id;
+        dia.classList.add('focus');
+        canvas.querySelectorAll('svg.edges [data-a]').forEach(e=>{
+          e.classList.toggle('hl',e.dataset.a===nid||e.dataset.b===nid);
+        });
+      });
+      n.addEventListener('mouseleave',()=>dia.classList.remove('focus'));
+    });
+  }
+  const canvases=[...document.querySelectorAll('.canvas[data-edges]')];
+  const all=()=>canvases.forEach(draw);
+  canvases.forEach(hook);
+  window.addEventListener('load',all);
+  window.addEventListener('resize',()=>{clearTimeout(window.__edgeTimer);window.__edgeTimer=setTimeout(all,80);});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(all);
+  all();
+})();
+</script>
+</body>
+</html>

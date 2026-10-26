@@ -8,7 +8,7 @@ graph TD
     Engine --> Input[InputManager]
     Engine --> AM[AssetManager]
     Engine --> IM[InstanceManager]
-    Engine --> R[VulkanRenderer]
+    Engine --> R[Renderer]
     Engine --> P[PlatformWindow]
 
     World --> Scene
@@ -23,9 +23,11 @@ graph TD
 
     R --> Ctx[VulkanContext]
     R --> Swap[VulkanSwapchain]
-    R --> Pipe[VulkanPipelines]
-    R --> Res[VulkanResources]
-    R --> Pass[VulkanScenePasses]
+    R --> Res[ResourceManager]
+    R --> Graph[RenderGraph]
+    R --> SF[SceneFrame]
+    SF --> Feat["Features: Shadows, RayTracing, Gi, Exposure"]
+    SF --> Draws["Draws: meshes, terrain, billboards, debug, fullscreen"]
 
     P --> Mac[MacOS]
     P --> Win[Win32]
@@ -47,7 +49,7 @@ flowchart TD
     subgraph WU["World::update()"]
         direction TB
         SU["Scene::update()<br/>game logic hook"] --> SY["Systems::update()<br/>write components + mark dirty"]
-        SY --> UD["SceneRenderer::uploadDirty()<br/>dirty components → InstancePatch → staging buffer"]
+        SY --> UD["InstanceManager::uploadRemainingFrameDirty()<br/>dirty components → InstancePatch → staging buffer"]
     end
 
     WU --> EF["~Frame → Engine::endFrame()"]
@@ -56,10 +58,10 @@ flowchart TD
 
     subgraph RR["Renderer::render()"]
         direction TB
-        AC["acquire swapchain image<br/>out of date → recreate + skip frame"] --> FU["flushUploads()<br/>staged uploads recorded into the command buffer"]
-        FU --> REC["ScenePasses::record()<br/>scene draw (dynamic rendering)"]
-        REC --> IMG["ImGui::Render()"]
-        IMG --> SP["submit + present"]
+        AC["acquire swapchain image<br/>out of date → recreate + skip frame"] --> FU["uploads pass<br/>flushUploads() into the graph"]
+        FU --> REC["SceneFrame::addPasses()<br/>features + scene, exposure, tonemap passes"]
+        REC --> IMG["imgui pass"]
+        IMG --> SP["compile graph · submit batches · present"]
     end
 ```
 ---

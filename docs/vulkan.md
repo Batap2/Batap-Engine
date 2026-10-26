@@ -2,7 +2,7 @@
 
 Guide de lecture du code Vulkan du moteur, écrit pour quelqu'un qui connaît
 déjà DX12 (toi). Chaque concept est expliqué à travers le code réel du repo :
-`src/Engine/Renderer/Vulkan/VulkanContext.{h,cpp}` et le harness
+`src/Engine/Renderer/Device/VulkanContext.{h,cpp}` et le harness
 `tools/vk-smoke/main.cpp` (jalons 1-2 : triangle offscreen → PNG).
 
 Pour voir tourner tout ce qui est décrit ici :
@@ -220,7 +220,7 @@ vkWaitForFences(...)         ← équivalent de ton signal() + waitForLastSignal
   permanence** (`VMA_ALLOCATION_CREATE_MAPPED_BIT`) — même principe que ton
   ring d'upload DX12 qui reste mappé.
 
-## 8. Les descriptors et `VulkanResources` (jalon 3)
+## 8. Les descriptors et `ResourceManager` (jalon 3)
 
 Le plus gros écart conceptuel avec DX12. Là-bas : un grand descriptor heap
 shader-visible, des handles GPU, `g_textures[]` unbounded indexé par
@@ -230,7 +230,7 @@ shader-visible, des handles GPU, `g_textures[]` unbounded indexé par
 - `VkDescriptorPool` — l'arène d'allocation (≈ le heap) ;
 - `VkDescriptorSet` — un paquet de descriptors qu'on binde d'un coup.
 
-`Renderer/Vulkan/VulkanResources.{h,cpp}` reproduit le modèle du moteur avec
+`Renderer/Device/ResourceManager.{h,cpp}` reproduit le modèle du moteur avec
 **un seul set bindless global**, construit dans `init()` :
 
 - binding 0 : le sampler par défaut, *immutable* (gravé dans le layout —
@@ -288,26 +288,32 @@ DYLD_LIBRARY_PATH=/opt/homebrew/lib ./build/macos-debug/bin/GameExemple --projec
 ```
 
 Le rendu n'est PAS un portage 1:1 du RenderGraph DX12 — c'est le design que
-Vulkan 1.3 permet, en plus simple. Les fichiers, dans l'ordre de lecture :
+Vulkan 1.3 permet, en plus simple. `Renderer/` a un dossier par rôle :
 
-- `Renderer/Vulkan/VulkanRenderer.{h,cpp}` — l'orchestrateur. Une frame :
-  `beginFrame()` (début de frame CPU : attend la fence du slot, recycle
-  staging + destructions, publie `frameIndex_`, ouvre la frame ImGui) → la
-  simulation écrit ses uploads → `render()` : check hot-reload → `flushUploads`
-  → barrières → **un** rendering scope (swapchain + depth, loadOp CLEAR) dans
-  lequel la scène s'enregistre puis ImGui se dessine → barrière → present.
+- `Renderer.{h,cpp}` — l'orchestrateur. Une frame : `beginFrame()` (début de
+  frame CPU : attend la fence du slot, recycle staging + destructions, publie
+  `frameIndex_`, ouvre la frame ImGui) → la simulation écrit ses uploads →
+  `render()` : check hot-reload → construit le render graph de la frame
+  (uploads, scène, ImGui, dump) → le compile → soumet ses lots → present.
   `frameIndex_` est publié en DÉBUT de frame CPU exprès : tout ce qui est
   « par frame en vol » (dirty tracking, staging) doit voir le slot en cours
   de production, pas celui de la frame passée.
-- `Renderer/Vulkan/VulkanScenePasses.{h,cpp}` — les passes geometry + sky,
-  et le hot reload (mtime des .hlsl du dossier source → recompile → rebuild
-  des pipelines ; une erreur HLSL garde les pipelines courantes).
-- `Renderer/Vulkan/VulkanPipelines.{h,cpp}` — chargement SPIR-V + builder de
-  pipeline (dynamic rendering, viewport dynamique Y-up).
-- `Renderer/Vulkan/VulkanShaderCompiler.{h,cpp}` — HLSL → SPIR-V à chaud via
-  `libdxcompiler.dylib` (dlopen paresseux ; même `IDxcCompiler3` que Windows).
-- `Renderer/Vulkan/VulkanSceneRenderer.cpp` — le pont trois-lignes entre le
-  header neutre `SceneRenderer.h` et le backend.
+- `Graph/RenderGraph.{h,cpp}` — le render graph : passes déclarées, barrières
+  et scopes de rendu déduits, images transitoires (`rendergraph.md`).
+- `Scene/SceneFrame.{h,cpp}` — l'ordre des passes de la scène.
+  `Scene/FrameBindings` tient les sets 1 et 2 et les pipeline layouts.
+- `Features/` — un dossier par feature (`Shadows`, `RayTracing`, `Gi`,
+  `Exposure`) : son état GPU et ses passes, `addPasses(graph, …)`.
+- `Draws/` — ce qui dessine dans une passe déjà ouverte (meshes, terrain,
+  billboards, lignes de debug, plein écran). N'ajoute jamais de passe.
+- `Device/` — ce qui enveloppe Vulkan : contexte, swapchain,
+  `ResourceManager`, pipelines (chargement SPIR-V + builder, viewport
+  dynamique Y-up), `ShaderLibrary` (catalogue des shaders et hot reload :
+  mtime des .hlsl du dossier source → recompile → rebuild des pipelines ; une
+  erreur HLSL garde les pipelines courantes), `ShaderCompiler` (HLSL → SPIR-V
+  à chaud via `libdxcompiler`, dlopen paresseux ; même `IDxcCompiler3` que
+  Windows).
+- `SceneBinding.{h,cpp}` — `bindScene` : branche le monde sur le renderer.
 
 **Autour du rendu :**
 
@@ -316,11 +322,11 @@ Vulkan 1.3 permet, en plus simple. Les fichiers, dans l'ordre de lecture :
   `VulkanSwapchain::createSwapchain()`, réutilisé tel quel au resize.
 - *Resize* : le delegate Cocoa (`syncLayerSize`) ajuste la CAMetalLayer puis
   appelle `Renderer::resize` → `VulkanSwapchain::recreate()` (oldSwapchain
-  dans la create-info, sémaphores de rendu par image recréés) + depth. Si la
+  dans la create-info, sémaphores de rendu par image recréés). Si la
   swapchain périme entre deux événements, `acquire()` rend `OutOfDate` et la
   frame est sautée — les uploads en attente partent à la suivante.
 - *ImGui* : `imgui_impl_vulkan` (dynamic rendering, fonctions via volk) dessine
-  dans le même rendering scope que la scène ; le backend plateforme
+  dans sa propre passe du graphe, sur la swapchain ; le backend plateforme
   (`imgui_impl_osx` / `imgui_impl_win32`) est derrière les hooks neutres
   `platformImGui{Init,NewFrame,Shutdown}` de `PlatformWindow.h`.
 - *Input* : chaque OS décode ses événements natifs dans sa couche plateforme
@@ -333,11 +339,11 @@ Vulkan 1.3 permet, en plus simple. Les fichiers, dans l'ordre de lecture :
 | Quoi | Où | Fréquence |
 |---|---|---|
 | sampler + textures bindless | set 0 (ResourceManager) | écrit à la création des textures, bindé 1×/frame |
-| caméras, instances, lights, matériaux, skybox (5 storage buffers) | set 1 (ScenePasses, un par frame en vol) | réécrit 1×/frame (les pools grandissent) |
+| caméras, instances, lights, matériaux, skybox (5 storage buffers) | set 1 (FrameBindings, un par frame en vol) | réécrit 1×/frame (les pools grandissent) |
 | `{camIdx, instanceIdx, submeshIdx, nLights}` | push constants (16 octets, VS+PS) | par draw |
 
 Côté HLSL, chaque ressource porte son `[[vk::binding(n, set)]]` — c'est LE
-contrat entre `VulkanScenePasses.cpp` (enum `FrameSetBinding`) et les shaders.
+contrat entre `ShaderInterop.h` (enum `FrameSetBinding`), `FrameBindings` et les shaders.
 
 **Ce qui a disparu par rapport au DX12, et pourquoi :**
 
