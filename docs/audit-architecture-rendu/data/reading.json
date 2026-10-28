@@ -1,0 +1,1289 @@
+{
+ "ownership": [
+  {
+   "owner": "Renderer",
+   "owned": "VulkanContext",
+   "how": "member",
+   "file": "engine/src/Engine/Renderer/Renderer.h",
+   "line": 79,
+   "zone": "A"
+  },
+  {
+   "owner": "Renderer",
+   "owned": "VulkanSwapchain",
+   "how": "member",
+   "file": "engine/src/Engine/Renderer/Renderer.h",
+   "line": 80,
+   "zone": "A"
+  },
+  {
+   "owner": "Renderer",
+   "owned": "ResourceManager",
+   "how": "unique_ptr",
+   "file": "engine/src/Engine/Renderer/Renderer.h",
+   "line": 89,
+   "zone": "A"
+  },
+  {
+   "owner": "Renderer",
+   "owned": "ResourceManager (alias public resourceManager_ du même objet)",
+   "how": "raw pointer",
+   "file": "engine/src/Engine/Renderer/Renderer.h",
+   "line": 75,
+   "zone": "A"
+  },
+  {
+   "owner": "VulkanContext",
+   "owned": "ShaderCompiler",
+   "how": "member",
+   "file": "engine/src/Engine/Renderer/Device/VulkanContext.h",
+   "line": 33,
+   "zone": "A"
+  },
+  {
+   "owner": "VulkanContext",
+   "owned": "frameIndex_ (slot en vol, écrit par VulkanSwapchain::present)",
+   "how": "member",
+   "file": "engine/src/Engine/Renderer/Device/VulkanContext.h",
+   "line": 37,
+   "zone": "A"
+  },
+  {
+   "owner": "SceneFrame",
+   "owned": "ShaderLibrary",
+   "how": "member",
+   "file": "engine/src/Engine/Renderer/Scene/SceneFrame.h",
+   "line": 63,
+   "zone": "A"
+  },
+  {
+   "owner": "ShaderLibrary",
+   "owned": "ShaderModule x20 (VkShaderModule)",
+   "how": "vector",
+   "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.h",
+   "line": 91,
+   "zone": "A"
+  },
+  {
+   "owner": "ResourceManager",
+   "owned": "Buffer (statiques, mappés, AS, scratch)",
+   "how": "vector",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 165,
+   "zone": "A"
+  },
+  {
+   "owner": "ResourceManager",
+   "owned": "Buffer par frame (x FramesInFlight)",
+   "how": "vector",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 166,
+   "zone": "A"
+  },
+  {
+   "owner": "ResourceManager",
+   "owned": "Image (+ VkImageView + slot bindless)",
+   "how": "vector",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 167,
+   "zone": "A"
+  },
+  {
+   "owner": "ResourceManager",
+   "owned": "StagingRing x3, DestroyQueue x3, oversizeStaging_",
+   "how": "vector",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 170,
+   "zone": "A"
+  },
+  {
+   "owner": "ResourceManager",
+   "owned": "set 0 bindless (layout, pool, set, 2 samplers)",
+   "how": "member",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 178,
+   "zone": "A"
+  },
+  {
+   "owner": "VulkanSwapchain",
+   "owned": "surface, swapchain, views, acquire semaphores x3, fences x3, render semaphores x N images",
+   "how": "member",
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.h",
+   "line": 53,
+   "zone": "A"
+  },
+  {
+   "owner": "MeshDrawer/TerrainDrawer/BillboardDrawer/DebugDrawer/FullscreenDrawers/Shadows/GiUpdate/Exposure",
+   "owned": "VkPipeline (créé par GraphicsPipelineBuilder::build, détruit à la main)",
+   "how": "raw pointer",
+   "file": "engine/src/Engine/Renderer/Draws/MeshDrawer.cpp",
+   "line": 18,
+   "zone": "A"
+  },
+  {
+   "owner": "ShaderCompiler",
+   "owned": "handle dxcompiler.dll (LoadLibrary)",
+   "how": "raw pointer",
+   "file": "engine/src/Engine/Renderer/Device/ShaderCompiler.h",
+   "line": 22,
+   "zone": "A"
+  },
+  {
+   "owner": "Renderer (hors zone)",
+   "owned": "dumpBuffer_ VMA, frameQueries_, command pools",
+   "how": "raw pointer",
+   "file": "engine/src/Engine/Renderer/Renderer.h",
+   "line": 135,
+   "zone": "A"
+  }
+ ],
+ "calls": [
+  {
+   "from": "Renderer::Renderer",
+   "to": "VulkanContext::VulkanContext / VulkanSwapchain::VulkanSwapchain",
+   "phase": "init",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 33,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::Renderer",
+   "to": "ResourceManager::ResourceManager",
+   "phase": "init",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 41,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::Renderer",
+   "to": "graph_.setAllocator -> ResourceManager::createTarget / requestDestroy",
+   "phase": "frame",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 46,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::sceneFrame",
+   "to": "SceneFrame::SceneFrame -> ShaderLibrary::ShaderLibrary",
+   "phase": "init",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 292,
+   "zone": "A"
+  },
+  {
+   "from": "Engine::Engine",
+   "to": "Renderer::setVsync -> VulkanSwapchain::setVsync -> recreate",
+   "phase": "init",
+   "file": "engine/src/Engine/Engine.cpp",
+   "line": 57,
+   "zone": "A"
+  },
+  {
+   "from": "Engine::beginFrame",
+   "to": "Renderer::beginFrame",
+   "phase": "frame",
+   "file": "engine/src/Engine/Engine.cpp",
+   "line": 115,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::beginFrame",
+   "to": "VulkanSwapchain::waitFrame",
+   "phase": "frame",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 335,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::beginFrame",
+   "to": "ResourceManager::beginFrame",
+   "phase": "frame",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 337,
+   "zone": "A"
+  },
+  {
+   "from": "Engine::endFrame",
+   "to": "Renderer::render (dernier appel de la frame CPU)",
+   "phase": "frame",
+   "file": "engine/src/Engine/Engine.cpp",
+   "line": 163,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::render",
+   "to": "VulkanSwapchain::acquire",
+   "phase": "frame",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 350,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::render",
+   "to": "Renderer::resize(0,0) si OutOfDate",
+   "phase": "resize",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 353,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::render",
+   "to": "SceneFrame::checkHotReload (1 frame sur 30)",
+   "phase": "reload",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 359,
+   "zone": "A"
+  },
+  {
+   "from": "SceneFrame::checkHotReload",
+   "to": "ShaderLibrary::reloadIfChanged",
+   "phase": "reload",
+   "file": "engine/src/Engine/Renderer/Scene/SceneFrame.cpp",
+   "line": 100,
+   "zone": "A"
+  },
+  {
+   "from": "ShaderLibrary::reloadIfChanged",
+   "to": "ShaderCompiler::compile (x20)",
+   "phase": "reload",
+   "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.cpp",
+   "line": 53,
+   "zone": "A"
+  },
+  {
+   "from": "ShaderLibrary::reloadIfChanged",
+   "to": "vkDeviceWaitIdle puis remplacement des ShaderModule",
+   "phase": "reload",
+   "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.cpp",
+   "line": 63,
+   "zone": "A"
+  },
+  {
+   "from": "SceneFrame::checkHotReload",
+   "to": "SceneFrame::buildPipelines -> 8 x buildPipelines -> GraphicsPipelineBuilder::build",
+   "phase": "reload",
+   "file": "engine/src/Engine/Renderer/Scene/SceneFrame.cpp",
+   "line": 101,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::render",
+   "to": "ResourceManager::flushUploads (passe 'uploads' du graphe)",
+   "phase": "frame",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 374,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::submitBatches",
+   "to": "VulkanSwapchain::acquired / rendered / frameFence",
+   "phase": "frame",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 508,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::render",
+   "to": "VulkanSwapchain::present (avance ctx_.frameIndex_)",
+   "phase": "frame",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 451,
+   "zone": "A"
+  },
+  {
+   "from": "Win32 WM_SIZE",
+   "to": "Renderer::resize",
+   "phase": "resize",
+   "file": "engine/src/Engine/Platform/Win32/Win32Window.cpp",
+   "line": 351,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::resize",
+   "to": "VulkanSwapchain::recreate (vkDeviceWaitIdle + createSwapchain)",
+   "phase": "resize",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 534,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::resize",
+   "to": "retireTargets -> ResourceManager::requestDestroy(sceneImage_)",
+   "phase": "resize",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 536,
+   "zone": "A"
+  },
+  {
+   "from": "Engine::~Engine",
+   "to": "Renderer::flush -> vkDeviceWaitIdle",
+   "phase": "destroy",
+   "file": "engine/src/Engine/Engine.cpp",
+   "line": 91,
+   "zone": "A"
+  },
+  {
+   "from": "Renderer::~Renderer",
+   "to": "vkDeviceWaitIdle puis destruction inverse : graph_, sceneFrame_ (ShaderLibrary), resources_, swapchain_, ctx_",
+   "phase": "destroy",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 600,
+   "zone": "A"
+  },
+  {
+   "from": "DLL du jeu (batapGameEntry)",
+   "to": "adoptHostVulkan (volkInitializeCustom + volkLoadDevice)",
+   "phase": "init",
+   "file": "engine/src/Engine/Renderer/Device/GameVulkan.cpp",
+   "line": 6,
+   "zone": "A"
+  }
+ ],
+ "passes": [
+  {
+   "name": "uploads",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 372,
+   "declared_by": "Renderer::render",
+   "mode": "both",
+   "queue": "transfer",
+   "reads": [],
+   "writes": [
+    "uploads (buffer importé VK_NULL_HANDLE, barrière globale TransferDst)"
+   ],
+   "condition": "si resources_->hasUploads()",
+   "order_note": "première passe ; exécute ResourceManager::flushUploads qui pose ses propres barrières image (BarrierBatch) pour copies, mips et passage en ShaderRead",
+   "zone": "A"
+  }
+ ],
+ "resources": [
+  {
+   "name": "staging rings x3",
+   "type": "buffer",
+   "owner": "ResourceManager::staging_",
+   "created": "engine/src/Engine/Renderer/Device/ResourceManager.cpp:138",
+   "destroyed": "engine/src/Engine/Renderer/Device/ResourceManager.cpp:263",
+   "resized": "none",
+   "lifetime": "per-frame ring",
+   "note": "64 MiB chacun (EngineConfig.h:8), mappés en permanence, alignement 16 ; offset rembobiné à beginFrame seulement si aucune requête en attente (711-716)",
+   "zone": "A"
+  },
+  {
+   "name": "oversize staging",
+   "type": "buffer",
+   "owner": "ResourceManager::oversizeStaging_",
+   "created": "engine/src/Engine/Renderer/Device/ResourceManager.cpp:541",
+   "destroyed": "différé via DestroyQueue (706-708 puis beginFrame 719)",
+   "resized": "none",
+   "lifetime": "per-frame ring",
+   "note": "une requête qui ne tient pas dans le reste du ring reçoit son propre buffer ; les 64 Mo sont un chemin rapide, pas un plafond",
+   "zone": "A"
+  },
+  {
+   "name": "Buffer statique / mappé / AS / scratch",
+   "type": "buffer",
+   "owner": "ResourceManager::buffers_",
+   "created": "engine/src/Engine/Renderer/Device/ResourceManager.cpp:342",
+   "destroyed": "différé via DestroyQueue (731-735 -> 719-720)",
+   "resized": "none",
+   "lifetime": "persistent",
+   "note": "usage par défaut TRANSFER_DST|SRC|VERTEX|INDEX|STORAGE (+AS build input si RT) + SHADER_DEVICE_ADDRESS forcé (288)",
+   "zone": "A"
+  },
+  {
+   "name": "Buffer par frame",
+   "type": "buffer",
+   "owner": "ResourceManager::frameBuffers_",
+   "created": "engine/src/Engine/Renderer/Device/ResourceManager.cpp:352",
+   "destroyed": "différé via DestroyQueue (737-742)",
+   "resized": "none",
+   "lifetime": "per-frame ring",
+   "note": "3 VkBuffer sous un seul handle ; bufferFor/deviceAddress/flushUploads choisissent l'exemplaire currentFrame()",
+   "zone": "A"
+  },
+  {
+   "name": "Image (createImage2D : texture mipmappée ; createTarget : attachement)",
+   "type": "image",
+   "owner": "ResourceManager::images_",
+   "created": "engine/src/Engine/Renderer/Device/ResourceManager.cpp:425",
+   "destroyed": "différé via DestroyQueue (744-750 -> 721-722 ; vue + image 826-834)",
+   "resized": "none (le propriétaire détruit et recrée : Renderer.cpp:217-227, allocateur du graphe Renderer.cpp:46-58)",
+   "lifetime": "persistent",
+   "note": "layout suivi dans Image::layout uniquement pour les uploads (645, 701) ; pour les cibles c'est le graphe qui suit",
+   "zone": "A"
+  },
+  {
+   "name": "set 0 bindless (layout, pool, set, textureSampler_, shadowSampler_)",
+   "type": "descriptor",
+   "owner": "ResourceManager",
+   "created": "engine/src/Engine/Renderer/Device/ResourceManager.cpp:155",
+   "destroyed": "engine/src/Engine/Renderer/Device/ResourceManager.cpp:270",
+   "resized": "none",
+   "lifetime": "persistent",
+   "note": "4096 slots (EngineConfig.h:7), UPDATE_AFTER_BIND, free-list (807-817) ; samplers immuables dans le layout (180, 186)",
+   "zone": "A"
+  },
+  {
+   "name": "swapchain + images + vues",
+   "type": "image",
+   "owner": "VulkanSwapchain",
+   "created": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp:140",
+   "destroyed": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp:176 (immédiat, après vkDeviceWaitIdle 189)",
+   "resized": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp:187",
+   "lifetime": "persistent",
+   "note": "oldSwapchain passé à la création (139) ; minimisée : createSwapchain rend false et garde l'ancienne (69-70)",
+   "zone": "A"
+  },
+  {
+   "name": "acquire semaphores x3, fences x3",
+   "type": "sampler",
+   "owner": "VulkanSwapchain",
+   "created": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp:56",
+   "destroyed": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp:203",
+   "resized": "none",
+   "lifetime": "per-frame ring",
+   "note": "type réel : semaphore/fence (pas dans l'enum du schéma). Fences créées signalées (54) ; indexées par ctx_.frameIndex_",
+   "zone": "A"
+  },
+  {
+   "name": "render semaphores x N images",
+   "type": "sampler",
+   "owner": "VulkanSwapchain",
+   "created": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp:165",
+   "destroyed": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp:178 (à chaque recreate)",
+   "resized": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp:187",
+   "lifetime": "persistent",
+   "note": "type réel : semaphore. Par image et non par slot, conforme à l'exigence de la spec sur present (VulkanSwapchain.h:60-61)",
+   "zone": "A"
+  },
+  {
+   "name": "VkShaderModule x20 (15 sans RT)",
+   "type": "pipeline",
+   "owner": "ShaderLibrary::owned_",
+   "created": "engine/src/Engine/Renderer/Device/ShaderLibrary.cpp:20",
+   "destroyed": "engine/src/Engine/Renderer/Device/Pipelines.cpp:43 (RAII ShaderModule)",
+   "resized": "none",
+   "lifetime": "persistent",
+   "note": "remplacés à chaud après vkDeviceWaitIdle (ShaderLibrary.cpp:63-70)",
+   "zone": "A"
+  },
+  {
+   "name": "VkPipeline (16 pipelines dans 8 structs)",
+   "type": "pipeline",
+   "owner": "Draws/* et Features/* (hors Device)",
+   "created": "engine/src/Engine/Renderer/Device/Pipelines.cpp:198",
+   "destroyed": "30 sites vkDestroyPipeline hors Device/, immédiats (ex. engine/src/Engine/Renderer/Draws/MeshDrawer.cpp:18)",
+   "resized": "none",
+   "lifetime": "persistent",
+   "note": "détruits puis reconstruits à chaque reload ; sûr uniquement parce que ShaderLibrary a fait vkDeviceWaitIdle juste avant",
+   "zone": "A"
+  },
+  {
+   "name": "VkInstance, VkDevice, VmaAllocator, debug messenger",
+   "type": "buffer",
+   "owner": "VulkanContext",
+   "created": "engine/src/Engine/Renderer/Device/VulkanContext.cpp:46",
+   "destroyed": "engine/src/Engine/Renderer/Device/VulkanContext.cpp:166",
+   "resized": "none",
+   "lifetime": "persistent",
+   "note": "type réel : handles de device. Une seule file (graphics, 146-147), RT optionnel (111-119)",
+   "zone": "A"
+  },
+  {
+   "name": "dxcompiler.dll",
+   "type": "buffer",
+   "owner": "ShaderCompiler",
+   "created": "engine/src/Engine/Renderer/Device/ShaderCompiler.cpp:108",
+   "destroyed": "engine/src/Engine/Renderer/Device/ShaderCompiler.cpp:98",
+   "resized": "none",
+   "lifetime": "persistent",
+   "note": "type réel : bibliothèque dynamique ; chargée au premier compile(), absente = hot reload désactivé sans erreur fatale (114-116)",
+   "zone": "A"
+  },
+  {
+   "name": "dumpBuffer_ (hors zone, Renderer.cpp)",
+   "type": "buffer",
+   "owner": "Renderer",
+   "created": "engine/src/Engine/Renderer/Renderer.cpp:128",
+   "destroyed": "engine/src/Engine/Renderer/Renderer.cpp:168 (immédiat après vkDeviceWaitIdle 142)",
+   "resized": "none",
+   "lifetime": "persistent",
+   "note": "second propriétaire VMA en dehors du ResourceManager ; inclut Memory.h pour ça (Renderer.cpp:4)",
+   "zone": "A"
+  }
+ ],
+ "good": [
+  {
+   "title": "Barrières nommées par intention, une seule table",
+   "file": "engine/src/Engine/Renderer/Device/Usage.h",
+   "line": 47,
+   "why": "usageInfo est l'unique source stage/access/layout, utilisée par BarrierBatch (ResourceManager.cpp:61-62) et par le graphe (RenderGraph.cpp:619-620) ; élargir est toujours sûr, le commentaire (10-14) le dit",
+   "zone": "A"
+  },
+  {
+   "title": "Switch sans default : ajouter une valeur casse le build",
+   "file": "engine/src/Engine/Renderer/Device/Formats.h",
+   "line": 49,
+   "why": "toVkFormat et usageInfo (Usage.h:95-97) refusent un cas manquant à la compilation",
+   "zone": "A"
+  },
+  {
+   "title": "Destruction différée indexée par slot, drainée après la fence",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 711,
+   "why": "beginFrame draine la file du slot juste après waitFrame (Renderer.cpp:335-337) : une ressource demandée en frame N est détruite en N+3 après la fence de N ; tous les chemins du ResourceManager passent par là, destroyNow n'est appelé qu'ici et au destructeur",
+   "zone": "A"
+  },
+  {
+   "title": "Staging ring avec débordement propre",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 538,
+   "why": "une requête trop grosse reçoit un buffer à elle, rendu à la file du slot après enregistrement (706-708) ; le ring n'est pas rembobiné tant que des requêtes attendent (713-716)",
+   "zone": "A"
+  },
+  {
+   "title": "requestDestroy annule les uploads en attente vers le handle",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 729,
+   "why": "pas de copie vers un buffer qui part à la destruction",
+   "zone": "A"
+  },
+  {
+   "title": "Ordre garanti entre requestCopy et les uploads, barrières explicites",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 625,
+   "why": "le contrat (ResourceManager.h:72-74) est tenu par deux barrières mémoire autour de la copie",
+   "zone": "A"
+  },
+  {
+   "title": "Chaîne de mips à l'upload avec une barrière finale à deux provenances",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 690,
+   "why": "le dernier niveau est TransferDst, les autres TransferSrc ; le commentaire dit pourquoi",
+   "zone": "A"
+  },
+  {
+   "title": "Reload : une erreur HLSL garde les pipelines et n'arrête pas le GPU",
+   "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.cpp",
+   "line": 55,
+   "why": "tout est compilé en mémoire d'abord, vkDeviceWaitIdle seulement si les 20 ont réussi",
+   "zone": "A"
+  },
+  {
+   "title": "Sémaphores de rendu par image, d'acquisition par slot",
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.h",
+   "line": 60,
+   "why": "conforme à la contrainte de present sur le sémaphore encore lié à l'image ; la raison est écrite",
+   "zone": "A"
+  },
+  {
+   "title": "waitFrame séparé d'acquire et idempotent",
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 216,
+   "why": "le staging et les destructions se recyclent en début de frame CPU, avant que la simulation écrive ses uploads ; une frame sautée (OutOfDate) ne réattend pas",
+   "zone": "A"
+  },
+  {
+   "title": "OutOfDate sans exception, recreate attend l'idle, minimisé = garder l'ancienne",
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 187,
+   "why": "un resize au milieu de la frame CPU (WM_SIZE depuis ShowWindow) est sûr : idle d'abord, puis seulement des requestDestroy différés (Renderer.cpp:529-541)",
+   "zone": "A"
+  },
+  {
+   "title": "Features Vulkan exigées listées en un endroit, RT optionnel derrière un seul booléen",
+   "file": "engine/src/Engine/Renderer/Device/VulkanContext.cpp",
+   "line": 111,
+   "why": "rtSupported_ conditionne les shaders RT (ShaderLibrary.cpp:18), les buffers AS (ResourceManager.cpp:364) et l'usage par défaut (132)",
+   "zone": "A"
+  },
+  {
+   "title": "ShaderModule RAII et ShaderCompiler non fatal",
+   "file": "engine/src/Engine/Renderer/Device/Pipelines.h",
+   "line": 11,
+   "why": "le modèle à suivre pour VkPipeline ; dxcompiler absent = hot reload désactivé, moteur intact (ShaderCompiler.cpp:112-117)",
+   "zone": "A"
+  },
+  {
+   "title": "Memory.h : un seul point d'entrée VMA, dans le schéma volk",
+   "file": "engine/src/Engine/Renderer/Device/Memory.h",
+   "line": 3,
+   "why": "le piège (fonctions résolues au link) est documenté à l'endroit où on le rencontrerait",
+   "zone": "A"
+  },
+  {
+   "title": "Samplers immuables gravés dans le layout, slots bindless recyclés",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 180,
+   "why": "pas de descripteur de sampler à écrire ; free-list (807-817) alimentée par requestDestroy (746-747)",
+   "zone": "A"
+  },
+  {
+   "title": "Les numéros de binding du set 0 viennent de ShaderInterop.h",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 176,
+   "why": "SamplerBinding/ShadowSamplerBinding/TexturesBinding (ShaderInterop.h:91-97) : 0 numéro en dur côté C++",
+   "zone": "A"
+  }
+ ],
+ "vocab": [
+  {
+   "word": "Frame",
+   "meanings": [
+    {
+     "meaning": "slot en vol (FramesInFlight, ctx_.frameIndex_, frameFence, waitFrame)",
+     "file": "engine/src/Engine/Renderer/Device/VulkanContext.h",
+     "line": 37
+    },
+    {
+     "meaning": "FrameResource : buffer dupliqué par slot",
+     "file": "engine/src/Engine/Handles.h",
+     "line": 67
+    },
+    {
+     "meaning": "frameCounter_ : numéro absolu de frame (dump, reload)",
+     "file": "engine/src/Engine/Renderer/Renderer.h",
+     "line": 133
+    },
+    {
+     "meaning": "Frame : objet RAII de la boucle dont le destructeur rend",
+     "file": "engine/src/Engine/Engine.h",
+     "line": 51
+    }
+   ]
+  },
+  {
+   "word": "Target",
+   "meanings": [
+    {
+     "meaning": "image créée avec un usage d'attachement (createTarget)",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+     "line": 51
+    },
+    {
+     "meaning": "struct RenderTargets : la sortie de la scène (image du graphe + extent + clear)",
+     "file": "engine/src/Engine/Renderer/Renderer.h",
+     "line": 24
+    },
+    {
+     "meaning": "retireTargets : uniquement l'image de scène de l'éditeur",
+     "file": "engine/src/Engine/Renderer/Renderer.cpp",
+     "line": 217
+    }
+   ]
+  },
+  {
+   "word": "Image",
+   "meanings": [
+    {
+     "meaning": "createImage2D : texture échantillonnée avec chaîne de mips",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+     "line": 48
+    },
+    {
+     "meaning": "createTarget : attachement sans mips (même struct Image, même map)",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+     "line": 100
+    },
+    {
+     "meaning": "GraphImage : handle du graphe",
+     "file": "engine/src/Engine/Renderer/Graph/RenderGraph.h",
+     "line": 57
+    }
+   ]
+  },
+  {
+   "word": "Resource",
+   "meanings": [
+    {
+     "meaning": "GPUResourceHandle : buffer ou image indifféremment",
+     "file": "engine/src/Engine/Handles.h",
+     "line": 69
+    },
+    {
+     "meaning": "ResourceFormat : format de texel",
+     "file": "engine/src/Engine/Renderer/ResourceFormat.h",
+     "line": 8
+    },
+    {
+     "meaning": "resources_ / resourceManager_ : le même objet sous deux noms",
+     "file": "engine/src/Engine/Renderer/Renderer.h",
+     "line": 75
+    }
+   ]
+  },
+  {
+   "word": "Upload",
+   "meanings": [
+    {
+     "meaning": "requestUpload / requestTextureUpload : staging -> ressource",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+     "line": 65
+    },
+    {
+     "meaning": "requestCopy : ressource -> ressource, dans la même liste uploadRequests_",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+     "line": 570
+    },
+    {
+     "meaning": "'uploads' : buffer importé nul du graphe qui matérialise la passe",
+     "file": "engine/src/Engine/Renderer/Renderer.cpp",
+     "line": 369
+    }
+   ]
+  },
+  {
+   "word": "Usage",
+   "meanings": [
+    {
+     "meaning": "enum Usage : intention de barrière (stage + access + layout)",
+     "file": "engine/src/Engine/Renderer/Device/Usage.h",
+     "line": 25
+    },
+    {
+     "meaning": "VkBufferUsageFlags / VkImageUsageFlags : bits de création",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+     "line": 54
+    }
+   ]
+  },
+  {
+   "word": "Static",
+   "meanings": [
+    {
+     "meaning": "GPUResourceType::StaticResource : tout ce qui n'est pas par slot, y compris images, scratch et buffers mappés réécrits chaque frame",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+     "line": 430
+    }
+   ]
+  }
+ ],
+ "dead": [
+  {
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 67,
+   "what": "requestPartialUpload : publique, 0 appelant externe",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 85,
+   "what": "device() : 0 appelant",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/ResourceManager.h",
+   "line": 1,
+   "what": "shim de 3 lignes, 7 includeurs ; justifié par la doc pour '40+ appelants' vers Renderer/Vulkan/ qui n'existe plus",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/Formats.h",
+   "line": 57,
+   "what": "VK_FORMAT_D24_UNORM_S8_UINT dans isDepthFormat : jamais produit par toVkFormat",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 97,
+   "what": "Buffer::mapped reste nul pour les rings de staging, doublé par StagingRing::mapped",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 127,
+   "what": "UploadRequest::dstOffset ignoré par le chemin image (ResourceManager.cpp:652-655)",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.h",
+   "line": 26,
+   "what": "commentaire 'No-op when the surface has a null extent' : recreate fait quand même vkDeviceWaitIdle (189) avant de constater l'extent nul",
+   "zone": "A"
+  }
+ ],
+ "errors": [
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 42,
+   "what": "VkResult ignoré",
+   "consequence": "vkGetPhysicalDeviceSurfaceSupportKHR en échec laisse presentSupported à FALSE : exception 'cannot present' au lieu de la vraie cause",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 57,
+   "what": "VkResult ignoré",
+   "consequence": "vkCreateSemaphore (acquire) : sémaphore nul -> vkAcquireNextImageKHR avec sémaphore et fence nuls, interdit",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 59,
+   "what": "VkResult ignoré",
+   "consequence": "vkCreateFence : fence nulle -> vkWaitForFences erreur de validation, vkQueueSubmit2 sans fence -> plus de limite de frames en vol, staging et files de destruction réutilisés pendant la lecture GPU",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 68,
+   "what": "VkResult ignoré",
+   "consequence": "caps à zéro -> createSwapchain rend false -> le constructeur lève 'null surface size' : faux diagnostic",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 74,
+   "what": "VkResult ignoré",
+   "consequence": "formatCount 0 -> formats[0] (79) lit hors d'un vecteur vide",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 76,
+   "what": "VkResult ignoré",
+   "consequence": "idem, VK_INCOMPLETE possible si le nombre a changé entre les deux appels",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 91,
+   "what": "VkResult ignoré",
+   "consequence": "presentModes vide -> FIFO forcé : inoffensif",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 94,
+   "what": "VkResult ignoré",
+   "consequence": "idem",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 148,
+   "what": "VkResult ignoré",
+   "consequence": "count 0 -> images_ vide -> Renderer.cpp:387 indexe hors limites",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 150,
+   "what": "VkResult ignoré",
+   "consequence": "idem",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 169,
+   "what": "VkResult ignoré",
+   "consequence": "vkCreateSemaphore (render) : sémaphore nul signalé par vkQueueSubmit2 et attendu par present : erreur de validation",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 189,
+   "what": "VkResult ignoré",
+   "consequence": "vkDeviceWaitIdle en DEVICE_LOST -> destruction des vues et sémaphores encore en vol",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 220,
+   "what": "VkResult ignoré",
+   "consequence": "vkWaitForFences en DEVICE_LOST -> beginFrame recycle staging et destructions comme si la frame était finie",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 221,
+   "what": "VkResult ignoré",
+   "consequence": "vkResetFences : échec = fence restée signalée -> la frame suivante ne bloque pas",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.cpp",
+   "line": 63,
+   "what": "VkResult ignoré",
+   "consequence": "vkDeviceWaitIdle en échec -> les 20 ShaderModule puis les 16 pipelines sont détruits pendant leur usage",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 777,
+   "what": "assert",
+   "consequence": "bufferFor sur un handle inconnu rend VK_NULL_HANDLE en release : vkCmdBindVertexBuffers/copie sur buffer nul, erreur de validation ou crash driver ; 16 asserts dans le fichier, tous compilés hors en release",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 815,
+   "what": "assert",
+   "consequence": "table bindless pleine : en release textureNext_ dépasse 4096 et vkUpdateDescriptorSets écrit hors du set",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 638,
+   "what": "assert",
+   "consequence": "flushUploads sur une image inconnue : en release it->second sur end() = comportement indéfini",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 155,
+   "what": "exception",
+   "consequence": "std::runtime_error depuis les constructeurs (ResourceManager x6, VulkanContext x5, VulkanSwapchain x4, ShaderModule x2) : attrapées par l'éditeur (App.cpp:330, EditorApp.cpp:67-72) ; pour le jeu autonome, aucun catch trouvé sous engine/src",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/Pipelines.cpp",
+   "line": 200,
+   "what": "exception",
+   "consequence": "levée pendant render() (reload) -> traverse Frame::~Frame (Engine.cpp:23, noexcept implicite) -> std::terminate ; même chose pour vkQueueSubmit2 (Renderer.cpp:525) et vkAcquireNextImageKHR (VulkanSwapchain.cpp:236)",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.cpp",
+   "line": 57,
+   "what": "silencieux",
+   "consequence": "erreur HLSL écrite sur std::cerr uniquement ; l'éditeur n'affiche rien",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 119,
+   "what": "silencieux",
+   "consequence": "transparence non supportée : std::cerr, fenêtre opaque",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Device/ShaderCompiler.cpp",
+   "line": 114,
+   "what": "silencieux",
+   "consequence": "dxcompiler absent : std::cerr une fois, hot reload désactivé (voulu)",
+   "zone": "A"
+  },
+  {
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 364,
+   "what": "VkResult ignoré (hors zone, contexte)",
+   "consequence": "vkResetCommandPool ; idem vkBeginCommandBuffer 478, vkEndCommandBuffer 501 (-> vkQueueSubmit2 lève ensuite), vkDeviceWaitIdle 142/579/600, vmaCreateBuffer 128 (dump sauté sans message)",
+   "zone": "A"
+  }
+ ],
+ "doc": [
+  {
+   "doc": "engine/docs/vulkan.md",
+   "doc_line": 70,
+   "claim": "VulkanContext::init() fait, dans l'ordre",
+   "reality": "pas de init() : tout est dans le constructeur",
+   "file": "engine/src/Engine/Renderer/Device/VulkanContext.cpp",
+   "line": 25,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan.md",
+   "doc_line": 234,
+   "claim": "set bindless construit dans init()",
+   "reality": "constructeur de ResourceManager",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 126,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan.md",
+   "doc_line": 238,
+   "claim": "binding 1 : un tableau de sampled images",
+   "reality": "binding 1 = shadow sampler, binding 2 = textures",
+   "file": "engine/src/Engine/Shaders/ShaderInterop.h",
+   "line": 93,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan.md",
+   "doc_line": 245,
+   "claim": "createTexture2D() ... renvoie ce bindlessIndex",
+   "reality": "createImage2D + textureIndex()",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 48,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan.md",
+   "doc_line": 266,
+   "claim": "requestUploadOwned rend un span",
+   "reality": "requestUpload",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 65,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan.md",
+   "doc_line": 270,
+   "claim": "recyclé par beginFrame(i)",
+   "reality": "beginFrame() sans argument, slot lu dans ctx_.frameIndex_",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+   "line": 76,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan.md",
+   "doc_line": 298,
+   "claim": "frameIndex_ est publié en DÉBUT de frame CPU exprès",
+   "reality": "avancé dans VulkanSwapchain::present, en fin de frame ; beginFrame ne le touche pas",
+   "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+   "line": 264,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan-changements.md",
+   "doc_line": 25,
+   "claim": "forwarders vers Renderer/Vulkan/ — les 40+ appelants",
+   "reality": "Renderer/Device/ ; 7 includeurs du shim",
+   "file": "engine/src/Engine/Renderer/ResourceManager.h",
+   "line": 3,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan-changements.md",
+   "doc_line": 28,
+   "claim": "ResourceFormatWrapper.h garde les valeurs DXGI, table VulkanFormats.h",
+   "reality": "ResourceFormat.h, valeurs séquentielles ; table dans Device/Formats.h",
+   "file": "engine/src/Engine/Renderer/ResourceFormat.h",
+   "line": 8,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan-changements.md",
+   "doc_line": 37,
+   "claim": "VulkanResources.{h,cpp}, VulkanPipelines, VulkanScenePasses, VulkanShaderCompiler",
+   "reality": "aucun de ces fichiers n'existe : ResourceManager, Pipelines, SceneFrame (Scene/), ShaderCompiler",
+   "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+   "line": 1,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/raytracing.md",
+   "doc_line": 425,
+   "claim": "déclarer ces variantes dans ShaderCatalog.h",
+   "reality": "ShaderLibrary.h, kShaders",
+   "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.h",
+   "line": 69,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/engine.md",
+   "doc_line": 44,
+   "claim": "Renderer::beginFrame() : wait frame fence · ResourceManager::beginFrame() · ImGui::NewFrame()",
+   "reality": "exact",
+   "file": "engine/src/Engine/Renderer/Renderer.cpp",
+   "line": 335,
+   "zone": "A"
+  },
+  {
+   "doc": "engine/docs/vulkan.md",
+   "doc_line": 311,
+   "claim": "ShaderLibrary : mtime des .hlsl du dossier source -> recompile -> rebuild ; une erreur HLSL garde les pipelines courantes",
+   "reality": "exact ; précision : tout fichier régulier du dossier compte (.hlsli, ShaderInterop.h), scan non récursif",
+   "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.cpp",
+   "line": 33,
+   "zone": "A"
+  }
+ ],
+ "data_paths": [
+  {
+   "item": "texture -> index bindless",
+   "hops": [
+    {
+     "struct": "AssetLoader (createImage2D + requestTextureUpload)",
+     "file": "engine/src/Engine/Assets/AssetLoader.cpp",
+     "line": 257
+    },
+    {
+     "struct": "ResourceManager::Image::textureIndex (allocTextureIndex)",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+     "line": 473
+    },
+    {
+     "struct": "VkWriteDescriptorSet sur textureSet_ (TexturesBinding)",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+     "line": 487
+    }
+   ],
+   "copies_without_transform": 0,
+   "recomputed": [],
+   "zone": "A"
+  },
+  {
+   "item": "octets d'upload (CPU -> GPU)",
+   "hops": [
+    {
+     "struct": "span du ring mappé rendu à l'appelant (requestUpload)",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+     "line": 567
+    },
+    {
+     "struct": "vkCmdCopyBuffer dans flushUploads",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+     "line": 631
+    }
+   ],
+   "copies_without_transform": 0,
+   "recomputed": [],
+   "zone": "A"
+  },
+  {
+   "item": "slot de frame en vol",
+   "hops": [
+    {
+     "struct": "VulkanSwapchain::present écrit ctx_.frameIndex_",
+     "file": "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+     "line": 264
+    },
+    {
+     "struct": "ResourceManager::currentFrame",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+     "line": 804
+    },
+    {
+     "struct": "Renderer::render 'frame' passé à SceneFrame et aux drawers",
+     "file": "engine/src/Engine/Renderer/Renderer.cpp",
+     "line": 356
+    }
+   ],
+   "copies_without_transform": 0,
+   "recomputed": [],
+   "zone": "A"
+  },
+  {
+   "item": "format -> aspect (depth ou couleur)",
+   "hops": [
+    {
+     "struct": "ResourceFormat (asset / feature)",
+     "file": "engine/src/Engine/Renderer/ResourceFormat.h",
+     "line": 8
+    },
+    {
+     "struct": "toVkFormat -> ResourceManager::Image::format",
+     "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+     "line": 434
+    },
+    {
+     "struct": "isDepthFormat au moment de l'usage",
+     "file": "engine/src/Engine/Renderer/Graph/RenderGraph.cpp",
+     "line": 234
+    }
+   ],
+   "copies_without_transform": 0,
+   "recomputed": [
+    {
+     "what": "l'aspect d'une image du graphe est recalculé depuis le format à la création (Renderer.cpp:52) et à nouveau dans RenderGraph.cpp:264 ; ResourceManager le calcule aussi (439) sans le stocker dans Image",
+     "file1": "engine/src/Engine/Renderer/Renderer.cpp",
+     "line1": 52,
+     "file2": "engine/src/Engine/Renderer/Graph/RenderGraph.cpp",
+     "line2": 264
+    }
+   ],
+   "zone": "A"
+  }
+ ],
+ "frontier": [],
+ "cross": [
+  "Renderer.h lu en entier et Renderer.cpp 150-340 (beginFrame, retireTargets, ensureSceneImage) pour l'ordre waitFrame -> ResourceManager::beginFrame et le resize.",
+  "Engine.cpp 20-30 et 80-165 : ordre pump -> beginFrame -> ... -> endFrame -> render ; Frame::~Frame noexcept.",
+  "Scene/SceneFrame.cpp 30-110, Draws/MeshDrawer.cpp 1-45, Features/Shadows/Shadows.cpp 40-80 : flux du hot reload et motif destroy+build des pipelines.",
+  "Platform/Win32/Win32Window.cpp (grep) : WM_SIZE -> Renderer::resize ; commentaire 500-501 sur le resize au milieu de la frame.",
+  "Graph/RenderGraph.h 57-61 et RenderGraph.cpp (grep) : GraphImageDesc en VkFormat, usageInfo réutilisé par le graphe (1 seule table).",
+  "Shaders/ShaderInterop.h 85-100 : BindlessBinding.",
+  "engine/src/Engine/CmakeLists.txt 125-230 : règle dxc, liste des shaders, BATAP_ROOT_DIR, BATAP_DXC_LIB_DIR.",
+  "Assets/Texture.h, Utils/GPUArena.h, Instance/InstanceManager.h (grep) : usage inline du ResourceManager pour le critère 2.",
+  "docs/vulkan.md, vulkan-changements.md, raytracing.md, engine.md : identifiants cités.",
+  "grep sur tout engine/src pour vkCreate*/vkDestroy*/vma*, vkDestroyPipeline, volk.h, frameIndex_, vkDeviceWaitIdle, ResourceFormat::, catch."
+ ],
+ "notes": [
+  {
+   "zone": "A",
+   "text": "Réponses directes aux questions. (1) Propriété : ResourceManager possède tout buffer/image derrière un GPUResourceHandle ; DestroyQueue x3 indexée par ctx_.frameIndex_, drainée dans beginFrame après waitFrame : retard = FramesInFlight (3) frames quand la demande est faite entre beginFrame et render ; StagingRing 64 MiB x 3, plein -> buffer dédié (oversizeStaging_) rendu à la file du slot après enregistrement ; uploads partiels : requestPartialUpload existe mais n'est appelé que par requestUpload ; tous les chemins du ResourceManager sont différés (destroyNow seulement dans beginFrame et le destructeur) ; les destructions immédiates sont ailleurs : vues/sémaphores de swapchain après idle, dumpBuffer_ après idle (Renderer.cpp:168), 30 vkDestroyPipeline après idle, AS (hors zone). (2) 3 frames en vol ; fence par slot attendue dans waitFrame (idempotent, appelé par Renderer::beginFrame puis acquire), signalée par le dernier vkQueueSubmit2 (Renderer.cpp:524) ; sémaphore d'acquisition par slot, de rendu par image ; ctx_.frameIndex_ = slot, imageIndex de la swapchain indépendant ; present avance le slot. Resize mid-frame sûr : recreate fait vkDeviceWaitIdle avant tout, Renderer::resize ne fait ensuite que des requestDestroy différés ; une frame OutOfDate ne réattend pas la fence (frameWaited_) et ne consomme pas de slot. Minimisée : resize(0,0) -> idle chaque frame tant qu'acquire rend OutOfDate, et les resizeCallbacks sont rappelés avec l'ancien extent (Renderer.cpp:537-540). (3) VkPipeline : créés par build(), possédés par 8 structs hors Device, 30 vkDestroyPipeline, voir A1. (4) Reload : déclenché par Renderer::render toutes les 30 frames, scan non récursif du dossier Shaders/ (mtime max de tous les fichiers réguliers : .hlsl, .hlsli, ShaderInterop.h), tout changement recompile les 20 shaders via dxc en mémoire ; un échec = message stderr + pipelines gardées + pas d'idle ; succès = vkDeviceWaitIdle, remplacement des 20 modules, puis chaque drawer détruit et reconstruit ses pipelines ; les .hlsli sont suivis par le mtime global, pas par dépendance. (5) 15 VkResult ignorés, voir A3 et errors. (6) Formats : 1 enum ResourceFormat (16) + VkFormat, 4 fonctions (toVkFormat, isDepthFormat, toVkIndexType, bytesPerPixel), pas d'inverse ; Usage : 1 enum (11) + 1 fonction usageInfo, pas de doublon. (7) voir A4. (8) Tous les .h de Device/ incluent volk.h sauf ShaderCompiler.h et Memory.h (qui l'inclut aussi) : 7 sur 8. Formats.h, Usage.h, Pipelines.h, VulkanSwapchain.h, VulkanContext.h sont Vulkan par nature. ResourceManager.h : 12 types Vk distincts dans l'interface publique (13 méthodes sur 28), 15 dans le privé ; VK_DEFINE_HANDLE(VmaAllocator) ligne 17 dépend aussi de volk. Une version sans volk demanderait de retirer ou déplacer 13 méthodes : pas rentable ; la coupe utile est dans Renderer.h et Texture.h (A7). (9) voir scenario. Subtilité non documentée : une requête d'upload faite hors fenêtre de frame (avant la première frame, createDefaultAssets) va dans le ring du slot courant sans rembobinage, c'est correct (713-716) mais le ring n'est pas réutilisé tant que des requêtes attendent."
+  }
+ ],
+ "files_read": [
+  "engine/src/Engine/Renderer/Device/ResourceManager.h",
+  "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+  "engine/src/Engine/Renderer/Device/VulkanContext.h",
+  "engine/src/Engine/Renderer/Device/VulkanContext.cpp",
+  "engine/src/Engine/Renderer/Device/VulkanSwapchain.h",
+  "engine/src/Engine/Renderer/Device/VulkanSwapchain.cpp",
+  "engine/src/Engine/Renderer/Device/Pipelines.h",
+  "engine/src/Engine/Renderer/Device/Pipelines.cpp",
+  "engine/src/Engine/Renderer/Device/ShaderLibrary.h",
+  "engine/src/Engine/Renderer/Device/ShaderLibrary.cpp",
+  "engine/src/Engine/Renderer/Device/ShaderCompiler.h",
+  "engine/src/Engine/Renderer/Device/ShaderCompiler.cpp",
+  "engine/src/Engine/Renderer/Device/Formats.h",
+  "engine/src/Engine/Renderer/Device/Usage.h",
+  "engine/src/Engine/Renderer/Device/Memory.h",
+  "engine/src/Engine/Renderer/Device/GameVulkan.cpp",
+  "engine/src/Engine/Renderer/ResourceManager.h",
+  "engine/src/Engine/Renderer/ResourceFormat.h",
+  "engine/src/Engine/Renderer/EngineConfig.h",
+  "engine/src/Engine/Renderer/Renderer.cpp (1-613, en entier)",
+  "engine/src/Engine/Renderer/Renderer.h",
+  "engine/src/Engine/GameModule.h",
+  "engine/src/Engine/Handles.h"
+ ],
+ "scenario": {
+  "postprocess": [
+   {
+    "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.h",
+    "why": "une valeur dans enum ShaderId (avant ShaderCount) + une ligne dans kShaders",
+    "lines_estimate": 2,
+    "zone": "A"
+   },
+   {
+    "file": "engine/src/Engine/CmakeLists.txt",
+    "why": "batap_compile_shader(NewPS.hlsl NewPS.spv ps_6_6) + le chemin .spv dans DEPENDS de Batap_Shaders (A5)",
+    "lines_estimate": 2,
+    "zone": "A"
+   },
+   {
+    "file": "engine/src/Engine/Renderer/Device/Pipelines.h",
+    "why": "rien : GraphicsPipelineBuilder couvre déjà un fullscreen sans vertex input (FullscreenDrawers.cpp:22-31) ; l'image intermédiaire est une transitoire du graphe (VkFormat) ; les barrières ColorAttachment/ShaderRead existent dans Usage",
+    "lines_estimate": 0,
+    "zone": "A"
+   }
+  ],
+  "shadows_rt_feature": [
+   {
+    "file": "engine/src/Engine/Renderer/Device/ShaderLibrary.h",
+    "why": "variante RT : ligne kShaders avec rayTracing_ = true (compilée seulement si rtSupported_)",
+    "lines_estimate": 2,
+    "zone": "A"
+   },
+   {
+    "file": "engine/src/Engine/CmakeLists.txt",
+    "why": "ligne de compilation avec -D BATAP_RT=1 + DEPENDS",
+    "lines_estimate": 2,
+    "zone": "A"
+   },
+   {
+    "file": "engine/src/Engine/Renderer/Device/ResourceManager.cpp",
+    "why": "seulement si un nouveau sampler (ex. comparaison PCF différente) : bindings[3] -> [4], poolSizes, bindingFlags (175-226) + une valeur dans BindlessBinding (ShaderInterop.h:91)",
+    "lines_estimate": 15,
+    "zone": "A"
+   },
+   {
+    "file": "engine/src/Engine/Renderer/Device/Usage.h",
+    "why": "seulement si une écriture storage hors fragment : ShaderWrite est FRAGMENT_SHADER_BIT uniquement (63) ; une passe compute demanderait une valeur Usage + un builder compute qui n'existe pas (Pipelines.h ne fait que graphics)",
+    "lines_estimate": 5,
+    "zone": "A"
+   },
+   {
+    "file": "engine/src/Engine/Renderer/Device/ResourceManager.h",
+    "why": "rien pour les buffers AS/scratch/mappés : createAccelerationStructureBuffer, createScratchBuffer, createMappedBuffer existent (40-46)",
+    "lines_estimate": 0,
+    "zone": "A"
+   }
+  ]
+ }
+}
