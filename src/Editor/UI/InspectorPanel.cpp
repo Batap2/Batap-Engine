@@ -2,7 +2,6 @@
 
 #include "UI/FieldUI.h"
 
-#include <algorithm>
 #include <array>
 
 #include "App.h"
@@ -25,13 +24,16 @@
 #include "UI/Field.h"
 #include "UI/IconsMaterialDesign.h"
 #include "UI/Scoped.h"
+#include "UI/UITheme.h"
 #include "World.h"
 
 #include <imgui.h>
 #include <Eigen/Geometry>
 #include <cctype>
 #include <cmath>
+#include <cstddef>
 #include <numbers>
+#include <type_traits>
 
 namespace batap
 {
@@ -71,17 +73,7 @@ std::string prettyLabel(const std::string& name)
     return out;
 }
 
-// One slot per submesh, and a mesh with no submesh still draws one.
-uint8_t materialSlotCount(EntityHandle ent, App& app)
-{
-    auto* meshC = ent.try_get<Mesh_C>();
-    if (!meshC || !meshC->mesh_)
-        return 1;
-    auto* mesh = app.ctx_->assetManager_->get(meshC->mesh_);
-    if (!mesh)
-        return 1;
-    return std::max<uint8_t>(mesh->subMeshCount, 1);
-}
+constexpr size_t kMaxMaterialSlots = std::extent_v<decltype(StaticMeshGPUData::materialIndices_)>;
 }  // namespace
 
 void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
@@ -275,14 +267,15 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
     if (!mc)
         return;
 
-    const uint8_t slotCount = materialSlotCount(ent, app);
-    const std::string summary = std::to_string(slotCount) + (slotCount > 1 ? " slots" : " slot");
+    const size_t slotCount = mc->slots.size();
+    const std::string summary = std::to_string(slotCount) + (slotCount == 1 ? " slot" : " slots");
 
     ui::ComponentSection section("Materials", ComponentColor::Yellow, true, summary.c_str());
     if (section)
     {
+        size_t removed = slotCount;
         if (auto fields = ui::BeginFields("materials"))
-            for (uint8_t i = 0; i < slotCount; ++i)
+            for (size_t i = 0; i < slotCount; ++i)
             {
                 const std::string label = "Slot " + std::to_string(i);
                 ui::Field(label.c_str(),
@@ -293,18 +286,37 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                               const ImGuiStyle& style = ImGui::GetStyle();
                               const float editW =
                                   ImGui::CalcTextSize("Edit").x + style.FramePadding.x * 2.f;
-                              const float rowW =
-                                  ImGui::GetContentRegionAvail().x - editW - style.ItemSpacing.x;
+                              const float removeW = ImGui::GetFrameHeight();
+                              const float rowW = ImGui::GetContentRegionAvail().x - editW -
+                                                 removeW - style.ItemSpacing.x * 2.f;
                               if (ui::AssetRow(AssetType::Material, name, rowW))
-                                  assetPicker_.open(ent, AssetType::Material, app.projectDir_, i);
+                                  assetPicker_.open(ent, AssetType::Material, app.projectDir_,
+                                                    static_cast<uint8_t>(i));
 
                               ImGui::SameLine();
                               ImGui::BeginDisabled(!mc->slots[i]);
                               if (ImGui::Button("Edit"))
                                   app.uiPanels_.openMaterialEditor(mc->slots[i]);
                               ImGui::EndDisabled();
+
+                              ImGui::SameLine();
+                              ui::ScopedColor danger{{ImGuiCol_Button, ui::transparent},
+                                                     {ImGuiCol_ButtonHovered, ui::red}};
+                              if (ui::IconButton(ICON_MD_CLOSE, removeW))
+                                  removed = i;
                           });
             }
+
+        ImGui::BeginDisabled(slotCount >= kMaxMaterialSlots);
+        if (ui::AddButton(ICON_MD_ADD "  Add slot"))
+            mc->slots.emplace_back();
+        ImGui::EndDisabled();
+
+        if (removed < slotCount)
+        {
+            mc->slots.erase(mc->slots.begin() + static_cast<std::ptrdiff_t>(removed));
+            app.world_->instances().markDirty<Materials_C>(ent);
+        }
     }
 
     if (section.removeClicked())

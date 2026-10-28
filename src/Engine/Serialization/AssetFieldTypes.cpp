@@ -11,11 +11,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
-#include <array>
-#include <cstddef>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace batap
 {
@@ -60,32 +58,30 @@ void setAssetHandle(const char* typeName)
     { *static_cast<AssetHandle<A>*>(f) = handleFromJson<A>(in, io.engine_); };
 }
 
-// Fixed-size slot array (Materials_C). Always writes N entries, null for the
-// empty ones, so a slot's index survives the round trip.
-template <class A, std::size_t N>
-void setAssetHandleArray(const char* typeName)
+template <class A>
+void setAssetHandleList(const char* typeName)
 {
-    using Arr = std::array<AssetHandle<A>, N>;
-    auto& slot = fieldTypeSlot<Arr>();
+    using List = std::vector<AssetHandle<A>>;
+    auto& slot = fieldTypeSlot<List>();
     slot.typeName = typeName;
 
     slot.toJson = [](const void* f, nlohmann::json& out, const FieldIO& io)
     {
-        const auto& arr = *static_cast<const Arr*>(f);
         out = nlohmann::json::array();
-        for (const auto& h : arr)
+        for (const auto& h : *static_cast<const List*>(f))
             out.push_back(handleToJson<A>(h, io.engine_));
     };
 
     slot.fromJson = [](void* f, const nlohmann::json& in, const FieldIO& io)
     {
-        auto& arr = *static_cast<Arr*>(f);
-        arr = {};
+        auto& list = *static_cast<List*>(f);
+        list.clear();
         if (!in.is_array())
             return;
-        const std::size_t n = std::min(N, in.size());
-        for (std::size_t i = 0; i < n; ++i)
-            arr[i] = handleFromJson<A>(in[i], io.engine_);
+        for (const auto& j : in)
+            list.push_back(handleFromJson<A>(j, io.engine_));
+        while (!list.empty() && !list.back())
+            list.pop_back();
     };
 }
 }  // namespace
@@ -96,7 +92,7 @@ void registerAssetFieldTypes()
     setAssetHandle<Texture>("TextureHandle");
     setAssetHandle<Material>("MaterialHandle");
 
-    setAssetHandleArray<Material, 8>("MaterialHandle[8]");
+    setAssetHandleList<Material>("MaterialHandle[]");
 }
 
 }  // namespace batap

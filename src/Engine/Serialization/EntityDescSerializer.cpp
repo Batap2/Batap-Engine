@@ -30,8 +30,6 @@ nlohmann::json toJson(const MeshDesc& d)
     return {{"mesh", d.path.empty() ? nlohmann::json(nullptr) : nlohmann::json(d.path)}};
 }
 
-// Keys mirror Materials_C. The slot array is always written full-length,
-// null-padded, so a slot's index survives the round trip.
 nlohmann::json toJson(const MaterialsDesc& d)
 {
     nlohmann::json arr = nlohmann::json::array();

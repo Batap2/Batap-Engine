@@ -425,8 +425,8 @@ static void processNode(const aiNode* node, const aiScene* scene, const fs::path
         for (uint32_t i = 0; i < matCount; ++i)
         {
             const aiMesh* m = scene->mMeshes[node->mMeshes[i]];
-            matDesc.paths[i] =
-                getOrWriteMaterial(m->mMaterialIndex, scene, subDir, baseDir, sourceDir, caches);
+            matDesc.paths.push_back(
+                getOrWriteMaterial(m->mMaterialIndex, scene, subDir, baseDir, sourceDir, caches));
         }
         desc.components.push_back(matDesc);
     }

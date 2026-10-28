@@ -3,7 +3,6 @@
 #include "Components/Transform_C.h"
 #include "EigenTypes.h"
 
-#include <array>
 #include <string>
 #include <variant>
 #include <vector>
@@ -33,7 +32,7 @@ struct MeshDesc
 
 struct MaterialsDesc
 {
-    std::array<std::string, 8> paths{};
+    std::vector<std::string> paths;
 };
 
 using ComponentDesc = std::variant<Transform_C, MeshDesc, MaterialsDesc>;
