@@ -37,6 +37,8 @@ enum RayTracingSetBinding : uint
     RtCacheKeysBinding = 3,
     RtCacheValuesBinding = 4,
     RtCacheStatsBinding = 5,
+    RtCacheWorkBinding = 6,
+    RtCacheProbesBinding = 7,
 };
 
 static const uint TlasMaskShadowCaster = 1u;
@@ -80,6 +82,30 @@ static const uint RtCacheStatTailMiss = 4u;
 static const uint RtCacheStatCount = 5u;
 static const float GiCellBase = 0.15f;
 
+static const uint RtCacheListCapacity = 1u << 16;
+static const uint RtCacheTraceWidth = 256u;
+static const uint RtCacheCandidateBits = 19u;
+static const uint RtCacheCandidateCapacity = 1u << RtCacheCandidateBits;
+static const uint RtCacheCandidateWords = 6u;
+static const uint RtCacheWorkCount = 0u;
+static const uint RtCacheWorkList = 1u;
+static const uint RtCacheWorkCandidates = RtCacheWorkList + RtCacheListCapacity;
+static const uint RtCacheWorkWords =
+    RtCacheWorkCandidates + RtCacheCandidateCapacity * RtCacheCandidateWords;
+
+static const uint RtProbeBest = 0u;
+static const uint RtProbeDirection = 1u;
+static const uint RtProbeOrigin = 2u;
+static const uint RtProbeCamera = 5u;
+static const uint RtProbeRadiance = 8u;
+static const uint RtProbeChange = 9u;
+static const uint RtProbeState = 10u;
+static const uint RtProbeBorn = 11u;
+static const uint RtProbeWords = 12u;
+static const uint RtProbeNone = 0u;
+static const uint RtProbeFresh = 1u;
+static const uint RtProbeArmed = 2u;
+
 struct RtCacheValueGPUData
 {
     float irradiance_[3];
@@ -87,7 +113,7 @@ struct RtCacheValueGPUData
     uint sum_[3];
     uint count_;
     float filtered_[3];
-    float pad_;
+    uint vote_;
 };
 
 enum BindlessBinding : uint
@@ -298,9 +324,13 @@ struct FrameGPUData
     float giDt_;
     uint giBounces_;
     uint giPasses_;
+    uint giPerCell_;
     uint hdrTexture_;
     uint tonemap_;
     float exposure_;
+    uint pad0_;
+    uint pad1_;
+    uint pad2_;
 };
 
 struct SphereOccluderGPUData
@@ -394,7 +424,7 @@ static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(DrawPush) == 32);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 48);
+static_assert(sizeof(FrameGPUData) == 64);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);
@@ -408,6 +438,7 @@ static_assert(sizeof(RtGeometryGPUData) == 32);
 static_assert(sizeof(RtInstanceGPUData) == 16);
 static_assert(sizeof(RtCacheValueGPUData) == 48);
 static_assert(RtCacheCapacity % RtCacheResolveWidth == 0);
+static_assert(RtCacheTraceWidth * RtCacheTraceWidth == RtCacheListCapacity);
 
 // dxc lays a structured buffer out as std430: the array stride is the struct
 // size rounded up to 16. A C++ struct that is not a multiple of 16 therefore

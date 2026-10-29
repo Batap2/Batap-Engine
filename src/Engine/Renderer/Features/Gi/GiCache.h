@@ -23,6 +23,8 @@ struct GiCache
         GraphBuffer keys_;
         GraphBuffer values_;
         GraphBuffer stats_;
+        GraphBuffer work_;
+        GraphBuffer probes_;
     };
 
     struct Stats
@@ -40,12 +42,16 @@ struct GiCache
     GPUResourceHandle keys() const { return keys_; }
     GPUResourceHandle values() const { return values_; }
     GPUResourceHandle stats() const { return stats_; }
+    GPUResourceHandle work() const { return work_; }
+    GPUResourceHandle probes() const { return probes_; }
 
    private:
     ResourceManager& resources_;
     GPUResourceHandle keys_;
     GPUResourceHandle values_;
     GPUResourceHandle stats_;
+    GPUResourceHandle work_;
+    GPUResourceHandle probes_;
     std::array<GPUResourceHandle, FramesInFlight> readback_;
     bool clear_ = true;
 };

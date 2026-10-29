@@ -39,6 +39,7 @@ struct EngineSettings
     bool rayTracing_ = true;
     uint32_t giBounces_ = 2;
     uint32_t giPasses_ = 2;
+    bool giPerCell_ = false;
     std::string tonemap_ = "agx";
 };
 
@@ -105,6 +106,7 @@ struct Engine
     void setRayTracing(bool on) { settings_.rayTracing_ = on; }
     void setGiBounces(uint32_t bounces) { settings_.giBounces_ = bounces; }
     void setGiPasses(uint32_t passes) { settings_.giPasses_ = passes; }
+    void setGiPerCell(bool on) { settings_.giPerCell_ = on; }
     void setTonemap(std::string key) { settings_.tonemap_ = std::move(key); }
     bool rtSupported() const;
 

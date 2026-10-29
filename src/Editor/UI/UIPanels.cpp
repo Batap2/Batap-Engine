@@ -195,7 +195,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
                            static_cast<int>(ctx.settings().maxFps_),
                            static_cast<int>(ctx.settings().giBounces_),
                            static_cast<int>(ctx.settings().giPasses_),
-                           ctx.settings().tonemap_};
+                           ctx.settings().tonemap_,
+                           ctx.settings().giPerCell_};
 
         WindowDesc game;
         EngineSettings gameRender;
@@ -212,7 +213,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
                          static_cast<int>(gameRender.maxFps_),
                          static_cast<int>(gameRender.giBounces_),
                          static_cast<int>(gameRender.giPasses_),
-                         gameRender.tonemap_};
+                         gameRender.tonemap_,
+                         gameRender.giPerCell_};
     }
 
     const auto screenLabel = [&](int screen)
@@ -309,6 +311,8 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
             s.giPasses = std::clamp(s.giPasses, 1, 8);
             change = Render;
         }
+        if (ImGui::Checkbox("GI traced per cell (POC)", &s.giPerCell))
+            change = Render;
         ImGui::EndDisabled();
         ImGui::PopID();
         ImGui::Unindent();
@@ -322,6 +326,7 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         render.maxFps_ = static_cast<uint32_t>(s.maxFps);
         render.giBounces_ = static_cast<uint32_t>(s.giBounces);
         render.giPasses_ = static_cast<uint32_t>(s.giPasses);
+        render.giPerCell_ = s.giPerCell;
         render.tonemap_ = s.tonemap;
         return render;
     };
@@ -335,6 +340,7 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
         ctx.setMaxFps(render.maxFps_);
         ctx.setGiBounces(render.giBounces_);
         ctx.setGiPasses(render.giPasses_);
+        ctx.setGiPerCell(render.giPerCell_);
         ctx.setTonemap(render.tonemap_);
     }
     else if (editorChange != None)

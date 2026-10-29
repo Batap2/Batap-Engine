@@ -52,6 +52,7 @@ struct UIPanels
         int giBounces = 2;
         int giPasses = 2;
         std::string tonemap = "agx";
+        bool giPerCell = false;
     };
     AppSettings editorSettings_;
     AppSettings gameSettings_;

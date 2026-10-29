@@ -21,6 +21,10 @@ GiCache::GiCache(ResourceManager& resources) : resources_(resources)
     values_ = resources_.createStaticBuffer(uint64_t{RtCacheCapacity} * sizeof(RtCacheValueGPUData),
                                             "gi cache values");
     stats_ = resources_.createStaticBuffer(kStatsBytes, "gi cache stats");
+    work_ = resources_.createStaticBuffer(uint64_t{RtCacheWorkWords} * sizeof(uint32_t),
+                                          "gi cache work");
+    probes_ = resources_.createStaticBuffer(
+        uint64_t{RtCacheCapacity} * RtProbeWords * sizeof(uint32_t), "gi cache probes");
     for (GPUResourceHandle& readback : readback_)
         readback = resources_.createMappedBuffer(kStatsBytes, std::nullopt);
 }
@@ -34,23 +38,35 @@ GiCache::Buffers GiCache::addPasses(RenderGraph& graph)
                                          Usage::ShaderRead);
     buffers.stats_ = graph.importBuffer("gi cache stats", resources_, stats_, Usage::TransferSrc,
                                         Usage::TransferSrc);
+    buffers.probes_ = graph.importBuffer("gi cache probes", resources_, probes_, Usage::ShaderRead,
+                                         Usage::ShaderRead);
     if (clear_)
     {
         graph.addPass("gi cache clear")
             .write(buffers.keys_, Usage::TransferDst)
             .write(buffers.values_, Usage::TransferDst)
+            .write(buffers.probes_, Usage::TransferDst)
             .execute(
-                [keys = buffers.keys_, values = buffers.values_](GraphContext& c)
+                [keys = buffers.keys_, values = buffers.values_,
+                 probes = buffers.probes_](GraphContext& c)
                 {
                     vkCmdFillBuffer(c.cmd(), c.buffer(keys), 0, VK_WHOLE_SIZE, 0u);
                     vkCmdFillBuffer(c.cmd(), c.buffer(values), 0, VK_WHOLE_SIZE, 0u);
+                    vkCmdFillBuffer(c.cmd(), c.buffer(probes), 0, VK_WHOLE_SIZE, 0u);
                 });
         clear_ = false;
     }
+    buffers.work_ = graph.importBuffer("gi cache work", resources_, work_, Usage::ShaderRead,
+                                       Usage::ShaderRead);
     graph.addPass("gi cache stats reset")
         .write(buffers.stats_, Usage::TransferDst)
-        .execute([stats = buffers.stats_](GraphContext& c)
-                 { vkCmdFillBuffer(c.cmd(), c.buffer(stats), 0, VK_WHOLE_SIZE, 0u); });
+        .write(buffers.work_, Usage::TransferDst)
+        .execute(
+            [stats = buffers.stats_, work = buffers.work_](GraphContext& c)
+            {
+                vkCmdFillBuffer(c.cmd(), c.buffer(stats), 0, VK_WHOLE_SIZE, 0u);
+                vkCmdFillBuffer(c.cmd(), c.buffer(work), 0, sizeof(uint32_t), 0u);
+            });
     return buffers;
 }
 

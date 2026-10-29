@@ -85,6 +85,7 @@ void readRender(const nlohmann::json& config, EngineSettings& io)
     io.maxFps_ = it->value("maxFps", io.maxFps_);
     io.giBounces_ = it->value("giBounces", io.giBounces_);
     io.giPasses_ = it->value("giPasses", io.giPasses_);
+    io.giPerCell_ = it->value("giPerCell", io.giPerCell_);
     io.tonemap_ = it->value("tonemap", io.tonemap_);
 }
 
@@ -95,6 +96,7 @@ void writeRender(const std::filesystem::path& file, const EngineSettings& render
                   {"maxFps", render.maxFps_},
                   {"giBounces", render.giBounces_},
                   {"giPasses", render.giPasses_},
+                  {"giPerCell", render.giPerCell_},
                   {"tonemap", render.tonemap_}});
 }
 
