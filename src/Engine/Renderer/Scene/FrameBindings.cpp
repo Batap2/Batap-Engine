@@ -37,7 +37,7 @@ VkDescriptorSetLayout createFrameSetLayout(VkDevice device)
 
 VkDescriptorSetLayout createRayTracingSetLayout(VkDevice device)
 {
-    std::array<VkDescriptorSetLayoutBinding, 6> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, 8> bindings{};
     bindings[0].binding = TlasBinding;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
     bindings[1].binding = RtGeometriesBinding;
@@ -50,6 +50,10 @@ VkDescriptorSetLayout createRayTracingSetLayout(VkDevice device)
     bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     bindings[5].binding = RtCacheStatsBinding;
     bindings[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[6].binding = RtCacheWorkBinding;
+    bindings[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[7].binding = RtCacheProbesBinding;
+    bindings[7].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     for (VkDescriptorSetLayoutBinding& binding : bindings)
     {
         binding.descriptorCount = 1;
@@ -146,7 +150,7 @@ FrameBindings::FrameBindings(VulkanContext& ctx, ResourceManager& resources)
     rtSetLayout_ = createRayTracingSetLayout(device);
     const std::array<VkDescriptorPoolSize, 2> rtSizes{{
         {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, FramesInFlight},
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5 * FramesInFlight},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7 * FramesInFlight},
     }};
     rtPool_ = createPool(device, rtSizes);
     allocateSets(device, rtPool_, rtSetLayout_, rtSets_.data());
@@ -204,14 +208,14 @@ void FrameBindings::writeRayTracingSet(uint32_t frame, const AccelerationStructu
     tlasWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
     tlasWrite.accelerationStructureCount = 1;
     tlasWrite.pAccelerationStructures = &tlas;
-    std::array<VkWriteDescriptorSet, 6> writes{};
+    std::array<VkWriteDescriptorSet, 8> writes{};
     writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writes[0].pNext = &tlasWrite;
     writes[0].dstSet = set;
     writes[0].dstBinding = TlasBinding;
     writes[0].descriptorCount = 1;
     writes[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-    std::array<VkDescriptorBufferInfo, 5> bufferInfos{};
+    std::array<VkDescriptorBufferInfo, 7> bufferInfos{};
     writeStorageBuffer(writes[1], bufferInfos[0], set, RtGeometriesBinding,
                        resources_.bufferFor(structures.hitGeometries(frame)));
     writeStorageBuffer(writes[2], bufferInfos[1], set, RtInstancesBinding,
@@ -222,6 +226,10 @@ void FrameBindings::writeRayTracingSet(uint32_t frame, const AccelerationStructu
                        resources_.bufferFor(cache.values()));
     writeStorageBuffer(writes[5], bufferInfos[4], set, RtCacheStatsBinding,
                        resources_.bufferFor(cache.stats()));
+    writeStorageBuffer(writes[6], bufferInfos[5], set, RtCacheWorkBinding,
+                       resources_.bufferFor(cache.work()));
+    writeStorageBuffer(writes[7], bufferInfos[6], set, RtCacheProbesBinding,
+                       resources_.bufferFor(cache.probes()));
     vkUpdateDescriptorSets(ctx_.device_, static_cast<uint32_t>(writes.size()), writes.data(), 0,
                            nullptr);
 }

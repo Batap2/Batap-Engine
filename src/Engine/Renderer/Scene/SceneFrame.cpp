@@ -194,7 +194,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     frameData_.exposure_ =
         exposure_.update(frame, args.camera_, reg->get<Camera_C>(args.camera_), dt);
     giUpdate_.writeFrameData(frameData_, targets.extent_, dt, ctx.settings().giBounces_,
-                             ctx.settings().giPasses_);
+                             ctx.settings().giPasses_, ctx.settings().giPerCell_);
 
     const GraphImage hdr = graph.createImage("hdr", {targets.extent_, toVkFormat(HdrFormat)});
     const GraphImage depth = graph.createImage("depth", {targets.extent_, depthFormat_});
@@ -213,7 +213,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     if (rayTracing)
     {
         giUpdate_.addPasses(graph, as.tlas_, as.blases_, traced, gi, uploads, frameConstants, draw,
-                            frame, targets.extent_);
+                            frame, targets.extent_, ctx.settings().giPerCell_);
         giUpdate_.report(giCache_->addStatsPass(graph, gi, frame), args.showGiCache_);
     }
 

@@ -21,10 +21,10 @@ struct GiUpdate
 
     void buildPipelines(const ShaderModules& modules);
     void writeFrameData(FrameGPUData& data, VkExtent2D output, float dt, uint32_t bounces,
-                        uint32_t passes);
+                        uint32_t passes, bool perCell);
     void addPasses(RenderGraph& graph, GraphBuffer tlas, GraphBuffer blases, GraphBuffer traced,
                    const GiCache::Buffers& cache, GraphBuffer uploads, GraphBuffer frameConstants,
-                   const DrawContext& draw, uint32_t frame, VkExtent2D output);
+                   const DrawContext& draw, uint32_t frame, VkExtent2D output, bool perCell);
     void report(const GiCache::Stats& stats, bool show) const;
 
    private:
@@ -33,6 +33,8 @@ struct GiUpdate
     DrawSetup setup_;
     VkPipeline updatePipeline_ = VK_NULL_HANDLE;
     VkPipeline resolvePipeline_ = VK_NULL_HANDLE;
+    VkPipeline votePipeline_ = VK_NULL_HANDLE;
+    VkPipeline tracePipeline_ = VK_NULL_HANDLE;
     VkQueryPool queries_ = VK_NULL_HANDLE;
     std::array<bool, FramesInFlight> written_{};
     float gpuMs_ = -1.f;
