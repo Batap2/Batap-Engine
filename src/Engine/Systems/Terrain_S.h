@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <unordered_map>
 #include <vector>
 
@@ -68,6 +69,7 @@ struct Terrain_S
         ChunkKeySet shown_;
         std::vector<Wish> wishes_;
         TerrainColliders colliders_;
+        v3d publishedCamera_ = v3d::Constant(std::numeric_limits<double>::quiet_NaN());
         // For the debug view.
         TerrainGrid grid_;
         double ratio_ = 0.0;

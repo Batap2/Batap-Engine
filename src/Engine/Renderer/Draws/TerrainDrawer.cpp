@@ -1,10 +1,13 @@
 #include "Renderer/Draws/TerrainDrawer.h"
 
 #include "Flatten.h"
+#include "Renderer/Device/Formats.h"
 #include "Renderer/Device/Pipelines.h"
 #include "Renderer/Device/ResourceManager.h"
+#include "Renderer/Device/Usage.h"
 #include "Renderer/Device/VulkanContext.h"
 #include "Renderer/EngineConfig.h"
+#include "Renderer/ResourceFormat.h"
 #include "Renderer/TerrainDraws.h"
 
 #include <algorithm>
@@ -24,6 +27,7 @@ constexpr auto kChunkIndices = static_cast<uint64_t>(kChunkCells * kChunkCells *
 // A frame records the draws, the slot leaves the next one, and the frames in
 // flight between may still read it.
 constexpr uint64_t kRetireFrames = FramesInFlight + 1;
+constexpr uint32_t kMaxMorphRows = 16384;
 }  // namespace
 
 TerrainDrawer::TerrainDrawer(const DrawSetup& setup) : setup_(setup)
@@ -31,10 +35,14 @@ TerrainDrawer::TerrainDrawer(const DrawSetup& setup) : setup_(setup)
     chunks_ = setup_.resources_.createStaticBuffer(sizeof(TerrainChunkGPUData) * kMaxChunks);
     worlds_ = setup_.resources_.createPerFrameBuffer(sizeof(TerrainWorldGPUData) * kMaxChunks,
                                                      "terrain worlds");
+    morphRows_ = setup_.resources_.createPerFrameBuffer(
+        sizeof(TerrainMorphRowGPUData) * kMaxMorphRows, "terrain morph rows");
     vertices_.stride_ = sizeof(TerrainVertexGPUData);
     indices_.stride_ = sizeof(uint16_t);
+    traced_.stride_ = sizeof(float) * 3;
     reserve(vertices_, kInitialChunks * kChunkVertices);
     reserve(indices_, kInitialChunks * kChunkIndices);
+    reserve(traced_, kInitialChunks * kChunkVertices);
 }
 
 TerrainDrawer::~TerrainDrawer()
@@ -42,10 +50,13 @@ TerrainDrawer::~TerrainDrawer()
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, morphPipeline_, nullptr);
     setup_.resources_.requestDestroy(chunks_);
     setup_.resources_.requestDestroy(worlds_);
+    setup_.resources_.requestDestroy(morphRows_);
     setup_.resources_.requestDestroy(vertices_.buffer_);
     setup_.resources_.requestDestroy(indices_.buffer_);
+    setup_.resources_.requestDestroy(traced_.buffer_);
     for (const auto& [frame, buffer] : retiredBuffers_)
         setup_.resources_.requestDestroy(buffer);
 }
@@ -55,6 +66,7 @@ void TerrainDrawer::buildPipelines(const ShaderModules& modules)
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, morphPipeline_, nullptr);
 
     const auto build = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
     {
@@ -77,6 +89,11 @@ void TerrainDrawer::buildPipelines(const ShaderModules& modules)
                           .depthClamp()
                           .cullFront()
                           .build(setup_.ctx_.device_, setup_.layout_);
+
+    morphPipeline_ = GraphicsPipelineBuilder()
+                         .shaders(modules[SkyVS], modules[TerrainMorphPS])
+                         .colorFormat(VK_FORMAT_R8_UNORM)
+                         .build(setup_.ctx_.device_, setup_.layout_);
 }
 
 void TerrainDrawer::reserve(Pool& pool, uint64_t elements)
@@ -148,7 +165,7 @@ void TerrainDrawer::writeChunk(uint32_t instance, const Slot& slot,
     stagedBytes_ += sizeof(g);
 }
 
-void TerrainDrawer::upload(TerrainDraws& draws)
+void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
 {
     const auto start = std::chrono::steady_clock::now();
     stagedBytes_ = 0;
@@ -170,6 +187,7 @@ void TerrainDrawer::upload(TerrainDraws& draws)
                       const Slot& slot = retired.second;
                       vertices_.free_[slot.vertices_].push_back(slot.vertex_);
                       indices_.free_[slot.indices_].push_back(slot.index_);
+                      traced_.free_[slot.vertices_].push_back(slot.traced_);
                       freeInstances_.push_back(slot.instance_);
                       return true;
                   });
@@ -201,6 +219,7 @@ void TerrainDrawer::upload(TerrainDraws& draws)
     }
     reserve(vertices_, vertexNeed);
     reserve(indices_, indexNeed);
+    reserve(traced_, traced_.end_ + vertexNeed - vertices_.end_);
 
     for (auto& [id, mesh] : draws.added_)
     {
@@ -215,8 +234,10 @@ void TerrainDrawer::upload(TerrainDraws& draws)
         slot.indices_ = mesh.indices_.size();
         slot.ranges_ = mesh.ranges_;
         slot.shown_ = mesh.shown_;
+        slot.morphs_ = mesh.params_.morphs_;
         slot.vertex_ = allocate(vertices_, slot.vertices_);
         slot.index_ = allocate(indices_, slot.indices_);
+        slot.traced_ = allocate(traced_, slot.vertices_);
 
         const uint64_t vertexBytes = slot.vertices_ * vertices_.stride_;
         std::memcpy(
@@ -232,6 +253,7 @@ void TerrainDrawer::upload(TerrainDraws& draws)
         stagedBytes_ += vertexBytes + indexBytes;
         writeChunk(slot.instance_, slot, mesh.params_);
         slots_[id] = slot;
+        toMorph_.insert(id);
         drawsDirty_ = drawsDirty_ || slot.shown_;
     }
     draws.added_.clear();
@@ -248,6 +270,8 @@ void TerrainDrawer::upload(TerrainDraws& draws)
         writeChunk(*instance, slot, params);
         retiredInstances_.emplace_back(frame_, slot.instance_);
         slot.instance_ = *instance;
+        slot.morphs_ = params.morphs_;
+        toMorph_.insert(id);
         drawsDirty_ = drawsDirty_ || slot.shown_;
     }
     draws.paramChanges_.clear();
@@ -256,6 +280,8 @@ void TerrainDrawer::upload(TerrainDraws& draws)
         if (const auto it = slots_.find(id); it != slots_.end() && it->second.shown_ != shown)
         {
             it->second.shown_ = shown;
+            if (shown)
+                toMorph_.insert(id);
             drawsDirty_ = true;
         }
     draws.shownChanges_.clear();
@@ -272,6 +298,8 @@ void TerrainDrawer::upload(TerrainDraws& draws)
             flatten(gpu.centreOffset_,
                     (placement.centreInOwner_ - cells * double(GiCellBase)).cast<float>());
             gpu.owner_ = placement.owner_;
+            if (placement.moved_ && it->second.morphs_)
+                toMorph_.insert(id);
         }
     if (instanceEnd_ > 0)
     {
@@ -280,6 +308,7 @@ void TerrainDrawer::upload(TerrainDraws& draws)
                     bytes);
         stagedBytes_ += bytes;
     }
+    planMorphs(tracing);
 
     if (drawsDirty_)
     {
@@ -304,6 +333,77 @@ void TerrainDrawer::upload(TerrainDraws& draws)
         slots_.size(), stagedBytes_,
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
             .count()};
+}
+
+void TerrainDrawer::planMorphs(bool tracing)
+{
+    morphed_.clear();
+    morphRowData_.clear();
+    if (tracing && !tracing_)
+        for (const auto& [id, slot] : slots_)
+            toMorph_.insert(id);
+    tracing_ = tracing;
+    if (!tracing)
+    {
+        toMorph_.clear();
+        return;
+    }
+    for (auto it = toMorph_.begin(); it != toMorph_.end();)
+    {
+        const auto slot = slots_.find(*it);
+        if (slot == slots_.end())
+        {
+            it = toMorph_.erase(it);
+            continue;
+        }
+        if (!slot->second.shown_)
+        {
+            ++it;
+            continue;
+        }
+        const auto vertices = static_cast<uint32_t>(slot->second.vertices_);
+        const uint32_t rows = (vertices + TerrainMorphRowWidth - 1) / TerrainMorphRowWidth;
+        if (morphRowData_.size() + rows > kMaxMorphRows)
+            break;
+        for (uint32_t row = 0; row < rows; ++row)
+            morphRowData_.push_back({slot->second.instance_, row * TerrainMorphRowWidth, vertices,
+                                     static_cast<uint32_t>(slot->second.traced_)});
+        slot->second.tracedReady_ = true;
+        morphed_.push_back(*it);
+        it = toMorph_.erase(it);
+    }
+    if (morphRowData_.empty())
+        return;
+    const uint64_t bytes = sizeof(TerrainMorphRowGPUData) * morphRowData_.size();
+    std::memcpy(setup_.resources_.requestUpload(morphRows_, bytes).data(), morphRowData_.data(),
+                bytes);
+    stagedBytes_ += bytes;
+}
+
+GraphBuffer TerrainDrawer::addMorphPass(RenderGraph& graph, const DrawContext& draw,
+                                        GraphBuffer uploads)
+{
+    const GraphBuffer traced = graph.importBuffer(
+        "terrain traced", setup_.resources_, traced_.buffer_, Usage::ShaderRead, Usage::ShaderRead);
+    if (morphRowData_.empty() || morphPipeline_ == VK_NULL_HANDLE)
+        return traced;
+    const GraphImage target =
+        graph.createImage("terrain morph target",
+                          {{TerrainMorphRowWidth, static_cast<uint32_t>(morphRowData_.size())},
+                           toVkFormat(ResourceFormat::R8_UNORM)});
+    graph.addPass("terrain morph")
+        .read(uploads, Usage::AnyRead)
+        .write(traced, Usage::ShaderWrite)
+        .color(target, Load::DontCare)
+        .execute(
+            [draw, pipeline = morphPipeline_](GraphContext& c)
+            {
+                const DrawContext bound = bindDraw(draw, c.cmd());
+                vkCmdBindPipeline(bound.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                pushDraw(bound, bound.push_);
+                vkCmdDraw(bound.cmd_, 3, 1, 0, 0);
+            });
+    return traced;
 }
 
 void TerrainDrawer::recordDraws(const DrawContext& draw, VkPipeline pipeline,

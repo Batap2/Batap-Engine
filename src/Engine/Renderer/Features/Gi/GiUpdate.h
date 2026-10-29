@@ -22,7 +22,7 @@ struct GiUpdate
     void buildPipelines(const ShaderModules& modules);
     void writeFrameData(FrameGPUData& data, VkExtent2D output, float dt, uint32_t bounces,
                         uint32_t passes);
-    void addPasses(RenderGraph& graph, GraphBuffer tlas, GraphBuffer blases,
+    void addPasses(RenderGraph& graph, GraphBuffer tlas, GraphBuffer blases, GraphBuffer traced,
                    const GiCache::Buffers& cache, GraphBuffer uploads, GraphBuffer frameConstants,
                    const DrawContext& draw, uint32_t frame, VkExtent2D output);
     void report(const GiCache::Stats& stats, bool show) const;

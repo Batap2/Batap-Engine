@@ -18,7 +18,7 @@ static const float ShadowRayOffsetPerMetre = 1e-5f;
 
 static const float ShadowRayFar = 1e30f;
 
-float TraceShadowRay(float3 P, float3 Nface, float3 L, float tMax)
+float TraceShadowRay(float3 P, float3 Nface, float3 L, float tMax, float frontOnlyUntil = 0.0f)
 {
     float push = ShadowRayOffset + ShadowRayOffsetPerMetre * length(P);
     RayDesc ray;
@@ -26,8 +26,17 @@ float TraceShadowRay(float3 P, float3 Nface, float3 L, float tMax)
     ray.Direction = L;
     ray.TMin = 0.0f;
     ray.TMax = tMax;
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE |
-             RAY_FLAG_CULL_BACK_FACING_TRIANGLES> query;
+    if (frontOnlyUntil > 0.0f && dot(Nface, L) < 0.0f)
+    {
+        RayQuery<RAY_FLAG_FORCE_NON_OPAQUE> filtered;
+        filtered.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster, ray);
+        while (filtered.Proceed())
+            if (filtered.CandidateTriangleFrontFace() ||
+                filtered.CandidateTriangleRayT() > frontOnlyUntil)
+                return 0.0f;
+        return 1.0f;
+    }
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE> query;
     query.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster, ray);
     query.Proceed();
     return query.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 0.0f : 1.0f;

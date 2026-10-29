@@ -100,14 +100,16 @@ float3 F_Schlick(float HdotV, float3 F0)
 // elsewhere. The partition is on P, not on the occluder: every mesh is drawn
 // in every view and depth clamp keeps the casters between the view and the
 // light, so a P the map holds already has every occluder in it.
-float ShadowVisibility(float3 P, float3 N, float3 Nface, float3 L, float dL, LightGPUData light)
+float ShadowVisibility(float3 P, float3 N, float3 Nface, float3 L, float dL, LightGPUData light,
+                       float frontOnlyUntil = 0.0f)
 {
     if (light.shadowIndex_ == InvalidGPUIndex)
         return 1.0f;
 
 #if BATAP_RT
     if (light.type_ != LightRect)
-        return TraceShadowRay(P, Nface, L, light.type_ == LightDirectional ? ShadowRayFar : dL);
+        return TraceShadowRay(P, Nface, L, light.type_ == LightDirectional ? ShadowRayFar : dL,
+                              frontOnlyUntil);
 #endif
 
     // The floor keeps smoothstep defined when sourceRadius_ is 0, where the
@@ -319,8 +321,11 @@ struct Surface
     float3 Nface_;
     // World axes, camera at the origin: the TLAS space, where rays start.
     float3 posRel_;
+    float cell_;
     GiPoint gi_;
 };
+
+static const float FacetEscapeCells = 2.0f;
 
 float3 FaceNormal(float3 P, float3 Ngeom)
 {
@@ -422,7 +427,9 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
         float NdotL = saturate(dot(s.N_, L));
         float shadow =
-            NdotL > 0.0f ? ShadowVisibility(s.posRel_, s.Ngeom_, s.Nface_, L, dist, light) : 0.0f;
+            NdotL > 0.0f ? ShadowVisibility(s.posRel_, s.Ngeom_, s.Nface_, L, dist, light,
+                                            FacetEscapeCells * s.cell_)
+                         : 0.0f;
         if ((g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
             (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
         {

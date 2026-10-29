@@ -155,7 +155,7 @@ void Engine::endFrame()
     inputManager_->ClearFrameState();
     renderer_->uploadDebugDraw(*debugDraw_, *debugOverlay_);
     renderer_->uploadBillboards(*billboards_);
-    renderer_->uploadTerrain(*terrainDraws_);
+    renderer_->uploadTerrain(*terrainDraws_, settings().rayTracing_);
     terrainDraws_->placed_.clear();
     debugDraw_->endFrame(deltaTime_);
     debugOverlay_->endFrame(deltaTime_);

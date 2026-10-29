@@ -33,6 +33,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.reflectivity_ = mat.reflectivity;
     s.N_ = normalize(i.normalWS_);
     s.posRel_ = i.posRel_;
+    s.cell_ = 0.0f;
 
     return float4(ShadeSurface(mat.shadingModel_, s), 1.f);
 }

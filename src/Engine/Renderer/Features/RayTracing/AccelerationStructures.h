@@ -37,8 +37,8 @@ struct AccelerationStructures
         GraphBuffer blases_;
     };
 
-    Buffers addPasses(RenderGraph& graph, GraphBuffer uploads, uint32_t frame, entt::registry& reg,
-                      GPUInstanceManager& instances, AssetManager& assets,
+    Buffers addPasses(RenderGraph& graph, GraphBuffer uploads, GraphBuffer traced, uint32_t frame,
+                      entt::registry& reg, GPUInstanceManager& instances, AssetManager& assets,
                       const TerrainDrawer& terrain, entt::entity camera);
 
     VkAccelerationStructureKHR tlas(uint32_t frame) const { return tlases_[frame].handle_; }
@@ -53,6 +53,7 @@ struct AccelerationStructures
         GPUResourceHandle buffer_;
         GPUResourceHandle source_;
         uint64_t size_ = 0;
+        uint64_t updateScratch_ = 0;
         std::optional<uint32_t> query_;
         uint32_t querySlot_ = 0;
     };
@@ -82,8 +83,12 @@ struct AccelerationStructures
     };
 
     struct BlasInputs;
-    void updateBlases(RenderGraph& graph, GraphBuffer blases, GraphBuffer uploads, uint32_t frame,
-                      entt::registry& reg, AssetManager& assets, const TerrainDrawer& terrain);
+    void updateBlases(RenderGraph& graph, GraphBuffer blases, GraphBuffer uploads,
+                      GraphBuffer traced, uint32_t frame, entt::registry& reg, AssetManager& assets,
+                      const TerrainDrawer& terrain);
+    void refitChunks(RenderGraph& graph, GraphBuffer blases, GraphBuffer traced,
+                     const TerrainDrawer& terrain, const std::vector<uint64_t>& built);
+    void addChunkGeometries(BlasInputs& inputs, const TerrainDrawer& terrain, uint64_t chunk) const;
     GraphBuffer buildTlas(RenderGraph& graph, GraphBuffer blases, uint32_t frame,
                           entt::registry& reg, GPUInstanceManager& instances, AssetManager& assets,
                           const TerrainDrawer& terrain, entt::entity camera);
@@ -91,7 +96,7 @@ struct AccelerationStructures
                                                            VkAccelerationStructureTypeKHR type);
     Blas createBlas(uint64_t size);
     std::vector<Blas> buildBlases(RenderGraph& graph, GraphBuffer blases, GraphBuffer uploads,
-                                  uint32_t frame, BlasInputs inputs);
+                                  GraphBuffer traced, uint32_t frame, BlasInputs inputs);
     void compactBlases(RenderGraph& graph, GraphBuffer blases, uint32_t frame);
     void growTlas(Tlas& tlas, uint32_t instances);
     void reserveHitTables(HitTables& tables, uint32_t geometries, uint32_t instances);

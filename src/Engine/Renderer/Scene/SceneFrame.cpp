@@ -90,9 +90,9 @@ void SceneFrame::uploadBillboards(const Billboards& billboards)
     billboards_.upload(billboards);
 }
 
-void SceneFrame::uploadTerrain(TerrainDraws& draws)
+void SceneFrame::uploadTerrain(TerrainDraws& draws, bool rayTracing)
 {
-    terrain_.upload(draws);
+    terrain_.upload(draws, accelerationStructures_ && rayTracing);
 }
 
 void SceneFrame::checkHotReload()
@@ -127,6 +127,8 @@ void SceneFrame::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engi
     claim(TerrainChunksBinding, resources_.bufferFor(terrain_.chunkBuffer()));
     claim(TerrainVerticesBinding, resources_.bufferFor(terrain_.vertexBuffer()));
     claim(TerrainWorldsBinding, resources_.bufferFor(terrain_.worldBuffer()));
+    claim(TerrainTracedBinding, resources_.bufferFor(terrain_.tracedBuffer()));
+    claim(TerrainMorphRowsBinding, resources_.bufferFor(terrain_.morphRowBuffer()));
 
     bindings_.writeFrameSet(frame, buffers);
 }
@@ -173,12 +175,16 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
 
     shadows_.prepare(*reg, *instances, args.camera_, ctx.getFrameSize(), rayTracing);
 
+    writeFrameSet(frame, args, ctx);
+    const DrawContext draw = drawContext(frame, camID, args, ctx, rayTracing);
+    const GraphBuffer traced = terrain_.addMorphPass(graph, draw, uploads);
+
     AccelerationStructures::Buffers as;
     GiCache::Buffers gi;
     if (rayTracing)
     {
-        as = accelerationStructures_->addPasses(graph, uploads, frame, *reg, *instances, assets,
-                                                terrain_, args.camera_);
+        as = accelerationStructures_->addPasses(graph, uploads, traced, frame, *reg, *instances,
+                                                assets, terrain_, args.camera_);
         gi = giCache_->addPasses(graph);
         bindings_.writeRayTracingSet(frame, *accelerationStructures_, *giCache_);
     }
@@ -189,9 +195,6 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         exposure_.update(frame, args.camera_, reg->get<Camera_C>(args.camera_), dt);
     giUpdate_.writeFrameData(frameData_, targets.extent_, dt, ctx.settings().giBounces_,
                              ctx.settings().giPasses_);
-
-    writeFrameSet(frame, args, ctx);
-    const DrawContext draw = drawContext(frame, camID, args, ctx, rayTracing);
 
     const GraphImage hdr = graph.createImage("hdr", {targets.extent_, toVkFormat(HdrFormat)});
     const GraphImage depth = graph.createImage("depth", {targets.extent_, depthFormat_});
@@ -209,8 +212,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
 
     if (rayTracing)
     {
-        giUpdate_.addPasses(graph, as.tlas_, as.blases_, gi, uploads, frameConstants, draw, frame,
-                            targets.extent_);
+        giUpdate_.addPasses(graph, as.tlas_, as.blases_, traced, gi, uploads, frameConstants, draw,
+                            frame, targets.extent_);
         giUpdate_.report(giCache_->addStatsPass(graph, gi, frame), args.showGiCache_);
     }
 
@@ -245,7 +248,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         scene.read(gi.keys_, Usage::ShaderRead)
             .read(gi.values_, Usage::ShaderRead)
             .read(as.tlas_, Usage::AccelerationStructureRead)
-            .read(as.blases_, Usage::AccelerationStructureRead);
+            .read(as.blases_, Usage::AccelerationStructureRead)
+            .read(traced, Usage::ShaderRead);
 
     exposure_.addPasses(graph, hdr, frameConstants, draw, frame);
 

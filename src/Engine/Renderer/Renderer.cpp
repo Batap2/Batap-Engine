@@ -306,10 +306,10 @@ void Renderer::uploadBillboards(const Billboards& billboards)
         sceneFrame_->uploadBillboards(billboards);
 }
 
-void Renderer::uploadTerrain(TerrainDraws& draws)
+void Renderer::uploadTerrain(TerrainDraws& draws, bool rayTracing)
 {
     if (sceneFrame_)
-        sceneFrame_->uploadTerrain(draws);
+        sceneFrame_->uploadTerrain(draws, rayTracing);
 }
 
 void Renderer::setSceneGraph(SceneGraphFn fn)
