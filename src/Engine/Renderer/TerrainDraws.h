@@ -54,6 +54,7 @@ struct TerrainDraws
         m4f world_;
         v3d centreInOwner_;
         uint32_t owner_ = 0;
+        bool moved_ = false;
     };
 
     // Uploaded with the next frame.

@@ -3,6 +3,7 @@
 #include "Handles.h"
 #include "Renderer/Device/ShaderLibrary.h"
 #include "Renderer/Draws/DrawContext.h"
+#include "Renderer/Graph/RenderGraph.h"
 #include "Renderer/TerrainDraws.h"
 #include "Shaders/ShaderInterop.h"
 #include "Terrain/TerrainChunk.h"
@@ -11,6 +12,7 @@
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -28,7 +30,8 @@ struct TerrainDrawer
     void buildPipelines(const ShaderModules& modules);
     // Same contract as the instance pools: staged during the update, copied
     // at the top of the next render.
-    void upload(TerrainDraws& draws);
+    void upload(TerrainDraws& draws, bool tracing);
+    GraphBuffer addMorphPass(RenderGraph& graph, const DrawContext& draw, GraphBuffer uploads);
     void record(const DrawContext& draw);
     // Inside a shadow view's rendering, its push constants set.
     void recordShadow(const DrawContext& draw);
@@ -37,6 +40,7 @@ struct TerrainDrawer
     {
         uint64_t vertex_ = 0;
         uint64_t index_ = 0;
+        uint64_t traced_ = 0;
         uint64_t vertices_ = 0;
         uint64_t indices_ = 0;
         // Into chunks_ and worlds_.
@@ -45,14 +49,19 @@ struct TerrainDrawer
         uint32_t level_ = 0;
         std::array<StratumRange, kMaxTerrainStrata> ranges_{};
         bool shown_ = false;
+        bool morphs_ = false;
+        bool tracedReady_ = false;
     };
 
     GPUResourceHandle chunkBuffer() const { return chunks_; }
     GPUResourceHandle vertexBuffer() const { return vertices_.buffer_; }
     GPUResourceHandle indexBuffer() const { return indices_.buffer_; }
     GPUResourceHandle worldBuffer() const { return worlds_; }
+    GPUResourceHandle tracedBuffer() const { return traced_.buffer_; }
+    GPUResourceHandle morphRowBuffer() const { return morphRows_; }
     const std::unordered_map<uint64_t, Slot>& slots() const { return slots_; }
     const std::vector<TerrainWorldGPUData>& worlds() const { return worldData_; }
+    const std::vector<uint64_t>& morphed() const { return morphed_; }
 
    private:
     // In elements, vertices or indices.
@@ -78,15 +87,23 @@ struct TerrainDrawer
     std::optional<uint32_t> allocateInstance();
     void recordDraws(const DrawContext& draw, VkPipeline pipeline, const std::vector<Draw>& draws);
     void writeChunk(uint32_t instance, const Slot& slot, const TerrainDraws::Params& params);
+    void planMorphs(bool tracing);
 
     DrawSetup setup_;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     VkPipeline rtPipeline_ = VK_NULL_HANDLE;
     VkPipeline shadowPipeline_ = VK_NULL_HANDLE;
+    VkPipeline morphPipeline_ = VK_NULL_HANDLE;
     GPUResourceHandle chunks_;
     GPUResourceHandle worlds_;
+    GPUResourceHandle morphRows_;
     Pool vertices_;
     Pool indices_;
+    Pool traced_;
+    std::unordered_set<uint64_t> toMorph_;
+    bool tracing_ = false;
+    std::vector<uint64_t> morphed_;
+    std::vector<TerrainMorphRowGPUData> morphRowData_;
     std::unordered_map<uint64_t, Slot> slots_;
     std::vector<uint32_t> freeInstances_;
     uint32_t instanceEnd_ = 0;

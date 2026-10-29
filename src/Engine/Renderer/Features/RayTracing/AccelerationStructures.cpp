@@ -27,6 +27,14 @@ namespace batap
 {
 namespace
 {
+constexpr uint64_t kTracedStride = sizeof(float) * 3;
+constexpr VkBuildAccelerationStructureFlagsKHR kRefittedFlags =
+    VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR |
+    VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+constexpr VkBuildAccelerationStructureFlagsKHR kCompactedFlags =
+    VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR |
+    VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
+
 uint64_t alignUp(uint64_t v, uint64_t a)
 {
     return (v + a - 1) / a * a;
@@ -118,8 +126,13 @@ struct AccelerationStructures::BlasInputs
     std::vector<VkAccelerationStructureGeometryKHR> geometries_;
     std::vector<VkAccelerationStructureBuildRangeInfoKHR> ranges_;
     std::vector<uint32_t> firstGeometry_;
+    std::vector<bool> refitted_;
 
-    void beginBlas() { firstGeometry_.push_back(static_cast<uint32_t>(geometries_.size())); }
+    void beginBlas(bool refitted)
+    {
+        firstGeometry_.push_back(static_cast<uint32_t>(geometries_.size()));
+        refitted_.push_back(refitted);
+    }
 
     void addGeometry(const VkAccelerationStructureGeometryKHR& geometry, uint32_t primitiveOffset,
                      uint32_t primitiveCount)
@@ -137,15 +150,15 @@ AccelerationStructures::AccelerationStructures(VulkanContext& ctx, ResourceManag
 {}
 
 AccelerationStructures::Buffers
-AccelerationStructures::addPasses(RenderGraph& graph, GraphBuffer uploads, uint32_t frame,
-                                  entt::registry& reg, GPUInstanceManager& instances,
-                                  AssetManager& assets, const TerrainDrawer& terrain,
-                                  entt::entity camera)
+AccelerationStructures::addPasses(RenderGraph& graph, GraphBuffer uploads, GraphBuffer traced,
+                                  uint32_t frame, entt::registry& reg,
+                                  GPUInstanceManager& instances, AssetManager& assets,
+                                  const TerrainDrawer& terrain, entt::entity camera)
 {
     Buffers buffers;
     buffers.blases_ = graph.importBuffer("blases", VK_NULL_HANDLE, Usage::AccelerationStructureRead,
                                          Usage::AccelerationStructureRead);
-    updateBlases(graph, buffers.blases_, uploads, frame, reg, assets, terrain);
+    updateBlases(graph, buffers.blases_, uploads, traced, frame, reg, assets, terrain);
     buffers.tlas_ =
         buildTlas(graph, buffers.blases_, frame, reg, instances, assets, terrain, camera);
     return buffers;
@@ -169,8 +182,9 @@ AccelerationStructures::~AccelerationStructures()
 }
 
 void AccelerationStructures::updateBlases(RenderGraph& graph, GraphBuffer blases,
-                                          GraphBuffer uploads, uint32_t frame, entt::registry& reg,
-                                          AssetManager& assets, const TerrainDrawer& terrain)
+                                          GraphBuffer uploads, GraphBuffer traced, uint32_t frame,
+                                          entt::registry& reg, AssetManager& assets,
+                                          const TerrainDrawer& terrain)
 {
     for (const Blas& blas : retired_[frame])
     {
@@ -221,40 +235,112 @@ void AccelerationStructures::updateBlases(RenderGraph& graph, GraphBuffer blases
                 triangleGeometry(address + mesh->streamOffsets_[Mesh::Position], sizeof(float) * 3,
                                  mesh->vertexCount_, toVkIndexType(mesh->indexFormat_),
                                  address + mesh->streamOffsets_[Mesh::Index]);
-            inputs.beginBlas();
+            inputs.beginBlas(false);
             forEachSubmesh(*mesh, [&](uint32_t offset, uint32_t count)
                            { inputs.addGeometry(geometry, offset, count / 3); });
         });
 
     std::vector<uint64_t> chunks;
-    const VkDeviceAddress vertexPool = resources_.deviceAddress(terrain.vertexBuffer());
-    const VkDeviceAddress indexPool = resources_.deviceAddress(terrain.indexBuffer());
     for (const auto& [id, slot] : terrain.slots())
     {
-        if (!slot.shown_ || chunkBlases_.contains(id))
+        if (!slot.shown_ || !slot.tracedReady_ || chunkBlases_.contains(id))
             continue;
         chunks.push_back(id);
-
-        const VkAccelerationStructureGeometryKHR geometry = triangleGeometry(
-            vertexPool + slot.vertex_ * sizeof(TerrainVertexGPUData), sizeof(TerrainVertexGPUData),
-            slot.vertices_, VK_INDEX_TYPE_UINT16, indexPool + slot.index_ * sizeof(uint16_t));
-        inputs.beginBlas();
-        for (const StratumRange& range : slot.ranges_)
-            inputs.addGeometry(geometry, range.offset_ * sizeof(uint16_t), range.count_ / 3);
+        inputs.beginBlas(true);
+        addChunkGeometries(inputs, terrain, id);
     }
 
-    if (inputs.firstGeometry_.empty())
+    if (!inputs.firstGeometry_.empty())
+    {
+        const std::vector<Blas> built =
+            buildBlases(graph, blases, uploads, traced, frame, std::move(inputs));
+        for (size_t i = 0; i < meshes.size(); ++i)
+        {
+            Blas blas = built[i];
+            blas.source_ = assets.get(meshes[i])->buffer_;
+            meshBlases_.emplace(meshes[i], blas);
+        }
+        for (size_t i = 0; i < chunks.size(); ++i)
+            chunkBlases_.emplace(chunks[i], built[meshes.size() + i]);
+    }
+    refitChunks(graph, blases, traced, terrain, chunks);
+}
+
+void AccelerationStructures::addChunkGeometries(BlasInputs& inputs, const TerrainDrawer& terrain,
+                                                uint64_t chunk) const
+{
+    const TerrainDrawer::Slot& slot = terrain.slots().at(chunk);
+    const VkAccelerationStructureGeometryKHR geometry = triangleGeometry(
+        resources_.deviceAddress(terrain.tracedBuffer()) + slot.traced_ * kTracedStride,
+        kTracedStride, slot.vertices_, VK_INDEX_TYPE_UINT16,
+        resources_.deviceAddress(terrain.indexBuffer()) + slot.index_ * sizeof(uint16_t));
+    for (const StratumRange& range : slot.ranges_)
+        inputs.addGeometry(geometry, range.offset_ * sizeof(uint16_t), range.count_ / 3);
+}
+
+void AccelerationStructures::refitChunks(RenderGraph& graph, GraphBuffer blases, GraphBuffer traced,
+                                         const TerrainDrawer& terrain,
+                                         const std::vector<uint64_t>& built)
+{
+    BlasInputs inputs;
+    std::vector<VkAccelerationStructureKHR> handles;
+    std::vector<uint64_t> scratchOffsets;
+    uint64_t scratchBytes = 0;
+    for (const uint64_t id : terrain.morphed())
+    {
+        const auto blas = chunkBlases_.find(id);
+        if (blas == chunkBlases_.end() || std::ranges::find(built, id) != built.end())
+            continue;
+        inputs.beginBlas(true);
+        addChunkGeometries(inputs, terrain, id);
+        handles.push_back(blas->second.handle_);
+        scratchOffsets.push_back(scratchBytes);
+        scratchBytes += alignUp(blas->second.updateScratch_, ctx_.asScratchAlignment_);
+    }
+    if (handles.empty())
         return;
 
-    const std::vector<Blas> built = buildBlases(graph, blases, uploads, frame, std::move(inputs));
-    for (size_t i = 0; i < meshes.size(); ++i)
+    const GPUResourceHandle scratch = resources_.createScratchBuffer(scratchBytes);
+    const VkDeviceAddress scratchAddress = resources_.deviceAddress(scratch);
+    std::vector<VkAccelerationStructureBuildGeometryInfoKHR> infos(handles.size());
+    for (size_t i = 0; i < handles.size(); ++i)
     {
-        Blas blas = built[i];
-        blas.source_ = assets.get(meshes[i])->buffer_;
-        meshBlases_.emplace(meshes[i], blas);
+        VkAccelerationStructureBuildGeometryInfoKHR& info = infos[i];
+        info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+        info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+        info.flags = kRefittedFlags;
+        info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR;
+        info.srcAccelerationStructure = handles[i];
+        info.dstAccelerationStructure = handles[i];
+        info.scratchData.deviceAddress = scratchAddress + scratchOffsets[i];
     }
-    for (size_t i = 0; i < chunks.size(); ++i)
-        chunkBlases_.emplace(chunks[i], built[meshes.size() + i]);
+
+    const GraphBuffer scratchBuffer =
+        graph.importBuffer("blas refit scratch", resources_, scratch, Usage::None, Usage::None);
+    resources_.requestDestroy(scratch);
+    graph.addPass("blas refit", GraphQueue::Compute)
+        .read(traced, Usage::AnyRead)
+        .write(blases, Usage::AccelerationStructureBuild)
+        .write(scratchBuffer, Usage::AccelerationStructureBuild)
+        .execute(
+            [geometries = std::move(inputs), buildInfos = std::move(infos)](GraphContext& c) mutable
+            {
+                std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> ranges(
+                    buildInfos.size());
+                for (size_t i = 0; i < buildInfos.size(); ++i)
+                {
+                    const uint32_t first = geometries.firstGeometry_[i];
+                    const uint32_t end = i + 1 < buildInfos.size()
+                                             ? geometries.firstGeometry_[i + 1]
+                                             : static_cast<uint32_t>(geometries.geometries_.size());
+                    buildInfos[i].geometryCount = end - first;
+                    buildInfos[i].pGeometries = &geometries.geometries_[first];
+                    ranges[i] = &geometries.ranges_[first];
+                }
+                vkCmdBuildAccelerationStructuresKHR(c.cmd(),
+                                                    static_cast<uint32_t>(buildInfos.size()),
+                                                    buildInfos.data(), ranges.data());
+            });
 }
 
 VkAccelerationStructureKHR
@@ -289,7 +375,7 @@ AccelerationStructures::Blas AccelerationStructures::createBlas(uint64_t size)
 
 std::vector<AccelerationStructures::Blas>
 AccelerationStructures::buildBlases(RenderGraph& graph, GraphBuffer blases, GraphBuffer uploads,
-                                    uint32_t frame, BlasInputs inputs)
+                                    GraphBuffer traced, uint32_t frame, BlasInputs inputs)
 {
     const size_t count = inputs.firstGeometry_.size();
     const auto endGeometry = [&](size_t i)
@@ -315,8 +401,7 @@ AccelerationStructures::buildBlases(RenderGraph& graph, GraphBuffer blases, Grap
         VkAccelerationStructureBuildGeometryInfoKHR& info = infos[i];
         info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
         info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR |
-                     VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
+        info.flags = inputs.refitted_[i] ? kRefittedFlags : kCompactedFlags;
         info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
         info.geometryCount = endGeometry(i) - first;
         info.pGeometries = &inputs.geometries_[first];
@@ -328,6 +413,7 @@ AccelerationStructures::buildBlases(RenderGraph& graph, GraphBuffer blases, Grap
                                                 &info, &primitiveCounts[first], &sizes);
 
         built[i] = createBlas(sizes.accelerationStructureSize);
+        built[i].updateScratch_ = sizes.updateScratchSize;
         info.dstAccelerationStructure = built[i].handle_;
 
         scratchOffsets[i] = scratchBytes;
@@ -342,12 +428,22 @@ AccelerationStructures::buildBlases(RenderGraph& graph, GraphBuffer blases, Grap
     for (size_t i = 0; i < count; ++i)
         infos[i].scratchData.deviceAddress = scratchAddress + scratchOffsets[i];
 
+    std::vector<VkAccelerationStructureKHR> compacted;
+    for (size_t i = 0; i < count; ++i)
+        if (!inputs.refitted_[i])
+        {
+            built[i].query_ = static_cast<uint32_t>(compacted.size());
+            built[i].querySlot_ = frame;
+            compacted.push_back(built[i].handle_);
+        }
+
     CompactionQueries& queries = queries_[frame];
     assert(queries.count_ == 0 && "buildBlases: compactBlases reads the slot's queries first");
-    if (count > queries.capacity_)
+    if (compacted.size() > queries.capacity_)
     {
         vkDestroyQueryPool(ctx_.device_, queries.pool_, nullptr);
-        queries.capacity_ = std::max(static_cast<uint32_t>(count), queries.capacity_ * 2);
+        queries.capacity_ =
+            std::max(static_cast<uint32_t>(compacted.size()), queries.capacity_ * 2);
         VkQueryPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
         poolInfo.queryType = VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR;
@@ -356,25 +452,19 @@ AccelerationStructures::buildBlases(RenderGraph& graph, GraphBuffer blases, Grap
             throw std::runtime_error("AccelerationStructures : query pool");
     }
 
-    std::vector<VkAccelerationStructureKHR> handles(count);
-    for (size_t i = 0; i < count; ++i)
-    {
-        handles[i] = built[i].handle_;
-        built[i].query_ = static_cast<uint32_t>(i);
-        built[i].querySlot_ = frame;
-    }
-    queries.count_ = static_cast<uint32_t>(count);
+    queries.count_ = static_cast<uint32_t>(compacted.size());
 
     const GraphBuffer scratchBuffer =
         graph.importBuffer("blas scratch", resources_, scratch, Usage::None, Usage::None);
     resources_.requestDestroy(scratch);
     graph.addPass("blas build", GraphQueue::Compute)
         .read(uploads, Usage::AnyRead)
+        .read(traced, Usage::AnyRead)
         .write(blases, Usage::AccelerationStructureBuild)
         .write(scratchBuffer, Usage::AccelerationStructureBuild)
         .execute(
-            [geometries = std::move(inputs), buildInfos = std::move(infos),
-             pool = queries.pool_](GraphContext& c) mutable
+            [geometries = std::move(inputs), buildInfos = std::move(infos), pool = queries.pool_,
+             queried = queries.count_](GraphContext& c) mutable
             {
                 // Into this lambda's own inputs: std::function may have copied it.
                 std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> ranges(
@@ -385,20 +475,22 @@ AccelerationStructures::buildBlases(RenderGraph& graph, GraphBuffer blases, Grap
                     buildInfos[i].pGeometries = &geometries.geometries_[first];
                     ranges[i] = &geometries.ranges_[first];
                 }
-                const auto blasCount = static_cast<uint32_t>(buildInfos.size());
-                vkCmdResetQueryPool(c.cmd(), pool, 0, blasCount);
-                vkCmdBuildAccelerationStructuresKHR(c.cmd(), blasCount, buildInfos.data(),
-                                                    ranges.data());
+                if (queried > 0)
+                    vkCmdResetQueryPool(c.cmd(), pool, 0, queried);
+                vkCmdBuildAccelerationStructuresKHR(c.cmd(),
+                                                    static_cast<uint32_t>(buildInfos.size()),
+                                                    buildInfos.data(), ranges.data());
             });
-    graph.addPass("blas compacted sizes", GraphQueue::Compute)
-        .read(blases, Usage::AccelerationStructureBuild)
-        .execute(
-            [blasHandles = std::move(handles), pool = queries.pool_](GraphContext& c)
-            {
-                vkCmdWriteAccelerationStructuresPropertiesKHR(
-                    c.cmd(), static_cast<uint32_t>(blasHandles.size()), blasHandles.data(),
-                    VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, pool, 0);
-            });
+    if (!compacted.empty())
+        graph.addPass("blas compacted sizes", GraphQueue::Compute)
+            .read(blases, Usage::AccelerationStructureBuild)
+            .execute(
+                [blasHandles = std::move(compacted), pool = queries.pool_](GraphContext& c)
+                {
+                    vkCmdWriteAccelerationStructuresPropertiesKHR(
+                        c.cmd(), static_cast<uint32_t>(blasHandles.size()), blasHandles.data(),
+                        VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, pool, 0);
+                });
 
     std::cout << "[RT] " << count << " BLAS : " << triangles << " triangles, " << bytes
               << " octets (scratch " << scratchBytes << ")\n";
@@ -505,7 +597,7 @@ GraphBuffer AccelerationStructures::buildTlas(RenderGraph& graph, GraphBuffer bl
             tlasInstances.push_back(tlasInstance(world, id, mask, blas->second.address_));
             hitInstances.push_back({first->second, id, RtInstanceMesh, 0});
         });
-    const VkDeviceAddress vertexPool = resources_.deviceAddress(terrain.vertexBuffer());
+    const VkDeviceAddress tracedPool = resources_.deviceAddress(terrain.tracedBuffer());
     const VkDeviceAddress indexPool = resources_.deviceAddress(terrain.indexBuffer());
     for (const auto& [id, slot] : terrain.slots())
     {
@@ -519,12 +611,11 @@ GraphBuffer AccelerationStructures::buildTlas(RenderGraph& graph, GraphBuffer bl
             tlasInstance(world, slot.instance_, TlasMaskShadowCaster, blas->second.address_));
         hitInstances.push_back(
             {static_cast<uint32_t>(geometries.size()), slot.instance_, RtInstanceChunk, 0});
-        const VkDeviceAddress vertices = vertexPool + slot.vertex_ * sizeof(TerrainVertexGPUData);
+        const VkDeviceAddress vertices = tracedPool + slot.traced_ * kTracedStride;
         const VkDeviceAddress indices = indexPool + slot.index_ * sizeof(uint16_t);
         for (const StratumRange& range : slot.ranges_)
             geometries.push_back(geometryRecord(indices + range.offset_ * sizeof(uint16_t),
-                                                vertices, sizeof(TerrainVertexGPUData),
-                                                sizeof(uint16_t)));
+                                                vertices, kTracedStride, sizeof(uint16_t)));
     }
 
     HitTables& tables = hitTables_[frame];

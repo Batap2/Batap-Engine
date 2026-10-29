@@ -63,7 +63,7 @@ void GiUpdate::writeFrameData(FrameGPUData& data, VkExtent2D output, float dt, u
 }
 
 void GiUpdate::addPasses(RenderGraph& graph, GraphBuffer tlas, GraphBuffer blases,
-                         const GiCache::Buffers& cache, GraphBuffer uploads,
+                         GraphBuffer traced, const GiCache::Buffers& cache, GraphBuffer uploads,
                          GraphBuffer frameConstants, const DrawContext& draw, uint32_t frame,
                          VkExtent2D output)
 {
@@ -136,7 +136,8 @@ void GiUpdate::addPasses(RenderGraph& graph, GraphBuffer tlas, GraphBuffer blase
         fullscreenPass("gi update " + std::to_string(i), updateTarget, updatePipeline_, i)
             .read(uploads, Usage::AnyRead)
             .read(tlas, Usage::AccelerationStructureRead)
-            .read(blases, Usage::AccelerationStructureRead);
+            .read(blases, Usage::AccelerationStructureRead)
+            .read(traced, Usage::ShaderRead);
     fullscreenPass("gi resolve", resolveTarget, resolvePipeline_, draw.push_.instanceIndex_);
 
     if (queries != VK_NULL_HANDLE)

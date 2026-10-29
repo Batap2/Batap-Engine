@@ -37,6 +37,8 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.Ngeom_ = normalize(i.nrmWS_);
     s.Nface_ = FaceNormal(i.posRel_, s.Ngeom_);
     s.N_ = s.Ngeom_;
+    s.cell_ = (length(ddx(i.posRel_)) + length(ddy(i.posRel_))) /
+              max(length(ddx(i.grid_)) + length(ddy(i.grid_)), 1e-6f);
     s.gi_ = GiTerrainPoint(TerrainWorldBuffer[g_draw.instanceIndex_], i.posRel_,
                            GiFacing(s.Nface_, i.posRel_));
 

@@ -114,7 +114,9 @@ enum FrameSetBinding : uint
     TerrainChunksBinding = 11,
     TerrainVerticesBinding = 12,
     TerrainWorldsBinding = 13,
-    FrameSetBindingCount = 14,
+    TerrainTracedBinding = 14,
+    TerrainMorphRowsBinding = 15,
+    FrameSetBindingCount = 16,
 };
 
 enum ShadingModel : uint
@@ -189,6 +191,16 @@ struct TerrainWorldGPUData
     float3 centreOffset_;
     float pad0_;
 };
+
+struct TerrainMorphRowGPUData
+{
+    uint instance_;
+    uint firstVertex_;
+    uint vertices_;
+    uint traced_;
+};
+
+static const uint TerrainMorphRowWidth = 256u;
 
 // A kind leaves the fields it has no use for at zero.
 enum LightType : uint
@@ -391,6 +403,7 @@ static_assert(sizeof(BillboardGPUData) == 64);
 static_assert(sizeof(TerrainVertexGPUData) == 48);
 static_assert(sizeof(TerrainChunkGPUData) == 64);
 static_assert(sizeof(TerrainWorldGPUData) == 96);
+static_assert(sizeof(TerrainMorphRowGPUData) == 16);
 static_assert(sizeof(RtGeometryGPUData) == 32);
 static_assert(sizeof(RtInstanceGPUData) == 16);
 static_assert(sizeof(RtCacheValueGPUData) == 48);
