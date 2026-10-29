@@ -42,9 +42,9 @@ void TerrainDraws::show(uint64_t mesh, bool shown)
         shownChanges_.emplace_back(mesh, shown);
 }
 
-void TerrainDraws::place(uint64_t mesh, const m4f& world)
+void TerrainDraws::place(uint64_t mesh, const Placement& placement)
 {
-    placed_.emplace_back(mesh, world);
+    placed_.emplace_back(mesh, placement);
 }
 
 }  // namespace batap

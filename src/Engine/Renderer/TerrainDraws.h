@@ -49,6 +49,13 @@ struct TerrainDraws
         bool shown_ = false;
     };
 
+    struct Placement
+    {
+        m4f world_;
+        v3d centreInOwner_;
+        uint32_t owner_ = 0;
+    };
+
     // Uploaded with the next frame.
     uint64_t add(Mesh mesh);
     void remove(uint64_t mesh);
@@ -56,14 +63,14 @@ struct TerrainDraws
     void show(uint64_t mesh, bool shown);
     // This frame's matrix: chunk space to world space less the render
     // camera's position.
-    void place(uint64_t mesh, const m4f& world);
+    void place(uint64_t mesh, const Placement& placement);
 
     // Read by the renderer, then emptied.
     std::vector<std::pair<uint64_t, Mesh>> added_;
     std::vector<uint64_t> removed_;
     std::vector<std::pair<uint64_t, Params>> paramChanges_;
     std::vector<std::pair<uint64_t, bool>> shownChanges_;
-    std::vector<std::pair<uint64_t, m4f>> placed_;
+    std::vector<std::pair<uint64_t, Placement>> placed_;
     uint64_t next_ = 1;
 
     // Written back by the renderer, for the debug view.

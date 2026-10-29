@@ -11,6 +11,7 @@
 namespace batap
 {
 using uint = uint32_t;
+using int3 = int32_t[3];
 using float3 = float[3];
 using float4 = float[4];
 using float4x4 = float[16];
@@ -77,6 +78,7 @@ static const uint RtCacheStatFailed = 2u;
 static const uint RtCacheStatEvicted = 3u;
 static const uint RtCacheStatTailMiss = 4u;
 static const uint RtCacheStatCount = 5u;
+static const float GiCellBase = 0.15f;
 
 struct RtCacheValueGPUData
 {
@@ -182,6 +184,10 @@ static const uint TerrainOutline = 2u;
 struct TerrainWorldGPUData
 {
     float4x4 world_;
+    int3 centreCell_;
+    uint owner_;
+    float3 centreOffset_;
+    float pad0_;
 };
 
 // A kind leaves the fields it has no use for at zero.
@@ -384,7 +390,7 @@ static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);
 static_assert(sizeof(TerrainVertexGPUData) == 48);
 static_assert(sizeof(TerrainChunkGPUData) == 64);
-static_assert(sizeof(TerrainWorldGPUData) == 64);
+static_assert(sizeof(TerrainWorldGPUData) == 96);
 static_assert(sizeof(RtGeometryGPUData) == 32);
 static_assert(sizeof(RtInstanceGPUData) == 16);
 static_assert(sizeof(RtCacheValueGPUData) == 48);

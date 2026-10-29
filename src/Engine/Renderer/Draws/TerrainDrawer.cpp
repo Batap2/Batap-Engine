@@ -261,9 +261,18 @@ void TerrainDrawer::upload(TerrainDraws& draws)
     draws.shownChanges_.clear();
 
     worldData_.resize(instanceEnd_);
-    for (const auto& [id, world] : draws.placed_)
+    for (const auto& [id, placement] : draws.placed_)
         if (const auto it = slots_.find(id); it != slots_.end())
-            flatten(worldData_[it->second.instance_].world_, world);
+        {
+            TerrainWorldGPUData& gpu = worldData_[it->second.instance_];
+            flatten(gpu.world_, placement.world_);
+            const v3d cells = (placement.centreInOwner_ / double(GiCellBase)).array().floor();
+            const v3i cell = cells.cast<int>();
+            std::memcpy(gpu.centreCell_, cell.data(), sizeof gpu.centreCell_);
+            flatten(gpu.centreOffset_,
+                    (placement.centreInOwner_ - cells * double(GiCellBase)).cast<float>());
+            gpu.owner_ = placement.owner_;
+        }
     if (instanceEnd_ > 0)
     {
         const uint64_t bytes = sizeof(TerrainWorldGPUData) * instanceEnd_;
