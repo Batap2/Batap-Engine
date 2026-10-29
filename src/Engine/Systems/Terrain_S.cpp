@@ -453,14 +453,19 @@ void Terrain_S::publish(World& world)
         // would round its own centre.
         const transform& ownerWorld = tc->world();
         const m3d linear = ownerWorld.linear().cast<double>();
+        const m3d toOwnerAxes = linear.colwise().normalized().transpose() * linear;
         const v3d offset = ownerWorld.translation().cast<double>() - camera;
         for (const ChunkKey& key : state.shown_)
         {
             const Chunk& chunk = state.chunks_.at(key);
-            m4f m = m4f::Identity();
-            m.topLeftCorner<3, 3>() = ownerWorld.linear();
-            m.topRightCorner<3, 1>() = (linear * chunk.center_ + offset).cast<float>();
-            draws.place(chunk.mesh_, m);
+            TerrainDraws::Placement placement;
+            placement.world_ = m4f::Identity();
+            placement.world_.topLeftCorner<3, 3>() = ownerWorld.linear();
+            placement.world_.topRightCorner<3, 1>() =
+                (linear * chunk.center_ + offset).cast<float>();
+            placement.centreInOwner_ = toOwnerAxes * chunk.center_;
+            placement.owner_ = entt::to_entity(e);
+            draws.place(chunk.mesh_, placement);
         }
 
         if (showChunks_)

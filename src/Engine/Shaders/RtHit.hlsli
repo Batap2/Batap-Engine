@@ -74,8 +74,11 @@ RtHit RtResolveHit(RayQuery<RAY_FLAG_FORCE_OPAQUE> query, float3 rayDirection)
     hit.normal_ = n;
     hit.albedo_ = mat.albedo.rgb;
     hit.shadingModel_ = mat.shadingModel_;
-    hit.gi_ = GiPointOf(inst.kind_ == RtInstanceChunk ? GiFrameChunk : GiFrameMesh, inst.gpuIndex_,
-                        (float3x3)objectToWorld, objectToWorld._m03_m13_m23, hit.position_, n);
+    if (inst.kind_ == RtInstanceChunk)
+        hit.gi_ = GiTerrainPoint(TerrainWorldBuffer[inst.gpuIndex_], hit.position_, n);
+    else
+        hit.gi_ = GiMeshPoint(inst.gpuIndex_, (float3x3)objectToWorld, objectToWorld._m03_m13_m23,
+                              hit.position_, n);
     return hit;
 }
 

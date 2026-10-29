@@ -37,9 +37,8 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.Ngeom_ = normalize(i.nrmWS_);
     s.Nface_ = FaceNormal(i.posRel_, s.Ngeom_);
     s.N_ = s.Ngeom_;
-    const float4x4 world = TerrainWorldBuffer[g_draw.instanceIndex_].world_;
-    s.gi_ = GiPointOf(GiFrameChunk, g_draw.instanceIndex_, (float3x3)world, world._m03_m13_m23,
-                      i.posRel_, GiFacing(s.Nface_, i.posRel_));
+    s.gi_ = GiTerrainPoint(TerrainWorldBuffer[g_draw.instanceIndex_], i.posRel_,
+                           GiFacing(s.Nface_, i.posRel_));
 
     return float4(ShadeSurface(mat.shadingModel_, s), 1.0f);
 }
