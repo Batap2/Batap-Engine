@@ -27,6 +27,8 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
             GiProbes[probe + RtProbeBest] = 0u;
             GiProbes[probe + RtProbeChange] = 0u;
             GiProbes[probe + RtProbeState] = RtProbeNone;
+            GiProbes[probe + RtProbeRadiance] = 0u;
+            GiProbes[probe + RtProbeEvent] = 0u;
             GiStatAdd(RtCacheStatEvicted, bucket);
         }
         else
@@ -42,7 +44,9 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
     float agility = 0.0f;
     if (fc.giPerCell_ != 0u)
     {
-        if (GiProbes[probe + RtProbeState] == RtProbeArmed)
+        const uint state = GiProbes[probe + RtProbeState];
+        const float radiance = asfloat(GiProbes[probe + RtProbeRadiance]);
+        if (state == RtProbeArmed && radiance > 0.0f)
             tau = GiValidatedTau;
         const float change = asfloat(GiProbes[probe + RtProbeChange]);
         GiProbes[probe + RtProbeChange] = 0u;
@@ -53,13 +57,11 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
         if (best != 0u)
         {
             GiProbes[probe + RtProbeBest] = 0u;
-            const uint state = GiProbes[probe + RtProbeState];
             const bool settled =
                 fc.frameIndex_ - GiProbes[probe + RtProbeBorn] >= GiProbeLifetime;
-            const bool brighter =
-                asfloat(best & 0xFFFFF000u) > asfloat(GiProbes[probe + RtProbeRadiance]);
+            const bool brighter = asfloat(best & GiBestLuminance) > radiance;
             if (state == RtProbeNone ||
-                (state == RtProbeArmed && settled &&
+                (state == RtProbeArmed && (best & GiBestLit) != 0u && settled &&
                  (brighter || (fc.frameIndex_ + entry) % GiProbeRenewal == 0u)))
             {
                 const uint at = RtCacheWorkCandidates +

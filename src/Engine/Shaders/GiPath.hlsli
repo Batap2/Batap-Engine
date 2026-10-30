@@ -12,6 +12,9 @@ static const float GiProbeAgility = 30.0f;
 static const float GiProbeSignificance = 0.25f;
 static const uint GiProbeRenewal = 64u;
 static const uint GiProbeLifetime = 4u;
+static const uint GiEventSettle = 3u;
+static const uint GiBestLit = 0x80000000u;
+static const uint GiBestLuminance = 0x7FFFF000u;
 
 float GiLuminance(float3 c)
 {
@@ -136,14 +139,15 @@ bool GiCameraHit(float2 sample, out RtHit hit)
     return true;
 }
 
-float3 GiPathIrradiance(RtHit first, float2 firstU, inout uint seed, uint bucket,
-                        out float firstDirect)
+float3 GiPathIrradiance(RtHit first, float2 firstU, inout uint seed, uint bucket, uint event,
+                        bool findFirst, out float firstDirect, out uint firstSlot)
 {
     const FrameGPUData fc = FrameBuffer[0];
     float3 irradiance = float3(0.0f, 0.0f, 0.0f);
     float3 throughput = float3(1.0f, 1.0f, 1.0f);
     RtHit hit = first;
     firstDirect = 0.0f;
+    firstSlot = GiNoSlot;
     [loop]
     for (uint bounce = 0; bounce < fc.giBounces_; ++bounce)
     {
@@ -166,6 +170,8 @@ float3 GiPathIrradiance(RtHit first, float2 firstU, inout uint seed, uint bucket
             break;
         }
         hit = RtResolveHit(bounceQuery, ray2.Direction);
+        if (bounce == 0u && findFirst)
+            firstSlot = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));
         if (hit.shadingModel_ == ShadingUnlit)
         {
             irradiance += throughput * (PI * hit.albedo_);
@@ -179,17 +185,19 @@ float3 GiPathIrradiance(RtHit first, float2 firstU, inout uint seed, uint bucket
         if (bounce + 1 == fc.giBounces_)
         {
             const uint tail = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));
-            if (tail != GiNoSlot)
-                irradiance += throughput * GiIrradiance(tail);
-            else
+            if (tail == GiNoSlot)
                 GiStatAdd(RtCacheStatTailMiss, bucket);
+            else if (((fc.frameIndex_ - (GiValues[tail].history_ >> 16)) & 0xFFFFu) <=
+                     fc.frameIndex_ - event)
+                irradiance += throughput * GiIrradiance(tail);
         }
     }
     return irradiance;
 }
 
-float GiProbeRadiance(float3 origin, float3 direction, uint seed)
+float GiProbeRadiance(float3 origin, float3 direction, uint seed, out uint hitSlot)
 {
+    hitSlot = GiNoSlot;
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = direction;
@@ -205,11 +213,13 @@ float GiProbeRadiance(float3 origin, float3 direction, uint seed)
     const RtHit hit = RtResolveHit(query, direction);
     if (hit.shadingModel_ == ShadingUnlit)
         return GiLuminance(PI * hit.albedo_);
+    hitSlot = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));
     return GiLuminance(hit.albedo_ * GiDirectIrradiance(hit.position_, hit.normal_, seed));
 }
 
 void GiValidateProbe(uint slot)
 {
+    const FrameGPUData fc = FrameBuffer[0];
     const uint base = slot * RtProbeWords;
     const uint state = GiProbes[base + RtProbeState];
     if (state == RtProbeNone)
@@ -223,14 +233,37 @@ void GiValidateProbe(uint slot)
                                         GiProbes[base + RtProbeOrigin + 1u],
                                         GiProbes[base + RtProbeOrigin + 2u])) +
                           (then - cam.pos_);
-    const float now = GiProbeRadiance(origin, GiOctUnpack(packed), GiHash(packed ^ slot));
+    uint hitSlot;
+    const float now = GiProbeRadiance(origin, GiOctUnpack(packed), GiHash(packed ^ slot), hitSlot);
+    // An event is the frame of the change that started a chain of resets, so a
+    // reset crosses each cell once instead of bouncing between cells that see
+    // each other.
+    const uint event = GiProbes[base + RtProbeEvent];
+    const uint hitEvent =
+        hitSlot != GiNoSlot ? GiProbes[hitSlot * RtProbeWords + RtProbeEvent] : event;
+    const bool echoed = int(hitEvent - event) > 0;
     if (state == RtProbeArmed)
     {
         const float before = asfloat(GiProbes[base + RtProbeRadiance]);
         const float high = max(before, now);
+        float change = 0.0f;
         if (high > GiProbeSignificance * GiLuminance(GiIrradiance(slot)))
-            GiProbes[base + RtProbeChange] = asuint(abs(now - before) / high);
+            change = abs(now - before) / high;
+        if (change >= GiProbeReset)
+            GiProbes[base + RtProbeEvent] = fc.frameIndex_;
+        else if (echoed)
+        {
+            change = 1.0f;
+            GiProbes[base + RtProbeEvent] = hitEvent;
+        }
+        // Paths read the old light through the tails of cells the chain has
+        // not reached yet: keep resetting until it has passed.
+        else if (fc.frameIndex_ - event < GiEventSettle)
+            change = 1.0f;
+        GiProbes[base + RtProbeChange] = asuint(change);
     }
+    else if (echoed)
+        GiProbes[base + RtProbeEvent] = hitEvent;
     GiProbes[base + RtProbeRadiance] = asuint(now);
     GiProbes[base + RtProbeState] = RtProbeArmed;
 }
