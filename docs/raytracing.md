@@ -1009,22 +1009,20 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       par défaut, compensation, EV100 min et max) et dans les options de
       caméra de l'éditeur. Sol au soleil → pièce sous une lampe de 150 cd :
       les deux lisibles, vue fixe stable à ±0,002 EV.
-- [x] **3.3 Prépasse profondeur + normales.** C'est `OBJECTIFS.md` §4 étape 3.
+- [ ] **3.3 Prépasse profondeur + normales.** C'est `OBJECTIFS.md` §4 étape 3.
       Le depth est en Z inversé sans plan lointain (agrandissement, 15 et
       16) : profondeur linéaire = `znear_ / z`, 0 = infini. Vaut pour tout ce
       qui lira ce buffer : l'AO (phase 4), le SSR (7.6), le rejet
       d'historique (3.5).
-      *Fait (2026-10-30)* : passe `prepass` (meshes et terrain, `PrepassPS`)
-      qui écrit la profondeur et la normale géométrique en espace vue
-      (`view normals`, `A2B10G10R10`) ; `scene` reprend la profondeur en
-      `EQUAL` sans écriture. `Invariant` sur `SV_Position`
-      (`[[vk::ext_decorate(18)]]`, DXC ne l'émet pas pour `precise`). Raster
-      identique au pixel, sauf les égalités de profondeur entre faces
-      coplanaires, où le dernier dessiné gagne maintenant. +0,4 à +1,1 ms
-      sur la lune : le terrain est dessiné une fois de plus.
-- [ ] **3.4 Slots d'instance stables.** Remplacer le swap-remove des instances
+- [x] **3.4 Slots d'instance stables.** Remplacer le swap-remove des instances
       de mesh, ou ajouter une indirection stable.
       *Vérif* : un id ne change pas quand une autre entité est supprimée.
+      *Fait (2026-10-30)* : `InstanceSlots` (`InstanceManager.h`) tient les
+      ids d'un pool. Meshes et caméras gardent leur id tant qu'ils sont dans
+      le pool, et un id libéré va à la prochaine entité insérée. Les pools que
+      les shaders parcourent par compte (`CountField` : lumières, skybox,
+      sphères d'ombre) restent compacts, avec le swap-remove. Vérifié par
+      `tools/InstanceSlotsCheck.cpp` ; banc identique en raster.
 - [ ] **3.5 Matrices précédentes.** Garder la matrice monde de la frame
       précédente par instance, et le view-proj précédent dans `CameraGPUData`.
       Ajouter une vue debug des vecteurs de mouvement.
@@ -1035,6 +1033,9 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
         7.5, le cache) est rejeté d'un coup.
       - Un gel ou un dégel (agrandissement, étape 10) téléporte un corps dans
         la hiérarchie : son historique est rejeté une frame, c'est accepté.
+      - Un id libéré est repris tout de suite (3.4) : à l'insertion, la
+        matrice précédente est la courante, sinon la nouvelle entité hérite
+        du mouvement de l'ancienne.
 
       *Vérif* : vecteurs nuls sur ce qui voyage avec la caméra, et justes
       sur le buggy ; nuls aussi sur la frame d'un recentrage.
