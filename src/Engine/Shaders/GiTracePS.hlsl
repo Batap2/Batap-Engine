@@ -30,10 +30,23 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
     const uint bucket = slot & (RtCacheStatsBuckets - 1u);
     GiReserve(slot);
     const float2 firstU = float2(GiRand(seed), GiRand(seed));
+    const uint probe = slot * RtProbeWords;
+    const bool unprobed = ray < 512u && GiProbes[probe + RtProbeState] == RtProbeNone;
     float firstDirect;
-    GiAccumulate(slot, GiPathIrradiance(from, firstU, seed, bucket, firstDirect), fc.exposure_);
-    if (firstDirect > 0.0f && ray < 512u)
-        InterlockedMax(GiProbes[slot * RtProbeWords + RtProbeBest],
-                       (asuint(firstDirect) & 0xFFFFF000u) | (g_draw.instanceIndex_ << 9) | ray);
+    uint firstSlot;
+    const float3 irradiance = GiPathIrradiance(from, firstU, seed, bucket,
+                                               GiProbes[probe + RtProbeEvent], unprobed,
+                                               firstDirect, firstSlot);
+    GiAccumulate(slot, irradiance, fc.exposure_);
+    if (ray >= 512u)
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+    const uint pick = (g_draw.instanceIndex_ << 9) | ray;
+    if (firstDirect > 0.0f)
+        InterlockedMax(GiProbes[probe + RtProbeBest],
+                       GiBestLit | (asuint(firstDirect) & GiBestLuminance) | pick);
+    else if (firstSlot != GiNoSlot &&
+             asfloat(GiProbes[firstSlot * RtProbeWords + RtProbeRadiance]) > 0.0f)
+        InterlockedMax(GiProbes[probe + RtProbeBest],
+                       (asuint(GiLuminance(irradiance)) & GiBestLuminance) | pick);
     return float4(0.0f, 0.0f, 0.0f, 0.0f);
 }

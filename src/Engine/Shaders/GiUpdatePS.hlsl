@@ -42,7 +42,9 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
                                        : float2(GiRand(seed), GiRand(seed));
 
     float firstDirect;
-    const float3 irradiance = GiPathIrradiance(first, firstU, seed, bucket, firstDirect);
+    uint firstSlot;
+    const float3 irradiance =
+        GiPathIrradiance(first, firstU, seed, bucket, 0u, false, firstDirect, firstSlot);
     GiAccumulate(slot, irradiance, fc.exposure_);
     return float4(irradiance, 1.0f);
 }

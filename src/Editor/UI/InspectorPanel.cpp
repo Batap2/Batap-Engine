@@ -8,6 +8,7 @@
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "Components/Camera_C.h"
+#include "Components/FreeCamController_C.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Name_C.h"
@@ -16,6 +17,7 @@
 #include "Instance/InstanceDeclaration.h"
 #include "Instance/Spawnable.h"
 #include "Reflection/ComponentRegistry.h"
+#include "Systems/FreeCamController_S.h"
 #include "Systems/Hierarchy_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Transform_S.h"
@@ -441,13 +443,29 @@ void InspectorPanel::drawCameraActions(EntityHandle ent, App& app)
         return;
 
     ImGui::Spacing();
-    if (ImGui::Button(ICON_MD_VIDEOCAM "  Align to editor view",
-                      {ImGui::GetContentRegionAvail().x, 0.0f}))
+    const float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+    const float width = (ImGui::GetContentRegionAvail().x - spacing) * 0.5f;
+    if (ImGui::Button(ICON_MD_VIDEOCAM "  Align to editor view", {width, 0.0f}))
     {
         const Transform_C& view = editorCam.get<Transform_C>();
         ent.setPosition(view.worldPos(), Space::World);
         ent.setRotation(view.worldRot(), Space::World);
     }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Moves this camera to the editor view.");
+
+    ImGui::SameLine(0.0f, spacing);
+    if (ImGui::Button(ICON_MD_VISIBILITY "  View from camera", {width, 0.0f}))
+    {
+        const Transform_C& cam = ent.get<Transform_C>();
+        // The free cam rebuilds its rotation from yaw/pitch every frame.
+        auto& ctrl = editorCam.get<FreeCamController_C>();
+        setFreeCamFrame(ctrl, ctrl.frame_, cam.worldRot());
+        editorCam.setPosition(cam.worldPos(), Space::World);
+        editorCam.setRotation(freeCamRotation(ctrl), Space::World);
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Moves the editor view to this camera.");
 }
 
 void InspectorPanel::drawAddComponent(EntityHandle ent, World& world, App& app)
