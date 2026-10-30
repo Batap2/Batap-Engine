@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <span>
 
 namespace batap
 {
@@ -21,33 +20,69 @@ namespace
 constexpr float kBrightenTau = 0.4f;
 constexpr float kDarkenTau = 1.5f;
 constexpr float kMiddleGrey = 0.18f;
+constexpr size_t kCells = ExposureGridSize * ExposureGridSize;
 }  // namespace
 
-Exposure::Exposure(const DrawSetup& setup) : setup_(setup)
+Exposure::Exposure(const DrawSetup& setup) : setup_(setup), sums_(2 * kCells)
 {
+    cells_.reserve(kCells);
     for (GPUResourceHandle& readback : readback_)
-        readback = setup_.resources_.createMappedBuffer(2 * sizeof(float), "exposure readback");
+        readback =
+            setup_.resources_.createMappedBuffer(sums_.size() * sizeof(float), "exposure readback");
 }
 
 Exposure::~Exposure()
 {
     vkDestroyPipeline(setup_.ctx_.device_, measurePipeline_, nullptr);
-    vkDestroyPipeline(setup_.ctx_.device_, reducePipeline_, nullptr);
 }
 
 void Exposure::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, measurePipeline_, nullptr);
-    vkDestroyPipeline(setup_.ctx_.device_, reducePipeline_, nullptr);
-    const auto build = [&](VkShaderModule pixelShader)
+    measurePipeline_ = GraphicsPipelineBuilder()
+                           .shaders(modules[SkyVS], modules[ExposureMeasurePS])
+                           .colorFormat(VK_FORMAT_R32G32_SFLOAT)
+                           .build(setup_.ctx_.device_, setup_.layout_);
+}
+
+// Averaging the whole frame over-exposes as soon as a dark majority (black
+// sky) pulls the mean down. Like the eye and matrix meters, anchor on the
+// bright part: the luminance at `percentile`, with the cells more than `range`
+// EV below it (space, dusk glow) and the few above it (sun, speculars) left out.
+std::optional<float> Exposure::meteredLuminance(float percentile, float range)
+{
+    if (cells_.empty())
+        return std::nullopt;
+    std::ranges::sort(cells_, {}, &Cell::logLuminance_);
+
+    float total = 0.f;
+    for (const Cell& cell : cells_)
+        total += cell.weight_;
+    float top = cells_.back().logLuminance_;
+    float cumulative = 0.f;
+    for (const Cell& cell : cells_)
     {
-        return GraphicsPipelineBuilder()
-            .shaders(modules[SkyVS], pixelShader)
-            .colorFormat(VK_FORMAT_R32G32_SFLOAT)
-            .build(setup_.ctx_.device_, setup_.layout_);
-    };
-    measurePipeline_ = build(modules[ExposureMeasurePS]);
-    reducePipeline_ = build(modules[ExposureReducePS]);
+        cumulative += cell.weight_;
+        if (cumulative >= percentile * total)
+        {
+            top = cell.logLuminance_;
+            break;
+        }
+    }
+
+    float sum = 0.f;
+    float weight = 0.f;
+    for (const Cell& cell : cells_)
+    {
+        if (cell.logLuminance_ > top)
+            break;
+        if (cell.logLuminance_ >= top - range)
+        {
+            sum += cell.logLuminance_ * cell.weight_;
+            weight += cell.weight_;
+        }
+    }
+    return std::exp2(sum / weight);
 }
 
 float Exposure::update(uint32_t frame, entt::entity camera, const Camera_C& settings, float dt)
@@ -68,13 +103,17 @@ float Exposure::update(uint32_t frame, entt::entity camera, const Camera_C& sett
 
     if (measured_[frame])
     {
-        float sums[2]{};
-        std::memcpy(sums, setup_.resources_.mappedFor(readback_[frame]).data(), sizeof sums);
-        if (sums[1] > 0.f)
+        std::memcpy(sums_.data(), setup_.resources_.mappedFor(readback_[frame]).data(),
+                    sums_.size() * sizeof(float));
+        cells_.clear();
+        for (size_t i = 0; i < kCells; ++i)
+            if (const float count = sums_[2 * i + 1]; count > 0.f)
+                cells_.push_back({sums_[2 * i] / count, count});
+        if (const std::optional<float> luminance =
+                meteredLuminance(settings.meteringPercentile_, settings.meteringRange_))
         {
-            const float averageLuminance = std::exp2(sums[0] / sums[1]);
             const float target = std::clamp(
-                ev100ForExposure(kMiddleGrey / averageLuminance) - settings.exposureCompensation_,
+                ev100ForExposure(kMiddleGrey / *luminance) - settings.exposureCompensation_,
                 settings.minEv100_, std::max(settings.minEv100_, settings.maxEv100_));
             const float tau = target > ev100_ ? kBrightenTau : kDarkenTau;
             ev100_ += (target - ev100_) * (1.f - std::exp(-dt / tau));
@@ -89,47 +128,35 @@ void Exposure::addPasses(RenderGraph& graph, GraphImage hdr, GraphBuffer frameCo
     if (!auto_)
         return;
 
-    const auto createTarget = [&](const char* name, uint32_t size)
-    { return graph.createImage(name, {{size, size}, toVkFormat(ResourceFormat::R32G32_FLOAT)}); };
-    const GraphImage grid = createTarget("exposure grid", ExposureGridSize);
-    const GraphImage block = createTarget("exposure block", ExposureGridSize / ExposureReduceBlock);
-    const GraphImage total = createTarget("exposure total", 1);
+    const GraphImage grid =
+        graph.createImage("exposure grid", {{ExposureGridSize, ExposureGridSize},
+                                            toVkFormat(ResourceFormat::R32G32_FLOAT)});
     const GraphBuffer readback = graph.importBuffer("exposure readback", setup_.resources_,
                                                     readback_[frame], Usage::None, Usage::None);
 
-    const auto fullscreenPass = [&](const char* name, GraphImage source, GraphImage target,
-                                    VkPipeline pipeline) -> GraphPass&
-    {
-        return graph.addPass(name)
-            .read(source, Usage::ShaderRead)
-            .color(target, Load::DontCare)
-            .execute(
-                [draw, source, pipeline](GraphContext& c)
-                {
-                    DrawContext context = bindDraw(draw, c.cmd());
-                    context.push_.instanceIndex_ = c.textureIndex(source);
-                    vkCmdBindPipeline(context.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-                    pushDraw(context, context.push_);
-                    vkCmdDraw(context.cmd_, 3, 1, 0, 0);
-                });
-    };
-    fullscreenPass("exposure measure", hdr, grid, measurePipeline_)
-        .read(frameConstants, Usage::ShaderRead);
-    fullscreenPass("exposure reduce", grid, block, reducePipeline_);
-    fullscreenPass("exposure total", block, total, reducePipeline_);
+    graph.addPass("exposure measure")
+        .read(hdr, Usage::ShaderRead)
+        .read(frameConstants, Usage::ShaderRead)
+        .color(grid, Load::DontCare)
+        .execute(
+            [draw, pipeline = measurePipeline_](GraphContext& c)
+            {
+                const DrawContext context = bindDraw(draw, c.cmd());
+                vkCmdBindPipeline(context.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+                vkCmdDraw(context.cmd_, 3, 1, 0, 0);
+            });
 
     graph.addPass("exposure readback")
-        .read(total, Usage::TransferSrc)
+        .read(grid, Usage::TransferSrc)
         .write(readback, Usage::TransferDst)
         .execute(
-            [total, readback](GraphContext& c)
+            [grid, readback](GraphContext& c)
             {
                 VkBufferImageCopy region{};
                 region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-                region.imageExtent = {1, 1, 1};
-                vkCmdCopyImageToBuffer(c.cmd(), c.image(total),
-                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, c.buffer(readback), 1,
-                                       &region);
+                region.imageExtent = {ExposureGridSize, ExposureGridSize, 1};
+                vkCmdCopyImageToBuffer(c.cmd(), c.image(grid), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                       c.buffer(readback), 1, &region);
             });
     measured_[frame] = true;
 }

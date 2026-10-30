@@ -1,8 +1,11 @@
 #include "Renderer/Scene/SceneFrame.h"
 
 #include "Assets/AssetManager.h"
+#include "Components/Atmosphere_C.h"
 #include "Components/Camera_C.h"
 #include "Components/Transform_C.h"
+#include "Flatten.h"
+#include "Renderer/Atmosphere.h"
 #include "DebugUtils.h"
 #include "Engine.h"
 #include "Instance/InstanceManager.h"
@@ -15,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <span>
 
 namespace batap
 {
@@ -194,6 +198,16 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
     frameData_.exposure_ =
         exposure_.update(frame, args.camera_, reg->get<Camera_C>(args.camera_), dt);
+    const v3f cameraPos = reg->get<Transform_C>(args.camera_).world().translation();
+    flatten(frameData_.cameraPos_, cameraPos);
+    if (auto atmospheres = reg->view<Atmosphere_C, Transform_C>();
+        atmospheres.begin() != atmospheres.end())
+    {
+        const SH9 sh = skyIrradianceAt(*reg, assets, cameraPos);
+        auto outSH = std::span{frameData_.sh_};
+        for (size_t i = 0; i < outSH.size(); ++i)
+            flatten(outSH[i], sh.c[i]);
+    }
     giUpdate_.writeFrameData(frameData_, targets.extent_, dt, ctx.settings().giBounces_,
                              ctx.settings().giPasses_, ctx.settings().giPerCell_);
 

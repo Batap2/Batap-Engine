@@ -1,12 +1,14 @@
 // Modèle de binding Vulkan (docs/vulkan.md §10).
 // Les paramètres du ciel viennent du SkyboxBuffer partagé avec le PixelShader
 // (IBL) : une seule source de vérité.
-#include "ShaderInterop.h"
+#include "Sky.hlsli"
 
 [[vk::binding(CamerasBinding, FrameSet)]]
 StructuredBuffer<CameraGPUData> CameraBuffer;
 [[vk::binding(SkyboxBinding, FrameSet)]]
 StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
+[[vk::binding(LightsBinding, FrameSet)]]
+StructuredBuffer<LightGPUData> LightBuffer;
 [[vk::binding(FrameConstantsBinding, FrameSet)]]
 StructuredBuffer<FrameGPUData> FrameBuffer;
 
@@ -36,18 +38,16 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
         float2 uv   = float2((phi + PI) / (2.0f * PI), 0.5f - theta / PI);
         color = g_textures[sky.bindlessIndex].Sample(g_sampler, uv).rgb;
     }
-    else if (sky.mode == 1u)  // FlatColor
+    else
     {
-        color = sky.color1.rgb;
+        color = SkyBackground(sky, dir);
     }
-    else  // Gradient : ciel → horizon → bas
-    {
-        float safeWidth  = max(sky.horizonWidth, 0.01f);
-        float upBlend    = smoothstep(0.0f, safeWidth, dir.y);
-        float downBlend  = smoothstep(0.0f, safeWidth, -dir.y);
-        color = lerp(sky.color2.rgb, sky.color1.rgb,  upBlend);
-        color = lerp(color,          sky.color3.rgb,  downBlend);
-    }
+    color *= sky.intensity;
 
-    return float4(color * (sky.intensity * FrameBuffer[0].exposure_), 1.0f);
+    SkySun sun = SkyNoSun();
+    for (uint i = 0; i < g_draw.lightCount_ && !sun.valid; ++i)
+        sun = SkySunOf(LightBuffer[i], cam.pos_);
+    color = SkyComposite(g_draw.atmosphereCount_, cam.pos_, dir, sun, color, true);
+
+    return float4(color * FrameBuffer[0].exposure_, 1.0f);
 }

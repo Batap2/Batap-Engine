@@ -47,6 +47,9 @@ struct Exposure
     float compensation = 0.f;
     float minEv100 = 0.f;
     float maxEv100 = 0.f;
+    // Camera_C defaults: a config written before these keys existed keeps them.
+    float meteringPercentile = 0.98f;
+    float meteringRange = 6.f;
 };
 
 struct Pose

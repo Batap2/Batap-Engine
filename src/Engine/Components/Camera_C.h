@@ -20,6 +20,8 @@ struct Camera_C
     float exposureCompensation_ = 0;
     float minEv100_ = -6;
     float maxEv100_ = 20;
+    float meteringPercentile_ = 0.98f;
+    float meteringRange_ = 6;
 
     // aspect = width / height
     m4f make_proj(float aspect) const;
@@ -43,5 +45,7 @@ BATAP_COMPONENT(
     fieldMeta<&Camera_C::ev100_>({.speed = 0.05f, .min = -10.f, .max = 25.f}),
     fieldMeta<&Camera_C::exposureCompensation_>({.speed = 0.05f, .min = -10.f, .max = 10.f}),
     fieldMeta<&Camera_C::minEv100_>({.speed = 0.05f, .min = -10.f, .max = 25.f}),
-    fieldMeta<&Camera_C::maxEv100_>({.speed = 0.05f, .min = -10.f, .max = 25.f}));
+    fieldMeta<&Camera_C::maxEv100_>({.speed = 0.05f, .min = -10.f, .max = 25.f}),
+    fieldMeta<&Camera_C::meteringPercentile_>({.speed = 0.005f, .min = 0.5f, .max = 1.f}),
+    fieldMeta<&Camera_C::meteringRange_>({.speed = 0.05f, .min = 0.f, .max = 20.f}));
 }  // namespace batap

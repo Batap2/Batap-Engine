@@ -80,13 +80,15 @@ auto camState(const v3f& pos, const FreeCamController_C& ctrl, const Camera_C& v
                       view.autoExposure_,
                       view.exposureCompensation_,
                       view.minEv100_,
-                      view.maxEv100_};
+                      view.maxEv100_,
+                      view.meteringPercentile_,
+                      view.meteringRange_};
 }
 
 editorConfig::Exposure exposureOf(const Camera_C& view)
 {
-    return {view.ev100_, view.autoExposure_, view.exposureCompensation_, view.minEv100_,
-            view.maxEv100_};
+    return {view.ev100_,    view.autoExposure_,       view.exposureCompensation_, view.minEv100_,
+            view.maxEv100_, view.meteringPercentile_, view.meteringRange_};
 }
 
 void setExposure(Camera_C& view, const editorConfig::Exposure& exposure)
@@ -96,12 +98,15 @@ void setExposure(Camera_C& view, const editorConfig::Exposure& exposure)
     view.exposureCompensation_ = exposure.compensation;
     view.minEv100_ = exposure.minEv100;
     view.maxEv100_ = exposure.maxEv100;
+    view.meteringPercentile_ = exposure.meteringPercentile;
+    view.meteringRange_ = exposure.meteringRange;
 }
 
 auto exposureState(const Camera_C& view)
 {
-    return std::tuple{view.ev100_, view.autoExposure_, view.exposureCompensation_, view.minEv100_,
-                      view.maxEv100_};
+    return std::tuple{view.ev100_,        view.autoExposure_, view.exposureCompensation_,
+                      view.minEv100_,     view.maxEv100_,     view.meteringPercentile_,
+                      view.meteringRange_};
 }
 }  // namespace
 

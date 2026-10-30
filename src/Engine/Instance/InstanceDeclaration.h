@@ -25,6 +25,7 @@
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "Assets/Texture.h"
+#include "Components/Atmosphere_C.h"
 #include "Components/Camera_C.h"
 #include "Components/DirectionalLight_C.h"
 #include "Components/FarPointLight_C.h"
@@ -333,6 +334,33 @@ struct SkyboxInstance
     }
 };
 
+struct AtmosphereInstance
+{
+    using GPUData = AtmosphereGPUData;
+    using Uses = TypeList<Atmosphere_C, Transform_C>;
+    static constexpr uint32_t Binding = AtmospheresBinding;
+    static constexpr size_t InitialCapacity = 4;
+    static constexpr uint32_t DrawPush::* CountField = &DrawPush::atmosphereCount_;
+    static constexpr bool Additive = true;
+
+    static void fill(AccessOf<Uses> in, GPUData& out)
+    {
+        const Atmosphere_C& atm = in.marker();
+        flatten(out.center_, v3f::Zero());
+        if (auto* trans = in.get<Transform_C>())
+            flatten(out.center_, trans->world().translation());
+        out.planetRadius_ = std::max(atm.planetRadius_, 1e-3f);
+        out.atmosphereRadius_ = out.planetRadius_ + std::max(atm.height_, 1e-3f);
+        flatten(out.rayleigh_, atm.rayleigh_);
+        out.rayleighHeight_ = std::max(atm.rayleighHeight_, 1e-3f);
+        flatten(out.groundAlbedo_, atm.groundAlbedo_);
+        out.mie_ = atm.mie_;
+        out.mieHeight_ = std::max(atm.mieHeight_, 1e-3f);
+        out.mieAnisotropy_ = std::clamp(atm.mieAnisotropy_, -0.99f, 0.99f);
+        out.boost_ = atm.boost_;
+    }
+};
+
 struct ShadowSphereInstance
 {
     using GPUData = SphereOccluderGPUData;
@@ -383,7 +411,7 @@ struct ShadowSphereInstance
 // ----------- GPUInstances : the one list the plumbing reads -----------------
 
 using GPUInstances = TypeList<StaticMeshInstance, CameraInstance, LightInstance, SkyboxInstance,
-                              ShadowSphereInstance>;
+                              ShadowSphereInstance, AtmosphereInstance>;
 
 // What the plumbing assumes of an instance, checked where it is declared
 // rather than deep in a pool instantiation.
