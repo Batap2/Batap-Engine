@@ -64,6 +64,7 @@ struct World
     entt::entity renderCamera();
     // Where the scene is drawn, in framebuffer pixels: the game's UI goes there.
     ViewRect viewRect() const;
+    void* nativeWindow() const;
     const std::vector<ContactEvent>& contacts() const;
     // Hits colliders, unlike spatialIndex().raycast() which hits render bounds.
     // ignore: a body the ray starts inside of, typically the caster itself.

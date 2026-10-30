@@ -37,6 +37,11 @@ struct Character_C
     // Raised by entt's on_update: whoever edits this component must go through
     // registry.patch or the character keeps its old shape.
     bool dirty_ = false;
+
+    // Position before the last step, for the render interpolation in
+    // Character_S.
+    v3f prevPos_ = v3f::Zero();
+    bool prevValid_ = false;
 };
 
 static_assert(refl::fieldName<Character_C, 0>() == "mode");
@@ -50,6 +55,7 @@ static_assert(refl::fieldName<Character_C, 7>() == "moveVelocity");
 static_assert(refl::fieldName<Character_C, 8>() == "wantJump");
 
 BATAP_COMPONENT(Character_C, "character", fieldSkip<&Character_C::dirty_>(),
+                fieldSkip<&Character_C::prevPos_>(), fieldSkip<&Character_C::prevValid_>(),
                 fieldMeta<&Character_C::radius_>({.speed = 0.01f, .min = 0.01f, .max = 10.f}),
                 fieldMeta<&Character_C::halfHeight_>({.speed = 0.01f, .min = 0.01f, .max = 10.f}),
                 fieldMeta<&Character_C::maxSlopeDeg_>({.speed = 0.5f, .min = 0.f, .max = 89.f}),

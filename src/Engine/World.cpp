@@ -103,6 +103,11 @@ ViewRect World::viewRect() const
     return ctx_->viewRect();
 }
 
+void* World::nativeWindow() const
+{
+    return ctx_->nativeWindow();
+}
+
 const std::vector<ContactEvent>& World::contacts() const
 {
     return systems_->physics_->contacts();
@@ -201,6 +206,7 @@ void World::update(Game& game)
     {
         time_.simTime_ += static_cast<double>(time_.fixedDt_);
         systems_->physics_->restorePoses(*this);
+        systems_->characters_->restorePoses(*this);
         game.fixedUpdate(*this, time_.fixedDt_);
         systems_->terrain_->fixedUpdate(*this, time_.fixedDt_);
         systems_->physics_->fixedUpdate(*this, time_.fixedDt_);
@@ -208,6 +214,7 @@ void World::update(Game& game)
         time_.accumulator_ -= time_.fixedDt_;
     }
     systems_->physics_->interpolate(*this, time_.accumulator_ / time_.fixedDt_);
+    systems_->characters_->interpolate(*this, time_.accumulator_ / time_.fixedDt_);
 
     game.update(*this, dt);
     systems_->update(ctx_->deltaTime_, *ctx_, *this);

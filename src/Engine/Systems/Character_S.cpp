@@ -124,7 +124,15 @@ void Character_S::fixedUpdate(World& world, float dt)
             v3f wanted = onGround && towardGround ? groundVelocity : verticalVelocity;
             if (onGround && towardGround && ch.wantJump_)
                 wanted += up * ch.jumpSpeed_;
-            wanted += ch.gravity_ * dt;
+            v3f fall = ch.gravity_ * dt;
+            // Jolt only cancels the part of the velocity into the ground: on a
+            // walkable slope the rest would slide the character down it.
+            if (onGround && towardGround)
+            {
+                const v3f normal = toEigen(cv->GetGroundNormal());
+                fall = normal * fall.dot(normal);
+            }
+            wanted += fall;
             wanted += ch.moveVelocity_ - up * ch.moveVelocity_.dot(up);
             cv->SetLinearVelocity(toJolt(wanted));
 
@@ -136,6 +144,9 @@ void Character_S::fixedUpdate(World& world, float dt)
             groundPush = ch.gravity_;
         }
 
+        ch.prevPos_ = toEigen(cv->GetPosition());
+        ch.prevValid_ = true;
+
         JPH::PhysicsSystem& system = physics.system();
         cv->ExtendedUpdate(dt, toJolt(groundPush), update,
                            system.GetDefaultBroadPhaseLayerFilter(objectLayers::Moving),
@@ -146,6 +157,42 @@ void Character_S::fixedUpdate(World& world, float dt)
         ch.velocity_ = toEigen(cv->GetLinearVelocity());
         ch.wantJump_ = false;
 
+        transforms.setLocalPosition({&reg, e}, toEigen(cv->GetPosition()));
+    }
+}
+
+void Character_S::interpolate(World& world, float alpha)
+{
+    auto& reg = world.registry_;
+    PhysicsWorld& physics = world.physics();
+    Transform_S& transforms = *world.systems().transforms_;
+
+    for (auto [e, ch, tc] : reg.view<Character_C, Transform_C>().each())
+    {
+        const JPH::CharacterVirtual* cv = physics.character(entt::to_integral(e));
+        if (!cv || !ch.prevValid_)
+            continue;
+        const v3f pos = toEigen(cv->GetPosition());
+        transforms.setLocalPosition({&reg, e}, ch.prevPos_ + (pos - ch.prevPos_) * alpha);
+        interpolated_ = true;
+    }
+}
+
+void Character_S::restorePoses(World& world)
+{
+    if (!interpolated_)
+        return;
+    interpolated_ = false;
+
+    auto& reg = world.registry_;
+    PhysicsWorld& physics = world.physics();
+    Transform_S& transforms = *world.systems().transforms_;
+
+    for (auto [e, ch, tc] : reg.view<Character_C, Transform_C>().each())
+    {
+        const JPH::CharacterVirtual* cv = physics.character(entt::to_integral(e));
+        if (!cv || !ch.prevValid_)
+            continue;
         transforms.setLocalPosition({&reg, e}, toEigen(cv->GetPosition()));
     }
 }
