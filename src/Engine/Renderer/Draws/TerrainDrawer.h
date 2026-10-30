@@ -32,6 +32,7 @@ struct TerrainDrawer
     // at the top of the next render.
     void upload(TerrainDraws& draws, bool tracing);
     GraphBuffer addMorphPass(RenderGraph& graph, const DrawContext& draw, GraphBuffer uploads);
+    void recordPrepass(const DrawContext& draw);
     void record(const DrawContext& draw);
     // Inside a shadow view's rendering, its push constants set.
     void recordShadow(const DrawContext& draw);
@@ -90,6 +91,7 @@ struct TerrainDrawer
     void planMorphs(bool tracing);
 
     DrawSetup setup_;
+    VkPipeline prepassPipeline_ = VK_NULL_HANDLE;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     VkPipeline rtPipeline_ = VK_NULL_HANDLE;
     VkPipeline shadowPipeline_ = VK_NULL_HANDLE;
@@ -114,8 +116,7 @@ struct TerrainDrawer
     uint64_t frame_ = 0;
     std::vector<TerrainWorldGPUData> worldData_;
     std::vector<Draw> draws_;
-    // Depth only: one draw per chunk, its strata together.
-    std::vector<Draw> shadowDraws_;
+    std::vector<Draw> chunkDraws_;
     bool drawsDirty_ = false;
     uint64_t stagedBytes_ = 0;
     bool warnedFull_ = false;

@@ -16,10 +16,12 @@ struct MeshDrawer
     MeshDrawer& operator=(const MeshDrawer&) = delete;
 
     void buildPipelines(const ShaderModules& modules);
+    void recordPrepass(const DrawContext& draw);
     void record(const DrawContext& draw);
 
    private:
     DrawSetup setup_;
+    VkPipeline prepassPipeline_ = VK_NULL_HANDLE;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     VkPipeline rtPipeline_ = VK_NULL_HANDLE;
 };

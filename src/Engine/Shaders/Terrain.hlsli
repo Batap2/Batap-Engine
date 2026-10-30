@@ -12,7 +12,8 @@ StructuredBuffer<TerrainWorldGPUData> TerrainWorldBuffer;
 
 struct TerrainVSOutput
 {
-    float4 position_ : SV_POSITION;
+    // Invariant, as in VertexShader.
+    [[vk::ext_decorate(18)]] float4 position_ : SV_POSITION;
     float3 posRel_   : TEXCOORD0;
     float3 nrmWS_    : TEXCOORD1;
     // (i, j) in the chunk's grid, for the outline.

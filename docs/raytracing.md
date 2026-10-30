@@ -993,7 +993,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
         ouverture. Les Unlit restent affichés tels quels (émissif en B.6) ;
       - cache GI en lux, sommes de la frame comptées en unités exposées ;
       - cinq scènes converties, luminosité moyenne à 1–2 % de la 3.1.
-- [ ] **3.2b Auto-exposition.** Le moteur choisit l'exposition de 3.2 à
+- [x] **3.2b Auto-exposition.** Le moteur choisit l'exposition de 3.2 à
       chaque frame : luminance moyenne (en log) de la cible HDR, réduite par
       une chaîne de passes PS (le moteur n'a pas de compute), puis exposition
       adaptée progressivement, plus vite quand l'image s'éclaircit que quand
@@ -1009,11 +1009,19 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       par défaut, compensation, EV100 min et max) et dans les options de
       caméra de l'éditeur. Sol au soleil → pièce sous une lampe de 150 cd :
       les deux lisibles, vue fixe stable à ±0,002 EV.
-- [ ] **3.3 Prépasse profondeur + normales.** C'est `OBJECTIFS.md` §4 étape 3.
+- [x] **3.3 Prépasse profondeur + normales.** C'est `OBJECTIFS.md` §4 étape 3.
       Le depth est en Z inversé sans plan lointain (agrandissement, 15 et
       16) : profondeur linéaire = `znear_ / z`, 0 = infini. Vaut pour tout ce
       qui lira ce buffer : l'AO (phase 4), le SSR (7.6), le rejet
       d'historique (3.5).
+      *Fait (2026-10-30)* : passe `prepass` (meshes et terrain, `PrepassPS`)
+      qui écrit la profondeur et la normale géométrique en espace vue
+      (`view normals`, `A2B10G10R10`) ; `scene` reprend la profondeur en
+      `EQUAL` sans écriture. `Invariant` sur `SV_Position`
+      (`[[vk::ext_decorate(18)]]`, DXC ne l'émet pas pour `precise`). Raster
+      identique au pixel, sauf les égalités de profondeur entre faces
+      coplanaires, où le dernier dessiné gagne maintenant. +0,4 à +1,1 ms
+      sur la lune : le terrain est dessiné une fois de plus.
 - [ ] **3.4 Slots d'instance stables.** Remplacer le swap-remove des instances
       de mesh, ou ajouter une indirection stable.
       *Vérif* : un id ne change pas quand une autre entité est supprimée.

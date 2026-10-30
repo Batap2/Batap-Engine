@@ -15,6 +15,8 @@ struct ResourceManager;
 struct AssetManager;
 struct GPUInstanceManager;
 
+inline constexpr VkFormat ViewNormalFormat = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+
 struct DrawSetup
 {
     VulkanContext& ctx_;
