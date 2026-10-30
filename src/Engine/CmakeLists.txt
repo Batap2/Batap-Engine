@@ -168,7 +168,8 @@ set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Terrain.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/GiCache.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/GiPath.hlsli"
-                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RtHit.hlsli")
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RtHit.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Motion.hlsli")
 
 function(batap_compile_shader src out target)
   add_custom_command(

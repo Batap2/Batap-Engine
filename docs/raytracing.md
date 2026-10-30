@@ -1023,7 +1023,7 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       les shaders parcourent par compte (`CountField` : lumières, skybox,
       sphères d'ombre) restent compacts, avec le swap-remove. Vérifié par
       `tools/InstanceSlotsCheck.cpp` ; banc identique en raster.
-- [ ] **3.5 Matrices précédentes.** Garder la matrice monde de la frame
+- [x] **3.5 Matrices précédentes.** Garder la matrice monde de la frame
       précédente par instance, et le view-proj précédent dans `CameraGPUData`.
       Ajouter une vue debug des vecteurs de mouvement.
       - Origine mobile : `World::shiftFrame` décale tous les `Transform_C`,
@@ -1039,7 +1039,15 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
       *Vérif* : vecteurs nuls sur ce qui voyage avec la caméra, et justes
       sur le buggy ; nuls aussi sur la frame d'un recentrage.
-- [ ] **3.6 MSAA.** MSAA sur la passe géométrie, avec le resolve avant le
+      *Fait (2026-10-30)* : un pool `History` (meshes, caméras) passe à
+      `fill()` ce qu'il avait écrit la frame d'avant, d'où `prevWorld_` et
+      `prevViewProj_` / `prevPos_`. Le terrain garde la matrice de chaque
+      chunk dans son slot. `shiftFrame` n'a rien à décaler : les valeurs
+      précédentes restent dans le repère de leur frame, caméra comprise, et
+      la différence n'en dépend pas. Vue debug « Motion vectors » (menu View),
+      calculée dans le PS par `prevWorld × inverse(world) × P`, gratuite
+      éteinte. Vérifié par dérives et recentrages forcés (détail dans les
+      notes) ; banc identique en raster. MSAA sur la passe géométrie, avec le resolve avant le
       tonemap.
       *Vérif* : arêtes lissées ; coût mesuré dans tracy.
 

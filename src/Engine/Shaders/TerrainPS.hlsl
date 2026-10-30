@@ -1,4 +1,5 @@
 #include "Lighting.hlsli"
+#include "Motion.hlsli"
 #include "Terrain.hlsli"
 
 // DebugDraw's colours, one per level.
@@ -42,5 +43,13 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.gi_ = GiTerrainPoint(TerrainWorldBuffer[g_draw.instanceIndex_], i.posRel_,
                            GiFacing(s.Nface_, i.posRel_));
 
+    if ((g_draw.debugFlags_ & DebugMotionVectors) != 0u)
+    {
+        const TerrainWorldGPUData placed = TerrainWorldBuffer[g_draw.instanceIndex_];
+        const float3 prevRel = PreviousPosition(i.posRel_, placed.world_, placed.prevWorld_);
+        return float4(MotionDebugColor(MotionNdc(CameraInstancebuffer[g_draw.cameraIndex_],
+                                                 i.posRel_, prevRel)),
+                      1.0f);
+    }
     return float4(ShadeSurface(mat.shadingModel_, s), 1.0f);
 }

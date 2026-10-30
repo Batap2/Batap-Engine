@@ -298,15 +298,20 @@ void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
     for (const auto& [id, placement] : draws.placed_)
         if (const auto it = slots_.find(id); it != slots_.end())
         {
-            TerrainWorldGPUData& gpu = worldData_[it->second.instance_];
+            Slot& slot = it->second;
+            TerrainWorldGPUData& gpu = worldData_[slot.instance_];
             flatten(gpu.world_, placement.world_);
+            const bool placedBefore = slot.placedFrame_ != 0 && slot.placedFrame_ + 1 == frame_;
+            flatten(gpu.prevWorld_, placedBefore ? slot.placedWorld_ : placement.world_);
+            slot.placedWorld_ = placement.world_;
+            slot.placedFrame_ = frame_;
             const v3d cells = (placement.centreInOwner_ / double(GiCellBase)).array().floor();
             const v3i cell = cells.cast<int>();
             std::memcpy(gpu.centreCell_, cell.data(), sizeof gpu.centreCell_);
             flatten(gpu.centreOffset_,
                     (placement.centreInOwner_ - cells * double(GiCellBase)).cast<float>());
             gpu.owner_ = placement.owner_;
-            if (placement.moved_ && it->second.morphs_)
+            if (placement.moved_ && slot.morphs_)
                 toMorph_.insert(id);
         }
     if (instanceEnd_ > 0)

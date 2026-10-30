@@ -18,6 +18,7 @@ struct SceneRenderArgs
     bool showGiCells_ = false;
     bool showGiSides_ = false;
     bool showGiCache_ = false;
+    bool showMotionVectors_ = false;
 };
 
 void bindScene(Engine& ctx, World& world);

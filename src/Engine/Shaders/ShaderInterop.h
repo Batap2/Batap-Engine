@@ -166,12 +166,17 @@ struct CameraGPUData
     float fov_;
     float3 fwd_;
     float pad_;
+    // The frame before, as view_ and proj_ apply it: the view's rotation only.
+    float4x4 prevViewProj_;
+    float3 prevPos_;
+    float pad1_;
 };
 
 struct StaticMeshGPUData
 {
     float4x4 world_;
     uint materialIndices_[8];  // GPU arena slot per submesh
+    float4x4 prevWorld_;
 };
 
 // The normals are octahedral, two snorm16 in a uint (Terrain.hlsli). The
@@ -217,6 +222,7 @@ struct TerrainWorldGPUData
     uint owner_;
     float3 centreOffset_;
     float pad0_;
+    float4x4 prevWorld_;
 };
 
 struct TerrainMorphRowGPUData
@@ -415,11 +421,12 @@ static const uint DebugRtFirstHit = 2u;
 static const uint DebugGiCells = 4u;
 static const uint DebugGiSides = 8u;
 static const uint DebugGiCache = 16u;
+static const uint DebugMotionVectors = 32u;
 
 #ifdef __cplusplus
 
-static_assert(sizeof(CameraGPUData) == 192);
-static_assert(sizeof(StaticMeshGPUData) == 96);
+static_assert(sizeof(CameraGPUData) == 272);
+static_assert(sizeof(StaticMeshGPUData) == 160);
 static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
@@ -433,7 +440,7 @@ static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);
 static_assert(sizeof(TerrainVertexGPUData) == 48);
 static_assert(sizeof(TerrainChunkGPUData) == 64);
-static_assert(sizeof(TerrainWorldGPUData) == 96);
+static_assert(sizeof(TerrainWorldGPUData) == 160);
 static_assert(sizeof(TerrainMorphRowGPUData) == 16);
 static_assert(sizeof(RtGeometryGPUData) == 32);
 static_assert(sizeof(RtInstanceGPUData) == 16);

@@ -669,3 +669,61 @@ instance comble le trou.
 
 *Banc* : raster identique sur les 9 cas, RT dans le bruit, aucun nouveau
 message de validation, temps GPU inchangés (±4 %).
+
+## 3.5 Matrices précédentes
+
+*Fait (2026-10-30)* :
+- **Instances avec historique** : une instance qui déclare `History` reçoit
+  dans `fill(in, out, previous)` le `GPUData` écrit pour cette entité à la
+  frame d'avant (null à l'insertion, donc aussi pour un id repris en 3.4).
+  `StaticMeshInstance` en tire `prevWorld_`, `CameraInstance` `prevPos_` et
+  `prevViewProj_` (proj × rotation de la vue, comme les shaders les
+  appliquent). Le pool garde ce `GPUData` par slot côté CPU.
+- **Au repos sur les trois buffers** : une instance dont le `GPUData` a
+  changé est re-marquée sale sur toutes les frames, jusqu'à ce qu'un `fill`
+  rende la même chose. Sans ça, le buffer de frame repris trois frames après
+  l'arrêt garde « précédent ≠ courant » pour toujours (contrôle positif
+  ci-dessous). Un objet qui bouge est donc réécrit 5 frames au lieu de 3.
+- **Terrain** : sa matrice est déjà relative à la caméra et chaque chunk
+  affiché est placé à chaque frame ; le `Slot` garde la matrice de la
+  dernière pose et sa frame, `TerrainWorldGPUData::prevWorld_` la reprend si
+  la pose date de la frame d'avant, sinon la courante. Le morph des LOD est
+  ignoré.
+- **Recentrage** : rien à décaler, contrairement à ce que prévoyait le plan.
+  Les valeurs précédentes sont celles de la frame d'avant dans son repère, la
+  position précédente de la caméra aussi ; le mouvement ne dépend que de leur
+  différence (`prevWorld − prevPos`), que le décalage ne touche pas.
+- **Vue debug** « Motion vectors » (menu View de l'éditeur,
+  `DebugMotionVectors`) : dans le PS des meshes et du terrain, la position
+  précédente est `prevWorld × inverse(world) × P` (règle du plan, `Motion.hlsli`),
+  P étant `posRel_`, chaque matrice relative à la caméra de sa frame. Couleur :
+  gris = immobile, R et G = décalage NDC vers la position précédente × 8.
+  Rien dans les VS : un premier essai y calculait la position précédente pour
+  tous les sommets et coûtait +0,2 à +0,3 ms en RT sur la lune, pour une vue
+  de debug.
+- Limites connues : un changement de caméra de rendu compare la nouvelle à
+  sa propre frame d'avant (une frame fausse) ; le ciel et les billboards
+  n'ont pas de vecteur.
+
+*Vérif* (réglages temporaires retirés depuis : dérive d'une entité par nom,
+`shiftFrame` à chaque frame, vue forcée avec tonemap `none`) :
+- `gi_sun` immobile, puis recentré de ±(1500, 0, −700) m à **chaque**
+  frame : tous les pixels de géométrie au gris neutre (|v| ≤ 0,28 px, la
+  quantification 8 bits du gris), frames 600 et 601.
+- Lune, caméra qui avance et tourne de 0,4°/frame : 630 000 px en
+  mouvement (2,9 px en moyenne) ; écart à la frame d'avant 5,1 niveaux sans
+  les vecteurs, 1,7 en suivant les vecteurs.
+- Lune, buggy qui roule et tourne de 1,5°/frame, caméra fixe : 6 900 px en
+  mouvement, tout le reste immobile ; écart 45 → 9,4 niveaux (bords et
+  éclairage qui tourne avec le buggy). Mêmes chiffres en recentrant à chaque
+  frame.
+- Caméra et buggy qui avancent ensemble : le buggy entier au gris neutre,
+  le sol autour en mouvement.
+- Buggy arrêté après 10 frames : zéro dès la frame suivante, et sur les 8
+  d'après. **Contrôle positif** : sans le re-marquage, le dernier mouvement
+  revient une frame sur trois (2391, 2394, 2397…).
+
+*Banc* : raster identique sur les 9 cas, RT dans le bruit (`room_rt` et
+`editor_rt` ont dépassé une fois une référence prise basse : 94–169 px et
+71–218 px à 1 niveau, relancés dans le bruit), aucun nouveau message de
+validation, temps GPU dans le bruit.

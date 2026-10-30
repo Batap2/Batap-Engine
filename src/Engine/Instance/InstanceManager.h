@@ -134,6 +134,9 @@ template <GPUInstance Instance>
 struct FrameInstancePool
 {
     using InstanceType = Instance;
+    static_assert(
+        !KeepsHistory<Instance> || !requires { Instance::CountField; },
+        "a packed pool moves its instances, and their history would stay behind");
 
     explicit FrameInstancePool(ResourceManager& rm)
         : resourceManager_(rm),
@@ -149,6 +152,7 @@ struct FrameInstancePool
     std::string name_;
 
     emhash8::HashMap<EntityHandle, FrameDirtyFlag> dirtyInstances_;
+    std::vector<std::optional<typename Instance::GPUData>> previous_;
 
     // Set once the registry has handed out its indices, so a component change
     // routes to the pools whose Uses list names it.
@@ -161,6 +165,12 @@ struct FrameInstancePool
         if (const GPUInstanceID id = slots_.find(e); id.valid())
             return id;
         const GPUInstanceID id = slots_.insert(e);
+        if constexpr (KeepsHistory<Instance>)
+        {
+            if (previous_.size() <= id)
+                previous_.resize(id + 1);
+            previous_[id].reset();
+        }
         dirtyInstances_[e].setAll();
         ensureCapacity();
         return id;

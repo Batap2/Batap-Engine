@@ -79,7 +79,18 @@ void GPUInstanceManager::uploadRemainingFrameDirty(Engine& ctx)
 
             // Built on the stack so staging is only ever written linearly.
             GPUData data{};
-            InstanceT::fill({ctx, *entityHandle.reg_, entityHandle.entity_, id}, data);
+            const AccessOf<typename InstanceT::Uses> in{ctx, *entityHandle.reg_,
+                                                        entityHandle.entity_, id};
+            if constexpr (KeepsHistory<InstanceT>)
+            {
+                std::optional<GPUData>& previous = frameInstancePool.previous_[id];
+                InstanceT::fill(in, data, previous ? &*previous : nullptr);
+                if (!previous || std::memcmp(&*previous, &data, sizeof(GPUData)) != 0)
+                    frameDirtyFlag.setAll();
+                previous = data;
+            }
+            else
+                InstanceT::fill(in, data);
 
             auto span = resourceManager_.requestUpload(frameInstancePool.instancePoolHandle_,
                                                        sizeof(GPUData), id * sizeof(GPUData));
