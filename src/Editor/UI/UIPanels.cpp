@@ -610,6 +610,7 @@ void UIPanels::drawViewMenu(World& world, App& app)
     ImGui::MenuItem("GI cells", nullptr, &world.showGiCells_);
     ImGui::MenuItem("GI sides", nullptr, &world.showGiSides_);
     ImGui::MenuItem("GI cache", nullptr, &world.showGiCache_);
+    ImGui::MenuItem("Motion vectors", nullptr, &world.showMotionVectors_);
     ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
     if (!world.flags_.empty())
         ImGui::Separator();

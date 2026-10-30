@@ -52,6 +52,8 @@ struct TerrainDrawer
         bool shown_ = false;
         bool morphs_ = false;
         bool tracedReady_ = false;
+        m4f placedWorld_ = m4f::Identity();
+        uint64_t placedFrame_ = 0;
     };
 
     GPUResourceHandle chunkBuffer() const { return chunks_; }

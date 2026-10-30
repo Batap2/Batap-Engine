@@ -3,6 +3,7 @@
 //   set 1 = données de frame (storage buffers)
 //   push constants = indices du draw courant
 #include "Lighting.hlsli"
+#include "Motion.hlsli"
 
 [[vk::binding(InstancesBinding, FrameSet)]]
 StructuredBuffer<StaticMeshGPUData> StaticMeshInstancebuffer;
@@ -59,5 +60,12 @@ float4 main(VS_OUTPUT i) : SV_Target
         s.N_ = Ngeom;
     }
 
+    if ((g_draw.debugFlags_ & DebugMotionVectors) != 0u)
+    {
+        const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
+        const float3 prevRel = PreviousPosition(i.posRel_, RelativeTo(inst.world_, cam.pos_),
+                                                RelativeTo(inst.prevWorld_, cam.prevPos_));
+        return float4(MotionDebugColor(MotionNdc(cam, i.posRel_, prevRel)), 1.0f);
+    }
     return float4(ShadeSurface(mat.shadingModel_, s), 1.0f);
 }

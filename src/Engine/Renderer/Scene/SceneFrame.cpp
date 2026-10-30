@@ -141,7 +141,8 @@ DrawContext SceneFrame::drawContext(uint32_t frame, uint32_t camera, const Scene
     draw.push_.debugFlags_ =
         (args.showShadowCascades_ ? DebugShadowCascades : 0u) |
         (args.showRtFirstHit_ ? DebugRtFirstHit : 0u) | (args.showGiCells_ ? DebugGiCells : 0u) |
-        (args.showGiSides_ ? DebugGiSides : 0u) | (args.showGiCache_ ? DebugGiCache : 0u);
+        (args.showGiSides_ ? DebugGiSides : 0u) | (args.showGiCache_ ? DebugGiCache : 0u) |
+        (args.showMotionVectors_ ? DebugMotionVectors : 0u);
     draw.reg_ = args.reg_;
     draw.instanceManager_ = args.instanceManager_;
     draw.assetManager_ = ctx.assetManager_.get();

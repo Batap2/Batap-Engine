@@ -97,6 +97,7 @@ struct World
     bool showGiCells_ = false;
     bool showGiSides_ = false;
     bool showGiCache_ = false;
+    bool showMotionVectors_ = false;
     emhash8::HashMap<std::string, bool, std::hash<std::string_view>, std::equal_to<>> flags_;
 
    private:

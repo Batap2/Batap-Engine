@@ -140,11 +140,13 @@ struct StaticMeshInstance
     using Uses = TypeList<Mesh_C, Transform_C, Materials_C>;
     static constexpr uint32_t Binding = InstancesBinding;
     static constexpr size_t InitialCapacity = 256;
+    static constexpr bool History = true;
 
-    static void fill(AccessOf<Uses> in, GPUData& out)
+    static void fill(AccessOf<Uses> in, GPUData& out, const GPUData* previous)
     {
         if (auto* t = in.get<Transform_C>())
             flatten(out.world_, t->worldMatrix());
+        std::memcpy(out.prevWorld_, (previous ? previous : &out)->world_, sizeof out.prevWorld_);
 
         auto indices = std::span{out.materialIndices_};
         std::fill(indices.begin(), indices.end(), InvalidGPUIndex);
@@ -163,8 +165,9 @@ struct CameraInstance
     using GPUData = CameraGPUData;
     using Uses = TypeList<Camera_C, Transform_C>;
     static constexpr uint32_t Binding = CamerasBinding;
+    static constexpr bool History = true;
 
-    static void fill(AccessOf<Uses> in, GPUData& out)
+    static void fill(AccessOf<Uses> in, GPUData& out, const GPUData* previous)
     {
         const Camera_C& cam = in.marker();
         out.znear_ = cam.znear_;
@@ -185,6 +188,13 @@ struct CameraInstance
         flatten(out.right_, world.linear().col(0).normalized());
         flatten(out.up_, world.linear().col(1).normalized());
         flatten(out.fwd_, -world.linear().col(2).normalized());
+
+        const GPUData& last = previous ? *previous : out;
+        m4f lastRotation = m4f::Identity();
+        lastRotation.topLeftCorner<3, 3>() =
+            Eigen::Map<const m4f>(last.view_).topLeftCorner<3, 3>();
+        flatten(out.prevViewProj_, Eigen::Map<const m4f>(last.proj_) * lastRotation);
+        std::memcpy(out.prevPos_, last.pos_, sizeof out.prevPos_);
     }
 };
 
@@ -385,6 +395,9 @@ concept GPUInstance = requires {
     requires std::is_trivially_copyable_v<typename T::GPUData>;
     requires(sizeof(typename T::GPUData) % 4) == 0;
 };
+
+template <class Instance>
+concept KeepsHistory = requires { Instance::History; };
 
 template <class Instance>
 constexpr size_t initialCapacityOf()
