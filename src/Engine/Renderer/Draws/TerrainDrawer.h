@@ -54,6 +54,9 @@ struct TerrainDrawer
         bool tracedReady_ = false;
         m4f placedWorld_ = m4f::Identity();
         uint64_t placedFrame_ = 0;
+        v3d placedCamera_ = v3d::Zero();
+        std::optional<v3d> morphedCamera_;
+        double morphWidth_ = 0.0;
     };
 
     GPUResourceHandle chunkBuffer() const { return chunks_; }

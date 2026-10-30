@@ -12,9 +12,13 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <span>
+#include <utility>
+#include <vector>
 
 namespace batap
 {
@@ -28,6 +32,7 @@ constexpr auto kChunkIndices = static_cast<uint64_t>(kChunkCells * kChunkCells *
 // flight between may still read it.
 constexpr uint64_t kRetireFrames = FramesInFlight + 1;
 constexpr uint32_t kMaxMorphRows = 16384;
+constexpr size_t kMorphBudget = 256;
 }  // namespace
 
 TerrainDrawer::TerrainDrawer(const DrawSetup& setup) : setup_(setup)
@@ -243,6 +248,7 @@ void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
         slot.ranges_ = mesh.ranges_;
         slot.shown_ = mesh.shown_;
         slot.morphs_ = mesh.params_.morphs_;
+        slot.morphWidth_ = double(mesh.params_.morphEnd_) - double(mesh.params_.morphStart_);
         slot.vertex_ = allocate(vertices_, slot.vertices_);
         slot.index_ = allocate(indices_, slot.indices_);
         slot.traced_ = allocate(traced_, slot.vertices_);
@@ -279,6 +285,8 @@ void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
         retiredInstances_.emplace_back(frame_, slot.instance_);
         slot.instance_ = *instance;
         slot.morphs_ = params.morphs_;
+        slot.morphWidth_ = double(params.morphEnd_) - double(params.morphStart_);
+        slot.tracedReady_ = false;
         toMorph_.insert(id);
         drawsDirty_ = drawsDirty_ || slot.shown_;
     }
@@ -295,6 +303,7 @@ void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
     draws.shownChanges_.clear();
 
     worldData_.resize(instanceEnd_);
+    std::vector<std::pair<double, uint64_t>> stale;
     for (const auto& [id, placement] : draws.placed_)
         if (const auto it = slots_.find(id); it != slots_.end())
         {
@@ -311,9 +320,23 @@ void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
             flatten(gpu.centreOffset_,
                     (placement.centreInOwner_ - cells * double(GiCellBase)).cast<float>());
             gpu.owner_ = placement.owner_;
-            if (placement.moved_ && slot.morphs_)
-                toMorph_.insert(id);
+            slot.placedCamera_ = placement.cameraInOwner_;
+            if (slot.morphs_ && slot.morphedCamera_)
+                if (const double lag =
+                        (slot.placedCamera_ - *slot.morphedCamera_).norm() / slot.morphWidth_;
+                    lag > 0.0)
+                    stale.emplace_back(lag, id);
         }
+    const auto mostStale =
+        stale.begin() + static_cast<std::ptrdiff_t>(std::min(kMorphBudget, stale.size()));
+    std::partial_sort(stale.begin(), mostStale, stale.end(), std::greater<>());
+    for (auto it = stale.begin(); it != mostStale; ++it)
+        toMorph_.insert(it->second);
+    planMorphs(tracing);
+
+    for (const auto& [id, slot] : slots_)
+        worldData_[slot.instance_].tracedBase_ =
+            tracing_ && slot.tracedReady_ ? static_cast<uint32_t>(slot.traced_) : TerrainNoTraced;
     if (instanceEnd_ > 0)
     {
         const uint64_t bytes = sizeof(TerrainWorldGPUData) * instanceEnd_;
@@ -321,7 +344,6 @@ void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
                     bytes);
         stagedBytes_ += bytes;
     }
-    planMorphs(tracing);
 
     if (drawsDirty_)
     {
@@ -382,6 +404,7 @@ void TerrainDrawer::planMorphs(bool tracing)
             morphRowData_.push_back({slot->second.instance_, row * TerrainMorphRowWidth, vertices,
                                      static_cast<uint32_t>(slot->second.traced_)});
         slot->second.tracedReady_ = true;
+        slot->second.morphedCamera_ = slot->second.placedCamera_;
         morphed_.push_back(*it);
         it = toMorph_.erase(it);
     }
