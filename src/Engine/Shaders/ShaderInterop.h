@@ -221,9 +221,11 @@ struct TerrainWorldGPUData
     int3 centreCell_;
     uint owner_;
     float3 centreOffset_;
-    float pad0_;
+    uint tracedBase_;
     float4x4 prevWorld_;
 };
+
+static const uint TerrainNoTraced = 0xFFFFFFFFu;
 
 struct TerrainMorphRowGPUData
 {

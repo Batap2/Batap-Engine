@@ -222,7 +222,10 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
 
     const GraphImage normals =
         graph.createImage("view normals", {targets.extent_, ViewNormalFormat});
-    graph.addPass("prepass")
+    GraphPass& prepass = graph.addPass("prepass");
+    if (rayTracing)
+        prepass.read(traced, Usage::ShaderRead);
+    prepass
         .color(normals, Load::Clear)
         // Reversed Z (Camera_C::make_proj): the far plane is 0.
         .depth(depth, Load::Clear, 0.f)

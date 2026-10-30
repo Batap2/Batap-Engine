@@ -524,6 +524,9 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       culling. Il décale le bord d'une ombre de écart / tan(hauteur du
       soleil) : sous le pixel en médiane, 1 à 2 px au p99 avec un soleil à
       15°.
+      Depuis le 2026-10-30, l'écart est nul en RT : le raster du terrain lit
+      les positions dont le BLAS est construit (notes, « Terrain : le raster
+      lit le BLAS »).
       Validation propre, RT actif : éditeur debug sur `test_buggy.btpl`
       (60 frames), jeu debug sur la vue terrain (150 frames).
 - **1.3 Fusionnée dans 1.5 et 5.6.** Elle sautait la boucle

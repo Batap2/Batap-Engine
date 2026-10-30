@@ -727,3 +727,56 @@ message de validation, temps GPU inchangés (±4 %).
 `editor_rt` ont dépassé une fois une référence prise basse : 94–169 px et
 71–218 px à 1 niveau, relancés dans le bruit), aucun nouveau message de
 validation, temps GPU dans le bruit.
+
+## Terrain : le raster lit le BLAS
+
+*Fait (2026-10-30)*, suite de la BLAS dynamique qui suit le morph (commit
+`5f04582`).
+
+*Problème* : en RT, caméra en mouvement, environ 80 fps sur la lune et des
+taches noires sur le sol quand elle va vite. Mesuré (`moon_near`, caméra à
+0,36 m par frame) : frame 2,9 → 13,6 ms. `Terrain_S` marquait tous les chunks
+`moved_` dès que la caméra bougeait par rapport à l'astre : ~5 200 chunks à
+remorpher par frame, plafonnés à ~3 270 par `kMaxMorphRows`, donc 3 270
+refits de BLAS par frame (26 000 géométries, 257 Mo de scratch alloués et
+rendus à chaque frame) : 4,4 ms de CPU dans `vkCmdBuildAccelerationStructuresKHR`,
+1,6 ms à préparer les entrées, 3,3 ms de refit GPU. Les chunks au-delà du
+plafond prenaient du retard : leur BLAS ne collait plus au morph du raster
+et les rayons d'ombre partis de la surface raster la recoupaient, d'où les
+taches (elles disparaissent en levant le plafond). Les chunks hors de la
+bande de morph ne changent pas, mais ~3 250 y sont : les sauter ne suffit pas.
+
+*Correction* :
+- **Le raster lit le BLAS** : `TerrainWorldGPUData::tracedBase_` (l'ancien
+  `pad0_`) donne la place du chunk dans le pool `traced` quand ses
+  positions sont à jour, `TerrainNoTraced` sinon (chunk pas encore morphé,
+  paramètres changés, RT éteint). `TerrainVS` y lit la position ; la normale
+  reste morphée dans le VS. Raster et BLAS sont identiques par
+  construction, quel que soit le retard d'un chunk : plus de taches.
+- **Budget de morph** : `Placement::cameraInOwner_` remplace `moved_`. Par
+  slot, le drawer garde la caméra du dernier morph et la largeur de la bande ;
+  le retard d'un chunk est le déplacement de la caméra depuis, divisé par
+  cette largeur. Chaque frame, les `kMorphBudget` (256) chunks les plus en
+  retard sont remorphés et refittés, en plus des morphs forcés (ajout,
+  paramètres, ré-affichage), toujours sous `kMaxMorphRows`. Le morph d'un
+  chunk avance donc par pas quand vient son tour ; à l'arrêt tout rattrape
+  en une vingtaine de frames.
+- Un échec mesuré avant : un seuil de retard (ε de la bande) sans budget
+  baissait la moyenne mais laissait des pics (p95 1,5 × la médiane : les
+  chunks d'un même niveau franchissent le seuil ensemble), et tout retard du
+  BLAS sur le raster donnait les taches.
+
+*Mesuré (jeu, RT, 1280 × 728, caméra à 0,36 m et 0,3° par frame)* :
+
+| | à l'arrêt | en mouvement : moyenne | p95 | max |
+|---|---|---|---|---|
+| `moon_near`, avant | 3,0 ms | 13,6 ms | 16,3 ms | 21 ms |
+| `moon_near`, après | 3,4 ms | 4,7 ms | 6,1 ms | 8,5–9,8 ms |
+| `test_GI_Moon`, avant | 1,5 ms | 4,5 ms | 6,1 ms | 7,9 ms |
+| `test_GI_Moon`, après | 1,6 ms | 1,9 ms | 2,6 ms | 3,3–4,1 ms |
+
+À 48 m/s, le retard d'un chunk vaut 9 % de sa bande en moyenne, 16 % au
+plus. À l'arrêt, +0,3 à +0,4 ms de GPU sur la lune : le VS lit les positions
+mais calcule encore tout le morph pour la normale. Caméra rapide : plus de
+taches. Banc : raster identique, RT dans le bruit, validation propre.
+

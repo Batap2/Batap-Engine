@@ -455,9 +455,7 @@ void Terrain_S::publish(World& world)
         const m3d linear = ownerWorld.linear().cast<double>();
         const m3d toOwnerAxes = linear.colwise().normalized().transpose() * linear;
         const v3d offset = ownerWorld.translation().cast<double>() - camera;
-        const v3d cameraInOwner = linear.inverse() * -offset;
-        const bool moved = cameraInOwner != state.publishedCamera_;
-        state.publishedCamera_ = cameraInOwner;
+        const v3d cameraInOwner = toOwnerAxes * (linear.inverse() * -offset);
         for (const ChunkKey& key : state.shown_)
         {
             const Chunk& chunk = state.chunks_.at(key);
@@ -467,8 +465,8 @@ void Terrain_S::publish(World& world)
             placement.world_.topRightCorner<3, 1>() =
                 (linear * chunk.center_ + offset).cast<float>();
             placement.centreInOwner_ = toOwnerAxes * chunk.center_;
+            placement.cameraInOwner_ = cameraInOwner;
             placement.owner_ = entt::to_entity(e);
-            placement.moved_ = moved;
             draws.place(chunk.mesh_, placement);
         }
 
