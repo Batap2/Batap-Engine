@@ -592,3 +592,54 @@ pendant 2,6 s à 18 s ; un dump toutes les 12 frames, horodaté.
 
 Validation propre : jeu debug en RT et en raster sur `room_auto` et
 `test_buggy_fusee` (300 frames chacun).
+
+## 3.3 Prépasse profondeur + normales
+
+*Fait (2026-10-30)* :
+- **Passe `prepass`** (`SceneFrame`), juste avant `scene` : les meshes
+  (`GeometryVS`) et le terrain (`TerrainVS`) avec `PrepassPS`, qui écrit la
+  normale géométrique (interpolée, sans normal map) en espace vue dans
+  `view normals` (`A2B10G10R10_UNORM`, `n × 0,5 + 0,5`, 0 hors géométrie).
+  La profondeur y est effacée à 0 et écrite en `GREATER`. C'est une
+  transitoire du graphe, qui ajoute `SAMPLED` et `STORE` dès qu'une passe la
+  lit : rien à faire ici, la première lecture viendra avec l'AO.
+- **Passe `scene`** : profondeur en `Load::Keep`, meshes et terrain (raster
+  et RT) en `EQUAL` sans écriture. Billboards (alpha test, `discard`) et
+  ciel inchangés, après.
+- **Mêmes triangles** : en prépasse, le terrain fait un draw par chunk (la
+  liste des ombres, renommée `chunkDraws_`) ; la passe éclairée garde un
+  draw par strate. Les strates partitionnent les indices du chunk
+  (`TerrainChunk.cpp`), et `TerrainVS` ne lit pas la strate pour la
+  position.
+- **`Invariant` sur `SV_Position`** de `VertexShader` et `TerrainVS` : la
+  spec Vulkan ne promet la même position entre deux pipelines qu'avec cette
+  décoration. DXC n'en émet pas pour `precise` (seulement `NoContraction`) :
+  `[[vk::ext_decorate(18)]]` sur le membre, vérifié dans le SPIR-V.
+- La vue `rtFirstHit` garde la prépasse : ses fils de debug sont maintenant
+  cachés par la géométrie.
+
+*Banc* (`render_bench.py`), en deux temps pour séparer les deux effets :
+- **`Invariant` seul** change l'image une fois pour toutes (le code de
+  position change) : raster lune 47 et 95 px (bascules d'arêtes, jusqu'à 98
+  niveaux), quelques px à ±1 ailleurs. Sans la décoration, la prépasse
+  tombait déjà juste sur ce GPU ; avec, c'est garanti sur tout pilote.
+- **Prépasse contre une référence prise avec `Invariant`** : raster
+  identique au pixel sur les deux lunes, room, spot, point et rect ; 1 à
+  2 px à ±1 sur gi_sun, gi_sun_low et l'éditeur ; RT dans le bruit partout
+  sauf `room_rt` (4 630 px, max 11). Ce sont les égalités de profondeur :
+  en `GREATER` le premier fragment dessiné gagnait, en `EQUAL` tous passent
+  et le dernier gagne. Dans `room`, les bouts des murs latéraux sont
+  coplanaires avec la façade : deux bandes de ~5 px aux bords de la façade,
+  invisibles en raster (même éclairage), visibles en RT, où le cache GI est
+  indexé dans le repère de l'objet touché.
+- **Normales** (dump temporaire de la cible à la place du tonemap) : sol de
+  `room` à (0, 1, 0), façade à (0, 0, 1), longueur 1 à la quantification
+  près, terrain de la lune continu.
+- Validation de synchronisation : aucun nouveau message.
+
+*Coût GPU* (temps de frame du banc, 1280 × 720, quatre passages) : lune
+proche +0,6 à +1,1 ms en raster (5,0 → 5,6–6,1) et +0,8 à +1,0 ms en RT
+(1,9 → 2,7–2,9) ; lune lointaine +0,4 à +0,8 ms ; pièces de −5 % à +8 %.
+Le terrain est dessiné une fois de plus et n'a presque pas d'overdraw à
+regagner : le gain attendu ne se voit que sur les petites scènes. Le détail
+par passe attend le chrono par passe (render graph 4.1).

@@ -21,7 +21,9 @@ struct VS_INPUT
 
 struct VS_OUTPUT
 {
-    float4 position_ : SV_POSITION; // clip space
+    // Invariant (18): the prepass and the lit pass must reach the same depth
+    // for its EQUAL test, and only this decoration makes Vulkan promise it.
+    [[vk::ext_decorate(18)]] float4 position_ : SV_POSITION;
     float3 posRel_   : TEXCOORD0;   // world axes, camera at the origin
     float3 nrmWS_    : TEXCOORD1;   // world normal
     float2 uv_       : TEXCOORD2;

@@ -15,16 +15,18 @@ namespace batap
 {
 MeshDrawer::~MeshDrawer()
 {
+    vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
 }
 
 void MeshDrawer::buildPipelines(const ShaderModules& modules)
 {
+    vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
 
-    const auto build = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
+    const auto geometry = [&](VkShaderModule pixelShader)
     {
         return GraphicsPipelineBuilder()
             .shaders(modules[GeometryVS], pixelShader)
@@ -32,14 +34,28 @@ void MeshDrawer::buildPipelines(const ShaderModules& modules)
             .vertexAttribute(Mesh::Normal, VK_FORMAT_R32G32B32_SFLOAT, 12)
             .vertexAttribute(Mesh::UV0, VK_FORMAT_R32G32_SFLOAT, 8)
             .vertexAttribute(Mesh::Tangent, VK_FORMAT_R32G32B32A32_SFLOAT, 16)
+            .cullBack();
+    };
+    prepassPipeline_ = geometry(modules[PrepassPS])
+                           .colorFormat(ViewNormalFormat)
+                           .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
+                           .build(setup_.ctx_.device_, setup_.layout_);
+    const auto lit = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
+    {
+        return geometry(pixelShader)
             .colorFormat(setup_.colorFormat_)
-            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
-            .cullBack()
+            .depth(setup_.depthFormat_, false, VK_COMPARE_OP_EQUAL)
             .build(setup_.ctx_.device_, layout);
     };
-    pipeline_ = build(modules[GeometryPS], setup_.layout_);
-    rtPipeline_ = modules[GeometryRtPS] ? build(modules[GeometryRtPS], setup_.rtLayout_)
+    pipeline_ = lit(modules[GeometryPS], setup_.layout_);
+    rtPipeline_ = modules[GeometryRtPS] ? lit(modules[GeometryRtPS], setup_.rtLayout_)
                                         : VK_NULL_HANDLE;
+}
+
+void MeshDrawer::recordPrepass(const DrawContext& draw)
+{
+    vkCmdBindPipeline(draw.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, prepassPipeline_);
+    recordMeshDraws(draw, setup_.resources_, Mesh::VertexStreams, false);
 }
 
 void MeshDrawer::record(const DrawContext& draw)

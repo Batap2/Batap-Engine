@@ -127,8 +127,10 @@ argument — pas avant.
       plan n'a pas d'objet pour l'instant : la seule cible existante est l'atlas
       d'ombre, de taille fixe. Le premier client redimensionnable — la cible AO
       de §4.4 — l'apportera.
-- [ ] **3. Prepass profondeur + normales** — SSILVB lit la profondeur complète
-      de la scène *avant* l'éclairage ; un forward ne l'a pas. Une passe
+- [x] **3. Prepass profondeur + normales** — *fait le 2026-10-30* (étape 3.3
+      du plan RT, détail dans `docs/raytracing-notes.md`), avec un PS minimal
+      (`PrepassPS`) : la cible normales en demande un. SSILVB lit la profondeur
+      complète de la scène *avant* l'éclairage ; un forward ne l'a pas. Une passe
       depth-only (le VS de la géométrie, pas de PS) avec une cible normales en
       MRT, normale géométrique en view space. Trois conséquences : la profondeur
       passe en `SAMPLED` avec `storeOp = STORE`, la passe géométrie passe en
@@ -318,10 +320,9 @@ vient un jour.
 
 Ordre : 5.1.1 (preview) → 5.3.1-2 (contrat + params, une pipeline) → 5.3.3-4
 (pipelines multiples + hot reload) → 5.2 (samplers, textures) → 5.1.2-3 → 5.3.5.
-Le prepass de §4.3 dessine la géométrie sans PS : il n'est pas concerné par
-les shaders de matériau, sauf le jour où un matériau voudra de l'alpha test
-ou du déplacement de vertex — à ce moment-là le contrat gagne un
-`MaterialVertex`, pas avant.
+Le prepass de §4.3 n'utilise aucun shader de matériau : il n'est pas concerné,
+sauf le jour où un matériau voudra de l'alpha test ou du déplacement de
+vertex — à ce moment-là le contrat gagne un `MaterialVertex`, pas avant.
 
 ## 6. Ombres — cascades par lumière, occulteurs sphériques
 

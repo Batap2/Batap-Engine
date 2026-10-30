@@ -219,11 +219,25 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
 
     const Shadows::Output shadows = shadows_.addPasses(graph, uploads, draw, terrain_);
 
+    const GraphImage normals =
+        graph.createImage("view normals", {targets.extent_, ViewNormalFormat});
+    graph.addPass("prepass")
+        .color(normals, Load::Clear)
+        // Reversed Z (Camera_C::make_proj): the far plane is 0.
+        .depth(depth, Load::Clear, 0.f)
+        .read(uploads, Usage::AnyRead)
+        .execute(
+            [this, draw](GraphContext& c)
+            {
+                const DrawContext bound = bindDraw(draw, c.cmd());
+                meshes_.recordPrepass(bound);
+                terrain_.recordPrepass(bound);
+            });
+
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
     GraphPass& scene = graph.addPass("scene")
                            .color(hdr, Load::Clear, targets.clearColor_)
-                           // Reversed Z (Camera_C::make_proj): the far plane is 0.
-                           .depth(depth, Load::Clear, 0.f)
+                           .depth(depth, Load::Keep)
                            .read(uploads, Usage::AnyRead)
                            .read(frameConstants, Usage::ShaderRead)
                            .read(shadows.atlases_[0], Usage::ShaderRead)

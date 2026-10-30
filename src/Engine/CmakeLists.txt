@@ -200,6 +200,7 @@ batap_compile_shader(TerrainMorphPS.hlsl TerrainMorphPS.spv ps_6_6)
 batap_compile_shader(TonemapPS.hlsl    TonemapPS.spv    ps_6_6)
 batap_compile_shader(ExposureMeasurePS.hlsl ExposureMeasurePS.spv ps_6_6)
 batap_compile_shader(ExposureReducePS.hlsl  ExposureReducePS.spv  ps_6_6)
+batap_compile_shader(PrepassPS.hlsl    PrepassPS.spv    ps_6_6)
 batap_compile_shader(PixelShader.hlsl  PixelShaderRT.spv ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(TerrainPS.hlsl    TerrainPSRT.spv  ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(RtDebugPS.hlsl    RtDebugPS.spv    ps_6_6 -D BATAP_RT=1)
@@ -225,6 +226,7 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/TonemapPS.spv"
   "${engine_shader_out}/ExposureMeasurePS.spv"
   "${engine_shader_out}/ExposureReducePS.spv"
+  "${engine_shader_out}/PrepassPS.spv"
   "${engine_shader_out}/PixelShaderRT.spv"
   "${engine_shader_out}/TerrainPSRT.spv"
   "${engine_shader_out}/RtDebugPS.spv"

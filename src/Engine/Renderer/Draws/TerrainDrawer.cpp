@@ -47,6 +47,7 @@ TerrainDrawer::TerrainDrawer(const DrawSetup& setup) : setup_(setup)
 
 TerrainDrawer::~TerrainDrawer()
 {
+    vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
@@ -63,22 +64,29 @@ TerrainDrawer::~TerrainDrawer()
 
 void TerrainDrawer::buildPipelines(const ShaderModules& modules)
 {
+    vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, morphPipeline_, nullptr);
 
-    const auto build = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
+    prepassPipeline_ = GraphicsPipelineBuilder()
+                           .shaders(modules[TerrainVS], modules[PrepassPS])
+                           .colorFormat(ViewNormalFormat)
+                           .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
+                           .cullBack()
+                           .build(setup_.ctx_.device_, setup_.layout_);
+    const auto lit = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
     {
         return GraphicsPipelineBuilder()
             .shaders(modules[TerrainVS], pixelShader)
             .colorFormat(setup_.colorFormat_)
-            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
+            .depth(setup_.depthFormat_, false, VK_COMPARE_OP_EQUAL)
             .cullBack()
             .build(setup_.ctx_.device_, layout);
     };
-    pipeline_ = build(modules[TerrainPS], setup_.layout_);
-    rtPipeline_ = modules[TerrainRtPS] ? build(modules[TerrainRtPS], setup_.rtLayout_)
+    pipeline_ = lit(modules[TerrainPS], setup_.layout_);
+    rtPipeline_ = modules[TerrainRtPS] ? lit(modules[TerrainRtPS], setup_.rtLayout_)
                                        : VK_NULL_HANDLE;
 
     // Shadows' own settings.
@@ -314,7 +322,7 @@ void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
     {
         drawsDirty_ = false;
         draws_.clear();
-        shadowDraws_.clear();
+        chunkDraws_.clear();
         for (const auto& [id, slot] : slots_)
         {
             if (!slot.shown_)
@@ -324,8 +332,8 @@ void TerrainDrawer::upload(TerrainDraws& draws, bool tracing)
                     draws_.push_back({slot.instance_, static_cast<uint32_t>(s),
                                       static_cast<uint32_t>(slot.index_) + slot.ranges_[s].offset_,
                                       slot.ranges_[s].count_});
-            shadowDraws_.push_back({slot.instance_, 0, static_cast<uint32_t>(slot.index_),
-                                    static_cast<uint32_t>(slot.indices_)});
+            chunkDraws_.push_back({slot.instance_, 0, static_cast<uint32_t>(slot.index_),
+                                   static_cast<uint32_t>(slot.indices_)});
         }
     }
 
@@ -426,6 +434,11 @@ void TerrainDrawer::recordDraws(const DrawContext& draw, VkPipeline pipeline,
     }
 }
 
+void TerrainDrawer::recordPrepass(const DrawContext& draw)
+{
+    recordDraws(draw, prepassPipeline_, chunkDraws_);
+}
+
 void TerrainDrawer::record(const DrawContext& draw)
 {
     recordDraws(draw, draw.rayTracing_ ? rtPipeline_ : pipeline_, draws_);
@@ -433,6 +446,6 @@ void TerrainDrawer::record(const DrawContext& draw)
 
 void TerrainDrawer::recordShadow(const DrawContext& draw)
 {
-    recordDraws(draw, shadowPipeline_, shadowDraws_);
+    recordDraws(draw, shadowPipeline_, chunkDraws_);
 }
 }  // namespace batap
