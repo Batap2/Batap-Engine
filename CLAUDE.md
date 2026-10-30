@@ -62,7 +62,10 @@ every run.
   (compiled by both dxc and the engine). Never duplicate a GPU struct in a
   `.hlsl` file.
 - GPU instance data: `Instance/InstanceManager.h` pools, dirty-marking uploads
-  everything (not per component). GPU ids use swap-remove — unstable across
-  frames, do not persist them.
+  everything (not per component). Mesh and camera ids stay with their entity
+  while it is in the pool, and a freed id goes to the next entity inserted.
+  Pools the shaders walk by count (`CountField`: lights, skybox, sphere
+  occluders) stay packed with swap-remove: their ids move, do not persist
+  them.
 - Serialization: `Serialization/EntitySerializer.cpp`. Components unknown to the
   registry are kept as JSON blobs (`UnknownComponents_C`) and re-emitted on save.

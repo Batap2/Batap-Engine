@@ -643,3 +643,29 @@ proche +0,6 à +1,1 ms en raster (5,0 → 5,6–6,1) et +0,8 à +1,0 ms en RT
 Le terrain est dessiné une fois de plus et n'a presque pas d'overdraw à
 regagner : le gain attendu ne se voit que sur les petites scènes. Le détail
 par passe attend le chrono par passe (render graph 4.1).
+
+## 3.4 Slots d'instance stables
+
+*Fait (2026-10-30)* :
+- **`InstanceSlots<Packed>`** (`InstanceManager.h`) : les tables entité ↔ id
+  et la liste des ids libres, sortis de `FrameInstancePool`, qui garde le
+  buffer GPU et les drapeaux de frame. Sans GPU, donc testable seul.
+- **Le mode suit `CountField`.** Un pool dont les shaders bouclent de 0 à
+  son compte (lumières, skybox, sphères d'ombre) ne peut pas avoir de trou :
+  il reste compact, et un retrait y déplace toujours la dernière instance.
+  Meshes et caméras ne sont lus que par id (push constant, instance de la
+  TLAS) : un retrait y libère l'id, qu'une insertion reprend (pile), et
+  `size()` reste la fin de la plage occupée. Le slot libre garde ses données
+  périmées, que personne ne lit : les draws et la TLAS partent du registre.
+- **Reprise immédiate** : sans risque pour les frames en vol (un buffer par
+  slot de frame, la nouvelle entité est marquée sale sur tous), mais
+  l'historique de 3.5 devra être remis à zéro à l'insertion (note ajoutée à
+  3.5).
+
+*Vérif* : `SpaceFret_InstanceSlotsCheck` (`tools/InstanceSlotsCheck.cpp`),
+12 contrôles verts : en mode stable, retirer une entité ne change l'id
+d'aucune autre et l'id libéré est repris ; en mode compact, la dernière
+instance comble le trou.
+
+*Banc* : raster identique sur les 9 cas, RT dans le bruit, aucun nouveau
+message de validation, temps GPU inchangés (±4 %).

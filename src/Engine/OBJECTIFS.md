@@ -42,7 +42,7 @@ O(pixels × lumières) et devient un mur dès la première scène sérieusement
       4. two-phase : dessiner les visibles de N-1 → construire la HZB →
          tester le reste → dessiner les faux-culls.
       Prérequis (cf. notes) : slots GPU stables — free-list au lieu de
-      swap-remove.
+      swap-remove (fait pour les meshes : étape 3.4 du plan RT).
 - [ ] **2. Grille de clusters de lumières** (froxels) — chaque cellule de vue
       liste ses lumières. Prérequis de tout éclairage à N lumières ; ressert
       pour le brouillard volumétrique.
@@ -655,9 +655,10 @@ ne mord pas : une cinquantaine de draws par cascade, quatre cascades.
 
 - **Règle DLL jeu : zéro état statique** — tout état durable vit dans le World
   (composants plats). Un static dans la DLL meurt au reload.
-- **IDs GPU instables** (swap-remove dans les pools) : correct aujourd'hui,
-  mais le culling GPU-driven, un historique TAA ou un picking différé
-  persistent des index entre frames → slots stables + free-list (§2.2).
+- **IDs GPU** : stables pour les meshes et les caméras depuis l'étape 3.4 du
+  plan RT (free-list, `InstanceSlots`). Les pools parcourus par compte
+  (lumières, skybox, sphères d'ombre) restent compacts avec le swap-remove :
+  leurs ids bougent, rien ne doit les garder d'une frame à l'autre.
 - Le triple-buffering des instance buffers est assumé (`FramesInFlight = 3`,
   simplicité/sécurité).
 - Composants avec `std::string`/`std::vector` : permis depuis les formes

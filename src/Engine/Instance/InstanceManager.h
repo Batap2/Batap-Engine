@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -64,6 +65,71 @@ struct FrameDirtyFlag
     bool none() const { return bits_ == 0; }
 };
 
+template <bool Packed>
+struct InstanceSlots
+{
+    GPUInstanceID find(const EntityHandle& e) const
+    {
+        const auto it = entityToId_.find(e);
+        return it != entityToId_.end() ? it->second : GPUInstanceID{};
+    }
+
+    GPUInstanceID insert(const EntityHandle& e)
+    {
+        GPUInstanceID id = static_cast<uint32_t>(end_);
+        if (!Packed && !free_.empty())
+        {
+            id = free_.back();
+            free_.pop_back();
+        }
+        else
+            ++end_;
+        entityToId_.emplace(e, id);
+        if constexpr (Packed)
+            idToEntity_.emplace(id, e);
+        return id;
+    }
+
+    std::optional<EntityHandle> remove(const EntityHandle& e)
+    {
+        const GPUInstanceID removed = find(e);
+        if (!removed.valid())
+            return std::nullopt;
+        entityToId_.erase(e);
+        if constexpr (!Packed)
+        {
+            free_.push_back(removed);
+            return std::nullopt;
+        }
+        else
+        {
+            const GPUInstanceID last = static_cast<uint32_t>(--end_);
+            const EntityHandle moved = idToEntity_[last];
+            idToEntity_.erase(last);
+            if (removed == last)
+                return std::nullopt;
+            entityToId_[moved] = removed;
+            idToEntity_[removed] = moved;
+            return moved;
+        }
+    }
+
+    size_t size() const { return end_; }
+
+    template <class F>
+    void forEach(F&& f) const
+    {
+        for (auto&& [handle, id] : entityToId_)
+            f(handle, id);
+    }
+
+   private:
+    emhash8::HashMap<EntityHandle, GPUInstanceID> entityToId_;
+    emhash8::HashMap<GPUInstanceID, EntityHandle> idToEntity_;
+    std::vector<GPUInstanceID> free_;
+    size_t end_ = 0;
+};
+
 template <GPUInstance Instance>
 struct FrameInstancePool
 {
@@ -82,8 +148,6 @@ struct FrameInstancePool
     ResourceManager& resourceManager_;
     std::string name_;
 
-    emhash8::HashMap<EntityHandle, GPUInstanceID> entityToId_;
-    emhash8::HashMap<GPUInstanceID, EntityHandle> idToEntity_;
     emhash8::HashMap<EntityHandle, FrameDirtyFlag> dirtyInstances_;
 
     // Set once the registry has handed out its indices, so a component change
@@ -94,73 +158,32 @@ struct FrameInstancePool
 
     GPUInstanceID insert(const EntityHandle& e)
     {
-        if (auto it = entityToId_.find(e); it != entityToId_.end())
-            return it->second;
-
-        GPUInstanceID id = static_cast<uint32_t>(size());
-
-        FrameDirtyFlag dirtyf;
-        dirtyf.setAll();
-        dirtyInstances_.emplace(e, dirtyf);
-
-        idToEntity_.emplace(id, e);
-        entityToId_.emplace(e, id);
-
-        gpuPoolSize_++;
+        if (const GPUInstanceID id = slots_.find(e); id.valid())
+            return id;
+        const GPUInstanceID id = slots_.insert(e);
+        dirtyInstances_[e].setAll();
         ensureCapacity();
-
         return id;
     }
 
     void remove(const EntityHandle& e)
     {
-        if (size() == 0 || !e.valid())
+        if (!e.valid())
             return;
-        auto it = entityToId_.find(e);
-        if (it == entityToId_.end())
-            return;
-        GPUInstanceID removedId = it->second;
-        GPUInstanceID lastId{static_cast<uint32_t>(size() - 1)};
-
-        if (removedId != lastId)
-        {
-            auto lastIt = idToEntity_.find(lastId);
-            if (lastIt != idToEntity_.end())
-            {
-                EntityHandle movedEntity = lastIt->second;
-
-                entityToId_[movedEntity] = removedId;
-                idToEntity_[removedId] = movedEntity;
-
-                FrameDirtyFlag dirtyf;
-                dirtyf.setAll();
-                dirtyInstances_[movedEntity] = dirtyf;
-            }
-        }
-
-        entityToId_.erase(e);
-        idToEntity_.erase(lastId);
+        if (const std::optional<EntityHandle> moved = slots_.remove(e))
+            dirtyInstances_[*moved].setAll();
         dirtyInstances_.erase(e);
-        gpuPoolSize_--;
     }
 
-    bool contains(const EntityHandle& e) { return entityToId_.find(e) != entityToId_.end(); }
+    bool contains(const EntityHandle& e) const { return slots_.find(e).valid(); }
 
-    GPUInstanceID getGPUIndex(const EntityHandle& e)
-    {
-        if (auto it = entityToId_.find(e); it != entityToId_.end())
-        {
-            return it->second;
-        }
+    GPUInstanceID getGPUIndex(const EntityHandle& e) const { return slots_.find(e); }
 
-        return std::numeric_limits<uint32_t>::max();
-    }
-
-    size_t size() const { return gpuPoolSize_; }
+    size_t size() const { return slots_.size(); }
     size_t capacity() const { return gpuPoolCapacity_; }
 
    private:
-    size_t gpuPoolSize_ = 0;
+    InstanceSlots<requires { Instance::CountField; }> slots_;
     size_t gpuPoolCapacity_ = 1;
 
     void createGPUResources()
@@ -177,15 +200,13 @@ struct FrameInstancePool
     void markAllInstancesDirty()
     {
         dirtyInstances_.clear();
-        for (auto&& [handle, _] : entityToId_)
-        {
-            dirtyInstances_[handle].setAll();
-        }
+        slots_.forEach([&](const EntityHandle& handle, GPUInstanceID)
+                       { dirtyInstances_[handle].setAll(); });
     }
 
     bool ensureCapacity()
     {
-        if (gpuPoolSize_ > gpuPoolCapacity_)
+        if (slots_.size() > gpuPoolCapacity_)
         {
             gpuPoolCapacity_ *= 2;
             createGPUResources();
