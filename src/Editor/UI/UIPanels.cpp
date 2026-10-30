@@ -724,6 +724,8 @@ void UIPanels::drawCameraOptions(World& world, App& app)
         ui::FieldDragFloat("Compensation", &camera->exposureCompensation_, 0.05f, -10.0f, 10.0f);
         ui::FieldDragFloat("Min EV100", &camera->minEv100_, 0.05f, -10.0f, 25.0f);
         ui::FieldDragFloat("Max EV100", &camera->maxEv100_, 0.05f, -10.0f, 25.0f);
+        ui::FieldDragFloat("Percentile", &camera->meteringPercentile_, 0.005f, 0.5f, 1.0f);
+        ui::FieldDragFloat("Range (EV)", &camera->meteringRange_, 0.05f, 0.0f, 20.0f);
         ImGui::EndDisabled();
         if (camChanged)
             world.instances().markDirty<Camera_C>(cam);

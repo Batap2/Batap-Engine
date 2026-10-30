@@ -14,7 +14,7 @@ namespace batap
 // Normalisations réelles (sans le facteur de convolution Lambertien — il est
 // dans EvalSH9 côté shader).
 
-static void accumSH(SH9& sh, const Eigen::Vector3f& color, float x, float y, float z, float weight)
+void accumSH(SH9& sh, const Eigen::Vector3f& color, float x, float y, float z, float weight)
 {
     sh.c[0] += color * (0.282095f * weight);
     sh.c[1] += color * (0.488603f * y * weight);

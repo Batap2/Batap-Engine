@@ -143,7 +143,8 @@ enum FrameSetBinding : uint
     TerrainWorldsBinding = 13,
     TerrainTracedBinding = 14,
     TerrainMorphRowsBinding = 15,
-    FrameSetBindingCount = 16,
+    AtmospheresBinding = 16,
+    FrameSetBindingCount = 17,
 };
 
 enum ShadingModel : uint
@@ -309,7 +310,6 @@ struct ShadowGPUData
 };
 
 static const uint ExposureGridSize = 64u;
-static const uint ExposureReduceBlock = 8u;
 
 enum TonemapOperator : uint
 {
@@ -340,6 +340,11 @@ struct FrameGPUData
     uint pad0_;
     uint pad1_;
     uint pad2_;
+    // The render camera, world. sh_ is the sky's irradiance seen from it, read
+    // instead of the skybox's own once a scene has atmospheres.
+    float3 cameraPos_;
+    float pad3_;
+    float4 sh_[9];
 };
 
 struct SphereOccluderGPUData
@@ -374,6 +379,21 @@ struct SkyboxGPUData
     float4 color3;  // nadir
     float horizonWidth;
     float3 pad;
+};
+
+// One per planet with an Atmosphere_C, in metres (Sky.hlsli).
+struct AtmosphereGPUData
+{
+    float3 center_;
+    float planetRadius_;
+    float3 rayleigh_;  // per metre
+    float atmosphereRadius_;
+    float3 groundAlbedo_;
+    float rayleighHeight_;
+    float mie_;
+    float mieHeight_;
+    float mieAnisotropy_;
+    float boost_;
 };
 
 // One vertex of a unit wireframe, built once at startup. A debug shape is that
@@ -416,6 +436,7 @@ struct DrawPush
     uint sphereOccluderCount_;
     uint shadowViewIndex_;
     uint debugFlags_;
+    uint atmosphereCount_;
 };
 
 static const uint DebugShadowCascades = 1u;
@@ -432,9 +453,10 @@ static_assert(sizeof(StaticMeshGPUData) == 160);
 static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 48);
 static_assert(sizeof(SkyboxGPUData) == 224);
-static_assert(sizeof(DrawPush) == 32);
+static_assert(sizeof(AtmosphereGPUData) == 64);
+static_assert(sizeof(DrawPush) == 36);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 64);
+static_assert(sizeof(FrameGPUData) == 224);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);
@@ -458,6 +480,7 @@ template <class T>
 inline constexpr bool gpuStrideOk = sizeof(T) % 16 == 0;
 static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
               gpuStrideOk<LightGPUData> && gpuStrideOk<Material> && gpuStrideOk<SkyboxGPUData> &&
+              gpuStrideOk<AtmosphereGPUData> && gpuStrideOk<FrameGPUData> &&
               gpuStrideOk<DebugVertexGPUData> && gpuStrideOk<DebugShapeGPUData> &&
               gpuStrideOk<BillboardGPUData> && gpuStrideOk<ShadowGPUData> &&
               gpuStrideOk<TerrainVertexGPUData> && gpuStrideOk<TerrainChunkGPUData> &&

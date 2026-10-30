@@ -593,6 +593,21 @@ pendant 2,6 s à 18 s ; un dump toutes les 12 frames, horodaté.
 Validation propre : jeu debug en RT et en raster sur `room_auto` et
 `test_buggy_fusee` (300 frames chacun).
 
+*Mesure par percentile (2026-10-30)* : la moyenne géométrique de toute
+l'image sur-exposait dès qu'une zone sombre dominait (80 % d'espace, 20 %
+de sol : le sol brûlait). Le seuil à 10⁻³ n'écartait que le noir exact ; un
+fond à peine lumineux (lueur d'atmosphère au crépuscule) pesait autant
+qu'un rocher au soleil. `ExposureReducePS` disparaît : la grille 64 × 64
+(somme des log2 et nombre d'échantillons par case) est relue entière
+(32 Ko) et le CPU trie les cases par luminance moyenne, pondérées par leur
+nombre d'échantillons. Il prend la luminance au percentile
+`Camera_C::meteringPercentile_` (0,98) et moyenne (en log) les cases
+comprises entre elle et `meteringRange_` EV (6) en dessous : l'œil et les
+posemètres matriciels s'accrochent aux zones claires, une grande zone
+sombre ne fait plus monter l'exposition, et le soleil ou les spéculaires
+(au-dessus du percentile) ne la font pas descendre. Réglables dans
+l'inspecteur et les options de caméra de l'éditeur.
+
 ## 3.3 Prépasse profondeur + normales
 
 *Fait (2026-10-30)* :

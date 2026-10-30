@@ -13,6 +13,8 @@ struct SH9
 
 struct Skybox_C;  // forward declare
 
+void accumSH(SH9& sh, const Eigen::Vector3f& color, float x, float y, float z, float weight);
+
 // Intégration numérique (Spherical Fibonacci, ~512 samples) — évalue la même
 // formule sky que SkyPS.hlsl pour les modes FlatColor et Gradient.
 SH9 projectSkyToSH(const Skybox_C& sky);

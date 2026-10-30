@@ -1012,6 +1012,10 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       par défaut, compensation, EV100 min et max) et dans les options de
       caméra de l'éditeur. Sol au soleil → pièce sous une lampe de 150 cd :
       les deux lisibles, vue fixe stable à ±0,002 EV.
+      *Mesure (2026-10-30)* : la moyenne de toute l'image sur-exposait dès
+      qu'une zone sombre dominait ; elle vise maintenant une fenêtre de
+      `meteringRange` EV sous le percentile `meteringPercentile` (notes
+      3.2b).
 - [ ] **3.3 Prépasse profondeur + normales.** C'est `OBJECTIFS.md` §4 étape 3.
       Le depth est en Z inversé sans plan lointain (agrandissement, 15 et
       16) : profondeur linéaire = `znear_ / z`, 0 = infini. Vaut pour tout ce

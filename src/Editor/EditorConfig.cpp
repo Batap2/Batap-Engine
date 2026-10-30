@@ -142,6 +142,8 @@ void read(File& io, const std::string& projectDir, const std::string& scene)
         e.compensation = pose.value("exposureCompensation", e.compensation);
         e.minEv100 = pose.value("minEv100", e.minEv100);
         e.maxEv100 = pose.value("maxEv100", e.maxEv100);
+        e.meteringPercentile = pose.value("meteringPercentile", e.meteringPercentile);
+        e.meteringRange = pose.value("meteringRange", e.meteringRange);
         io.pose.hasExposure = true;
     }
     io.hasPose = true;
@@ -187,6 +189,8 @@ void write(const File& file, const std::string& projectDir, const std::string& s
                 pose["exposureCompensation"] = e.compensation;
                 pose["minEv100"] = e.minEv100;
                 pose["maxEv100"] = e.maxEv100;
+                pose["meteringPercentile"] = e.meteringPercentile;
+                pose["meteringRange"] = e.meteringRange;
             }
         }
     }

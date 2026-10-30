@@ -6,6 +6,8 @@
 #include "Renderer/EngineConfig.h"
 
 #include <array>
+#include <optional>
+#include <vector>
 
 namespace batap
 {
@@ -28,11 +30,20 @@ struct Exposure
                    const DrawContext& draw, uint32_t frame);
 
    private:
+    struct Cell
+    {
+        float logLuminance_;
+        float weight_;
+    };
+
+    std::optional<float> meteredLuminance(float percentile, float range);
+
     DrawSetup setup_;
     VkPipeline measurePipeline_ = VK_NULL_HANDLE;
-    VkPipeline reducePipeline_ = VK_NULL_HANDLE;
     std::array<GPUResourceHandle, FramesInFlight> readback_;
     std::array<bool, FramesInFlight> measured_{};
+    std::vector<float> sums_;
+    std::vector<Cell> cells_;
     entt::entity camera_ = entt::null;
     bool auto_ = false;
     float ev100_ = 0.f;

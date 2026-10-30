@@ -4,6 +4,7 @@
 #include "GiCache.hlsli"
 #include "ShaderInterop.h"
 #include "Shadows.hlsli"
+#include "Sky.hlsli"
 
 [[vk::binding(CamerasBinding, FrameSet)]]
 StructuredBuffer<CameraGPUData> CameraInstancebuffer;
@@ -27,7 +28,11 @@ static const float PI = 3.14159265358979f;
 
 float3 EvalSH9(float3 N)
 {
-    float4 sh[9] = SkyboxBuffer[0].sh;
+    float4 sh[9];
+    if (g_draw.atmosphereCount_ != 0)
+        sh = FrameBuffer[0].sh_;
+    else
+        sh = SkyboxBuffer[0].sh;
     return max(0.0f,
           sh[0].rgb * 0.886227f
         + sh[1].rgb * (1.023327f * N.y)
@@ -40,31 +45,35 @@ float3 EvalSH9(float3 N)
         + sh[8].rgb * (0.429043f * (N.x * N.x - N.z * N.z)));
 }
 
+SkySun SkyFindSun(float3 cameraPos)
+{
+    SkySun sun = SkyNoSun();
+    for (uint i = 0; i < g_draw.lightCount_ && !sun.valid; ++i)
+        sun = SkySunOf(LightBuffer[i], cameraPos);
+    return sun;
+}
+
 float3 SampleSky(float3 dir, float mipLevel)
 {
     SkyboxGPUData sky = SkyboxBuffer[0];
-    float3 result;
+    float3 background;
     if (sky.mode == 0u && sky.bindlessIndex != InvalidGPUIndex)
     {
         float  phi   = atan2(dir.z, dir.x);
         float  theta = asin(clamp(dir.y, -1.0f, 1.0f));
         float2 uv    = float2((phi + PI) / (2.0f * PI), 0.5f - theta / PI);
-        result = g_textures[sky.bindlessIndex].SampleLevel(g_sampler, uv, mipLevel).rgb;
-    }
-    else if (sky.mode == 1u)
-    {
-        result = sky.color1.rgb;
+        background = g_textures[sky.bindlessIndex].SampleLevel(g_sampler, uv, mipLevel).rgb;
     }
     else
     {
-        float  hw  = max(sky.horizonWidth, 0.001f);
-        float  t_u = smoothstep(0.0f, hw, dir.y);
-        float  t_d = smoothstep(0.0f, hw, -dir.y);
-        float3 col = lerp(sky.color2.rgb, sky.color1.rgb, t_u);
-        col        = lerp(col, sky.color3.rgb, t_d);
-        result = col;
+        background = SkyBackground(sky, dir);
     }
-    return result * sky.intensity;
+    background *= sky.intensity;
+    // No sun disc: the lights carry the sun, and a reflection or a GI ray
+    // that caught it would count it twice.
+    float3 cameraPos = FrameBuffer[0].cameraPos_;
+    return SkyComposite(g_draw.atmosphereCount_, cameraPos, dir, SkyFindSun(cameraPos), background,
+                        false);
 }
 
 // GGX Normal Distribution Function
@@ -443,6 +452,9 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         float3 H = normalize(V + L);
 
         float3 radiance = light.color_ * (attenuation * light.intensity_);
+        if ((light.type_ == LightFarPoint || light.type_ == LightDirectional) &&
+            g_draw.atmosphereCount_ != 0)
+            radiance *= SkySunTransmittance(g_draw.atmosphereCount_, cam.pos_ + s.posRel_, L);
 
         float NdotH = saturate(dot(s.N_, H));
         float HdotV = saturate(dot(H, V));
@@ -461,6 +473,9 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         // Direct term only: the ambient does not see shadows.
         color += (diffuse + specular) * radiance * NdotL * shadow;
     }
+
+    if (g_draw.atmosphereCount_ != 0)
+        color = SkyAerial(g_draw.atmosphereCount_, cam.pos_, s.posRel_, SkyFindSun(cam.pos_), color);
 
     color *= FrameBuffer[0].exposure_;
     if (debugCascade < ShadowCascadeCount)
