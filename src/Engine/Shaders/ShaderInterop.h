@@ -167,7 +167,7 @@ struct CameraGPUData
     float3 up_;
     float fov_;
     float3 fwd_;
-    float pad_;
+    float orthoHeight_;
     // The frame before, as view_ and proj_ apply it: the view's rotation only.
     float4x4 prevViewProj_;
     float3 prevPos_;

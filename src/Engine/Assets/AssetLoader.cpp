@@ -1,6 +1,7 @@
 #include "AssetLoader.h"
 
 #include "AssetManager.h"
+#include "Audio/Audio.h"
 #include "Engine.h"
 #include "Mesh.h"
 #include "Renderer/ResourceManager.h"
@@ -9,6 +10,7 @@
 #include "Serialization/BmeshSerializer.h"
 #include "Serialization/BtexSerializer.h"
 #include "Shaders/ShaderInterop.h"
+#include "Sound.h"
 #include "Texture.h"
 #include "Utils/UIDGenerator.h"
 
@@ -423,6 +425,30 @@ static bool reloadMaterial(const std::string& key, AssetManager& assetManager)
     return assetManager.update(*handle, *mat);
 }
 
+static bool isSoundExtension(std::string_view ext)
+{
+    return ext == "wav" || ext == "mp3" || ext == "flac" || ext == "ogg";
+}
+
+static std::optional<AssetHandleAny> loadSound(std::string_view relPath, AssetManager& assetManager)
+{
+    const std::string key = std::string(relPath);
+    if (auto existing = assetManager.getHandle<Sound>(key))
+        return AssetHandleAny{*existing};
+
+    const std::filesystem::path file = std::filesystem::path(assetManager.baseDir()) / key;
+    auto sound = readSoundFile(file);
+    if (!sound)
+    {
+        std::cerr << "[AssetLoader] Failed to read sound: " << file.string() << "\n";
+        return std::nullopt;
+    }
+
+    const std::string name = std::filesystem::path(relPath).stem().string();
+    auto [handle, _] = assetManager.emplace<Sound>(name, key, std::move(*sound));
+    return AssetHandleAny{handle};
+}
+
 void createDefaultAssets(const Engine& ctx)
 {
     auto& assetManager = *ctx.assetManager_;
@@ -504,6 +530,9 @@ std::optional<AssetHandleAny> loadAsset(std::string_view path, AssetManager& ass
 
     if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "hdr")
         return loadTexture(path, assets, false);
+
+    if (isSoundExtension(ext))
+        return loadSound(path, assets);
 
     return std::nullopt;
 }

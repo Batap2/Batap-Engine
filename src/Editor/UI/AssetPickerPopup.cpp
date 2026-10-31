@@ -26,16 +26,18 @@ namespace batap
 
 static constexpr const char* kId = "##AssetPicker";
 
-static std::string_view extensionFor(AssetType type)
+static std::vector<std::string> extensionsFor(AssetType type)
 {
     switch (type)
     {
         case AssetType::Mesh:
-            return ".bmesh";
+            return {".bmesh"};
         case AssetType::Texture:
-            return ".png";
+            return {".png"};
         case AssetType::Material:
-            return ".bmat";
+            return {".bmat"};
+        case AssetType::Sound:
+            return {".wav", ".mp3", ".flac", ".ogg"};
     }
     return {};
 }
@@ -67,7 +69,7 @@ void AssetPickerPopup::open(EntityHandle ent, AssetType type, const std::string&
     isFieldPick_ = false;
     search_.clear();
     projectDir_ = projectDir;
-    exts_ = {std::string(extensionFor(type))};
+    exts_ = extensionsFor(type);
     rescan();
 
     pendingOpen_ = true;
@@ -100,7 +102,7 @@ void AssetPickerPopup::openField(EntityHandle ent, const ComponentType& componen
     fieldElementIndex_ = elementIndex;
     search_.clear();
     projectDir_ = projectDir;
-    exts_ = {std::string(extensionFor(type))};
+    exts_ = extensionsFor(type);
     rescan();
     pendingOpen_ = true;
 }
@@ -187,6 +189,10 @@ bool applyToField(App& app, EntityHandle ent, const std::string& componentName, 
             *static_cast<MaterialHandle*>(dst) = picked ? std::get<MaterialHandle>(*picked)
                                                         : MaterialHandle::null();
             break;
+        case AssetType::Sound:
+            *static_cast<SoundHandle*>(dst) = picked ? std::get<SoundHandle>(*picked)
+                                                     : SoundHandle::null();
+            break;
     }
 
     if (ct->patch)
@@ -253,6 +259,7 @@ bool AssetPickerPopup::draw(App& app)
                         : (type_ == AssetType::Mesh)     ? "Select Mesh"
                         : (type_ == AssetType::Texture)  ? "Select Texture"
                         : (type_ == AssetType::Material) ? "Select Material"
+                        : (type_ == AssetType::Sound)    ? "Select Sound"
                                                          : "Select Asset";
     ImGui::SeparatorText(title);
 

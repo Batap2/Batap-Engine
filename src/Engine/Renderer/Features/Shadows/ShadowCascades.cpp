@@ -87,7 +87,10 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
     // Squared distance from the axis to a frustum corner, per unit of depth.
     const float a = std::tan(in.fovY_ * 0.5f);
     const float b = a * in.aspect_;
-    const float k2 = a * a + b * b;
+    const bool ortho = in.orthoHeight_ > 0.f;
+    const float k2 = ortho ? 0.f : a * a + b * b;
+    const float halfHeight = ortho ? in.orthoHeight_ * 0.5f : 0.f;
+    const float q = halfHeight * halfHeight * (1.f + in.aspect_ * in.aspect_);
 
     // The sphere's true direction sits at most half a cell's diagonal off the
     // lattice axis.
@@ -106,7 +109,8 @@ ShadowFit fitShadowCascades(const ShadowFitInput& in)
         // Smallest sphere holding the slice.
         const float c = std::min((near + far) * 0.5f * (1.f + k2), far);
         const float r = std::sqrt(std::max((near - c) * (near - c) + near * near * k2,
-                                           (far - c) * (far - c) + far * far * k2));
+                                           (far - c) * (far - c) + far * far * k2) +
+                                  q);
 
         const v3f center = in.camPos_ + fwd * c;
         const double rd = static_cast<double>(r);

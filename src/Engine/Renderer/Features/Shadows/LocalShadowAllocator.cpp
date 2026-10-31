@@ -156,6 +156,8 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
     const Frustum frustum = frustumOf(m4f{cam.make_proj(aspect) * cam.make_view(camWorld)});
     const v3f camPos = camWorld.translation();
     const float pixelsPerTan = height / std::tan(cam.fov_ * 0.5f);
+    const auto pixelsPerUnit = [&](float d)
+    { return cam.ortho() ? height / (cam.orthoHeight_ * 0.5f) : pixelsPerTan / d; };
     constexpr float fadeLow = static_cast<float>(LocalTileFade);
     constexpr float fadeHigh = static_cast<float>(LocalTileMin);
 
@@ -170,7 +172,7 @@ void LocalShadowAllocator::allocate(entt::registry& reg, GPUInstanceManager& ins
 
         const float d = std::max((eye - camPos).norm(), radius);
         // Tile size for one shadow texel per screen pixel.
-        const float res = radius * std::tan(fov * 0.5f) * pixelsPerTan / d;
+        const float res = radius * std::tan(fov * 0.5f) * pixelsPerUnit(d);
         if (res <= fadeLow)
             return nullptr;
 

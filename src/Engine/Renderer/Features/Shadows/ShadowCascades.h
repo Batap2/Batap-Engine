@@ -17,6 +17,7 @@ struct ShadowFitInput
     v3f camPos_{v3f::Zero()};
     v3f camFwd_{-v3f::UnitZ()};
     float fovY_ = 1.f;
+    float orthoHeight_ = 0.f;
     float aspect_ = 1.f;
     float range_ = 0.f;
     v3f lightPos_{v3f::Zero()};

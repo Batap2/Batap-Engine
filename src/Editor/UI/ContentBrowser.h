@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Audio/AudioTypes.h"
 #include "Components/EntityHandle.h"
 #include "EigenTypes.h"
 #include "UI/ThumbnailCache.h"
@@ -51,6 +52,7 @@ struct ContentBrowser
 
    private:
     void rescan(const std::string& projectDir);
+    void togglePreview(App& app, Engine& ctx, const Entry& e);
     void goTo(const std::filesystem::path& folder);
     void refill();
     void drawTree(const Folder& folder, bool isRoot);
@@ -82,5 +84,6 @@ struct ContentBrowser
     std::vector<Entry> all_;
     std::string search_;
     ThumbnailCache thumbnails_;
+    VoiceHandle preview_;
 };
 }  // namespace batap

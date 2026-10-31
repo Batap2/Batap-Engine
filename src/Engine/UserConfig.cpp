@@ -1,5 +1,6 @@
 #include "UserConfig.h"
 
+#include "Audio/Audio.h"
 #include "Engine.h"  // WindowDesc, EngineSettings
 
 #include <cstdlib>
@@ -98,6 +99,29 @@ void writeRender(const std::filesystem::path& file, const EngineSettings& render
                   {"giPasses", render.giPasses_},
                   {"giPerCell", render.giPerCell_},
                   {"tonemap", render.tonemap_}});
+}
+
+void readAudio(const nlohmann::json& config, Audio& audio)
+{
+    if (!config.is_object())
+        return;
+    const auto it = config.find("audio");
+    if (it == config.end() || !it->is_object())
+        return;
+
+    audio.setMasterVolume(it->value("master", audio.masterVolume()));
+    audio.setBusVolume(AudioBus::Sfx, it->value("sfx", audio.busVolume(AudioBus::Sfx)));
+    audio.setBusVolume(AudioBus::Music, it->value("music", audio.busVolume(AudioBus::Music)));
+    audio.setBusVolume(AudioBus::Ui, it->value("ui", audio.busVolume(AudioBus::Ui)));
+}
+
+void writeAudio(const std::filesystem::path& file, const Audio& audio)
+{
+    writeSection(file, "audio",
+                 {{"master", audio.masterVolume()},
+                  {"sfx", audio.busVolume(AudioBus::Sfx)},
+                  {"music", audio.busVolume(AudioBus::Music)},
+                  {"ui", audio.busVolume(AudioBus::Ui)}});
 }
 
 }  // namespace batap::userConfig

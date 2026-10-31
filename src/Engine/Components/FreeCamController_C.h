@@ -18,9 +18,14 @@ struct FreeCamController_C
     bool controlled_ = true;
 
     quatf frame_ = quatf::Identity();
+
+    float orthoFocus_ = 0.0f;
+    float orthoLook_ = 0.0f;
 };
 
 BATAP_COMPONENT(FreeCamController_C, "freeCamController",
                 ComponentMeta{.color = ComponentColor::Cyan},
-                fieldSkip<&FreeCamController_C::frame_>());
+                fieldSkip<&FreeCamController_C::frame_>(),
+                fieldSkip<&FreeCamController_C::orthoFocus_>(),
+                fieldSkip<&FreeCamController_C::orthoLook_>());
 }  // namespace batap

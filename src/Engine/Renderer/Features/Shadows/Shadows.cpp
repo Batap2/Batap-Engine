@@ -107,6 +107,7 @@ void Shadows::fitCascades(entt::registry& reg, GPUInstanceManager& instances, en
     in.camPos_ = camWorld.translation();
     in.camFwd_ = -camWorld.linear().col(2).normalized();
     in.fovY_ = reg.get<Camera_C>(camera).fov_;
+    in.orthoHeight_ = reg.get<Camera_C>(camera).orthoHeight_;
     in.aspect_ = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
     in.range_ = CascadeRange;
     in.lightPos_ = lightTrans->world().translation();

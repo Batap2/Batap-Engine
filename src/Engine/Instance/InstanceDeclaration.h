@@ -173,6 +173,7 @@ struct CameraInstance
         const Camera_C& cam = in.marker();
         out.znear_ = cam.znear_;
         out.fov_ = cam.fov_;
+        out.orthoHeight_ = cam.orthoHeight_;
 
         auto* trans = in.get<Transform_C>();
         if (!trans)

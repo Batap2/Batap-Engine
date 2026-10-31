@@ -2,6 +2,7 @@
 
 #include "Mesh.h"
 #include "Shaders/ShaderInterop.h"
+#include "Sound.h"
 #include "Texture.h"
 
 #include "AssetGPUArena.h"
@@ -26,6 +27,7 @@ AssetManager::AssetManager(ResourceManager* rm) : resourceManager_(rm)
 {
     std::get<AssetSlotMap<Mesh>*>(maps_) = new AssetSlotMap<Mesh>();
     std::get<AssetSlotMap<Texture>*>(maps_) = new AssetSlotMap<Texture>();
+    std::get<AssetSlotMap<Sound>*>(maps_) = new AssetSlotMap<Sound>();
 
     std::get<AssetGPUArena<Material>*>(gpuArenas_) =
         new AssetGPUArena<Material>(AssetGPUArena<Material>::create(*rm, 64, "MaterialArena"));
@@ -83,6 +85,7 @@ AssetManager::~AssetManager()
 {
     delete std::get<AssetSlotMap<Mesh>*>(maps_);
     delete std::get<AssetSlotMap<Texture>*>(maps_);
+    delete std::get<AssetSlotMap<Sound>*>(maps_);
     delete std::get<AssetGPUArena<Material>*>(gpuArenas_);
 }
 }  // namespace batap

@@ -59,8 +59,9 @@ std::optional<CameraBasis> renderCameraBasis(entt::registry& reg)
         return std::nullopt;
 
     const transform& world = reg.get<Transform_C>(cam).world();
+    const Camera_C& camC = reg.get<Camera_C>(cam);
     return CameraBasis{world.translation(), world.linear().col(0).normalized(),
-                       world.linear().col(1).normalized(), reg.get<Camera_C>(cam).fov_};
+                       world.linear().col(1).normalized(), camC.fov_, camC.orthoHeight_};
 }
 
 void SpatialIndex::refresh(World& world, Engine& ctx)
@@ -207,7 +208,10 @@ Ray rayFromScreen(World& world, Engine& ctx, const v2f& screenPos)
     const v3f right = camWorld.linear().col(0).normalized();
     const v3f up = camWorld.linear().col(1).normalized();
     const v3f fwd = -camWorld.linear().col(2).normalized();
-    const v3f dir = (right * (ndcX / proj(0, 0)) + up * (ndcY / proj(1, 1)) + fwd).normalized();
+    const v3f across = right * (ndcX / proj(0, 0)) + up * (ndcY / proj(1, 1));
+    if (camC.ortho())
+        return Ray{camWorld.translation() + across + fwd * camC.znear_, fwd, 0.f, kPickRange};
+    const v3f dir = (across + fwd).normalized();
     const v3f nearPoint = camWorld.translation() + dir * (camC.znear_ / dir.dot(fwd));
     return Ray{nearPoint, dir, 0.f, kPickRange};
 }
@@ -250,6 +254,10 @@ std::optional<ScreenProjector> screenProjector(World& world, Engine& ctx)
     out.origin_ = ctx.viewRect().origin_.cast<float>();
     out.frameSize_ = v2f(static_cast<float>(frameSize.x()), static_cast<float>(frameSize.y()));
     out.camPos_ = camT.world().translation();
+    // An orthographic view looks from infinitely far back: the editor handles
+    // take camPos_ for the eye in their facing tests and depth order.
+    if (camC.ortho())
+        out.camPos_ += camT.world().linear().col(2).normalized() * kOrthoDepth;
     out.camRight_ = camT.world().linear().col(0).normalized();
     out.camUp_ = camT.world().linear().col(1).normalized();
     return out;

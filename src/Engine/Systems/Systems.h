@@ -9,6 +9,7 @@ namespace batap
 {
 
 struct Engine;
+struct Audio_S;
 struct Transform_S;
 struct World;
 struct FreeCamController_S;
@@ -36,5 +37,6 @@ struct Systems
     std::unique_ptr<Bounds_S> bounds_;
     std::unique_ptr<CascadeLight_S> cascadeLights_;
     std::unique_ptr<Terrain_S> terrain_;
+    std::unique_ptr<Audio_S> audio_;
 };
 }  // namespace batap

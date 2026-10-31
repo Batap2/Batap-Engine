@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "Assets/AssetManager.h"
+#include "Audio/Audio.h"
 #include "Components/Camera_C.h"
 #include "Components/Hierarchy_C.h"
 #include "Components/RigidBody_C.h"
@@ -29,6 +30,7 @@
 #include "Renderer/SceneBinding.h"
 #include "Serialization/EntitySerializer.h"
 #include "Spatial/SpatialIndex.h"
+#include "Systems/Audio_S.h"
 #include "Systems/Camera_S.h"
 #include "Systems/CascadeLight_S.h"
 #include "Systems/Character_S.h"
@@ -54,6 +56,7 @@ World::World(Engine& ctx) : ctx_(&ctx)
     systems_->characters_->connectHooks(registry_);
     systems_->cameras_->connectHooks(registry_);
     systems_->cascadeLights_->connectHooks(registry_);
+    systems_->audio_->connectHooks(registry_);
     spatialIndex_->connectHooks(registry_);
 
     // refresh camera ratio on window resize
@@ -176,6 +179,7 @@ void World::shiftFrame(const v3f& by)
     debug().shift(by);
     debugOverlay().shift(by);
     billboards().shift(by);
+    ctx_->audio_->shift(by);
     origin_.offset_ -= by.cast<double>();
     origin_.pos_ -= by.cast<double>();
     // Or world() stays a frame behind for whoever reads it before the flush.
@@ -220,6 +224,7 @@ void World::update(Game& game)
     systems_->update(ctx_->deltaTime_, *ctx_, *this);
     game.lateUpdate(*this, dt);
     systems_->transforms_->update(registry_, *instanceManager_);
+    systems_->audio_->update(*this, ctx_->deltaTime_);
     systems_->terrain_->publish(*this);
     instanceManager_->uploadRemainingFrameDirty(*ctx_);
 }
@@ -232,6 +237,11 @@ InputManager& World::input()
 AssetManager& World::assets()
 {
     return *ctx_->assetManager_;
+}
+
+Audio& World::audio()
+{
+    return *ctx_->audio_;
 }
 
 DebugDraw& World::debug()
@@ -270,6 +280,7 @@ Terrain_S& World::terrain()
 void World::resetScene()
 {
     auto& reg = registry_;
+    ctx_->audio_->stopAll();
 
     std::vector<entt::entity> roots;
     for (auto e : reg.storage<entt::entity>())
@@ -291,6 +302,7 @@ void World::resetScene()
     systems_->characters_->connectHooks(reg);
     systems_->cameras_->connectHooks(reg);
     systems_->cascadeLights_->connectHooks(reg);
+    systems_->audio_->connectHooks(reg);
     spatialIndex_->connectHooks(reg);
     spatialIndex_->markDirty();
 

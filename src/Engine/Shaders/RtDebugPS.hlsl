@@ -1,13 +1,16 @@
+#include "Camera.hlsli"
 #include "RtHit.hlsli"
 
 float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
 {
     CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
 
+    float3 origin;
+    float3 dir;
+    CameraRay(cam, ndc, origin, dir);
     RayDesc ray;
-    ray.Origin = float3(0.0f, 0.0f, 0.0f);
-    ray.Direction = normalize((ndc.x / cam.proj_[0][0]) * cam.right_ +
-                              (ndc.y / cam.proj_[1][1]) * cam.up_ + cam.fwd_);
+    ray.Origin = origin;
+    ray.Direction = dir;
     ray.TMin = cam.znear_;
     ray.TMax = RtHitFar;
     RayQuery<RAY_FLAG_FORCE_OPAQUE> query;

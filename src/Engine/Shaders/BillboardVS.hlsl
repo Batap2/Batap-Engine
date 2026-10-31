@@ -1,3 +1,4 @@
+#include "Camera.hlsli"
 #include "ShaderInterop.h"
 
 [[vk::binding(CamerasBinding, FrameSet)]]
@@ -57,7 +58,9 @@ VS_OUTPUT main(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
 
     // Screen mode: sizes are a fraction of the viewport height, so the world
     // extent has to undo the perspective divide at this distance.
-    float scale = (b.flags_ & BillboardScreenSize) ? dist * tan(cam.fov_ * 0.5f) : 0.5f;
+    float scale = 0.5f;
+    if (b.flags_ & BillboardScreenSize)
+        scale = CameraOrtho(cam) ? cam.orthoHeight_ * 0.5f : dist * tan(cam.fov_ * 0.5f);
 
     float2 c = kCorners[vertexId % 6u];
     float3 posRel = posB + right * (c.x * b.sizeX_ * scale) + up * (c.y * b.sizeY_ * scale);

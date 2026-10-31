@@ -47,8 +47,9 @@ BillboardQuad billboardQuad(const v3f& pos, const quatf& rot, const v2f& size,
         }
     }
 
-    const float scale = sizeMode == Billboards::SizeMode::Screen ? dist * std::tan(cam.fov_ * 0.5f)
-                                                                 : 0.5f;
+    float scale = 0.5f;
+    if (sizeMode == Billboards::SizeMode::Screen)
+        scale = cam.orthoHeight_ > 0.f ? cam.orthoHeight_ * 0.5f : dist * std::tan(cam.fov_ * 0.5f);
 
     return {pos, right, up, size.x() * scale, size.y() * scale};
 }
