@@ -386,6 +386,42 @@ void Physics_S::shift(const v3f& by)
         ev.point_ += by;
 }
 
+void Physics_S::drawShape(DebugDraw& dbg, AssetManager& assets, const Shape& s,
+                          const transform& unscaledBase, const v3f& scale, const col3& color)
+{
+    // The entity scale moves a child's offset as well as its size —
+    // that is what ScaledShape does to the compound.
+    const transform xform =
+        unscaledBase * TRS_Transform(s.localPos_.cwiseProduct(scale), localRotOf(s), v3f::Ones());
+
+    switch (s.kind_)
+    {
+        case Shape::Kind::Box:
+            dbg.box(xform, s.halfExtents_.cwiseProduct(scale), color);
+            break;
+        case Shape::Kind::Sphere:
+            // Jolt only accepts a uniform scale on a sphere and a uniform
+            // X/Z one on a capsule (MakeScaleValid); the wire reproduces that
+            dbg.sphere(xform, s.radius_ * scale.sum() / 3.f, color);
+            break;
+        case Shape::Kind::Capsule:
+            dbg.capsule(xform, s.halfHeight_ * scale.y(),
+                        s.radius_ * (scale.x() + scale.z()) * 0.5f, color);
+            break;
+        case Shape::Kind::Mesh:
+            if (const Mesh* mesh = assets.get(s.mesh_); mesh && mesh->localBounds_.valid())
+            {
+                const v3f center = (mesh->localBounds_.min_ + mesh->localBounds_.max_) * 0.5f;
+                const v3f half = (mesh->localBounds_.max_ - mesh->localBounds_.min_) * 0.5f;
+                drawMeshProxy(dbg,
+                              xform * TRS_Transform(center.cwiseProduct(scale), quatf::Identity(),
+                                                    v3f::Ones()),
+                              half.cwiseProduct(scale), color);
+            }
+            break;
+    }
+}
+
 void Physics_S::drawColliders(World& world)
 {
     if (!showColliders_)
@@ -401,40 +437,7 @@ void Physics_S::drawColliders(World& world)
         const col3& color = colorOf(rb);
 
         for (const Shape& s : rb.shapes_)
-        {
-            // The entity scale moves a child's offset as well as its size —
-            // that is what ScaledShape does to the compound.
-            const transform xform =
-                base * TRS_Transform(s.localPos_.cwiseProduct(scale), localRotOf(s), v3f::Ones());
-
-            switch (s.kind_)
-            {
-                case Shape::Kind::Box:
-                    dbg.box(xform, s.halfExtents_.cwiseProduct(scale), color);
-                    break;
-                case Shape::Kind::Sphere:
-                    // Jolt only accepts a uniform scale on a sphere and a uniform
-                    // X/Z one on a capsule (MakeScaleValid); the wire reproduces that
-                    dbg.sphere(xform, s.radius_ * scale.sum() / 3.f, color);
-                    break;
-                case Shape::Kind::Capsule:
-                    dbg.capsule(xform, s.halfHeight_ * scale.y(),
-                                s.radius_ * (scale.x() + scale.z()) * 0.5f, color);
-                    break;
-                case Shape::Kind::Mesh:
-                    if (const Mesh* mesh = assets.get(s.mesh_); mesh && mesh->localBounds_.valid())
-                    {
-                        const v3f center =
-                            (mesh->localBounds_.min_ + mesh->localBounds_.max_) * 0.5f;
-                        const v3f half = (mesh->localBounds_.max_ - mesh->localBounds_.min_) * 0.5f;
-                        drawMeshProxy(dbg,
-                                      xform * TRS_Transform(center.cwiseProduct(scale),
-                                                            quatf::Identity(), v3f::Ones()),
-                                      half.cwiseProduct(scale), color);
-                    }
-                    break;
-            }
-        }
+            drawShape(dbg, assets, s, base, scale, color);
     }
 }
 

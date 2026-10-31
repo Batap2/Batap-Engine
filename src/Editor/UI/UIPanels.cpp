@@ -5,6 +5,7 @@
 #include "Components/Camera_C.h"
 #include "Components/FreeCamController_C.h"
 #include "Components/Name_C.h"
+#include "Components/RigidBody_C.h"
 #include "EditorConfig.h"
 #include "Engine.h"
 #include "FileDialog.h"
@@ -117,6 +118,7 @@ void UIPanels::pickOnClick(World& world, App& app, Engine& ctx)
     }
 
     const EntityHandle picked{&world.registry_, hit.entity_};
+    colliderHandles_.clear();
     if (input.down(Key::LCtrl))
         selection_.toggle(picked);
     else
@@ -400,8 +402,18 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
 
         float left = kTopBarHeight + kBarItemGap;
 
-        const std::string sceneName = app.scenePath_.empty() ? std::string("untitled")
-                                                             : fileStem(app.scenePath_);
+        const bool editingTemplate = app.editingTemplate();
+        if (editingTemplate)
+        {
+            ui::ScopedColor tag{{ImGuiCol_Text, ui::accent}};
+            ImGui::SetCursorPos({left, centredY(ImGui::GetTextLineHeight())});
+            ImGui::TextUnformatted(ICON_MD_WIDGETS);
+            left += ImGui::CalcTextSize(ICON_MD_WIDGETS).x + kBarItemGap;
+        }
+
+        const std::string sceneName = editingTemplate          ? fileStem(app.templatePath_)
+                                      : app.scenePath_.empty() ? std::string("untitled")
+                                                               : fileStem(app.scenePath_);
         ImGui::SetCursorPos({left, centredY(ImGui::GetTextLineHeight())});
         {
             ui::ScopedColor bright{{ImGuiCol_Text, ui::textBright}};
@@ -409,17 +421,42 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
         }
         left += ImGui::CalcTextSize(sceneName.c_str()).x + kBarTextGap;
 
-        if (!app.projectDir_.empty())
         {
             ui::ScopedFont small{ui::smallFont};
-            const std::string project = std::filesystem::path(app.projectDir_).filename().string();
-            ImGui::SetCursorPos({left, centredY(ImGui::GetTextLineHeight())});
-            ImGui::TextDisabled("%s", project.c_str());
+            std::string sub = editingTemplate ? std::string("template") : std::string{};
+            if (!app.projectDir_.empty())
+            {
+                if (!sub.empty())
+                    sub += "    ";
+                sub += std::filesystem::path(app.projectDir_).filename().string();
+            }
+            if (!sub.empty())
+            {
+                ImGui::SetCursorPos({left, centredY(ImGui::GetTextLineHeight())});
+                ImGui::TextDisabled("%s", sub.c_str());
+            }
         }
 
         float right = ImGui::GetWindowWidth() - kWindowButtonsWidth - kRailInset;
 
-        if (!app.gameExeName_.empty())
+        if (editingTemplate)
+        {
+            ui::ScopedColor flat{{ImGuiCol_Button, ui::transparent}};
+            right -= side;
+            ImGui::SetCursorPos({right, kRailInset});
+            if (ui::IconButton(ICON_MD_EXIT_TO_APP, side))
+                closeTemplatePending_ = true;
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Close the template");
+            right -= kBarItemGap + side;
+            ImGui::SetCursorPos({right, kRailInset});
+            if (ui::IconButton(ICON_MD_SAVE, side))
+                app.saveTemplate();
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Save the template (Ctrl+S)");
+            right -= kBarItemGap;
+        }
+        else if (!app.gameExeName_.empty())
         {
             right -= side;
             ImGui::SetCursorPos({right, kRailInset});
@@ -518,6 +555,12 @@ void UIPanels::drawRail(World& world, App& app, Engine& ctx, float top, float he
         ImGui::EndPopup();
     }
 
+    ImGui::SetCursorPosX(kRailInset);
+    if (ui::IconButton(ICON_MD_FOLDER, kRailIconSize))
+        contentBrowser_.toggle();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Content (Ctrl+Space)");
+
     const float bottom = ImGui::GetWindowHeight() - kRailIconSize - kRailInset;
     const float slot = kRailIconSize + kRailInset;
 
@@ -553,6 +596,21 @@ void UIPanels::drawRail(World& world, App& app, Engine& ctx, float top, float he
 
 void UIPanels::drawFileMenu(World& world, App& app)
 {
+    if (app.editingTemplate())
+    {
+        if (ImGui::MenuItem("Save Template", "Ctrl+S"))
+            app.saveTemplate();
+        if (ImGui::MenuItem("Save Template As..."))
+        {
+            std::string path = SaveFileDialog(kTemplateFilter, ".btpl");
+            if (!path.empty())
+                app.saveTemplateAs(std::move(path));
+        }
+        if (ImGui::MenuItem("Close Template"))
+            closeTemplatePending_ = true;
+        ImGui::Separator();
+    }
+
     if (ImGui::MenuItem("Open Project..."))
         app.openFolderDialogAsyncWithAfterJob(
             [&app](std::vector<std::string>&& paths)
@@ -561,6 +619,7 @@ void UIPanels::drawFileMenu(World& world, App& app)
                     app.selectProject(paths[0]);
             });
 
+    ImGui::BeginDisabled(app.editingTemplate());
     if (ImGui::MenuItem("Open Scene..."))
         app.openFileDialogAsyncWithAfterJob(kSceneFilter,
                                             [this, &app](std::vector<std::string>&& paths)
@@ -583,6 +642,72 @@ void UIPanels::drawFileMenu(World& world, App& app)
             app.setScenePath(std::move(path));
         }
     }
+    ImGui::EndDisabled();
+}
+
+void UIPanels::requestTemplate(App& app, std::string path)
+{
+    if (!app.editingTemplate())
+    {
+        app.openTemplate(path);
+        return;
+    }
+    if (app.templatePath_ == path)
+        return;
+    nextTemplate_ = std::move(path);
+    closeTemplatePending_ = true;
+}
+
+void UIPanels::drawTemplateClose(App& app)
+{
+    constexpr const char* kPopup = "Unsaved changes";
+    const auto closed = [&]
+    {
+        app.closeTemplate();
+        if (!nextTemplate_.empty())
+            app.openTemplate(nextTemplate_);
+        nextTemplate_.clear();
+    };
+    if (closeTemplatePending_)
+    {
+        closeTemplatePending_ = false;
+        if (app.templateDirty())
+            ImGui::OpenPopup(kPopup);
+        else
+            closed();
+    }
+
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos({vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f},
+                            ImGuiCond_Appearing, {0.5f, 0.5f});
+    if (!ImGui::BeginPopupModal(kPopup, nullptr,
+                                ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove))
+        return;
+
+    ImGui::Text("Save %s before closing?", fileStem(app.templatePath_).c_str());
+    ImGui::Spacing();
+    constexpr ImVec2 kButton{90.0f, 0.0f};
+    if (ImGui::Button("Save", kButton))
+    {
+        if (app.saveTemplate())
+            closed();
+        else
+            nextTemplate_.clear();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Discard", kButton))
+    {
+        closed();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", kButton))
+    {
+        nextTemplate_.clear();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
 }
 
 void UIPanels::drawImportMenu(World& world, App& app, Engine& ctx)
@@ -763,12 +888,12 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     const float railWidth = railOpen_ ? kRailWidth : 0.0f;
     const float outlinerX = vp->Pos.x + railWidth;
     const float inspectorX = vp->Pos.x + vp->Size.x - inspectorWidth_;
+    const float viewX = outlinerX + outlinerWidth_;
 
     {
         // The scene renders at the size of the hole between the panels and is
         // shown here, first thing in the background list: the gizmo draws in
         // that list too and must land on top of it.
-        const float viewX = outlinerX + outlinerWidth_;
         const v2f pxMin = toPixels(v2f{viewX, bodyTop});
         const v2f pxMax = toPixels(v2f{inspectorX, bodyTop + bodyHeight});
         const v2i origin{static_cast<int>(std::lround(pxMin.x())),
@@ -783,9 +908,13 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
 
     // The gizmo sits on the light's origin and the handles away from it: the
     // gizmo goes first, and the handles only take the mouse it leaves.
-    const bool gizmoBusy = gizmo_.draw(world, ctx, selection_);
+    const bool gizmoBusy =
+        gizmo_.draw(world, ctx, selection_,
+                    {selection_.primary(), colliderHandles_.selected(selection_.primary())});
     const bool handlesBusy = lightHandles_.draw(world, ctx, selection_, !gizmoBusy);
-    if (!gizmoBusy && !handlesBusy)
+    const bool colliderBusy =
+        colliderHandles_.draw(world, ctx, selection_, !gizmoBusy && !handlesBusy);
+    if (!gizmoBusy && !handlesBusy && !colliderBusy)
         pickOnClick(world, app, ctx);
     drawSelectionBounds(world, app, ctx);
     drawLightGizmos(world, selection_);
@@ -846,11 +975,32 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
 
     ImGui::PopStyleVar(2);
 
+    contentBrowser_.draw(world, app, ctx, *this, viewX, inspectorX - viewX, bodyTop + bodyHeight,
+                         bodyHeight - 60.0f);
     materialEditor_.draw(app);
+    drawTemplateClose(app);
 
-    if (!gizmoBusy && !handlesBusy && !ImGui::GetIO().WantTextInput &&
-        ImGui::IsKeyPressed(ImGuiKey_Delete, false))
-        deleteSelection(world);
+    const bool keysFree = !gizmoBusy && !handlesBusy && !colliderBusy &&
+                          !ImGui::GetIO().WantTextInput;
+    if (keysFree && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+    {
+        EntityHandle primary = selection_.primary();
+        const int shape = colliderHandles_.selected(primary);
+        auto* rb = primary.try_get<RigidBody_C>();
+        if (shape >= 0 && rb && static_cast<size_t>(shape) < rb->shapes_.size())
+        {
+            rb->shapes_.erase(rb->shapes_.begin() + shape);
+            primary.reg_->patch<RigidBody_C>(primary.entity_);
+            colliderHandles_.select(primary, -1);
+        }
+        else
+            deleteSelection(world);
+    }
+    if (app.editingTemplate() && !ImGui::GetIO().WantTextInput &&
+        ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
+        app.saveTemplate();
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Space))
+        contentBrowser_.toggle();
 }
 
 void UIPanels::drawStartupScreen(App& app, Engine& ctx)

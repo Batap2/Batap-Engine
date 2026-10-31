@@ -4,6 +4,7 @@
 
 #include <vector>
 
+#include "EigenTypes.h"
 #include "Physics/ContactCollector.h"
 #include "Physics/ContactEvent.h"
 
@@ -11,6 +12,9 @@ namespace batap
 {
 
 struct World;
+struct AssetManager;
+struct DebugDraw;
+struct Shape;
 
 struct Physics_S
 {
@@ -30,6 +34,8 @@ struct Physics_S
     void restorePoses(World& world);
 
     void drawColliders(World& world);
+    static void drawShape(DebugDraw& dbg, AssetManager& assets, const Shape& s,
+                          const transform& unscaledBase, const v3f& scale, const col3& color);
     bool showColliders_ = false;
 
     // Contacts of the last step: fixedUpdate fills them after stepping, so the

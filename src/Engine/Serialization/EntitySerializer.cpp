@@ -73,7 +73,7 @@ static void writeFile(nlohmann::json& root, const std::unordered_set<std::string
     f << root.dump(2);
 }
 
-static nlohmann::json sceneToJson(World& world, const Engine& ctx)
+static nlohmann::json sceneToJson(World& world, const Engine& ctx, bool withState)
 {
     auto& reg = world.registry_;
 
@@ -91,13 +91,16 @@ static nlohmann::json sceneToJson(World& world, const Engine& ctx)
 
     const FieldIO io{ctx, order};
     nlohmann::json root;
-    root["time"] = world.time_.simTime_;
-    const Origin& origin = world.origin_;
-    root["origin"] = {origin.pos_.x(), origin.pos_.y(), origin.pos_.z()};
-    root["originOffset"] = {origin.offset_.x(), origin.offset_.y(), origin.offset_.z()};
-    root["originAnchor"] = nlohmann::json(nullptr);
-    if (auto it = indexMap.find(entt::to_integral(world.origin_.anchor_)); it != indexMap.end())
-        root["originAnchor"] = it->second;
+    if (withState)
+    {
+        root["time"] = world.time_.simTime_;
+        const Origin& origin = world.origin_;
+        root["origin"] = {origin.pos_.x(), origin.pos_.y(), origin.pos_.z()};
+        root["originOffset"] = {origin.offset_.x(), origin.offset_.y(), origin.offset_.z()};
+        root["originAnchor"] = nlohmann::json(nullptr);
+        if (auto it = indexMap.find(entt::to_integral(world.origin_.anchor_)); it != indexMap.end())
+            root["originAnchor"] = it->second;
+    }
     std::unordered_set<std::string> usedTypes;
     auto& entitiesJ = root["entities"] = nlohmann::json::array();
 
@@ -134,7 +137,21 @@ static nlohmann::json sceneToJson(World& world, const Engine& ctx)
 void EntitySerializer::save(World& world, const Engine& ctx, const std::string& path)
 {
     std::ofstream f(path);
-    f << sceneToJson(world, ctx).dump(2);
+    f << sceneToJson(world, ctx, true).dump(2);
+}
+
+bool EntitySerializer::saveTemplate(World& world, const Engine& ctx, const std::string& path)
+{
+    std::ofstream f(path);
+    if (!f.is_open())
+        return false;
+    f << sceneToJson(world, ctx, false).dump(2);
+    return static_cast<bool>(f);
+}
+
+std::string EntitySerializer::templateToBuffer(World& world, const Engine& ctx)
+{
+    return sceneToJson(world, ctx, false).dump();
 }
 
 // Importer path: descs carry asset paths because no handle exists yet.
@@ -307,7 +324,7 @@ void EntitySerializer::clearSceneAndLoad(World& world, const Engine& ctx, const 
 
 std::string EntitySerializer::toBuffer(World& world, const Engine& ctx)
 {
-    return sceneToJson(world, ctx).dump();
+    return sceneToJson(world, ctx, true).dump();
 }
 
 void EntitySerializer::clearSceneAndLoadBuffer(World& world, const Engine& ctx,

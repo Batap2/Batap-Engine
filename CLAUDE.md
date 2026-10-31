@@ -25,7 +25,9 @@ from `<project>/bin/Game.dll` and hot-reloads it when it changes
 To visually verify a render change: run the editor with `--project <dir>` and
 env var `BATAP_DUMP_FRAME=N` to dump frame N as `frame_dump.png`. Add
 `--scene <file.btpl>` for real content and `--select <entity name>` to make the
-inspector draw — it renders nothing without a selection. A running editor holds
+inspector draw — it renders nothing without a selection. `--template <file.btpl>`
+opens the file in the template editor (its entities alone, a neutral light,
+Save writes back to the file) instead of as a scene. A running editor holds
 `Batap_Editor.exe` open, so close it before building. `BATAP_RAY_TRACING=0|1`
 forces the render mode over the user config, and `BATAP_FIXED_DT=<seconds>`
 replaces the measured frame time, so frame N is the same simulation time on

@@ -29,6 +29,7 @@
 #include "Reflection/StructFields.h"
 
 #include <entt/entt.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include <nlohmann/json_fwd.hpp>
 
 #include <cstdint>
@@ -93,12 +94,30 @@ FieldType* fieldTypeFor()
         return &fieldTypeSlot<M>();
 }
 
+struct EnumValue
+{
+    int64_t value = 0;
+    std::string name;
+};
+
+template <class M>
+std::vector<EnumValue> enumValuesOf()
+{
+    std::vector<EnumValue> out;
+    if constexpr (std::is_enum_v<M>)
+        if constexpr (magic_enum::enum_count<M>() > 0)  // entt::entity has no enumerators
+            for (const auto& [value, name] : magic_enum::enum_entries<M>())
+                out.push_back({static_cast<int64_t>(value), std::string(name)});
+    return out;
+}
+
 struct Field
 {
     std::string name;  // json key / UI label ("castShadows")
     FieldType* type = nullptr;
     size_t offset = 0;
     FieldMeta meta;
+    std::vector<EnumValue> enumValues;
 
     // Type-erased member access is pointer arithmetic by nature.
 #pragma clang diagnostic push
@@ -264,7 +283,8 @@ template <auto Member>
 Field field(std::string name, FieldMeta m = {})
 {
     using M = typename detail::MemberPtr<decltype(Member)>::Type;
-    return Field{std::move(name), fieldTypeFor<M>(), detail::memberOffset<Member>(), m};
+    return Field{std::move(name), fieldTypeFor<M>(), detail::memberOffset<Member>(), m,
+                 enumValuesOf<M>()};
 }
 
 // Worded for the user: the editor shows it as a toast. Must not log, refused() does.
@@ -351,7 +371,7 @@ bool registerComponent(std::string_view name, Extra&&... extra)
              Field{std::string(refl::fieldName<T, I>()), fieldTypeFor<refl::FieldTypeAt<I, T>>(),
                    size_t(reinterpret_cast<const char*>(std::addressof(std::get<I>(refs))) -
                           reinterpret_cast<const char*>(std::addressof(probe))),
-                   FieldMeta{}}),
+                   FieldMeta{}, enumValuesOf<refl::FieldTypeAt<I, T>>()}),
          ...);
     }(std::make_index_sequence<refl::fieldCount<T>()>{});
 
