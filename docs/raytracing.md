@@ -1070,7 +1070,8 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       `(1−F)(1−metallic)`.
 - [ ] **B.5 `reflectivity` remplacé par l'IOR.** Changement du `Material`, du
       sérialiseur `.bmat` et de l'import assimp.
-- [ ] **B.6 `emissive`** dans le `Material`, et pris en compte par le cache.
+- [x] **B.6 `emissive`** dans le `Material` (`emissive × emissiveStrength`, cd/m²,
+      exposé, ignoré par les Unlit), et pris en compte par le cache.
 - [ ] **B.7 IBL préfiltrée GGX.** Une passe de préfiltrage par mip, plus le
       split-sum avec la LUT.
 - [ ] **B.8 Scène white furnace.**

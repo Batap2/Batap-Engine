@@ -365,6 +365,8 @@ struct Material
     uint roughnessTexIdx_ INIT(InvalidGPUIndex);
     uint metallicTexIdx_ INIT(InvalidGPUIndex);
     uint shadingModel_ INIT(0u);  // ShadingModel
+    float3 emissive INIT({0.f, 0.f, 0.f});
+    float emissiveStrength INIT(1.f);
 };
 
 struct SkyboxGPUData
@@ -451,7 +453,7 @@ static const uint DebugMotionVectors = 32u;
 static_assert(sizeof(CameraGPUData) == 272);
 static_assert(sizeof(StaticMeshGPUData) == 160);
 static_assert(sizeof(LightGPUData) == 96);
-static_assert(sizeof(Material) == 48);
+static_assert(sizeof(Material) == 64);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(AtmosphereGPUData) == 64);
 static_assert(sizeof(DrawPush) == 36);

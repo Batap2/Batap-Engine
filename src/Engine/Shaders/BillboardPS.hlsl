@@ -31,6 +31,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.roughness_ = clamp(mat.roughness, 0.05f, 1.f);
     s.metallic_ = saturate(mat.metallic);
     s.reflectivity_ = mat.reflectivity;
+    s.emissive_ = mat.emissive * mat.emissiveStrength;
     s.N_ = normalize(i.normalWS_);
     s.posRel_ = i.posRel_;
     s.cell_ = 0.0f;
