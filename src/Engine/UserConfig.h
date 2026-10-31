@@ -10,6 +10,7 @@ namespace batap
 {
 struct WindowDesc;
 struct EngineSettings;
+struct Audio;
 
 // Per-user configuration files, one per application: the editor's is
 // %APPDATA%/BatapEngine/config.json (see editorConfig), a game has its own
@@ -43,5 +44,8 @@ void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow
 // window section.
 void readRender(const nlohmann::json& config, EngineSettings& io);
 void writeRender(const std::filesystem::path& file, const EngineSettings& render);
+
+void readAudio(const nlohmann::json& config, Audio& audio);
+void writeAudio(const std::filesystem::path& file, const Audio& audio);
 }  // namespace userConfig
 }  // namespace batap

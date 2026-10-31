@@ -27,9 +27,21 @@ m4f Camera_C::make_proj(float aspect) const
     if (aspect <= 0.0f || znear_ <= 0.0f || fov_ <= 0.0f)
         return m4f::Identity();
 
-    const float f = 1.0f / std::tan(fov_ * 0.5f);
-
     m4f m = m4f::Zero();
+
+    // Reversed Z too, but linear, so it needs a far plane: 1 at znear_, 0 at
+    // kOrthoDepth.
+    if (ortho())
+    {
+        m(0, 0) = 2.0f / (orthoHeight_ * aspect);
+        m(1, 1) = 2.0f / orthoHeight_;
+        m(2, 2) = 1.0f / (kOrthoDepth - znear_);
+        m(2, 3) = kOrthoDepth / (kOrthoDepth - znear_);
+        m(3, 3) = 1.0f;
+        return m;
+    }
+
+    const float f = 1.0f / std::tan(fov_ * 0.5f);
 
     // RH coordinate system, forward is -Z. Reversed Z with no far plane:
     // NDC z = znear_ / depth, 1 at znear_, 0 at infinity; the scene passes

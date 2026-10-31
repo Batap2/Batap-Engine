@@ -2,6 +2,8 @@
 
 #include "App.h"
 #include "Assets/AssetLoader.h"
+#include "Audio/Audio.h"
+#include "Components/AudioSource_C.h"
 #include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Name_C.h"
@@ -59,6 +61,7 @@ enum struct FileKind
     Material,
     Texture,
     Hdri,
+    Sound,
     Source,
     Other
 };
@@ -76,6 +79,11 @@ std::string lower(std::string s)
     return s;
 }
 
+bool isSound(const std::string& ext)
+{
+    return ext == ".wav" || ext == ".mp3" || ext == ".flac" || ext == ".ogg";
+}
+
 FileKind kindOf(const ContentBrowser::Entry& e)
 {
     if (e.dir_)
@@ -91,6 +99,8 @@ FileKind kindOf(const ContentBrowser::Entry& e)
         return FileKind::Texture;
     if (ext == ".hdr")
         return FileKind::Hdri;
+    if (isSound(ext))
+        return FileKind::Sound;
     if (ext == ".glb" || ext == ".gltf" || ext == ".fbx" || ext == ".obj" || ext == ".blend")
         return FileKind::Source;
     return FileKind::Other;
@@ -114,6 +124,8 @@ Look lookOf(FileKind kind)
                     ui::colorOf(ui::assetColor(AssetType::Texture))};
         case FileKind::Hdri:
             return {ICON_MD_PANORAMA, ui::cyan};
+        case FileKind::Sound:
+            return {ui::assetIcon(AssetType::Sound), ui::colorOf(ui::assetColor(AssetType::Sound))};
         case FileKind::Source:
             return {ICON_MD_DOWNLOAD, ui::textDim};
         case FileKind::Other:
@@ -136,6 +148,7 @@ std::optional<ThumbnailKind> thumbnailKindOf(FileKind kind)
         case FileKind::Template:
             return ThumbnailKind::Template;
         case FileKind::Folder:
+        case FileKind::Sound:
         case FileKind::Source:
         case FileKind::Other:
             break;
@@ -211,6 +224,23 @@ std::vector<EntityHandle> placeContent(World& world, App& app, Engine& ctx,
         h.get<Name_C>().name_ = fs::path(absPath).stem().string();
         h.write<Mesh_C>().mesh_ = mesh;
         h.emplace<Materials_C>();
+        roots.push_back(h);
+    }
+    else if (isSound(ext))
+    {
+        std::error_code ec;
+        const std::string rel = fs::relative(absPath, app.projectDir_, ec).generic_string();
+        const SoundHandle sound = loadAsset<Sound>(rel, ctx);
+        if (!sound)
+        {
+            app.showToast("Could not load " + rel);
+            return roots;
+        }
+        EntityHandle h = world.spawn("audioSource");
+        if (!h.valid())
+            return roots;
+        h.get<Name_C>().name_ = fs::path(absPath).stem().string();
+        h.write<AudioSource_C>().sound_ = sound;
         roots.push_back(h);
     }
 
@@ -378,6 +408,19 @@ void ContentBrowser::import(App& app, const Entry& e)
     scannedProject_.clear();
 }
 
+void ContentBrowser::togglePreview(App& app, Engine& ctx, const Entry& e)
+{
+    const bool wasPlaying = ctx.audio_->playing(preview_);
+    ctx.audio_->stop(preview_);
+    preview_ = {};
+    if (wasPlaying)
+        return;
+    if (const SoundHandle sound = loadAsset<Sound>(e.rel_, ctx))
+        preview_ = ctx.audio_->play(sound, {.bus = AudioBus::Ui});
+    else
+        app.showToast("Could not load " + e.rel_);
+}
+
 void ContentBrowser::activate(World& world, App& app, Engine& ctx, UIPanels& panels, const Entry& e)
 {
     switch (kindOf(e))
@@ -400,6 +443,9 @@ void ContentBrowser::activate(World& world, App& app, Engine& ctx, UIPanels& pan
         case FileKind::Texture:
         case FileKind::Source:
             import(app, e);
+            break;
+        case FileKind::Sound:
+            togglePreview(app, ctx, e);
             break;
         case FileKind::Hdri:
         case FileKind::Other:
@@ -446,6 +492,12 @@ void ContentBrowser::drawActions(World& world, App& app, Engine& ctx, UIPanels& 
             if (ImGui::MenuItem("Import"))
                 import(app, e);
             break;
+        case FileKind::Sound:
+            if (ImGui::MenuItem(ctx.audio_->playing(preview_) ? "Stop" : "Play"))
+                togglePreview(app, ctx, e);
+            if (ImGui::MenuItem("Add to scene"))
+                place(world, app, ctx, panels, e);
+            break;
         case FileKind::Hdri:
         case FileKind::Other:
             break;
@@ -480,7 +532,8 @@ void ContentBrowser::interact(World& world, App& app, Engine& ctx, UIPanels& pan
         if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             activate(world, app, ctx, panels, e);
     }
-    if ((kind == FileKind::Template || kind == FileKind::Mesh) && ImGui::BeginDragDropSource())
+    if ((kind == FileKind::Template || kind == FileKind::Mesh || kind == FileKind::Sound) &&
+        ImGui::BeginDragDropSource())
     {
         const Look look = lookOf(kind);
         const std::string abs = e.path_.string();

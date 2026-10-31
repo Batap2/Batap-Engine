@@ -38,6 +38,7 @@ struct EditorIcons
 
     Icon light_;
     Icon camera_;
+    Icon speaker_;
     MaterialHandle material_;
     ResourceManager* resources_ = nullptr;
     bool loaded_ = false;

@@ -23,6 +23,7 @@ struct Engine;
 struct Systems;
 struct EntityFactory;
 struct AssetManager;
+struct Audio;
 struct SpatialIndex;
 struct Spawnable;
 struct Game;
@@ -53,6 +54,7 @@ struct World
 
     InputManager& input();
     AssetManager& assets();
+    Audio& audio();
     DebugDraw& debug();
     DebugDraw& debugOverlay();
     bool flag(std::string_view name, bool initial);

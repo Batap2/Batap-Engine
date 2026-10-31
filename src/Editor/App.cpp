@@ -170,9 +170,15 @@ void App::frameEditorCamera(const AABB& box, const v3f& fallbackCentre)
     const float radius = box.valid() ? std::max(box.halfSize().norm(), kFocusMinRadius)
                                      : kFocusMinRadius;
 
-    const float distance = radius / std::sin(cam.get<Camera_C>().fov_ * 0.5f);
+    Camera_C& view = cam.get<Camera_C>();
+    const float distance = radius / std::sin(view.fov_ * 0.5f);
     const v3f forward = cam.get<Transform_C>().rot() * -v3f::UnitZ();
     cam.setLocalPosition(center - forward * distance);
+    if (view.ortho())
+    {
+        enterFreeCamOrtho(cam.get<FreeCamController_C>(), view, distance);
+        world_->instances().markDirty<Camera_C>(cam);
+    }
 }
 
 void App::applyEditorCamera()
@@ -185,6 +191,7 @@ void App::applyEditorCamera()
     Camera_C& view = cam.get<Camera_C>();
     view.fov_ = editorCamView_.fov_;
     view.znear_ = editorCamView_.znear_;
+    view.orthoHeight_ = editorCamView_.orthoHeight_;
     setExposure(view, exposureOf(editorCamView_));
     cam.setLocalPosition(editorCamPos_);
     cam.setLocalRotation(editorCamRot_);
@@ -235,6 +242,7 @@ void App::syncEditorCamera()
         editorCamCtrl_.requireRightMouseButton_ = true;
         editorCamView_.fov_ = view.fov_;
         editorCamView_.znear_ = view.znear_;
+        editorCamView_.orthoHeight_ = view.orthoHeight_;
         setExposure(editorCamView_, exposureOf(view));
     }
 
@@ -383,6 +391,7 @@ void App::openTemplate(const std::string& path)
     uiPanels_.clearSelection();
     world_->systems().physics_->showColliders_ = true;
 
+    editorCamView_.orthoHeight_ = 0.f;
     editorCamCtrl_.frame_ = quatf::Identity();
     editorCamCtrl_.yaw_ = kTemplateCamYaw;
     editorCamCtrl_.pitch_ = kTemplateCamPitch;
@@ -428,6 +437,7 @@ void App::closeTemplate()
     editorCamPos_ = sceneAside_.camPos_;
     editorCamRot_ = sceneAside_.camRot_;
     editorCamCtrl_ = sceneAside_.camCtrl_;
+    editorCamView_.orthoHeight_ = 0.f;
     world_->systems().physics_->showColliders_ = sceneAside_.showColliders_;
     sceneAside_ = {};
     uiPanels_.clearSelection();
@@ -653,6 +663,7 @@ void App::loadSceneCamera()
     editorCamCtrl_.pitch_ = file.pose.pitch;
     editorCamCtrl_.frame_ = file.pose.frame;
     editorCamRot_ = freeCamRotation(editorCamCtrl_);
+    editorCamView_.orthoHeight_ = 0.f;
 
     applyEditorCamera();
 }

@@ -40,3 +40,6 @@
 [submodule "include/JoltPhysics"]
 	path = include/JoltPhysics
 	url = https://github.com/jrouwe/JoltPhysics.git
+[submodule "include/miniaudio"]
+	path = include/miniaudio
+	url = https://github.com/mackron/miniaudio.git

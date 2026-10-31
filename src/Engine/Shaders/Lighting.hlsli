@@ -1,6 +1,7 @@
 #ifndef BATAP_LIGHTING_HLSLI
 #define BATAP_LIGHTING_HLSLI
 
+#include "Camera.hlsli"
 #include "GiCache.hlsli"
 #include "ShaderInterop.h"
 #include "Shadows.hlsli"
@@ -398,7 +399,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
     // F0 : diélectrique = 0.04, métal = albedo
     float3 F0 = lerp(float3(0.04f, 0.04f, 0.04f), s.albedo_, s.metallic_);
 
-    float3 V = normalize(-s.posRel_);
+    float3 V = CameraToEye(cam, s.posRel_);
     float  NdotV = saturate(dot(s.N_, V));
 
     float3 F_ibl = F_Schlick(NdotV, F0);

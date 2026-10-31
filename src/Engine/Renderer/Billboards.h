@@ -74,6 +74,7 @@ struct CameraBasis
     v3f right_ = v3f::UnitX();
     v3f up_ = v3f::UnitY();
     float fov_ = 1.f;
+    float orthoHeight_ = 0.f;
 };
 
 struct BillboardQuad

@@ -1146,6 +1146,9 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     dropContentOnView(world, app, ctx, {viewX, bodyTop}, {inspectorX, bodyTop + bodyHeight});
     drawSelectionBounds(world, app, ctx);
     drawLightGizmos(world, selection_);
+    if (!app.playing_)
+        viewAxes_.draw(world, ctx, app.editorCamera(), {viewX, bodyTop},
+                       {inspectorX, bodyTop + bodyHeight});
     drawTopBar(app, ctx);
     drawRail(world, app, ctx, bodyTop, bodyHeight);
 

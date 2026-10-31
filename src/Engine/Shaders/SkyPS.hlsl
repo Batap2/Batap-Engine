@@ -1,6 +1,7 @@
 // Modèle de binding Vulkan (docs/vulkan.md §10).
 // Les paramètres du ciel viennent du SkyboxBuffer partagé avec le PixelShader
 // (IBL) : une seule source de vérité.
+#include "Camera.hlsli"
 #include "Sky.hlsli"
 
 [[vk::binding(CamerasBinding, FrameSet)]]
@@ -24,10 +25,9 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     CameraGPUData cam = CameraBuffer[g_draw.cameraIndex_];
     SkyboxGPUData sky = SkyboxBuffer[0];
 
-    float3 dir = normalize(
-        (ndc.x / cam.proj_[0][0]) * cam.right_ +
-        (ndc.y / cam.proj_[1][1]) * cam.up_    +
-        cam.fwd_);
+    float3 origin;
+    float3 dir;
+    CameraRay(cam, ndc, origin, dir);
 
     float3 color;
 

@@ -1,5 +1,6 @@
 #include "Systems.h"
 
+#include "Audio_S.h"
 #include "Billboard_S.h"
 #include "Bounds_S.h"
 #include "Camera_S.h"
@@ -40,5 +41,6 @@ Systems::Systems()
     bounds_ = std::make_unique<Bounds_S>();
     cascadeLights_ = std::make_unique<CascadeLight_S>();
     terrain_ = std::make_unique<Terrain_S>();
+    audio_ = std::make_unique<Audio_S>();
 }
 }  // namespace batap

@@ -4,6 +4,7 @@
 #include "Components/RigidBody_C.h"
 #include "Components/Transform_C.h"
 #include "Engine.h"
+#include "HandleColors.h"
 #include "HandleMath.h"
 #include "InputManager.h"
 #include "Platform/PlatformWindow.h"
@@ -97,10 +98,6 @@ Eigen::Index toIndex(size_t i)
     return static_cast<Eigen::Index>(i);
 }
 
-constexpr std::array<ImVec4, 3> kAxisColors{ImVec4{0.91f, 0.29f, 0.33f, 1.f},
-                                            ImVec4{0.55f, 0.79f, 0.24f, 1.f},
-                                            ImVec4{0.25f, 0.57f, 0.94f, 1.f}};
-constexpr ImVec4 kLitColor{1.f, 0.88f, 0.47f, 1.f};
 constexpr ImVec4 kOutlineColor{0.03f, 0.05f, 0.06f, 0.75f};
 constexpr ImVec4 kCenterColor{0.92f, 0.92f, 0.9f, 1.f};
 constexpr ImVec4 kScreenColor{0.78f, 0.8f, 0.82f, 1.f};
@@ -141,19 +138,6 @@ float snapTo(float v, float step)
 float cross2(const v2f& a, const v2f& b)
 {
     return a.x() * b.y() - a.y() * b.x();
-}
-
-ImVec4 mixColor(const ImVec4& a, const ImVec4& b, float t)
-{
-    return ImVec4{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t,
-                  a.w + (b.w - a.w) * t};
-}
-
-ImU32 fade(const ImVec4& base, float alphaScale)
-{
-    ImVec4 c = base;
-    c.w *= alphaScale;
-    return ImGui::GetColorU32(c);
 }
 
 using handleMath::distanceToSegment;

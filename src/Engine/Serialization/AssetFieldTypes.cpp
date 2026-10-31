@@ -4,6 +4,7 @@
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
+#include "Assets/Sound.h"
 #include "Assets/Texture.h"
 #include "Engine.h"
 #include "Reflection/ComponentRegistry.h"
@@ -91,6 +92,7 @@ void registerAssetFieldTypes()
     setAssetHandle<Mesh>("MeshHandle");
     setAssetHandle<Texture>("TextureHandle");
     setAssetHandle<Material>("MaterialHandle");
+    setAssetHandle<Sound>("SoundHandle");
 
     setAssetHandleList<Material>("MaterialHandle[]");
 }

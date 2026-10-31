@@ -28,6 +28,8 @@ inline const char* assetIcon(AssetType type)
             return ICON_MD_IMAGE;
         case AssetType::Material:
             return ICON_MD_PALETTE;
+        case AssetType::Sound:
+            return ICON_MD_AUDIOTRACK;
         case AssetType::Mesh:
             break;
     }
@@ -42,6 +44,8 @@ inline ComponentColor assetColor(AssetType type)
             return ComponentColor::Magenta;
         case AssetType::Material:
             return ComponentColor::Yellow;
+        case AssetType::Sound:
+            return ComponentColor::Green;
         case AssetType::Mesh:
             break;
     }

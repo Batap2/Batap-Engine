@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Components/AudioSource_C.h"
 #include "Components/Camera_C.h"
 #include "Components/DirectionalLight_C.h"
 #include "Components/FarPointLight_C.h"
@@ -73,6 +74,7 @@ inline constexpr Spawnable Spawnables[] = {
     spawnable<DirectionalLight_C, Transform_C>("directionalLight", "Directional Light",
                                                ICON_MD_LIGHT_MODE),
     spawnable<Skybox_C>("skybox", "Skybox", ICON_MD_PANORAMA),
+    spawnable<AudioSource_C, Transform_C>("audioSource", "Audio Source", ICON_MD_VOLUME_UP),
 };
 
 // Both lookups fall back on the empty entity, which is the one entry every

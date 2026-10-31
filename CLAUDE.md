@@ -31,7 +31,7 @@ Save writes back to the file) instead of as a scene. A running editor holds
 `Batap_Editor.exe` open, so close it before building. `BATAP_RAY_TRACING=0|1`
 forces the render mode over the user config, and `BATAP_FIXED_DT=<seconds>`
 replaces the measured frame time, so frame N is the same simulation time on
-every run.
+every run. `BATAP_NO_AUDIO=1` opens no audio device: every sound call is a no-op.
 
 ## Code conventions
 

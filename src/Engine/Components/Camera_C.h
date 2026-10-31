@@ -8,6 +8,8 @@ namespace batap
 {
 struct World;
 
+inline constexpr float kOrthoDepth = 10000.f;
+
 struct Camera_C
 {
     static void afterDeserialize(EntityHandle h, World& world);
@@ -22,6 +24,9 @@ struct Camera_C
     float maxEv100_ = 20;
     float meteringPercentile_ = 0.98f;
     float meteringRange_ = 6;
+    float orthoHeight_ = 0;
+
+    bool ortho() const { return orthoHeight_ > 0; }
 
     // aspect = width / height
     m4f make_proj(float aspect) const;
@@ -47,5 +52,6 @@ BATAP_COMPONENT(
     fieldMeta<&Camera_C::minEv100_>({.speed = 0.05f, .min = -10.f, .max = 25.f}),
     fieldMeta<&Camera_C::maxEv100_>({.speed = 0.05f, .min = -10.f, .max = 25.f}),
     fieldMeta<&Camera_C::meteringPercentile_>({.speed = 0.005f, .min = 0.5f, .max = 1.f}),
-    fieldMeta<&Camera_C::meteringRange_>({.speed = 0.05f, .min = 0.f, .max = 20.f}));
+    fieldMeta<&Camera_C::meteringRange_>({.speed = 0.05f, .min = 0.f, .max = 20.f}),
+    fieldSkip<&Camera_C::orthoHeight_>());
 }  // namespace batap

@@ -9,6 +9,7 @@ namespace batap
 struct Mesh;
 struct Texture;
 struct Material;
+struct Sound;
 
 template <class T>
 struct AssetHandle
@@ -29,14 +30,16 @@ struct AssetHandle
 using MeshHandle = AssetHandle<Mesh>;
 using TextureHandle = AssetHandle<Texture>;
 using MaterialHandle = AssetHandle<Material>;
+using SoundHandle = AssetHandle<Sound>;
 
-using AssetHandleAny = std::variant<MeshHandle, TextureHandle, MaterialHandle>;
+using AssetHandleAny = std::variant<MeshHandle, TextureHandle, MaterialHandle, SoundHandle>;
 
 enum class AssetType : uint8_t
 {
     Mesh,
     Texture,
     Material,
+    Sound,
 };
 }  // namespace batap
 

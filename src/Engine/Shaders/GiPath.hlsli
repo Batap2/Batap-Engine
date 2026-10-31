@@ -1,6 +1,7 @@
 #ifndef BATAP_GIPATH_HLSLI
 #define BATAP_GIPATH_HLSLI
 
+#include "Camera.hlsli"
 #include "RtHit.hlsli"
 
 [[vk::binding(RtCacheWorkBinding, RayTracingSet)]] RWStructuredBuffer<uint> GiWork;
@@ -121,10 +122,12 @@ float3 GiCosineDirection(float3 N, float u1, float u2)
 bool GiCameraHit(float2 sample, out RtHit hit)
 {
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
+    float3 origin;
+    float3 dir;
+    CameraRay(cam, sample, origin, dir);
     RayDesc ray;
-    ray.Origin = float3(0.0f, 0.0f, 0.0f);
-    ray.Direction = normalize((sample.x / cam.proj_[0][0]) * cam.right_ +
-                              (sample.y / cam.proj_[1][1]) * cam.up_ + cam.fwd_);
+    ray.Origin = origin;
+    ray.Direction = dir;
     ray.TMin = cam.znear_;
     ray.TMax = RtHitFar;
     RayQuery<RAY_FLAG_FORCE_OPAQUE> query;

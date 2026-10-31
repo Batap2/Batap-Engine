@@ -7,6 +7,7 @@
 #include "LightHandles.h"
 #include "Selection.h"
 #include "Shortcuts.h"
+#include "ViewAxes.h"
 
 #include <imgui.h>
 #include "UI/ContentBrowser.h"
@@ -106,6 +107,7 @@ struct UIPanels
     Gizmo gizmo_;
     LightHandles lightHandles_;
     ColliderHandles colliderHandles_;
+    ViewAxes viewAxes_;
     ContentBrowser contentBrowser_;
     ScenePanel scenePanel_;
     InspectorPanel inspectorPanel_;

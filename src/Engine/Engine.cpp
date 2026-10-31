@@ -6,6 +6,7 @@
 
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
+#include "Audio/Audio.h"
 #include "InputManager.h"
 #include "Platform/PlatformWindow.h"
 #include "Reflection/ComponentRegistry.h"
@@ -56,6 +57,7 @@ Engine::Engine(const WindowDesc& desc, const EngineSettings& settings)
     renderer_ = std::make_unique<Renderer>(window_, desc.transparent);
     renderer_->setVsync(settings_.vsync_);
     assetManager_ = std::make_unique<AssetManager>(renderer_->resourceManager_);
+    audio_ = std::make_unique<Audio>(*assetManager_);
     debugDraw_ = std::make_unique<DebugDraw>();
     debugOverlay_ = std::make_unique<DebugDraw>();
     billboards_ = std::make_unique<Billboards>();
@@ -153,6 +155,7 @@ uint64_t Engine::sceneTexture()
 void Engine::endFrame()
 {
     inputManager_->ClearFrameState();
+    audio_->update();
     renderer_->uploadDebugDraw(*debugDraw_, *debugOverlay_);
     renderer_->uploadBillboards(*billboards_);
     renderer_->uploadTerrain(*terrainDraws_, settings().rayTracing_);

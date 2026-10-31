@@ -2,6 +2,7 @@
 
 #include "Assets/AssetLoader.h"
 #include "Assets/AssetManager.h"
+#include "Components/AudioSource_C.h"
 #include "Components/Camera_C.h"
 #include "Components/DirectionalLight_C.h"
 #include "Components/EditorOnly_C.h"
@@ -58,6 +59,7 @@ constexpr int glyph(std::string_view utf8)
 // The glyph the scene tree already shows for that entity.
 constexpr int kLightGlyph = glyph(ICON_MD_LIGHTBULB);
 constexpr int kCameraGlyph = glyph(ICON_MD_VIDEOCAM);
+constexpr int kSpeakerGlyph = glyph(ICON_MD_VOLUME_UP);
 
 std::vector<unsigned char> readFile(const std::string& path)
 {
@@ -128,6 +130,7 @@ EditorIcons::~EditorIcons()
         return;
     resources_->requestDestroy(light_.texture_);
     resources_->requestDestroy(camera_.texture_);
+    resources_->requestDestroy(speaker_.texture_);
 }
 
 void EditorIcons::load(Engine& ctx)
@@ -168,6 +171,7 @@ void EditorIcons::load(Engine& ctx)
 
     light_ = makeIcon(kLightGlyph, "editorIcon_light");
     camera_ = makeIcon(kCameraGlyph, "editorIcon_camera");
+    speaker_ = makeIcon(kSpeakerGlyph, "editorIcon_speaker");
 
     if (auto unlit = ctx.assetManager_->getHandle<Material>(kUnlitMaterialPath))
         material_ = *unlit;
@@ -214,6 +218,13 @@ void EditorIcons::draw(World& world, Engine& ctx)
                  .materialIdx_ = materialIdx,
                  .sizeMode_ = Billboards::SizeMode::Screen});
     }
+
+    for (auto [e, source, tc] : world.registry_.view<AudioSource_C, Transform_C>().each())
+        out.add({.pos_ = tc.world().translation(),
+                 .size_ = {kIconSize, kIconSize},
+                 .textureIdx_ = speaker_.bindlessIndex_,
+                 .materialIdx_ = materialIdx,
+                 .sizeMode_ = Billboards::SizeMode::Screen});
 }
 
 namespace
@@ -222,7 +233,8 @@ bool hasIcon(World& world, entt::entity e)
 {
     auto& reg = world.registry_;
     if (reg.all_of<PointLight_C, Transform_C>(e) || reg.all_of<SpotLight_C, Transform_C>(e) ||
-        reg.all_of<RectLight_C, Transform_C>(e) || reg.all_of<DirectionalLight_C, Transform_C>(e))
+        reg.all_of<RectLight_C, Transform_C>(e) || reg.all_of<DirectionalLight_C, Transform_C>(e) ||
+        reg.all_of<AudioSource_C, Transform_C>(e))
         return true;
     return reg.all_of<Camera_C, Transform_C>(e) && !reg.all_of<EditorOnly_C>(e) &&
            e != world.renderCamera();
@@ -288,6 +300,8 @@ RayHit EditorIcons::raycast(World& world, const Ray& ray, float maxT) const
     for (entt::entity e : world.registry_.view<Camera_C, Transform_C>())
         if (hasIcon(world, e))
             test(e, world.registry_.get<Transform_C>(e).world().translation());
+    for (auto [e, source, tc] : world.registry_.view<AudioSource_C, Transform_C>().each())
+        test(e, tc.world().translation());
 
     return best;
 }

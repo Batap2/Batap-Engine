@@ -15,6 +15,7 @@ struct ResourceManager;
 struct Mesh;
 struct Texture;
 struct Material;
+struct Sound;
 
 template <typename T>
 struct AssetSlotMap;
@@ -139,7 +140,7 @@ struct AssetManager
 
    private:
     std::string baseDir_;
-    std::tuple<AssetSlotMap<Mesh>*, AssetSlotMap<Texture>*> maps_{};
+    std::tuple<AssetSlotMap<Mesh>*, AssetSlotMap<Texture>*, AssetSlotMap<Sound>*> maps_{};
     std::tuple<AssetGPUArena<Material>*> gpuArenas_{};
 };
 

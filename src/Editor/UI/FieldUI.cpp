@@ -3,6 +3,8 @@
 #include "App.h"
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetManager.h"
+#include "Assets/Sound.h"
+#include "Audio/Audio.h"
 #include "ColliderHandles.h"
 #include "ColliderShapes.h"
 #include "Components/EditorOnly_C.h"
@@ -156,6 +158,34 @@ void setAssetHandle()
             return false;
         });
 }
+
+bool drawSoundHandle(void* p, const Field& f, FieldUIContext& fieldCtx)
+{
+    const auto handle = *static_cast<const SoundHandle*>(p);
+    if (!fieldCtx.app_ || !fieldCtx.picker_ || !fieldCtx.component_)
+        return false;
+
+    Engine& ctx = *fieldCtx.app_->ctx_;
+    const float side = ImGui::GetFrameHeight();
+    const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
+    const std::string name = ui::assetName(*ctx.assetManager_, handle);
+    if (ui::AssetRow(AssetType::Sound, name, ImGui::GetContentRegionAvail().x - side - gap))
+        fieldCtx.picker_->openField(fieldCtx.ent_, *fieldCtx.component_, f, AssetType::Sound,
+                                    fieldCtx.app_->projectDir_);
+
+    static VoiceHandle preview;
+    const bool previewing = ctx.audio_->playing(preview);
+    ImGui::SameLine(0.0f, gap);
+    ImGui::BeginDisabled(!handle || !ctx.audio_->available());
+    if (ui::IconButton(previewing ? ICON_MD_STOP "##preview" : ICON_MD_PLAY_ARROW "##preview",
+                       side))
+    {
+        ctx.audio_->stop(preview);
+        preview = previewing ? VoiceHandle{} : ctx.audio_->play(handle, {.bus = AudioBus::Ui});
+    }
+    ImGui::EndDisabled();
+    return false;
+}
 }  // namespace
 
 // Installs the editor half of each field type: how it is drawn. Serialization
@@ -212,6 +242,7 @@ void installFieldUI()
     setAssetHandle<Mesh, AssetType::Mesh>();
     setAssetHandle<Texture, AssetType::Texture>();
     setAssetHandle<Material, AssetType::Material>();
+    set<SoundHandle>(drawSoundHandle);
 
     set<col3>([](void* p, const Field&, FieldUIContext&)
               { return ui::ColorField("##v", static_cast<col3*>(p)->data(), 3); });
