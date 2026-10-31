@@ -327,6 +327,7 @@ struct Surface
     float  roughness_;
     float  metallic_;
     float  reflectivity_;
+    float3 emissive_;
     float3 N_;
     float3 Ngeom_;
     float3 Nface_;
@@ -476,6 +477,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         color += (diffuse + specular) * radiance * NdotL * shadow;
     }
 
+    color += s.emissive_;
     if (g_draw.atmosphereCount_ != 0)
         color = SkyAerial(g_draw.atmosphereCount_, cam.pos_, s.posRel_, SkyFindSun(cam.pos_), color);
 

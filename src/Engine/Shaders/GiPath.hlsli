@@ -177,6 +177,7 @@ float3 GiPathIrradiance(RtHit first, float2 firstU, inout uint seed, uint bucket
             irradiance += throughput * (PI * hit.albedo_);
             break;
         }
+        irradiance += throughput * (PI * hit.emissive_);
         throughput *= hit.albedo_;
         const float3 direct = throughput * GiDirectIrradiance(hit.position_, hit.normal_, seed);
         irradiance += direct;
@@ -214,7 +215,8 @@ float GiProbeRadiance(float3 origin, float3 direction, uint seed, out uint hitSl
     if (hit.shadingModel_ == ShadingUnlit)
         return GiLuminance(PI * hit.albedo_);
     hitSlot = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));
-    return GiLuminance(hit.albedo_ * GiDirectIrradiance(hit.position_, hit.normal_, seed));
+    return GiLuminance(hit.albedo_ * GiDirectIrradiance(hit.position_, hit.normal_, seed) +
+                       PI * hit.emissive_);
 }
 
 void GiValidateProbe(uint slot)

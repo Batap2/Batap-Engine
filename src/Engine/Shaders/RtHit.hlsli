@@ -19,6 +19,7 @@ struct RtHit
     float3 position_;
     float3 normal_;
     float3 albedo_;
+    float3 emissive_;
     uint shadingModel_;
     GiPoint gi_;
 };
@@ -73,6 +74,7 @@ RtHit RtResolveHit(RayQuery<RAY_FLAG_FORCE_OPAQUE> query, float3 rayDirection)
     hit.position_ = query.WorldRayOrigin() + rayDirection * query.CommittedRayT();
     hit.normal_ = n;
     hit.albedo_ = mat.albedo.rgb;
+    hit.emissive_ = mat.emissive * mat.emissiveStrength;
     hit.shadingModel_ = mat.shadingModel_;
     if (inst.kind_ == RtInstanceChunk)
         hit.gi_ = GiTerrainPoint(TerrainWorldBuffer[inst.gpuIndex_], hit.position_, n);

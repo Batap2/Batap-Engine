@@ -139,6 +139,16 @@ static Material extractMaterial(const aiMaterial* aiMat)
     if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR, val) == AI_SUCCESS)
         mat.metallic = val;
 
+    aiColor3D emissive;
+    if (aiMat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive) == AI_SUCCESS)
+    {
+        mat.emissive[0] = emissive.r;
+        mat.emissive[1] = emissive.g;
+        mat.emissive[2] = emissive.b;
+    }
+    if (aiMat->Get(AI_MATKEY_EMISSIVE_INTENSITY, val) == AI_SUCCESS)
+        mat.emissiveStrength = val;
+
     mat.reflectivity = 1.f;
     if (aiMat->Get(AI_MATKEY_SPECULAR_FACTOR, val) == AI_SUCCESS)
         mat.reflectivity = val;
