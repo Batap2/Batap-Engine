@@ -174,6 +174,77 @@ const std::array<Key, 256> VkToKey = []
     return t;
 }();
 
+// By position, named after the US label, like the kVK_ codes on macOS: WASD
+// stays a cross on AZERTY. VkToKey still answers for injected keys, which
+// carry no scancode.
+const std::array<Key, 0x80> ScancodeToKey = []
+{
+    std::array<Key, 0x80> t{};
+    t.fill(Key::Unknown);
+
+    t[0x02] = Key::Num1;
+    t[0x03] = Key::Num2;
+    t[0x04] = Key::Num3;
+    t[0x05] = Key::Num4;
+    t[0x06] = Key::Num5;
+    t[0x07] = Key::Num6;
+    t[0x08] = Key::Num7;
+    t[0x09] = Key::Num8;
+    t[0x0A] = Key::Num9;
+    t[0x0B] = Key::Num0;
+    t[0x0C] = Key::Minus;
+    t[0x0D] = Key::Equal;
+
+    t[0x10] = Key::Q;
+    t[0x11] = Key::W;
+    t[0x12] = Key::E;
+    t[0x13] = Key::R;
+    t[0x14] = Key::T;
+    t[0x15] = Key::Y;
+    t[0x16] = Key::U;
+    t[0x17] = Key::I;
+    t[0x18] = Key::O;
+    t[0x19] = Key::P;
+    t[0x1A] = Key::LeftBracket;
+    t[0x1B] = Key::RightBracket;
+
+    t[0x1E] = Key::A;
+    t[0x1F] = Key::S;
+    t[0x20] = Key::D;
+    t[0x21] = Key::F;
+    t[0x22] = Key::G;
+    t[0x23] = Key::H;
+    t[0x24] = Key::J;
+    t[0x25] = Key::K;
+    t[0x26] = Key::L;
+    t[0x27] = Key::Semicolon;
+    t[0x28] = Key::Apostrophe;
+    t[0x29] = Key::Grave;
+    t[0x2B] = Key::Backslash;
+
+    t[0x2C] = Key::Z;
+    t[0x2D] = Key::X;
+    t[0x2E] = Key::C;
+    t[0x2F] = Key::V;
+    t[0x30] = Key::B;
+    t[0x31] = Key::N;
+    t[0x32] = Key::M;
+    t[0x33] = Key::Comma;
+    t[0x34] = Key::Period;
+    t[0x35] = Key::Slash;
+
+    return t;
+}();
+
+Key keyOf(WPARAM wParam, LPARAM lParam)
+{
+    const auto scancode = static_cast<size_t>((lParam >> 16) & 0xFF);
+    const bool extended = ((lParam >> 24) & 1) != 0;
+    if (!extended && scancode < ScancodeToKey.size() && ScancodeToKey[scancode] != Key::Unknown)
+        return ScancodeToKey[scancode];
+    return VkToKey[wParam];
+}
+
 void decodeEvent(InputManager& input, UINT message, WPARAM wParam, LPARAM lParam)
 {
     using KeyState = InputManager::KeyState;
@@ -181,11 +252,11 @@ void decodeEvent(InputManager& input, UINT message, WPARAM wParam, LPARAM lParam
     switch (message)
     {
         case WM_KEYDOWN:
-            input.feed(InputManager::KeyEvent{KeyState::Pressed, VkToKey[wParam]});
+            input.feed(InputManager::KeyEvent{KeyState::Pressed, keyOf(wParam, lParam)});
             break;
 
         case WM_KEYUP:
-            input.feed(InputManager::KeyEvent{KeyState::Released, VkToKey[wParam]});
+            input.feed(InputManager::KeyEvent{KeyState::Released, keyOf(wParam, lParam)});
             break;
 
         case WM_LBUTTONDOWN:
@@ -592,6 +663,28 @@ void platformShowCursor(bool show)
         return;
     visible = show;
     ::ShowCursor(show ? TRUE : FALSE);
+}
+
+std::string platformKeyLabel(Key key)
+{
+    for (size_t scancode = 0; scancode < ScancodeToKey.size(); ++scancode)
+    {
+        if (ScancodeToKey[scancode] != key)
+            continue;
+        const UINT vk = ::MapVirtualKeyW(static_cast<UINT>(scancode), MAPVK_VSC_TO_VK);
+        // AZERTY prints & é " on the digit row unshifted, but its keycaps and
+        // virtual keys still say 1 2 3.
+        if (vk >= '0' && vk <= '9')
+            return std::string(1, static_cast<char>(vk));
+        const auto wide = static_cast<wchar_t>(::MapVirtualKeyW(vk, MAPVK_VK_TO_CHAR) & 0xFFFF);
+        if (wide == 0)
+            break;
+        const int size = ::WideCharToMultiByte(CP_UTF8, 0, &wide, 1, nullptr, 0, nullptr, nullptr);
+        std::string label(static_cast<size_t>(size), '\0');
+        ::WideCharToMultiByte(CP_UTF8, 0, &wide, 1, label.data(), size, nullptr, nullptr);
+        return label;
+    }
+    return keyName(key);
 }
 
 void platformMinimizeWindow(void* nativeHandle)

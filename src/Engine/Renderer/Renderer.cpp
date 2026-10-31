@@ -3,6 +3,7 @@
 #include "Renderer/Device/Formats.h"
 #include "Renderer/Device/Memory.h"
 #include "Renderer/Device/ResourceManager.h"
+#include "Renderer/Features/Thumbnails/Thumbnails.h"
 #include "Renderer/Scene/SceneFrame.h"
 
 #include "Paths.h"
@@ -18,6 +19,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -294,6 +296,13 @@ SceneFrame* Renderer::sceneFrame()
     return sceneFrame_.get();
 }
 
+Thumbnails& Renderer::thumbnails()
+{
+    if (!thumbnails_)
+        thumbnails_ = std::make_unique<Thumbnails>(ctx_, *resources_, DepthFormat);
+    return *thumbnails_;
+}
+
 void Renderer::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay)
 {
     if (sceneFrame_)
@@ -416,6 +425,10 @@ void Renderer::render()
             graph_.addPass("scene image clear").color(sceneImage, Load::Clear, clearColor);
     }
 
+    std::optional<GraphImage> thumbnailAtlas;
+    if (thumbnails_)
+        thumbnailAtlas = thumbnails_->addPasses(graph_, frame, uploads);
+
     const bool swapchainHasScene = intoSwapchain && sceneDeclared;
     const bool drawUi = imguiFrameOpen_;
     if (drawUi)
@@ -437,6 +450,8 @@ void Renderer::render()
                     });
         if (shownByUi)
             ui.read(sceneImage, Usage::ShaderRead);
+        if (thumbnailAtlas)
+            ui.read(*thumbnailAtlas, Usage::ShaderRead);
     }
 
     const bool dumpThisFrame = std::find(dumpFrames_.begin(), dumpFrames_.end(), frameCounter_) !=

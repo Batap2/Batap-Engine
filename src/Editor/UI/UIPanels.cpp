@@ -16,9 +16,11 @@
 #include "Renderer/DebugDraw.h"
 #include "Renderer/Tonemap.h"
 #include "Serialization/EntitySerializer.h"
+#include "Serialization/TemplateInstances.h"
 #include "Spatial/SpatialIndex.h"
 #include "Systems/Bounds_S.h"
 #include "Systems/FreeCamController_S.h"
+#include "Systems/Hierarchy_S.h"
 #include "Systems/Physics_S.h"
 #include "Systems/Systems.h"
 #include "Systems/Terrain_S.h"
@@ -68,6 +70,7 @@ constexpr float kResizeGripHalfWidth = 6.0f;
 constexpr float kOptionsGripHeight = 11.0f;
 constexpr float kOptionsMinHeight = 30.0f;
 constexpr float kOptionsMaxHeight = 400.0f;
+constexpr float kDropDistance = 8.0f;
 
 void drawVerticalEdge(float x)
 {
@@ -79,6 +82,11 @@ void drawVerticalEdge(float x)
 std::string fileStem(const std::string& path)
 {
     return std::filesystem::path(path).stem().string();
+}
+
+std::string withKeys(const std::string& text, const std::string& keys)
+{
+    return keys.empty() ? text : text + " (" + keys + ")";
 }
 }  // namespace
 
@@ -125,6 +133,43 @@ void UIPanels::pickOnClick(World& world, App& app, Engine& ctx)
         select(picked);
 }
 
+void UIPanels::dropContentOnView(World& world, App& app, Engine& ctx, ImVec2 viewMin,
+                                 ImVec2 viewMax)
+{
+    const ImGuiPayload* payload = ImGui::GetDragDropPayload();
+    if (!payload || !payload->IsDataType(kContentPayload))
+        return;
+    if (!ImGui::IsMouseHoveringRect(viewMin, viewMax, false) || contentBrowser_.hovered())
+        return;
+
+    const std::string path(static_cast<const char*>(payload->Data));
+    const Ray ray = rayFromScreen(world, ctx, ctx.inputManager_->mousePos());
+    v3f at = ray.origin_ + ray.dir_ * kDropDistance;
+    if (const RayHit hit = world.spatialIndex().raycast(ray); hit.hit())
+        at = hit.point_;
+    else if (const RayHit body = world.raycastPhysics(ray); body.hit())
+        at = body.point_;
+
+    const std::string label = "Drop " + std::filesystem::path(path).filename().string();
+    const ImVec2 mouse = ImGui::GetIO().MousePos;
+    const ImVec2 textAt{mouse.x + 16.0f, mouse.y + 12.0f};
+    const ImVec2 size = ImGui::CalcTextSize(label.c_str());
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    dl->AddRectFilled({textAt.x - 5.0f, textAt.y - 3.0f},
+                      {textAt.x + size.x + 5.0f, textAt.y + size.y + 3.0f},
+                      ImGui::GetColorU32(ui::bg1), 3.0f);
+    dl->AddText(textAt, ImGui::GetColorU32(ui::textBright), label.c_str());
+
+    if (!ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        return;
+    const auto roots = placeContent(world, app, ctx, path, at, {});
+    if (roots.empty())
+        return;
+    clearSelection();
+    for (const EntityHandle& h : roots)
+        selection_.add(h);
+}
+
 void UIPanels::drawSelectionBounds(World& world, App& app, Engine& ctx)
 {
     selection_.prune();
@@ -141,11 +186,88 @@ void UIPanels::drawSelectionBounds(World& world, App& app, Engine& ctx)
     }
 }
 
-void UIPanels::deleteSelection(World& world)
+void UIPanels::deleteSelection(World& world, App& app)
 {
+    bool refused = false;
     for (const EntityHandle& ent : selection_.all())
+    {
+        if (owningInstance(world.registry_, ent.entity_) != entt::null)
+        {
+            refused = true;
+            continue;
+        }
         world.destroy(ent);
+    }
     selection_.clear();
+    if (refused)
+        app.showToast("Template entities stay with their instance: unlink it first");
+}
+
+void UIPanels::duplicateSelection(World& world, App& app)
+{
+    std::vector<EntityHandle> copies;
+    for (const EntityHandle& ent : selection_.all())
+    {
+        bool nested = false;
+        for (const EntityHandle& other : selection_.all())
+            if (!(other == ent) && other.valid() && Hierarchy_S::isDescendantOf(ent, other))
+                nested = true;
+        if (!nested && ent.valid())
+            copies.push_back(duplicateEntity(world, app, ent));
+    }
+    if (copies.empty())
+        return;
+    clearSelection();
+    for (const EntityHandle& h : copies)
+        selection_.add(h);
+}
+
+void UIPanels::save(World& world, App& app, bool askPath)
+{
+    if (app.playing_)
+    {
+        app.showToast("Stop the game before saving");
+        return;
+    }
+    if (app.editingTemplate())
+    {
+        if (!askPath)
+            app.saveTemplate();
+        else if (std::string path = SaveFileDialog(kTemplateFilter, ".btpl"); !path.empty())
+            app.saveTemplateAs(std::move(path));
+        return;
+    }
+
+    std::string path = askPath ? std::string{} : app.scenePath_;
+    if (path.empty())
+        path = SaveFileDialog(kSceneFilter, ".btpl");
+    if (path.empty())
+        return;
+    EntitySerializer::save(world, *app.ctx_, path);
+    app.ctx_->assetManager_->saveAllAssets();
+    if (path != app.scenePath_)
+        app.setScenePath(std::move(path));
+    app.showToast("Scene saved");
+}
+
+void UIPanels::openScene(App& app)
+{
+    if (app.editingTemplate())
+    {
+        app.showToast("Close the open template first");
+        return;
+    }
+    app.openFileDialogAsyncWithAfterJob(kSceneFilter,
+                                        [this, &app](std::vector<std::string>&& paths)
+                                        {
+                                            if (paths.empty())
+                                                return;
+                                            app.stopPlay();
+                                            EntitySerializer::clearSceneAndLoad(
+                                                *app.world_, *app.ctx_, paths[0]);
+                                            app.setScenePath(paths[0]);
+                                            clearSelection();
+                                        });
 }
 
 void UIPanels::drawWindowButtons(Engine& ctx, float height)
@@ -179,45 +301,46 @@ void UIPanels::drawWindowButtons(Engine& ctx, float height)
 // which renderer draws, one section per user file: the editor's applies at
 // once and is written to its file, the game's is written to the game's own
 // file for its next launch.
-void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
+void UIPanels::loadAppSettings(App& app, Engine& ctx)
+{
+    WindowDesc editor;
+    editorConfig::readWindow(editor);
+    editorSettings_ = {editor.screen,
+                       editor.focusOnShow,
+                       editor.behindOnShow,
+                       ctx.settings().rayTracing_,
+                       static_cast<int>(ctx.settings().maxFps_),
+                       static_cast<int>(ctx.settings().giBounces_),
+                       static_cast<int>(ctx.settings().giPasses_),
+                       ctx.settings().tonemap_,
+                       ctx.settings().giPerCell_};
+
+    WindowDesc game;
+    EngineSettings gameRender;
+    if (!app.gameExeName_.empty())
+    {
+        const nlohmann::json config =
+            userConfig::read(userConfig::path(app.gameExeName_, "config.json"));
+        userConfig::readWindow(config, game);
+        userConfig::readRender(config, gameRender);
+    }
+    gameSettings_ = {game.screen,
+                     game.focusOnShow,
+                     game.behindOnShow,
+                     gameRender.rayTracing_,
+                     static_cast<int>(gameRender.maxFps_),
+                     static_cast<int>(gameRender.giBounces_),
+                     static_cast<int>(gameRender.giPasses_),
+                     gameRender.tonemap_,
+                     gameRender.giPerCell_};
+}
+
+void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
 {
     const std::vector<MonitorInfo> monitors = platformMonitors();
     const bool hasGame = !app.gameExeName_.empty();
     const std::filesystem::path gameFile =
         hasGame ? userConfig::path(app.gameExeName_, "config.json") : std::filesystem::path{};
-
-    if (ImGui::IsWindowAppearing())
-    {
-        WindowDesc editor;
-        editorConfig::readWindow(editor);
-        editorSettings_ = {editor.screen,
-                           editor.focusOnShow,
-                           editor.behindOnShow,
-                           ctx.settings().rayTracing_,
-                           static_cast<int>(ctx.settings().maxFps_),
-                           static_cast<int>(ctx.settings().giBounces_),
-                           static_cast<int>(ctx.settings().giPasses_),
-                           ctx.settings().tonemap_,
-                           ctx.settings().giPerCell_};
-
-        WindowDesc game;
-        EngineSettings gameRender;
-        if (hasGame)
-        {
-            const nlohmann::json config = userConfig::read(gameFile);
-            userConfig::readWindow(config, game);
-            userConfig::readRender(config, gameRender);
-        }
-        gameSettings_ = {game.screen,
-                         game.focusOnShow,
-                         game.behindOnShow,
-                         gameRender.rayTracing_,
-                         static_cast<int>(gameRender.maxFps_),
-                         static_cast<int>(gameRender.giBounces_),
-                         static_cast<int>(gameRender.giPasses_),
-                         gameRender.tonemap_,
-                         gameRender.giPerCell_};
-    }
 
     const auto screenLabel = [&](int screen)
     {
@@ -369,6 +492,126 @@ void UIPanels::drawSettingsMenu(App& app, Engine& ctx)
     ImGui::EndDisabled();
 }
 
+void UIPanels::drawShortcutSettings(Engine& ctx)
+{
+    bool changed = false;
+
+    if (capturing_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        capturing_.reset();
+    if (capturing_)
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        for (const Key key : ctx.inputManager_->KeysPressed)
+        {
+            if (key >= Key::LShift && key <= Key::RSuper)
+                continue;
+            if (key == Key::Backspace)
+                shortcuts_[*capturing_] = {};
+            else if (key != Key::Escape)
+                shortcuts_[*capturing_] = {key, io.KeyCtrl, io.KeyShift};
+            changed = key != Key::Escape;
+            capturing_.reset();
+            break;
+        }
+    }
+
+    ImGui::TextDisabled("Click a shortcut, then press the keys. Esc cancels, Backspace clears.");
+    ImGui::Spacing();
+
+    const float side = ImGui::GetFrameHeight();
+    if (ImGui::BeginTable("##shortcuts", 3, ImGuiTableFlags_RowBg))
+    {
+        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Keys", ImGuiTableColumnFlags_WidthFixed, 160.0f);
+        ImGui::TableSetupColumn("Reset", ImGuiTableColumnFlags_WidthFixed, side);
+        for (size_t i = 0; i < kShortcuts.size(); ++i)
+        {
+            const auto s = static_cast<Shortcut>(i);
+            const KeyChord& chord = shortcuts_[s];
+            bool conflict = false;
+            for (size_t j = 0; j < kShortcuts.size(); ++j)
+                if (j != i && chord.key_ != Key::Unknown && shortcuts_.chords_[j] == chord)
+                    conflict = true;
+
+            ImGui::PushID(static_cast<int>(i));
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(kShortcuts[i].label_);
+
+            ImGui::TableNextColumn();
+            const bool listening = capturing_ == s;
+            const std::string keys = listening                    ? std::string("Press the keys...")
+                                     : chord.key_ == Key::Unknown ? std::string("None")
+                                                                  : chordLabel(chord);
+            {
+                ui::ScopedColor color{{ImGuiCol_Text, conflict    ? ui::red
+                                                      : listening ? ui::accent
+                                                                  : ui::text}};
+                if (ImGui::Button((keys + "##keys").c_str(), {-FLT_MIN, 0.0f}))
+                    capturing_ = s;
+            }
+            if (conflict && ImGui::IsItemHovered())
+                ImGui::SetTooltip("Another action uses the same keys");
+
+            ImGui::TableNextColumn();
+            const KeyChord& initial = kShortcuts[i].default_;
+            ImGui::BeginDisabled(chord == initial);
+            if (ui::IconButton(ICON_MD_UNDO, side))
+            {
+                shortcuts_[s] = initial;
+                changed = true;
+            }
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Back to %s", chordLabel(initial).c_str());
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    if (ImGui::Button("Reset all"))
+    {
+        shortcuts_ = Shortcuts{};
+        capturing_.reset();
+        changed = true;
+    }
+    if (changed)
+        editorConfig::writeShortcuts(shortcuts_);
+}
+
+void UIPanels::drawSettingsWindow(App& app, Engine& ctx)
+{
+    if (!settingsOpen_)
+    {
+        capturing_.reset();
+        return;
+    }
+
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_FirstUseEver, {0.5f, 0.5f});
+    ImGui::SetNextWindowSize({480.0f, 580.0f}, ImGuiCond_FirstUseEver);
+    const bool visible = ImGui::Begin("Settings", &settingsOpen_, ImGuiWindowFlags_NoCollapse);
+    if (ImGui::IsWindowAppearing())
+        loadAppSettings(app, ctx);
+    if (visible && ImGui::BeginTabBar("##settingsTabs"))
+    {
+        if (ImGui::BeginTabItem("General"))
+        {
+            drawGeneralSettings(app, ctx);
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Shortcuts"))
+        {
+            drawShortcutSettings(ctx);
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+    ImGui::End();
+}
+
 // A plain window, not BeginMainMenuBar: its padding and safe area fight any
 // attempt to place things exactly, and there are no menus left in it.
 void UIPanels::drawTopBar(App& app, Engine& ctx)
@@ -451,9 +694,10 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
             right -= kBarItemGap + side;
             ImGui::SetCursorPos({right, kRailInset});
             if (ui::IconButton(ICON_MD_SAVE, side))
-                app.saveTemplate();
+                save(*app.world_, app, false);
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Save the template (Ctrl+S)");
+                ImGui::SetTooltip(
+                    "%s", withKeys("Save the template", shortcuts_.label(Shortcut::Save)).c_str());
             right -= kBarItemGap;
         }
         else if (!app.gameExeName_.empty())
@@ -476,6 +720,10 @@ void UIPanels::drawTopBar(App& app, Engine& ctx)
             if (ui::IconButton(app.playing_ ? ICON_MD_STOP : ICON_MD_PLAY_ARROW, side))
                 app.playing_ ? app.stopPlay() : app.startPlay();
         }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip(
+                "%s",
+                withKeys(app.playing_ ? "Stop" : "Play", shortcuts_.label(Shortcut::Play)).c_str());
         right -= kBarGroupGap;
 
         {
@@ -559,21 +807,17 @@ void UIPanels::drawRail(World& world, App& app, Engine& ctx, float top, float he
     if (ui::IconButton(ICON_MD_FOLDER, kRailIconSize))
         contentBrowser_.toggle();
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Content (Ctrl+Space)");
+        ImGui::SetTooltip("%s",
+                          withKeys("Content", shortcuts_.label(Shortcut::ContentBrowser)).c_str());
 
     const float bottom = ImGui::GetWindowHeight() - kRailIconSize - kRailInset;
     const float slot = kRailIconSize + kRailInset;
 
     ImGui::SetCursorPos({kRailInset, bottom - 2.0f * slot});
     if (ui::IconButton(ICON_MD_SETTINGS, kRailIconSize))
-        ImGui::OpenPopup("##railSettings");
+        settingsOpen_ = !settingsOpen_;
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Settings");
-    if (ImGui::BeginPopup("##railSettings"))
-    {
-        drawSettingsMenu(app, ctx);
-        ImGui::EndPopup();
-    }
 
     const bool light = app.theme_ == ui::Theme::Light;
     ImGui::SetCursorPos({kRailInset, bottom - slot});
@@ -598,14 +842,10 @@ void UIPanels::drawFileMenu(World& world, App& app)
 {
     if (app.editingTemplate())
     {
-        if (ImGui::MenuItem("Save Template", "Ctrl+S"))
-            app.saveTemplate();
-        if (ImGui::MenuItem("Save Template As..."))
-        {
-            std::string path = SaveFileDialog(kTemplateFilter, ".btpl");
-            if (!path.empty())
-                app.saveTemplateAs(std::move(path));
-        }
+        if (ImGui::MenuItem("Save Template", shortcuts_.label(Shortcut::Save).c_str()))
+            save(world, app, false);
+        if (ImGui::MenuItem("Save Template As...", shortcuts_.label(Shortcut::SaveAs).c_str()))
+            save(world, app, true);
         if (ImGui::MenuItem("Close Template"))
             closeTemplatePending_ = true;
         ImGui::Separator();
@@ -620,28 +860,12 @@ void UIPanels::drawFileMenu(World& world, App& app)
             });
 
     ImGui::BeginDisabled(app.editingTemplate());
-    if (ImGui::MenuItem("Open Scene..."))
-        app.openFileDialogAsyncWithAfterJob(kSceneFilter,
-                                            [this, &app](std::vector<std::string>&& paths)
-                                            {
-                                                if (paths.empty())
-                                                    return;
-                                                EntitySerializer::clearSceneAndLoad(
-                                                    *app.world_, *app.ctx_, paths[0]);
-                                                app.setScenePath(paths[0]);
-                                                clearSelection();
-                                            });
-
-    if (ImGui::MenuItem("Save Scene..."))
-    {
-        std::string path = SaveFileDialog(kSceneFilter, ".btpl");
-        if (!path.empty())
-        {
-            EntitySerializer::save(world, *app.ctx_, path);
-            app.ctx_->assetManager_->saveAllAssets();
-            app.setScenePath(std::move(path));
-        }
-    }
+    if (ImGui::MenuItem("Open Scene...", shortcuts_.label(Shortcut::OpenScene).c_str()))
+        openScene(app);
+    if (ImGui::MenuItem("Save Scene", shortcuts_.label(Shortcut::Save).c_str()))
+        save(world, app, false);
+    if (ImGui::MenuItem("Save Scene As...", shortcuts_.label(Shortcut::SaveAs).c_str()))
+        save(world, app, true);
     ImGui::EndDisabled();
 }
 
@@ -760,7 +984,8 @@ void UIPanels::drawEditorOptions(World& world, App& app)
                                         ImGui::GetColorU32(ui::border));
 
     const float side = ImGui::GetFrameHeight() + 6.0f;
-    const auto modeButton = [&](const char* icon, GizmoMode mode, const char* tooltip)
+    const auto modeButton =
+        [&](const char* icon, GizmoMode mode, const char* tooltip, Shortcut shortcut)
     {
         const bool on = gizmo_.mode_ == mode;
         {
@@ -771,13 +996,13 @@ void UIPanels::drawEditorOptions(World& world, App& app)
                 gizmo_.mode_ = mode;
         }
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("%s", tooltip);
+            ImGui::SetTooltip("%s", withKeys(tooltip, shortcuts_.label(shortcut)).c_str());
         ImGui::SameLine(0.0f, kBarItemGap);
     };
 
-    modeButton(ICON_MD_OPEN_WITH, GizmoMode::Translate, "Move");
-    modeButton(ICON_MD_3D_ROTATION, GizmoMode::Rotate, "Rotate");
-    modeButton(ICON_MD_ZOOM_OUT_MAP, GizmoMode::Scale, "Scale");
+    modeButton(ICON_MD_OPEN_WITH, GizmoMode::Translate, "Move", Shortcut::Move);
+    modeButton(ICON_MD_3D_ROTATION, GizmoMode::Rotate, "Rotate", Shortcut::Rotate);
+    modeButton(ICON_MD_ZOOM_OUT_MAP, GizmoMode::Scale, "Scale", Shortcut::Scale);
     ImGui::NewLine();
 
     ImGui::BeginChild("##editorOptionsBody", {0.0f, 0.0f});
@@ -787,18 +1012,20 @@ void UIPanels::drawEditorOptions(World& world, App& app)
                       {width, side}))
         gizmo_.local_ = !gizmo_.local_;
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip(
-            "Handles follow the entity axes or the world axes."
-            " Scale is always local.");
+        ImGui::SetTooltip("%s", withKeys("Handles follow the entity axes or the world axes."
+                                         " Scale is always local.",
+                                         shortcuts_.label(Shortcut::ToggleSpace))
+                                    .c_str());
 
     const bool center = gizmo_.pivot_ == GizmoPivot::Center;
     if (ImGui::Button(center ? ICON_MD_FILTER_CENTER_FOCUS "  Center" : ICON_MD_ADJUST "  Pivot",
                       {width, side}))
         gizmo_.pivot_ = center ? GizmoPivot::Origin : GizmoPivot::Center;
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip(
-            "Place the handles on the transform origin"
-            " or on the centre of the selection bounds.");
+        ImGui::SetTooltip("%s", withKeys("Place the handles on the transform origin"
+                                         " or on the centre of the selection bounds.",
+                                         shortcuts_.label(Shortcut::TogglePivot))
+                                    .c_str());
 
     ImGui::Spacing();
     ImGui::TextDisabled("Snap (Ctrl)");
@@ -916,6 +1143,7 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
         colliderHandles_.draw(world, ctx, selection_, !gizmoBusy && !handlesBusy);
     if (!gizmoBusy && !handlesBusy && !colliderBusy)
         pickOnClick(world, app, ctx);
+    dropContentOnView(world, app, ctx, {viewX, bodyTop}, {inspectorX, bodyTop + bodyHeight});
     drawSelectionBounds(world, app, ctx);
     drawLightGizmos(world, selection_);
     drawTopBar(app, ctx);
@@ -980,11 +1208,49 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
     materialEditor_.draw(app);
     drawTemplateClose(app);
 
-    const bool keysFree = !gizmoBusy && !handlesBusy && !colliderBusy &&
-                          !ImGui::GetIO().WantTextInput;
-    if (keysFree && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+    // After the shortcuts: the key that ends a capture must not also fire the
+    // action it was just bound to.
+    handleShortcuts(world, app, ctx, !gizmoBusy && !handlesBusy && !colliderBusy);
+    drawSettingsWindow(app, ctx);
+}
+
+void UIPanels::handleShortcuts(World& world, App& app, Engine& ctx, bool handlesIdle)
+{
+    if (capturing_)
+        return;
+
+    const InputManager& input = *ctx.inputManager_;
+    const ImGuiIO& io = ImGui::GetIO();
+    // A held button means a gizmo drag or the right-button camera flight, whose
+    // E would also switch to Rotate.
+    const bool plainKeysFree = !app.playing_ && !ImGui::IsAnyMouseDown();
+    const auto pressed = [&](Shortcut s)
     {
-        EntityHandle primary = selection_.primary();
+        const KeyChord& c = shortcuts_[s];
+        if (c.key_ == Key::Unknown || !input.pressed(c.key_) || io.KeyCtrl != c.ctrl_ ||
+            io.KeyShift != c.shift_ || io.KeyAlt || io.KeySuper)
+            return false;
+        if (io.WantTextInput)
+            return c.ctrl_ && s == Shortcut::ContentBrowser;
+        return c.ctrl_ || plainKeysFree;
+    };
+
+    if (pressed(Shortcut::ContentBrowser))
+        contentBrowser_.toggle();
+    if (pressed(Shortcut::Play))
+        app.playing_ ? app.stopPlay() : app.startPlay();
+    if (pressed(Shortcut::Save))
+        save(world, app, false);
+    if (pressed(Shortcut::SaveAs))
+        save(world, app, true);
+    if (pressed(Shortcut::OpenScene))
+        openScene(app);
+    if (pressed(Shortcut::Duplicate))
+        duplicateSelection(world, app);
+
+    EntityHandle primary = selection_.primary();
+    if (pressed(Shortcut::Delete) && handlesIdle)
+    {
         const int shape = colliderHandles_.selected(primary);
         auto* rb = primary.try_get<RigidBody_C>();
         if (shape >= 0 && rb && static_cast<size_t>(shape) < rb->shapes_.size())
@@ -994,13 +1260,23 @@ void UIPanels::draw(World& world, App& app, Engine& ctx)
             colliderHandles_.select(primary, -1);
         }
         else
-            deleteSelection(world);
+            deleteSelection(world, app);
     }
-    if (app.editingTemplate() && !ImGui::GetIO().WantTextInput &&
-        ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
-        app.saveTemplate();
-    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Space))
-        contentBrowser_.toggle();
+    if (pressed(Shortcut::Rename) && primary.valid())
+        scenePanel_.beginRename(primary);
+    if (pressed(Shortcut::Move))
+        gizmo_.mode_ = GizmoMode::Translate;
+    if (pressed(Shortcut::Rotate))
+        gizmo_.mode_ = GizmoMode::Rotate;
+    if (pressed(Shortcut::Scale))
+        gizmo_.mode_ = GizmoMode::Scale;
+    if (pressed(Shortcut::ToggleSpace))
+        gizmo_.local_ = !gizmo_.local_;
+    if (pressed(Shortcut::TogglePivot))
+        gizmo_.pivot_ = gizmo_.pivot_ == GizmoPivot::Center ? GizmoPivot::Origin
+                                                            : GizmoPivot::Center;
+    if (pressed(Shortcut::Focus))
+        app.focusEditorCamera(primary);
 }
 
 void UIPanels::drawStartupScreen(App& app, Engine& ctx)

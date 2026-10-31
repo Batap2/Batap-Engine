@@ -6,6 +6,7 @@
 #include "Gizmo.h"
 #include "LightHandles.h"
 #include "Selection.h"
+#include "Shortcuts.h"
 
 #include <imgui.h>
 #include "UI/ContentBrowser.h"
@@ -33,21 +34,32 @@ struct UIPanels
         colliderHandles_.clear();
     }
     void select(EntityHandle ent) { selection_.set(ent); }
+    void addToSelection(EntityHandle ent) { selection_.add(ent); }
     void openMaterialEditor(MaterialHandle mat) { materialEditor_.open(mat); }
     void selectByName(World& world, std::string_view name);
     void setLogo(ImTextureID logo) { logo_ = logo; }
     ColliderHandles& colliderHandles() { return colliderHandles_; }
+    ContentBrowser& contentBrowser() { return contentBrowser_; }
+    Shortcuts& shortcuts() { return shortcuts_; }
     void requestTemplate(App& app, std::string path);
 
    private:
     void pickOnClick(World& world, App& app, Engine& ctx);
+    void dropContentOnView(World& world, App& app, Engine& ctx, ImVec2 viewMin, ImVec2 viewMax);
     void drawTemplateClose(App& app);
     void drawSelectionBounds(World& world, App& app, Engine& ctx);
-    void deleteSelection(World& world);
+    void deleteSelection(World& world, App& app);
+    void duplicateSelection(World& world, App& app);
+    void handleShortcuts(World& world, App& app, Engine& ctx, bool handlesIdle);
+    void save(World& world, App& app, bool askPath);
+    void openScene(App& app);
     void drawTopBar(App& app, Engine& ctx);
     void drawRail(World& world, App& app, Engine& ctx, float top, float height);
     void drawWindowButtons(Engine& ctx, float height);
-    void drawSettingsMenu(App& app, Engine& ctx);
+    void drawSettingsWindow(App& app, Engine& ctx);
+    void loadAppSettings(App& app, Engine& ctx);
+    void drawGeneralSettings(App& app, Engine& ctx);
+    void drawShortcutSettings(Engine& ctx);
 
     // The window and render sections of each application's user file, as the
     // settings menu last read or wrote them. Reloaded each time the menu opens.
@@ -83,6 +95,8 @@ struct UIPanels
     float optionsHeight_ = 300.0f;
     bool railOpen_ = true;
     bool closeTemplatePending_ = false;
+    bool settingsOpen_ = false;
+    std::optional<Shortcut> capturing_;
     std::string nextTemplate_;
     ImTextureID logo_ = 0;
     quatf cameraFrameSource_ = quatf::Identity();
@@ -96,5 +110,6 @@ struct UIPanels
     ScenePanel scenePanel_;
     InspectorPanel inspectorPanel_;
     MaterialEditorPanel materialEditor_;
+    Shortcuts shortcuts_;
 };
 }  // namespace batap

@@ -14,6 +14,7 @@
 #include "Components/Name_C.h"
 #include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
+#include "Components/UnknownComponents_C.h"
 #include "Instance/InstanceDeclaration.h"
 #include "Instance/Spawnable.h"
 #include "Reflection/ComponentRegistry.h"
@@ -34,7 +35,9 @@
 #include <cctype>
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <numbers>
+#include <string_view>
 #include <type_traits>
 
 namespace batap
@@ -80,7 +83,9 @@ constexpr size_t kMaxMaterialSlots = std::extent_v<decltype(StaticMeshGPUData::m
 
 void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
 {
+    beginInstance(world, app, ent);
     drawHeader(ent);
+    drawTemplateSection(app, ent);
     drawTransform(world, ent);
     drawMesh(ent, app);
     drawMaterials(ent, app);
@@ -91,6 +96,9 @@ void InspectorPanel::draw(World& world, App& app, EntityHandle ent)
     // One picker serves every section above; OpenPopup and BeginPopup both run
     // inside this call, so they see the same ID stack whatever opened it.
     assetPicker_.draw(app);
+
+    runAction(world, app, ent);
+    instance_.reset();
 }
 
 void InspectorPanel::drawHeader(EntityHandle ent)
@@ -122,7 +130,9 @@ void InspectorPanel::drawTransform(World& world, EntityHandle ent)
     if (!t)
         return;
 
-    ui::ComponentSection section("Transform", ComponentColor::Blue);
+    ui::ComponentSection section("Transform", ComponentColor::Blue, false, nullptr,
+                                 sectionTemplated(), sectionOverridden("transform"));
+    sectionActions(section, "transform");
     if (!section)
         return;
 
@@ -192,6 +202,7 @@ void InspectorPanel::drawTransform(World& world, EntityHandle ent)
         v3d pos = world.origin_.pos_ + t->worldPos().cast<double>();
         if (ui::FieldDragDouble3("Position", pos.data(), 0.05f))
             ent.setPosition(v3f{(pos - world.origin_.pos_).cast<float>()}, Space::World);
+        markField("Position", "transform", "pos");
     }
     else
     {
@@ -203,6 +214,7 @@ void InspectorPanel::drawTransform(World& world, EntityHandle ent)
             else
                 ent.setLocalPosition(pos);
         }
+        markField("Position", "transform", "pos");
     }
 
     // Euler angles are cached: a quaternion has several equivalent triplets,
@@ -229,12 +241,14 @@ void InspectorPanel::drawTransform(World& world, EntityHandle ent)
         else
             ent.setLocalRotation(newRot);
     }
+    markField("Rotation", "transform", "rot");
 
     v3f scale = inWorld ? t->worldScale() : t->scale();
     ImGui::BeginDisabled(inWorld);
     if (ui::FieldDragFloat3("Scale", scale.data(), 0.01f) && !inWorld)
         ent.setLocalScale(scale);
     ImGui::EndDisabled();
+    markField("Scale", "transform", "scale");
 }
 
 void InspectorPanel::drawMesh(EntityHandle ent, App& app)
@@ -245,7 +259,9 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
 
     const std::string name = ui::assetName(*app.ctx_->assetManager_, meshC->mesh_);
 
-    ui::ComponentSection section("Mesh", ComponentColor::Violet, false, name.c_str());
+    ui::ComponentSection section("Mesh", ComponentColor::Violet, false, name.c_str(),
+                                 sectionTemplated(), sectionOverridden("mesh"));
+    sectionActions(section, "mesh");
     if (!section)
         return;
 
@@ -257,9 +273,12 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
                       if (ui::AssetRow(AssetType::Mesh, name))
                           assetPicker_.open(ent, AssetType::Mesh, app.projectDir_);
                   });
+        markField("Asset", "mesh", "mesh");
         ui::Field("Visible", [&] { return ImGui::Checkbox("##visible", &meshC->visible_); });
+        markField("Visible", "mesh", "visible");
         ui::Field("Cast shadows",
                   [&] { return ImGui::Checkbox("##castShadows", &meshC->castShadows_); });
+        markField("Cast shadows", "mesh", "castShadows");
     }
 }
 
@@ -272,7 +291,9 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
     const size_t slotCount = mc->slots.size();
     const std::string summary = std::to_string(slotCount) + (slotCount == 1 ? " slot" : " slots");
 
-    ui::ComponentSection section("Materials", ComponentColor::Yellow, true, summary.c_str());
+    ui::ComponentSection section("Materials", ComponentColor::Yellow, true, summary.c_str(),
+                                 sectionTemplated(), sectionOverridden("materials"));
+    sectionActions(section, "materials");
     if (section)
     {
         size_t removed = slotCount;
@@ -307,6 +328,7 @@ void InspectorPanel::drawMaterials(EntityHandle ent, App& app)
                               if (ui::IconButton(ICON_MD_CLOSE, removeW))
                                   removed = i;
                           });
+                markField(label.c_str(), "materials", "slots");
             }
 
         ImGui::BeginDisabled(slotCount >= kMaxMaterialSlots);
@@ -333,7 +355,9 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
 
     bool changed = false;
 
-    ui::ComponentSection section("Skybox", ComponentColor::Cyan);
+    ui::ComponentSection section("Skybox", ComponentColor::Cyan, false, nullptr, sectionTemplated(),
+                                 sectionOverridden("skybox"));
+    sectionActions(section, "skybox");
     if (section)
         if (auto fields = ui::BeginFields("skybox"))
         {
@@ -348,6 +372,7 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
                                      sky->mode_ = static_cast<Skybox_C::Mode>(current);
                                      return true;
                                  });
+            markField("Mode", "skybox", "mode");
 
             switch (sky->mode_)
             {
@@ -360,28 +385,35 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
                                   if (ui::AssetRow(ICON_MD_PANORAMA, ComponentColor::Cyan, name))
                                       assetPicker_.openHdri(ent, app.projectDir_);
                               });
+                    markField("HDRI", "skybox", "hdri");
                     break;
 
                 case Skybox_C::Mode::FlatColor:
                     changed |=
                         ui::Field("Color", [&]
                                   { return ui::ColorField("##skycolor", sky->color1_.data(), 3); });
+                    markField("Color", "skybox", "color1");
                     break;
 
                 case Skybox_C::Mode::Gradient:
                     changed |= ui::Field(
                         "Sky", [&] { return ui::ColorField("##skysky", sky->color1_.data(), 3); });
+                    markField("Sky", "skybox", "color1");
                     changed |= ui::Field(
                         "Horizon",
                         [&] { return ui::ColorField("##skyhorizon", sky->color2_.data(), 3); });
+                    markField("Horizon", "skybox", "color2");
                     changed |= ui::Field(
                         "Ground",
                         [&] { return ui::ColorField("##skyground", sky->color3_.data(), 3); });
+                    markField("Ground", "skybox", "color3");
                     changed |= ui::FieldSlider("Width", &sky->horizonWidth_, 0.01f, 1.0f);
+                    markField("Width", "skybox", "horizonWidth");
                     break;
             }
 
             changed |= ui::FieldDragFloat("Intensity", &sky->intensity_, 0.01f);
+            markField("Intensity", "skybox", "intensity");
         }
 
     if (changed)
@@ -409,7 +441,9 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
         const bool removable = (t.mask() & markerComponentMask()) == 0;
 
         bool changed = false;
-        ui::ComponentSection section(prettyLabel(t.name).c_str(), t.meta.color, removable);
+        ui::ComponentSection section(prettyLabel(t.name).c_str(), t.meta.color, removable, nullptr,
+                                     sectionTemplated(), sectionOverridden(t.name.c_str()));
+        sectionActions(section, t.name.c_str());
         if (section)
         {
             if (auto fields = ui::BeginFields(t.name.c_str()))
@@ -417,8 +451,10 @@ void InspectorPanel::drawReflected(EntityHandle ent, World& world, App& app)
                     if (f.type->drawUI)
                     {
                         fieldCtx.component_ = &t;
-                        changed |= ui::Field(prettyLabel(f.name).c_str(), [&]
+                        const std::string label = prettyLabel(f.name);
+                        changed |= ui::Field(label.c_str(), [&]
                                              { return f.type->drawUI(f.ptrIn(c), f, fieldCtx); });
+                        markField(label.c_str(), t.name.c_str(), f.name.c_str());
                     }
 
             if (t.mask() == componentMask<Camera_C>())
@@ -500,6 +536,201 @@ void InspectorPanel::drawAddComponent(EntityHandle ent, World& world, App& app)
         world.instances().markDirty(ent, t.mask());
     }
     ImGui::EndPopup();
+}
+
+void InspectorPanel::beginInstance(World& world, App& app, EntityHandle ent)
+{
+    instance_.reset();
+    auto& reg = *ent.reg_;
+    const entt::entity root = instanceRootOf(reg, ent.entity_);
+    if (root == entt::null)
+        return;
+    InstanceContext ic;
+    ic.view_ = viewInstance(world, *app.ctx_, root);
+    ic.entryRoot_ = root == ent.entity_;
+    ic.member_ = ic.view_.member(ent.entity_);
+    if (ic.member_)
+        ic.diff_ = diffMember(world, *app.ctx_, ic.view_, *ic.member_);
+    instance_.emplace(std::move(ic));
+}
+
+bool InspectorPanel::sectionTemplated() const
+{
+    return instance_ && instance_->member_ != nullptr;
+}
+
+bool InspectorPanel::sectionOverridden(const char* type) const
+{
+    return sectionTemplated() && overridesComponent(instance_->diff_, type);
+}
+
+void InspectorPanel::sectionActions(const ui::ComponentSection& section, const char* type)
+{
+    if (section.revertClicked())
+        action_ = Action::RevertComponent;
+    else if (section.applyClicked())
+        action_ = Action::ApplyComponent;
+    else
+        return;
+    actionType_ = type;
+    actionField_.clear();
+}
+
+void InspectorPanel::markField(const char* label, const char* type, const char* field)
+{
+    if (!sectionTemplated() || !overridesField(instance_->diff_, type, field))
+        return;
+    ImVec4 tint = ui::accent;
+    tint.w = 0.25f;
+    ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, ImGui::GetColorU32(tint), 0);
+
+    ui::ScopedID id{label};
+    const bool hovered = ImGui::GetStateStorage()->GetBool(ImGui::GetID(ui::FieldLabelHoverKey));
+    if (hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+        ImGui::OpenPopup("##override");
+    if (!ImGui::BeginPopup("##override"))
+        return;
+    if (ImGui::MenuItem("Revert"))
+        action_ = Action::RevertField;
+    if (ImGui::MenuItem("Apply to template"))
+        action_ = Action::ApplyField;
+    if (action_ == Action::RevertField || action_ == Action::ApplyField)
+    {
+        actionType_ = type;
+        actionField_ = field;
+    }
+    ImGui::EndPopup();
+}
+
+void InspectorPanel::drawTemplateSection(App& app, EntityHandle ent)
+{
+    if (!instance_)
+        return;
+    const InstanceView& view = instance_->view_;
+    ui::ComponentSection section("Template", ComponentColor::Cyan);
+    if (!section)
+        return;
+
+    const std::string stem = std::filesystem::path(view.path_).stem().string();
+    if (auto fields = ui::BeginFields("templateInstance"))
+    {
+        ui::Field("Template",
+                  [&]
+                  {
+                      if (ui::AssetField(ICON_MD_WIDGETS, stem.c_str(), ui::accent))
+                          action_ = Action::OpenTemplate;
+                  });
+        if (!instance_->entryRoot_)
+        {
+            auto& reg = *ent.reg_;
+            const Spawnable& kind = spawnableFor(reg, view.root_);
+            const std::string rootName = reg.get<Name_C>(view.root_).name_;
+            ui::Field("Instance",
+                      [&]
+                      {
+                          if (ui::AssetField(kind.icon, rootName.c_str(), ui::colorOfKind(kind.id)))
+                              action_ = Action::SelectRoot;
+                      });
+        }
+        if (!view.flat_.linkable_)
+            ui::Field("Status",
+                      [&] { ImGui::TextColored(ui::red, "%s", view.flat_.why_.c_str()); });
+        else if (!instance_->member_)
+            ui::Field("Status", [&] { ImGui::TextDisabled("Added to the instance"); });
+    }
+
+    if (!instance_->entryRoot_ || !view.flat_.linkable_)
+        return;
+
+    ImGui::Spacing();
+    const float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+    const float width = (ImGui::GetContentRegionAvail().x - spacing * 2.0f) / 3.0f;
+    if (ImGui::Button(ICON_MD_UNDO "  Revert all", {width, 0.0f}))
+        action_ = Action::RevertAll;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Takes every value back from the template. The position stays.");
+    ImGui::SameLine(0.0f, spacing);
+    if (ImGui::Button(ICON_MD_UPLOAD "  Apply all", {width, 0.0f}))
+        action_ = Action::ApplyAll;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Writes the overrides into the template file.");
+    ImGui::SameLine(0.0f, spacing);
+    if (ImGui::Button(ICON_MD_LINK_OFF "  Unlink", {width, 0.0f}))
+        action_ = Action::Unlink;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Turns the instance into plain entities.");
+}
+
+void InspectorPanel::runAction(World& world, App& app, EntityHandle ent)
+{
+    const Action action = action_;
+    action_ = Action::None;
+    if (action == Action::None || !instance_)
+        return;
+
+    const InstanceView& view = instance_->view_;
+    const InstanceMember* member = instance_->member_;
+    const Engine& ctx = *app.ctx_;
+    const ComponentType* ct = ComponentRegistry::instance().find(actionType_);
+    const Field* field = nullptr;
+    if (ct)
+        for (const Field& f : ct->fields)
+            if (f.name == actionField_)
+                field = &f;
+
+    const auto apply = [&](const ApplyFilter& keep)
+    {
+        std::string why;
+        const int skipped = applyToTemplate(world, ctx, view, keep, &why);
+        if (skipped < 0)
+            app.showToast(why);
+        else if (skipped > 0)
+            app.showToast(std::to_string(skipped) +
+                          " override(s) sit in a nested template and were not applied");
+        else
+            app.showToast("Template updated");
+    };
+
+    switch (action)
+    {
+        case Action::None:
+            break;
+        case Action::OpenTemplate:
+            app.uiPanels_.requestTemplate(
+                app,
+                std::filesystem::path(templateAbsPath(ctx, view.path_)).make_preferred().string());
+            break;
+        case Action::SelectRoot:
+            app.uiPanels_.select({ent.reg_, view.root_});
+            break;
+        case Action::RevertField:
+            if (member && ct && field)
+                revertField(world, ctx, view, *member, *ct, *field);
+            break;
+        case Action::ApplyField:
+            if (member && ct && field)
+                apply([&](const InstanceMember& m, std::string_view type, std::string_view f)
+                      { return &m == member && type == actionType_ && f == actionField_; });
+            break;
+        case Action::RevertComponent:
+            if (member && ct)
+                revertComponent(world, ctx, view, *member, *ct);
+            break;
+        case Action::ApplyComponent:
+            if (member && ct)
+                apply([&](const InstanceMember& m, std::string_view type, std::string_view)
+                      { return &m == member && type == actionType_; });
+            break;
+        case Action::RevertAll:
+            revertInstance(world, ctx, view, true);
+            break;
+        case Action::ApplyAll:
+            apply([](const InstanceMember&, std::string_view, std::string_view) { return true; });
+            break;
+        case Action::Unlink:
+            unlinkInstance(world, view.root_);
+            break;
+    }
 }
 
 }  // namespace batap

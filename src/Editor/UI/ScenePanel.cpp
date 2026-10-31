@@ -2,13 +2,18 @@
 
 #include "App.h"
 #include "Components/EditorOnly_C.h"
+#include "Components/FileId_C.h"
 #include "Components/Hierarchy_C.h"
 #include "Components/Name_C.h"
+#include "Components/TemplateInstance_C.h"
+#include "Components/TemplateMember_C.h"
 #include "Instance/InstanceManager.h"
 #include "Instance/Spawnable.h"
 #include "Reflection/ComponentRegistry.h"
 #include "Renderer/Renderer.h"
+#include "Serialization/TemplateInstances.h"
 #include "Systems/Hierarchy_S.h"
+#include "UI/ContentBrowser.h"
 #include "UI/Field.h"
 #include "UI/IconsMaterialDesign.h"
 #include "UI/Scoped.h"
@@ -22,6 +27,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <filesystem>
 #include <vector>
 
 namespace batap
@@ -56,11 +62,20 @@ std::vector<entt::entity> sortedChildren(EntityHandle parent)
     return children;
 }
 
-EntityHandle duplicateEntity(World& world, App& app, EntityHandle src)
+EntityHandle duplicateTree(World& world, App& app, EntityHandle src, bool keepTags)
 {
     auto& reg = *src.reg_;
     EntityHandle dst = world.spawn(Spawnables[0]);
     reg.get<Name_C>(dst.entity_).name_ = reg.get<Name_C>(src.entity_).name_;
+    if (keepTags)
+    {
+        if (reg.all_of<TemplateMember_C>(src.entity_))
+            reg.emplace<TemplateMember_C>(dst.entity_);
+        if (auto* fid = reg.try_get<FileId_C>(src.entity_))
+            reg.emplace<FileId_C>(dst.entity_, *fid);
+        if (auto* ti = reg.try_get<TemplateInstance_C>(src.entity_))
+            reg.emplace<TemplateInstance_C>(dst.entity_, *ti);
+    }
 
     for (const ComponentType& t : ComponentRegistry::instance().all())
     {
@@ -78,14 +93,30 @@ EntityHandle duplicateEntity(World& world, App& app, EntityHandle src)
     }
 
     for (entt::entity child : sortedChildren(src))
-        Hierarchy_S::attach(dst, duplicateEntity(world, app, {&reg, child}));
+        Hierarchy_S::attach(dst, duplicateTree(world, app, {&reg, child}, keepTags));
 
     if (auto* hc = reg.try_get<Hierarchy_C>(src.entity_); hc && hc->parent != entt::null)
         Hierarchy_S::attach({&reg, hc->parent}, dst);
 
     return dst;
 }
+}  // namespace
 
+EntityHandle duplicateEntity(World& world, App& app, EntityHandle src)
+{
+    auto& reg = *src.reg_;
+    const bool instance = reg.all_of<TemplateInstance_C>(src.entity_);
+    EntityHandle dst = duplicateTree(world, app, src, instance);
+    if (instance)
+    {
+        reg.remove<TemplateMember_C>(dst.entity_);
+        reg.remove<FileId_C>(dst.entity_);
+    }
+    return dst;
+}
+
+namespace
+{
 void dropEntity(entt::registry& reg, const ImGuiPayload& payload,
                 std::optional<EntityHandle> newParent)
 {
@@ -96,16 +127,19 @@ void dropEntity(entt::registry& reg, const ImGuiPayload& payload,
         dragged.setParent(*newParent);
 }
 
-void acceptEntityDrop(entt::registry& reg, EntityHandle newParent)
+void acceptEntityDrop(entt::registry& reg, EntityHandle newParent,
+                      std::optional<ScenePanel::ContentDrop>& drop)
 {
     if (!ImGui::BeginDragDropTarget())
         return;
     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kEntityPayload))
         dropEntity(reg, *payload, newParent);
+    else if (const ImGuiPayload* file = ImGui::AcceptDragDropPayload(kContentPayload))
+        drop = ScenePanel::ContentDrop{static_cast<const char*>(file->Data), newParent};
     ImGui::EndDragDropTarget();
 }
 
-void acceptRootDrop(entt::registry& reg)
+void acceptRootDrop(entt::registry& reg, std::optional<ScenePanel::ContentDrop>& drop)
 {
     ImGuiWindow* tree = ImGui::GetCurrentWindow();
     const ImRect inner = tree->InnerRect;
@@ -113,18 +147,33 @@ void acceptRootDrop(entt::registry& reg)
         return;
     constexpr ImGuiDragDropFlags flags = ImGuiDragDropFlags_AcceptBeforeDelivery |
                                          ImGuiDragDropFlags_AcceptNoDrawDefaultRect;
-    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kEntityPayload, flags))
+    const ImGuiPayload* entity = ImGui::AcceptDragDropPayload(kEntityPayload, flags);
+    const ImGuiPayload* file = entity ? nullptr
+                                      : ImGui::AcceptDragDropPayload(kContentPayload, flags);
+    if (const ImGuiPayload* payload = entity ? entity : file)
     {
         if (payload->Preview)
             tree->DrawList->AddRect({inner.Min.x + 1.0f, inner.Min.y + 1.0f},
                                     {inner.Max.x - 1.0f, inner.Max.y - 1.0f},
                                     ImGui::GetColorU32(ImGuiCol_DragDropTarget), 0.0f, 0, 2.0f);
-        if (payload->Delivery)
+        if (payload->Delivery && entity)
             dropEntity(reg, *payload, std::nullopt);
+        else if (payload->Delivery)
+            drop = ScenePanel::ContentDrop{static_cast<const char*>(payload->Data), {}};
     }
     ImGui::EndDragDropTarget();
 }
 }  // namespace
+
+void ScenePanel::beginRename(EntityHandle ent)
+{
+    const auto* name = ent.try_get<Name_C>();
+    if (!name)
+        return;
+    renaming_ = ent;
+    renameBuffer_ = name->name_;
+    renameFocusPending_ = true;
+}
 
 bool ScenePanel::drawRename(entt::registry& reg, EntityHandle ent)
 {
@@ -147,7 +196,8 @@ bool ScenePanel::drawRename(entt::registry& reg, EntityHandle ent)
     return true;
 }
 
-void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selection)
+void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selection,
+                                const Shortcuts& shortcuts)
 {
     auto& reg = world.registry_;
     const EntityHandle h{&reg, e};
@@ -203,23 +253,37 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selecti
     const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenOverlappedByItem);
     const bool rowClicked = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     const bool rowDoubleClicked = hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
-    acceptEntityDrop(reg, h);
+    acceptEntityDrop(reg, h, pendingDrop_);
     if (hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
         ImGui::OpenPopup("##rowMenu");
     if (ImGui::BeginPopup("##rowMenu"))
     {
         if (!selection.contains(h))
             selection.set(h);
-        if (ImGui::MenuItem("Rename"))
-        {
-            renaming_ = h;
-            renameBuffer_ = reg.get<Name_C>(e).name_;
-            renameFocusPending_ = true;
-        }
-        if (ImGui::MenuItem("Duplicate"))
+        if (ImGui::MenuItem("Rename", shortcuts.label(Shortcut::Rename).c_str()))
+            beginRename(h);
+        if (ImGui::MenuItem("Duplicate", shortcuts.label(Shortcut::Duplicate).c_str()))
             pendingDuplicate_ = h;
-        if (ImGui::MenuItem("Delete"))
+        const bool member = owningInstance(reg, e) != entt::null;
+        ImGui::BeginDisabled(member);
+        if (ImGui::MenuItem("Delete", shortcuts.label(Shortcut::Delete).c_str()))
             pendingDelete_ = h;
+        ImGui::EndDisabled();
+        if (member && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Part of a template instance: unlink the instance first");
+        if (auto* ti = reg.try_get<TemplateInstance_C>(e))
+        {
+            ImGui::Separator();
+            if (ImGui::MenuItem("Open template"))
+                pendingOpenTemplate_ = ti->path_;
+            if (instanceRootOf(reg, e) == e)
+            {
+                if (ImGui::MenuItem("Revert to template"))
+                    pendingRevert_ = h;
+                if (ImGui::MenuItem("Unlink"))
+                    pendingUnlink_ = h;
+            }
+        }
         ImGui::EndPopup();
     }
     ImGui::PopID();
@@ -235,6 +299,8 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selecti
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
     if (!hasChildren)
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+    if (renameFocusPending_ && renaming_ && Hierarchy_S::isDescendantOf(*renaming_, h))
+        ImGui::SetNextItemOpen(true);
 
     bool opened = false;
     {
@@ -256,6 +322,11 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selecti
     dl->AddText({nodeStart.x + ImGui::GetTreeNodeToLabelSpacing(),
                  nodeStart.y + ImGui::GetStyle().FramePadding.y - Renderer::kIconGlyphOffsetY},
                 kindColor, kind.icon);
+    if (reg.all_of<TemplateInstance_C>(e))
+        dl->AddText({nodeStart.x + ImGui::GetTreeNodeToLabelSpacing() +
+                         ImGui::CalcTextSize(label.c_str()).x + kIconGap,
+                     nodeStart.y + ImGui::GetStyle().FramePadding.y - Renderer::kIconGlyphOffsetY},
+                    ImGui::GetColorU32(ui::accent), ICON_MD_LINK);
 
     if (rowClicked && !ImGui::IsItemToggledOpen())
     {
@@ -282,7 +353,7 @@ void ScenePanel::drawEntityNode(World& world, entt::entity e, Selection& selecti
 
     // The list is copied first: a drop reparents while it is being walked.
     for (entt::entity child : sortedChildren(h))
-        drawEntityNode(world, child, selection);
+        drawEntityNode(world, child, selection, shortcuts);
 
     ImGui::TreePop();
 }
@@ -326,8 +397,8 @@ void ScenePanel::draw(World& world, App& app, Selection& selection, float bottom
     sortByName(reg, roots);
 
     for (entt::entity e : roots)
-        drawEntityNode(world, e, selection);
-    acceptRootDrop(reg);
+        drawEntityNode(world, e, selection, app.uiPanels_.shortcuts());
+    acceptRootDrop(reg, pendingDrop_);
 
     ImGui::EndChild();
     ImGui::PopStyleVar(3);
@@ -366,11 +437,46 @@ void ScenePanel::draw(World& world, App& app, Selection& selection, float bottom
         selection.set(duplicateEntity(world, app, *pendingDuplicate_));
         pendingDuplicate_.reset();
     }
+    if (pendingDrop_)
+    {
+        const auto placed = placeContent(world, app, *app.ctx_, pendingDrop_->path_, std::nullopt,
+                                         pendingDrop_->parent_);
+        if (!placed.empty())
+        {
+            selection.clear();
+            for (const EntityHandle& h : placed)
+                selection.add(h);
+        }
+        pendingDrop_.reset();
+    }
     if (pendingDelete_)
     {
-        world.destroy(*pendingDelete_);
+        if (owningInstance(reg, pendingDelete_->entity_) != entt::null)
+            app.showToast("Part of a template instance: unlink the instance first");
+        else
+            world.destroy(*pendingDelete_);
         pendingDelete_.reset();
         selection.prune();
+    }
+    if (pendingUnlink_)
+    {
+        unlinkInstance(world, pendingUnlink_->entity_);
+        pendingUnlink_.reset();
+    }
+    if (pendingRevert_)
+    {
+        const InstanceView view = viewInstance(world, *app.ctx_, pendingRevert_->entity_);
+        if (view.flat_.linkable_)
+            revertInstance(world, *app.ctx_, view, true);
+        else
+            app.showToast(view.flat_.why_);
+        pendingRevert_.reset();
+    }
+    if (!pendingOpenTemplate_.empty())
+    {
+        const std::string path = templateAbsPath(*app.ctx_, pendingOpenTemplate_);
+        pendingOpenTemplate_.clear();
+        app.uiPanels_.requestTemplate(app, std::filesystem::path(path).make_preferred().string());
     }
 }
 

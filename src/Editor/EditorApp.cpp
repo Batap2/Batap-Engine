@@ -42,6 +42,11 @@ int runEditor(const EditorConfig& cfg)
             }
             else if (args[i] == "--template")
                 app.openTemplate(args[i + 1]);
+            else if (args[i] == "--save-scene")
+            {
+                EntitySerializer::save(world, engine, args[i + 1]);
+                return 0;
+            }
             else if (args[i] == "--select")
                 app.uiPanels_.selectByName(world, args[i + 1]);
             else if (args[i] == "--import")
