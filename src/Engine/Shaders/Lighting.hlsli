@@ -4,6 +4,8 @@
 #include "GiCache.hlsli"
 #include "ShaderInterop.h"
 #include "Shadows.hlsli"
+// The in-scatter on surfaces sees the relief's shadow through the sun's cascades.
+#define SKY_AIR_VISIBILITY(pRel, sun) ShadowAirVisibility(pRel, sun.dir, sun.shadowIndex)
 #include "Sky.hlsli"
 
 [[vk::binding(CamerasBinding, FrameSet)]]
