@@ -233,6 +233,43 @@ float CascadeVisibility(float3 P, float3 N, float3 L, float dTexel, uint firstVi
     return vis;
 }
 
+// Sun visibility of a point of air, for the in-scatter. No receiver plane, so
+// the cascade texel is compared as is; a shadow ray under RT, where the sun has
+// no cascades. Beyond the last cascade the air stays lit.
+float ShadowAirVisibility(float3 P, float3 L, uint shadowIndex)
+{
+    if ((shadowIndex >> ShadowFamilyShift) != ShadowCascadeFamily)
+        return 1.0f;
+#if BATAP_RT
+    return TraceShadowRay(P, L, L, ShadowRayFar);
+#else
+    uint firstView = shadowIndex & ShadowIndexMask;
+    uint c = CascadeIndexAt(P, firstView);
+    if (c >= ShadowCascadeCount)
+        return 1.0f;
+    ShadowGPUData sh = ShadowBuffer[firstView + c];
+    float4 clip = mul(sh.viewProj_, float4(P, 1.0f));
+    if (clip.w <= 0.0f)
+        return 1.0f;
+    float3 ndc = clip.xyz / clip.w;
+    if (any(abs(ndc.xy) > 1.0f) || ndc.z < 0.0f || ndc.z > 1.0f)
+        return 1.0f;
+    float2 uv = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f);
+    uv = uv * sh.uvScale_ + float2(sh.uvOffset_[0], sh.uvOffset_[1]);
+    float atlasSize = 1.0f / sh.texelUV_;
+    int2 tileMin = int2(round(float2(sh.uvOffset_[0], sh.uvOffset_[1]) * atlasSize));
+    int2 tileMax = tileMin + int(round(sh.uvScale_ * atlasSize)) - 1;
+    int2 t = clamp(int2(floor(uv * atlasSize)), tileMin, tileMax);
+    float d = g_depthTextures[sh.atlasTexture_].Load(int3(t, 0));
+    float vis = ndc.z <= d ? 1.0f : 0.0f;
+    // Past the last cascade the air reads as lit: ramp to it over the edge
+    // band rather than step, or the step draws a sphere in the haze.
+    if (CascadeNextAt(P, firstView, c) >= ShadowCascadeCount)
+        vis = lerp(vis, 1.0f, CascadeFadeAt(P, sh));
+    return vis;
+#endif
+}
+
 float3 CascadeDebugTint(uint c)
 {
     const float3 tints[4] = {float3(1.0f, 0.3f, 0.3f), float3(0.3f, 1.0f, 0.3f),
