@@ -5,8 +5,11 @@
 #include "Bbox.h"
 #include "Components/Billboard_C.h"
 #include "Components/Camera_C.h"
+#include "Components/DirectionalLight_C.h"
 #include "Components/EditorOnly_C.h"
+#include "Components/Hierarchy_C.h"
 #include "Components/Name_C.h"
+#include "Components/Skybox_C.h"
 #include "Components/Transform_C.h"
 #include "EditorConfig.h"
 #include "Engine.h"
@@ -19,6 +22,8 @@
 #include "Spatial/SpatialIndex.h"
 #include "Systems/FreeCamController_S.h"
 #include "Systems/Hierarchy_S.h"
+#include "Systems/Physics_S.h"
+#include "Systems/Systems.h"
 #include "UI/FieldUI.h"
 #include "UI/UIPanels.h"
 #include "UI/UITheme.h"
@@ -48,6 +53,13 @@ namespace
 {
 constexpr auto kConfigSaveDelay = std::chrono::seconds(1);
 constexpr float kFocusMinRadius = 1.0f;
+constexpr float kTemplateCamYaw = 0.6f;
+constexpr float kTemplateCamPitch = -0.45f;
+constexpr float kTemplateSunYaw = 0.8f;
+constexpr float kTemplateSunPitch = -0.9f;
+// Daylight sky against the light's default 100 000 lux: a unit sky is black
+// at that exposure.
+constexpr float kTemplateSkyIntensity = 6000.f;
 
 void extendWithSubtree(World& world, Engine& ctx, entt::entity e, AABB& box)
 {
@@ -137,8 +149,7 @@ EntityHandle App::editorCamera()
 
 void App::focusEditorCamera(EntityHandle target)
 {
-    EntityHandle cam = editorCamera();
-    if (!cam.valid() || !target.valid())
+    if (!target.valid())
         return;
     const auto* tc = target.try_get<Transform_C>();
     if (!tc)
@@ -146,7 +157,16 @@ void App::focusEditorCamera(EntityHandle target)
 
     AABB box;
     extendWithSubtree(*world_, *ctx_, target.entity_, box);
-    const v3f center = box.valid() ? box.center() : tc->worldPos();
+    frameEditorCamera(box, tc->worldPos());
+}
+
+void App::frameEditorCamera(const AABB& box, const v3f& fallbackCentre)
+{
+    EntityHandle cam = editorCamera();
+    if (!cam.valid())
+        return;
+
+    const v3f center = box.valid() ? box.center() : fallbackCentre;
     const float radius = box.valid() ? std::max(box.halfSize().norm(), kFocusMinRadius)
                                      : kFocusMinRadius;
 
@@ -203,8 +223,10 @@ void App::syncEditorCamera()
             }
         }
 
-        if (camState(tc.pos(), ctrl, view) !=
-            camState(editorCamPos_, editorCamCtrl_, editorCamView_))
+        // A template is looked at from wherever: its moves must not become
+        // the scene's saved pose.
+        if (!editingTemplate() && camState(tc.pos(), ctrl, view) !=
+                                      camState(editorCamPos_, editorCamCtrl_, editorCamView_))
             markConfigDirty();
 
         editorCamPos_ = tc.pos();
@@ -300,6 +322,8 @@ void App::update()
     else
     {
         uiPanels_.draw(*world_, *this, *ctx_);
+        if (editingTemplate())
+            ensureTemplateRig();
         syncEditorCamera();
         editorIcons_.draw(*world_, *ctx_);
         if (playing_ && game_)
@@ -309,6 +333,140 @@ void App::update()
             if (game_)
                 game_->editorUpdate(*world_);
             world_->update();
+        }
+        if (templateFocusPending_)
+        {
+            templateFocusPending_ = false;
+            auto& reg = world_->registry_;
+            AABB box;
+            for (auto e : reg.storage<entt::entity>())
+            {
+                if (!reg.valid(e) || reg.all_of<EditorOnly_C>(e))
+                    continue;
+                const auto* hc = reg.try_get<Hierarchy_C>(e);
+                if (!hc || hc->parent == entt::null)
+                    extendWithSubtree(*world_, *ctx_, e, box);
+            }
+            frameEditorCamera(box, v3f::Zero());
+        }
+    }
+}
+
+void App::openTemplate(const std::string& path)
+{
+    if (editingTemplate())
+    {
+        showToast("Close the open template first");
+        return;
+    }
+    if (!std::filesystem::exists(path))
+    {
+        showToast("No such file: " + path);
+        return;
+    }
+    if (playing_)
+        stopPlay();
+    if (configDirty_)
+        saveConfig();
+
+    sceneAside_ = {EntitySerializer::toBuffer(*world_, *ctx_),
+                   scenePath_,
+                   editorCamPos_,
+                   editorCamRot_,
+                   editorCamCtrl_,
+                   world_->systems().physics_->showColliders_};
+    templatePath_ = path;
+
+    world_->resetScene();
+    EntitySerializer::clearSceneAndLoad(*world_, *ctx_, path);
+    templateSaved_ = EntitySerializer::templateToBuffer(*world_, *ctx_);
+    uiPanels_.clearSelection();
+    world_->systems().physics_->showColliders_ = true;
+
+    editorCamCtrl_.frame_ = quatf::Identity();
+    editorCamCtrl_.yaw_ = kTemplateCamYaw;
+    editorCamCtrl_.pitch_ = kTemplateCamPitch;
+    editorCamRot_ = freeCamRotation(editorCamCtrl_);
+    templateFocusPending_ = true;
+}
+
+bool App::saveTemplate()
+{
+    return saveTemplateAs(templatePath_);
+}
+
+bool App::saveTemplateAs(std::string path)
+{
+    if (!editingTemplate() || path.empty())
+        return false;
+    if (!EntitySerializer::saveTemplate(*world_, *ctx_, path))
+    {
+        showToast("Could not write " + path);
+        return false;
+    }
+    ctx_->assetManager_->saveAllAssets();
+    templatePath_ = std::move(path);
+    templateSaved_ = EntitySerializer::templateToBuffer(*world_, *ctx_);
+    showToast("Template saved");
+    return true;
+}
+
+void App::closeTemplate()
+{
+    if (!editingTemplate())
+        return;
+    if (playing_)
+        stopPlay();
+
+    templatePath_.clear();
+    templateSaved_.clear();
+    templateFocusPending_ = false;
+
+    world_->resetScene();
+    EntitySerializer::clearSceneAndLoadBuffer(*world_, *ctx_, sceneAside_.snapshot_);
+    scenePath_ = sceneAside_.path_;
+    editorCamPos_ = sceneAside_.camPos_;
+    editorCamRot_ = sceneAside_.camRot_;
+    editorCamCtrl_ = sceneAside_.camCtrl_;
+    world_->systems().physics_->showColliders_ = sceneAside_.showColliders_;
+    sceneAside_ = {};
+    uiPanels_.clearSelection();
+}
+
+bool App::templateDirty()
+{
+    return editingTemplate() &&
+           EntitySerializer::templateToBuffer(*world_, *ctx_) != templateSaved_;
+}
+
+void App::ensureTemplateRig()
+{
+    auto& reg = world_->registry_;
+    if (reg.view<DirectionalLight_C>().empty())
+    {
+        EntityHandle sun = world_->spawn("directionalLight");
+        if (sun.valid())
+        {
+            reg.emplace<EditorOnly_C>(sun.entity_);
+            sun.get<Name_C>().name_ = "template sun";
+            sun.setLocalRotation((quatf{angleaxisf(kTemplateSunYaw, v3f::UnitY())} *
+                                  quatf{angleaxisf(kTemplateSunPitch, v3f::UnitX())})
+                                     .normalized());
+        }
+    }
+    if (reg.view<Skybox_C>().empty())
+    {
+        EntityHandle sky = world_->spawn("skybox");
+        if (sky.valid())
+        {
+            reg.emplace<EditorOnly_C>(sky.entity_);
+            sky.get<Name_C>().name_ = "template sky";
+            Skybox_C& skybox = sky.write<Skybox_C>();
+            skybox.mode_ = Skybox_C::Mode::Gradient;
+            skybox.color1_ = {0.42f, 0.52f, 0.66f};
+            skybox.color2_ = {0.74f, 0.77f, 0.81f};
+            skybox.color3_ = {0.28f, 0.28f, 0.30f};
+            skybox.intensity_ = kTemplateSkyIntensity;
         }
     }
 }
@@ -388,6 +546,16 @@ static void spawnDetached(const std::string& exe, const std::string& args)
     ::ShellExecuteA(nullptr, "open", exe.c_str(), args.c_str(), nullptr, SW_SHOWNORMAL);
 #else
     std::system(("\"" + exe + "\" " + args + " &").c_str());
+#endif
+}
+
+void App::revealInExplorer(const std::string& path)
+{
+#if defined(_WIN32)
+    ::ShellExecuteA(nullptr, "open", "explorer.exe", ("/select,\"" + path + "\"").c_str(), nullptr,
+                    SW_SHOWNORMAL);
+#else
+    spawnDetached("xdg-open", "\"" + std::filesystem::path(path).parent_path().string() + "\"");
 #endif
 }
 

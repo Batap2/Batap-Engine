@@ -25,10 +25,16 @@ enum struct GizmoPivot
     Center
 };
 
+struct ShapeTarget
+{
+    EntityHandle entity_;
+    int shape_ = -1;
+};
+
 struct Gizmo
 {
     // True while the gizmo has the mouse: the caller must skip entity picking.
-    bool draw(World& world, Engine& ctx, const Selection& selection);
+    bool draw(World& world, Engine& ctx, const Selection& selection, ShapeTarget shape = {});
 
     GizmoMode mode_ = GizmoMode::Translate;
     GizmoPivot pivot_ = GizmoPivot::Origin;
@@ -45,6 +51,7 @@ struct Gizmo
         v3f pos_ = v3f::Zero();
         v3f scale_ = v3f::Ones();
         quatf rot_ = quatf::Identity();
+        int shape_ = -1;
     };
 
     std::vector<Target> targets_;

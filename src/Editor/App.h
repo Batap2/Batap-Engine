@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "Bbox.h"
 #include "Components/Camera_C.h"
 #include "Components/FreeCamController_C.h"
 #include "EditorIcons.h"
@@ -48,6 +49,7 @@ struct App
     // Current scene → temp file → game exe in its own process.
     void runStandalone();
     std::string gameExeName_;
+    void revealInExplorer(const std::string& path);
 
     void pumpGameModuleReload();
     void adoptGame();
@@ -60,6 +62,28 @@ struct App
     void applyEditorCamera();
     EntityHandle editorCamera();
     void focusEditorCamera(EntityHandle target);
+    void frameEditorCamera(const AABB& box, const v3f& fallbackCentre);
+
+    void openTemplate(const std::string& path);
+    bool saveTemplate();
+    bool saveTemplateAs(std::string path);
+    void closeTemplate();
+    bool editingTemplate() const { return !templatePath_.empty(); }
+    bool templateDirty();
+    void ensureTemplateRig();
+    std::string templatePath_;
+    std::string templateSaved_;
+    struct SceneAside
+    {
+        std::string snapshot_;
+        std::string path_;
+        v3f camPos_ = v3f::Zero();
+        quatf camRot_ = quatf::Identity();
+        FreeCamController_C camCtrl_;
+        bool showColliders_ = false;
+    };
+    SceneAside sceneAside_;
+    bool templateFocusPending_ = false;
     v3f editorCamPos_{0.f, 2.f, 6.f};
     quatf editorCamRot_ = quatf::Identity();
     FreeCamController_C editorCamCtrl_;

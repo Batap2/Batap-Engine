@@ -51,7 +51,6 @@ BATAP_COMPONENT(Terrain_C, "terrain",
                 fieldMeta<&Terrain_C::cells_>({.speed = 16.f, .min = 16.f, .max = 128.f}),
                 fieldMeta<&Terrain_C::finestCell_>({.speed = 0.001f, .min = 0.001f, .max = 1000.f}),
                 fieldMeta<&Terrain_C::lodRatio_>({.speed = 0.1f, .min = 1.f, .max = 8.f}),
-                fieldMeta<&Terrain_C::shape_>({.speed = 1.f, .min = 0.f, .max = 1.f}),
                 fieldMeta<&Terrain_C::physicsCell_>({.speed = 0.01f, .min = 0.01f, .max = 1000.f}));
 
 }  // namespace batap

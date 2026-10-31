@@ -1,7 +1,10 @@
 #include "Gizmo.h"
 
+#include "ColliderShapes.h"
+#include "Components/RigidBody_C.h"
 #include "Components/Transform_C.h"
 #include "Engine.h"
+#include "HandleMath.h"
 #include "InputManager.h"
 #include "Platform/PlatformWindow.h"
 #include "Spatial/SpatialIndex.h"
@@ -153,15 +156,16 @@ ImU32 fade(const ImVec4& base, float alphaScale)
     return ImGui::GetColorU32(c);
 }
 
-float distanceToSegment(const v2f& p, const v2f& a, const v2f& b)
-{
-    const v2f ab = b - a;
-    const float len2 = ab.squaredNorm();
-    if (len2 < 1e-6f)
-        return (p - a).norm();
+using handleMath::distanceToSegment;
 
-    const float t = std::clamp((p - a).dot(ab) / len2, 0.f, 1.f);
-    return (p - (a + ab * t)).norm();
+Shape* shapeOf(ShapeTarget target)
+{
+    if (!target.entity_.valid() || target.shape_ < 0 || !target.entity_.try_get<Transform_C>())
+        return nullptr;
+    auto* rb = target.entity_.try_get<RigidBody_C>();
+    if (!rb || static_cast<size_t>(target.shape_) >= rb->shapes_.size())
+        return nullptr;
+    return &rb->shapes_[static_cast<size_t>(target.shape_)];
 }
 
 bool closestOnAxis(const Ray& ray, const v3f& origin, const v3f& dir, float& outT)
@@ -482,7 +486,7 @@ void drawRingTicks(ImDrawList* dl, const GizmoFrame& f, const v3f& axis, float s
 }
 }  // namespace
 
-bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
+bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection, ShapeTarget shape)
 {
     hovered_ = kNone;
 
@@ -505,26 +509,42 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
     if (dragId_ == kNone)
     {
         targets_.clear();
-        for (const EntityHandle& ent : selection.all())
+        if (const Shape* s = shapeOf(shape))
         {
-            if (!ent.valid() || !ent.try_get<Transform_C>())
-                continue;
-
-            // A child whose ancestor is selected too would take the delta twice.
-            bool nested = false;
-            for (const EntityHandle& other : selection.all())
-                if (!(other == ent) && other.valid() && Hierarchy_S::isDescendantOf(ent, other))
-                    nested = true;
-            if (nested)
-                continue;
-
-            const Transform_C& t = ent.get<Transform_C>();
+            const colliderShape::Pose pose =
+                colliderShape::worldPose(shape.entity_.get<Transform_C>(), *s);
             targets_.push_back(
-                Target{ent, t.world().translation(), t.scale(), quatf(t.world().rotation())});
+                Target{shape.entity_, pose.pos_, colliderShape::size(*s), pose.rot_, shape.shape_});
         }
+        else
+            for (const EntityHandle& ent : selection.all())
+            {
+                if (!ent.valid() || !ent.try_get<Transform_C>())
+                    continue;
+
+                // A child whose ancestor is selected too would take the delta twice.
+                bool nested = false;
+                for (const EntityHandle& other : selection.all())
+                    if (!(other == ent) && other.valid() && Hierarchy_S::isDescendantOf(ent, other))
+                        nested = true;
+                if (nested)
+                    continue;
+
+                const Transform_C& t = ent.get<Transform_C>();
+                targets_.push_back(
+                    Target{ent, t.world().translation(), t.scale(), quatf(t.world().rotation())});
+            }
     }
 
     if (targets_.empty())
+        return giveUp();
+
+    // Looked up again every frame: the inspector can edit or drop the shape
+    // while it is being dragged.
+    Shape* targetShape = targets_.front().shape_ >= 0
+                             ? shapeOf({targets_.front().handle_, targets_.front().shape_})
+                             : nullptr;
+    if (targets_.front().shape_ >= 0 && !targetShape)
         return giveUp();
 
     GizmoFrame f;
@@ -539,7 +559,7 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
     else
     {
         AABB box;
-        if (pivot_ == GizmoPivot::Center)
+        if (pivot_ == GizmoPivot::Center && !targetShape)
             for (const Target& t : targets_)
                 if (const auto b = entityBounds(world, ctx, t.handle_.entity_))
                     box.extend(*b);
@@ -547,6 +567,11 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
         if (box.valid())
         {
             f.origin_ = (box.min_ + box.max_) * 0.5f;
+        }
+        else if (targetShape)
+        {
+            const Transform_C& frontTc = targets_.front().handle_.get<Transform_C>();
+            f.origin_ = colliderShape::worldPose(frontTc, *targetShape).pos_;
         }
         else
         {
@@ -578,7 +603,10 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
 
     if (local_ || mode_ == GizmoMode::Scale)
     {
-        const m3f basis = targets_.front().handle_.get<Transform_C>().world().linear();
+        const Transform_C& frontTc = targets_.front().handle_.get<Transform_C>();
+        const m3f basis =
+            targetShape ? colliderShape::worldPose(frontTc, *targetShape).rot_.toRotationMatrix()
+                        : frontTc.world().linear();
         for (size_t i = 0; i < 3; ++i)
         {
             if (basis.col(toIndex(i)).squaredNorm() < 1e-8f)
@@ -753,7 +781,16 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
     if (dragId_ != kNone)
     {
         const bool cancel = input.pressed(Key::Escape);
-        if (cancel)
+        if (cancel && targetShape)
+        {
+            const Target& t = targets_.front();
+            const Transform_C& tc = t.handle_.get<Transform_C>();
+            colliderShape::setWorldPos(*targetShape, tc, t.pos_);
+            colliderShape::setWorldRot(*targetShape, tc, t.rot_);
+            colliderShape::setSize(*targetShape, t.scale_);
+            t.handle_.reg_->patch<RigidBody_C>(t.handle_.entity_);
+        }
+        else if (cancel)
             for (const Target& t : targets_)
             {
                 EntityHandle h = t.handle_;
@@ -930,28 +967,47 @@ bool Gizmo::draw(World& world, Engine& ctx, const Selection& selection)
             }
 
             const m3f basis = (m3f() << f.axes_[0], f.axes_[1], f.axes_[2]).finished();
-            for (const Target& t : targets_)
+            if (targetShape)
             {
-                EntityHandle h = t.handle_;
-                const v3f offset = t.pos_ - dragStartPivot_;
-
+                const Target& t = targets_.front();
+                const Transform_C& tc = t.handle_.get<Transform_C>();
                 if (mode_ == GizmoMode::Translate)
-                {
-                    h.setPosition(t.pos_ + dragDelta_, Space::World);
-                }
+                    colliderShape::setWorldPos(*targetShape, tc, t.pos_ + dragDelta_);
                 else if (mode_ == GizmoMode::Rotate)
                 {
-                    h.setRotation((appliedRot * t.rot_).normalized(), Space::World);
-                    h.setPosition(dragStartPivot_ + appliedRot * offset, Space::World);
+                    colliderShape::setWorldRot(*targetShape, tc,
+                                               (appliedRot * t.rot_).normalized());
+                    colliderShape::setWorldPos(*targetShape, tc,
+                                               dragStartPivot_ +
+                                                   appliedRot * (t.pos_ - dragStartPivot_));
                 }
                 else
-                {
-                    h.setLocalScale(t.scale_.cwiseProduct(appliedFactor));
-                    h.setPosition(dragStartPivot_ + basis * appliedFactor.cwiseProduct(
-                                                                basis.transpose() * offset),
-                                  Space::World);
-                }
+                    colliderShape::setSize(*targetShape, t.scale_.cwiseProduct(appliedFactor));
+                t.handle_.reg_->patch<RigidBody_C>(t.handle_.entity_);
             }
+            else
+                for (const Target& t : targets_)
+                {
+                    EntityHandle h = t.handle_;
+                    const v3f offset = t.pos_ - dragStartPivot_;
+
+                    if (mode_ == GizmoMode::Translate)
+                    {
+                        h.setPosition(t.pos_ + dragDelta_, Space::World);
+                    }
+                    else if (mode_ == GizmoMode::Rotate)
+                    {
+                        h.setRotation((appliedRot * t.rot_).normalized(), Space::World);
+                        h.setPosition(dragStartPivot_ + appliedRot * offset, Space::World);
+                    }
+                    else
+                    {
+                        h.setLocalScale(t.scale_.cwiseProduct(appliedFactor));
+                        h.setPosition(dragStartPivot_ + basis * appliedFactor.cwiseProduct(
+                                                                    basis.transpose() * offset),
+                                      Space::World);
+                    }
+                }
 
             if (mode_ == GizmoMode::Translate)
             {

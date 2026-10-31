@@ -6,6 +6,7 @@
 #include "Components/SpotLight_C.h"
 #include "Components/Transform_C.h"
 #include "Engine.h"
+#include "HandleMath.h"
 #include "InputManager.h"
 #include "Instance/InstanceManager.h"
 #include "LightGizmos.h"
@@ -59,27 +60,8 @@ struct HandlePoint
     v3f pos_;
 };
 
-// Distance along the line (origin, dir) of its closest point to the ray.
-std::optional<float> alongLine(const Ray& ray, const v3f& origin, const v3f& dir)
-{
-    const v3f w = origin - ray.origin_;
-    const float b = dir.dot(ray.dir_);
-    const float denom = 1.f - b * b;
-    if (denom < 1e-5f)
-        return std::nullopt;
-    return (b * ray.dir_.dot(w) - dir.dot(w)) / denom;
-}
-
-std::optional<v3f> onPlane(const Ray& ray, const v3f& point, const v3f& normal)
-{
-    const float denom = normal.dot(ray.dir_);
-    if (std::abs(denom) < 1e-5f)
-        return std::nullopt;
-    const float t = normal.dot(point - ray.origin_) / denom;
-    if (t <= 0.f)
-        return std::nullopt;
-    return ray.origin_ + ray.dir_ * t;
-}
+using handleMath::alongLine;
+using handleMath::onPlane;
 
 // Where the ray meets the sphere, front side first, else its point nearest to
 // the centre: dragging off the sphere's rim keeps turning.

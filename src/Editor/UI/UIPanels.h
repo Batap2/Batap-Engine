@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ColliderHandles.h"
 #include "Components/EntityHandle.h"
 #include "EigenTypes.h"
 #include "Gizmo.h"
@@ -7,6 +8,7 @@
 #include "Selection.h"
 
 #include <imgui.h>
+#include "UI/ContentBrowser.h"
 #include "UI/InspectorPanel.h"
 #include "UI/MaterialEditorPanel.h"
 #include "UI/ScenePanel.h"
@@ -25,14 +27,21 @@ struct UIPanels
 {
     void draw(World& world, App& app, Engine& ctx);
     void drawStartupScreen(App& app, Engine& ctx);
-    void clearSelection() { selection_.clear(); }
+    void clearSelection()
+    {
+        selection_.clear();
+        colliderHandles_.clear();
+    }
     void select(EntityHandle ent) { selection_.set(ent); }
     void openMaterialEditor(MaterialHandle mat) { materialEditor_.open(mat); }
     void selectByName(World& world, std::string_view name);
     void setLogo(ImTextureID logo) { logo_ = logo; }
+    ColliderHandles& colliderHandles() { return colliderHandles_; }
+    void requestTemplate(App& app, std::string path);
 
    private:
     void pickOnClick(World& world, App& app, Engine& ctx);
+    void drawTemplateClose(App& app);
     void drawSelectionBounds(World& world, App& app, Engine& ctx);
     void deleteSelection(World& world);
     void drawTopBar(App& app, Engine& ctx);
@@ -73,6 +82,8 @@ struct UIPanels
     float inspectorWidth_ = 300.0f;
     float optionsHeight_ = 300.0f;
     bool railOpen_ = true;
+    bool closeTemplatePending_ = false;
+    std::string nextTemplate_;
     ImTextureID logo_ = 0;
     quatf cameraFrameSource_ = quatf::Identity();
     v3f cameraFrameEulerDeg_ = v3f::Zero();
@@ -80,6 +91,8 @@ struct UIPanels
     Selection selection_;
     Gizmo gizmo_;
     LightHandles lightHandles_;
+    ColliderHandles colliderHandles_;
+    ContentBrowser contentBrowser_;
     ScenePanel scenePanel_;
     InspectorPanel inspectorPanel_;
     MaterialEditorPanel materialEditor_;

@@ -3,6 +3,8 @@
 #include "App.h"
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetManager.h"
+#include "ColliderHandles.h"
+#include "ColliderShapes.h"
 #include "Components/EditorOnly_C.h"
 #include "Components/EntityRef.h"
 #include "Components/Name_C.h"
@@ -41,22 +43,6 @@ std::unordered_map<std::string, DrawFn>& drawUIByName()
     return map;
 }
 
-const char* kindName(Shape::Kind k)
-{
-    switch (k)
-    {
-        case Shape::Kind::Sphere:
-            return "Sphere";
-        case Shape::Kind::Capsule:
-            return "Capsule";
-        case Shape::Kind::Mesh:
-            return "Mesh";
-        case Shape::Kind::Box:
-            break;
-    }
-    return "Box";
-}
-
 void* meshOfShape(void* fieldPtr, size_t index)
 {
     auto& shapes = *static_cast<std::vector<Shape>*>(fieldPtr);
@@ -69,6 +55,24 @@ void set(DrawFn fn)
     auto& slot = fieldTypeSlot<M>();
     slot.drawUI = fn;
     drawUIByName()[slot.typeName] = fn;
+}
+
+template <class M>
+bool drawEnum(void* p, const Field& f)
+{
+    auto& v = *static_cast<M*>(p);
+    std::vector<const char*> names;
+    int current = -1;
+    for (size_t i = 0; i < f.enumValues.size(); ++i)
+    {
+        names.push_back(f.enumValues[i].name.c_str());
+        if (f.enumValues[i].value == static_cast<int64_t>(v))
+            current = static_cast<int>(i);
+    }
+    if (!ui::ComboField("##v", &current, names))
+        return false;
+    v = static_cast<M>(f.enumValues[static_cast<size_t>(current)].value);
+    return true;
 }
 
 bool drawEntityRef(void* p, const Field&, FieldUIContext& fieldCtx)
@@ -175,6 +179,8 @@ void installFieldUI()
     set<int32_t>(
         [](void* p, const Field& f, FieldUIContext&)
         {
+            if (!f.enumValues.empty())
+                return drawEnum<int32_t>(p, f);
             ImGui::SetNextItemWidth(-1.0f);
             const bool changed = ImGui::DragInt("##v", static_cast<int32_t*>(p), f.meta.speed,
                                                 static_cast<int>(f.meta.min),
@@ -186,6 +192,8 @@ void installFieldUI()
     set<uint32_t>(
         [](void* p, const Field& f, FieldUIContext&)
         {
+            if (!f.enumValues.empty())
+                return drawEnum<uint32_t>(p, f);
             ImGui::SetNextItemWidth(-1.0f);
             const bool changed = ImGui::DragScalar("##v", ImGuiDataType_U32, p, f.meta.speed);
             ui::WrapDragMouse();
@@ -212,84 +220,146 @@ void installFieldUI()
         [](void* p, const Field& f, FieldUIContext& fieldCtx)
         {
             auto& shapes = *static_cast<std::vector<Shape>*>(p);
+            App* app = fieldCtx.app_;
+            ColliderHandles* handles = app ? &app->uiPanels_.colliderHandles() : nullptr;
+            const int selected = handles ? handles->selected(fieldCtx.ent_) : -1;
             bool changed = false;
 
-            if (ImGui::SmallButton("Add"))
-            {
-                shapes.push_back(Shape{});
-                changed = true;
-            }
-
-            auto removed = shapes.end();
+            int removed = -1;
             int id = 0;
             for (auto it = shapes.begin(); it != shapes.end(); ++it, ++id)
             {
                 Shape& s = *it;
                 ui::ScopedID scopedId{id};
 
-                const bool open = ImGui::TreeNodeEx("##shape", ImGuiTreeNodeFlags_DefaultOpen, "%s",
-                                                    kindName(s.kind_));
-                if (shapes.size() > 1)
+                ImGuiTreeNodeFlags flags =
+                    ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow |
+                    ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_AllowOverlap |
+                    ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                if (id == selected)
+                    flags |= ImGuiTreeNodeFlags_Selected;
+                const bool open =
+                    ImGui::TreeNodeEx("##shape", flags, "%s", colliderShape::kindName(s.kind_));
+                const bool rowClicked = ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen();
+                const ImVec2 rowMin = ImGui::GetItemRectMin();
+                const ImVec2 rowMax = ImGui::GetItemRectMax();
+
+                const float side = ImGui::GetFrameHeight();
+                const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
+                bool buttonClicked = false;
+                ImGui::SameLine();
+                ImGui::SetCursorScreenPos({rowMax.x - side * 2.0f - gap, rowMin.y});
                 {
-                    ImGui::SameLine();
-                    if (ImGui::SmallButton("x"))
-                        removed = it;
+                    ui::ScopedColor flat{{ImGuiCol_Button, ui::transparent}};
+                    if (ui::IconButton(ICON_MD_FIT_SCREEN "##fit", side))
+                    {
+                        buttonClicked = true;
+                        if (app && colliderShape::fit(*app->ctx_, fieldCtx.ent_, s))
+                            changed = true;
+                        else if (app)
+                            app->showToast("No mesh to fit the shape to");
+                    }
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("Fit to the mesh");
+
+                    ImGui::SameLine(0.0f, gap);
+                    ImGui::BeginDisabled(shapes.size() <= 1);
+                    ui::ScopedColor danger{{ImGuiCol_ButtonHovered, ui::red}};
+                    if (ui::IconButton(ICON_MD_CLOSE "##remove", side))
+                    {
+                        buttonClicked = true;
+                        removed = id;
+                    }
+                    ImGui::EndDisabled();
                 }
+                if (rowClicked && !buttonClicked && handles)
+                    handles->select(fieldCtx.ent_, id == selected ? -1 : id);
                 if (!open)
                     continue;
 
-                int kind = static_cast<int>(s.kind_);
-                ImGui::SetNextItemWidth(-1.0f);
-                if (ImGui::Combo("##kind", &kind, "Box\0Sphere\0Capsule\0Mesh\0"))
-                {
-                    s.kind_ = static_cast<Shape::Kind>(kind);
-                    changed = true;
-                }
+                auto fields = ui::BeginFields("shapeFields");
+                if (!fields)
+                    continue;
+
+                changed |= ui::Field("Kind",
+                                     [&]
+                                     {
+                                         static constexpr std::array<const char*, 4> kKinds = {
+                                             "Box", "Sphere", "Capsule", "Mesh"};
+                                         int kind = static_cast<int>(s.kind_);
+                                         if (!ui::ComboField("##kind", &kind, kKinds))
+                                             return false;
+                                         s.kind_ = static_cast<Shape::Kind>(kind);
+                                         return true;
+                                     });
 
                 switch (s.kind_)
                 {
                     case Shape::Kind::Box:
-                        changed |= ImGui::DragFloat3("Half extents", s.halfExtents_.data(), 0.01f,
+                        changed |= ui::Field("Half size",
+                                             [&] {
+                                                 return ui::DragFloatN(
+                                                     ui::spanOf(s.halfExtents_.data(), 3), 0.01f,
                                                      0.001f, 10000.f);
+                                             });
                         break;
                     case Shape::Kind::Sphere:
-                        changed |= ImGui::DragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
+                        changed |= ui::FieldDragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
                         break;
                     case Shape::Kind::Capsule:
-                        changed |= ImGui::DragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
-                        changed |=
-                            ImGui::DragFloat("Half height", &s.halfHeight_, 0.01f, 0.001f, 10000.f);
+                        changed |= ui::FieldDragFloat("Radius", &s.radius_, 0.01f, 0.001f, 10000.f);
+                        changed |= ui::FieldDragFloat("Half height", &s.halfHeight_, 0.01f, 0.001f,
+                                                      10000.f);
                         break;
-                    case Shape::Kind::Mesh: {
+                    case Shape::Kind::Mesh:
                         // The picker applies the pick itself (patch +
                         // markDirty), so the row reports no change of its own.
-                        AssetManager* assets = fieldCtx.app_ ? fieldCtx.app_->assetManager_
-                                                             : nullptr;
-                        const std::string name = assets ? ui::assetName(*assets, s.mesh_)
-                                                        : std::string{};
-                        const bool clicked =
-                            ui::AssetRow(AssetType::Mesh, name, ImGui::CalcItemWidth());
-                        ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-                        ImGui::TextUnformatted("Mesh");
-                        if (clicked && assets && fieldCtx.picker_ && fieldCtx.component_)
-                            fieldCtx.picker_->openField(fieldCtx.ent_, *fieldCtx.component_, f,
-                                                        AssetType::Mesh, fieldCtx.app_->projectDir_,
-                                                        meshOfShape, static_cast<size_t>(id));
+                        ui::Field("Mesh",
+                                  [&]
+                                  {
+                                      AssetManager* assets = app ? app->assetManager_ : nullptr;
+                                      const std::string name =
+                                          assets ? ui::assetName(*assets, s.mesh_) : std::string{};
+                                      if (ui::AssetRow(AssetType::Mesh, name) && assets &&
+                                          fieldCtx.picker_ && fieldCtx.component_)
+                                          fieldCtx.picker_->openField(
+                                              fieldCtx.ent_, *fieldCtx.component_, f,
+                                              AssetType::Mesh, app->projectDir_, meshOfShape,
+                                              static_cast<size_t>(id));
+                                  });
                         break;
-                    }
                 }
 
-                changed |= ImGui::DragFloat3("Offset", s.localPos_.data(), 0.01f);
-                changed |= ImGui::DragFloat3("Rotation", s.localRotDeg_.data(), 0.5f);
-                ui::WrapDragMouse();
-
-                ImGui::TreePop();
+                changed |= ui::FieldDragFloat3("Offset", s.localPos_.data(), 0.01f);
+                changed |= ui::FieldDragFloat3("Rotation", s.localRotDeg_.data(), 0.5f);
             }
 
-            if (removed != shapes.end())
+            if (removed >= 0)
             {
-                shapes.erase(removed);
+                shapes.erase(shapes.begin() + removed);
+                if (handles)
+                    handles->select(fieldCtx.ent_, -1);
                 changed = true;
+            }
+
+            if (ui::AddButton(ICON_MD_ADD "  Add shape"))
+                ImGui::OpenPopup("##addShape");
+            if (ImGui::BeginPopup("##addShape"))
+            {
+                for (const Shape::Kind kind : {Shape::Kind::Box, Shape::Kind::Sphere,
+                                               Shape::Kind::Capsule, Shape::Kind::Mesh})
+                    if (ImGui::MenuItem(colliderShape::kindName(kind)))
+                    {
+                        Shape added;
+                        added.kind_ = kind;
+                        if (app)
+                            colliderShape::fit(*app->ctx_, fieldCtx.ent_, added);
+                        shapes.push_back(added);
+                        if (handles)
+                            handles->select(fieldCtx.ent_, static_cast<int>(shapes.size()) - 1);
+                        changed = true;
+                    }
+                ImGui::EndPopup();
             }
             return changed;
         });
