@@ -17,7 +17,10 @@ struct EntitySerializer
     static void save(const std::vector<EntityDesc>& entities, const std::string& path);
 
     static void clearSceneAndLoad(World& world, const Engine& ctx, const std::string& path);
-    static void instantiate(World& world, const Engine& ctx, const std::string& path);
+    static std::vector<entt::entity> instantiate(World& world, const Engine& ctx,
+                                                 const std::string& path);
+    static entt::entity instantiateLinked(World& world, const Engine& ctx,
+                                          const std::string& absPath, std::string* why);
 
     static bool saveTemplate(World& world, const Engine& ctx, const std::string& path);
     static std::string templateToBuffer(World& world, const Engine& ctx);

@@ -536,6 +536,11 @@ void platformShowCursor(bool show)
         [NSCursor hide];
 }
 
+std::string platformKeyLabel(Key key)
+{
+    return keyName(key);
+}
+
 void platformMinimizeWindow(void* nativeHandle)
 {
     [(__bridge NSWindow*)nativeHandle miniaturize:nil];

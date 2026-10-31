@@ -162,4 +162,126 @@ float InputManager::wheel() const
 {
     return MouseWheelAccumulated;
 }
+
+std::string keyName(Key key)
+{
+    const auto from = [key](Key first) { return static_cast<int>(key) - static_cast<int>(first); };
+    if (key >= Key::A && key <= Key::Z)
+        return std::string(1, static_cast<char>('A' + from(Key::A)));
+    if (key >= Key::Num0 && key <= Key::Num9)
+        return std::string(1, static_cast<char>('0' + from(Key::Num0)));
+    if (key >= Key::F1 && key <= Key::F24)
+        return "F" + std::to_string(1 + from(Key::F1));
+    if (key >= Key::Numpad0 && key <= Key::Numpad9)
+        return "Numpad " + std::to_string(from(Key::Numpad0));
+
+    switch (key)
+    {
+        case Key::LShift:
+            return "Left Shift";
+        case Key::RShift:
+            return "Right Shift";
+        case Key::LCtrl:
+            return "Left Ctrl";
+        case Key::RCtrl:
+            return "Right Ctrl";
+        case Key::LAlt:
+            return "Left Alt";
+        case Key::RAlt:
+            return "Right Alt";
+        case Key::LSuper:
+            return "Left Super";
+        case Key::RSuper:
+            return "Right Super";
+        case Key::Escape:
+            return "Escape";
+        case Key::Enter:
+            return "Enter";
+        case Key::Space:
+            return "Space";
+        case Key::Tab:
+            return "Tab";
+        case Key::Backspace:
+            return "Backspace";
+        case Key::Insert:
+            return "Insert";
+        case Key::Delete:
+            return "Delete";
+        case Key::Home:
+            return "Home";
+        case Key::End:
+            return "End";
+        case Key::PageUp:
+            return "Page Up";
+        case Key::PageDown:
+            return "Page Down";
+        case Key::ArrowUp:
+            return "Up";
+        case Key::ArrowDown:
+            return "Down";
+        case Key::ArrowLeft:
+            return "Left";
+        case Key::ArrowRight:
+            return "Right";
+        case Key::Minus:
+            return "-";
+        case Key::Equal:
+            return "=";
+        case Key::LeftBracket:
+            return "[";
+        case Key::RightBracket:
+            return "]";
+        case Key::Backslash:
+            return "\\";
+        case Key::Semicolon:
+            return ";";
+        case Key::Apostrophe:
+            return "'";
+        case Key::Grave:
+            return "`";
+        case Key::Comma:
+            return ",";
+        case Key::Period:
+            return ".";
+        case Key::Slash:
+            return "/";
+        case Key::NumpadAdd:
+            return "Numpad Add";
+        case Key::NumpadSubtract:
+            return "Numpad Subtract";
+        case Key::NumpadMultiply:
+            return "Numpad Multiply";
+        case Key::NumpadDivide:
+            return "Numpad Divide";
+        case Key::NumpadDecimal:
+            return "Numpad Decimal";
+        case Key::NumpadEnter:
+            return "Numpad Enter";
+        case Key::CapsLock:
+            return "Caps Lock";
+        case Key::NumLock:
+            return "Num Lock";
+        case Key::ScrollLock:
+            return "Scroll Lock";
+        case Key::PrintScreen:
+            return "Print Screen";
+        case Key::Pause:
+            return "Pause";
+        case Key::Menu:
+            return "Menu";
+        default:
+            return {};
+    }
+}
+
+Key keyFromName(std::string_view name)
+{
+    for (int i = 1; i < static_cast<int>(Key::Count); ++i)
+    {
+        const auto key = static_cast<Key>(i);
+        if (keyName(key) == name)
+            return key;
+    }
+    return Key::Unknown;
+}
 }  // namespace batap

@@ -81,6 +81,7 @@ struct World
 
     EntityHandle spawn(std::string_view spawnableId);
     EntityHandle spawn(const Spawnable& spawnable);
+    EntityHandle instantiate(std::string_view templatePath);
     void destroy(EntityHandle h);
 
     Systems& systems() { return *systems_; }

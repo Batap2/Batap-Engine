@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <unordered_set>
 
 #include "EigenTypes.h"
@@ -214,4 +216,7 @@ struct InputManager
     v2i mousePos() const;
     float wheel() const;
 };
+
+std::string keyName(Key key);
+Key keyFromName(std::string_view name);
 }  // namespace batap

@@ -98,6 +98,7 @@ void ComponentRegistry::importFrom(ComponentRegistry& module)
             t.copy = nullptr;
             t.patch = nullptr;
             t.refusal = nullptr;
+            t.defaultOf = nullptr;
             t.bitSlot_ = nullptr;
             t.fields.clear();
         }

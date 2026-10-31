@@ -1,0 +1,152 @@
+#include "ShaderInterop.h"
+
+[[vk::binding(ThumbnailMaterialsBinding, ThumbnailSet)]]
+StructuredBuffer<Material> ThumbnailMaterials;
+[[vk::binding(ThumbnailDrawsBinding, ThumbnailSet)]]
+StructuredBuffer<ThumbnailDrawGPUData> ThumbnailDraws;
+
+[[vk::binding(SamplerBinding, BindlessSet)]]  SamplerState      g_sampler;
+[[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
+
+[[vk::push_constant]] ThumbnailPush g_push;
+
+static const float PI = 3.14159265358979f;
+
+struct VS_OUTPUT
+{
+    float4 position_ : SV_POSITION;
+    float3 posVS_    : TEXCOORD0;
+    float3 nrmVS_    : TEXCOORD1;
+    float2 uv_       : TEXCOORD2;
+    float4 tanVS_    : TEXCOORD3;
+};
+
+struct ThumbLight
+{
+    float3 dir_;
+    float3 radiance_;
+};
+
+float D_GGX(float NdotH, float roughness)
+{
+    float a  = roughness * roughness;
+    float a2 = a * a;
+    float d  = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+    return a2 / (PI * d * d);
+}
+
+float G_SchlickGGX(float NdotV, float roughness)
+{
+    float r = roughness + 1.0f;
+    float k = (r * r) / 8.0f;
+    return NdotV / (NdotV * (1.0f - k) + k);
+}
+
+float G_Smith(float NdotV, float NdotL, float roughness)
+{
+    return G_SchlickGGX(NdotV, roughness) * G_SchlickGGX(NdotL, roughness);
+}
+
+float3 F_Schlick(float HdotV, float3 F0)
+{
+    return F0 + (1.0f - F0) * pow(saturate(1.0f - HdotV), 5.0f);
+}
+
+float3 SrgbEncode(float3 c)
+{
+    c = saturate(c);
+    return select(c <= 0.0031308f, 12.92f * c, 1.055f * pow(c, 1.0f / 2.4f) - 0.055f);
+}
+
+float3 PbrNeutral(float3 c)
+{
+    const float startCompression = 0.8f - 0.04f;
+    const float desaturation = 0.15f;
+    const float lowest = min(c.r, min(c.g, c.b));
+    c -= lowest < 0.08f ? lowest - 6.25f * lowest * lowest : 0.04f;
+    const float peak = max(c.r, max(c.g, c.b));
+    if (peak < startCompression)
+        return c;
+    const float d = 1.0f - startCompression;
+    const float newPeak = 1.0f - d * d / (peak + d - startCompression);
+    c *= newPeak / peak;
+    const float toWhite = 1.0f - 1.0f / (desaturation * (peak - newPeak) + 1.0f);
+    return lerp(c, newPeak.xxx, toWhite);
+}
+
+float4 SampleOr(uint index, float2 uv, float4 fallback)
+{
+    if (index == InvalidGPUIndex)
+        return fallback;
+    return g_textures[index].Sample(g_sampler, uv);
+}
+
+float4 main(VS_OUTPUT i) : SV_Target
+{
+    ThumbnailDrawGPUData draw = ThumbnailDraws[g_push.drawIndex_];
+
+    if ((draw.flags_ & ThumbnailImage) != 0u)
+    {
+        float4 c = g_textures[draw.textureIndex_].Sample(g_sampler, i.uv_);
+        if ((draw.flags_ & ThumbnailImageHdr) != 0u)
+            return float4(SrgbEncode(PbrNeutral(c.rgb)), 1.0f);
+        return c;
+    }
+
+    Material mat = ThumbnailMaterials[draw.materialBase_ +
+                                      min(g_push.submeshIndex_, draw.materialCount_ - 1u)];
+    float3 albedo = mat.albedo.rgb * SampleOr(mat.albedoTexIdx_, i.uv_, 1.0f.xxxx).rgb;
+    if (mat.shadingModel_ == ShadingUnlit)
+        return float4(SrgbEncode(PbrNeutral(albedo)), 1.0f);
+
+    float roughness = clamp(mat.roughness * SampleOr(mat.roughnessTexIdx_, i.uv_, 1.0f.xxxx).r,
+                            0.05f, 1.0f);
+    float metallic = saturate(mat.metallic * SampleOr(mat.metallicTexIdx_, i.uv_, 1.0f.xxxx).r);
+
+    float3 Ngeom = normalize(i.nrmVS_);
+    float3 N = Ngeom;
+    if (mat.normalTexIdx_ != InvalidGPUIndex)
+    {
+        float3 ns = g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).rgb * 2.0f - 1.0f;
+        ns.z = sqrt(saturate(1.0f - dot(ns.xy, ns.xy)));
+        float3 T = normalize(i.tanVS_.xyz);
+        T = normalize(T - dot(T, Ngeom) * Ngeom);
+        float3 B = cross(Ngeom, T) * i.tanVS_.w;
+        N = normalize(ns.x * T + ns.y * B + ns.z * Ngeom);
+    }
+
+    float3 V = normalize(-i.posVS_);
+    float NdotV = max(dot(N, V), 1e-4f);
+    float3 F0 = lerp(0.04f.xxx, albedo, metallic);
+
+    ThumbLight lights[3];
+    lights[0].dir_ = normalize(float3(-0.45f, 0.75f, 0.55f));
+    lights[0].radiance_ = 2.6f.xxx;
+    lights[1].dir_ = normalize(float3(0.85f, 0.15f, 0.5f));
+    lights[1].radiance_ = float3(0.55f, 0.6f, 0.7f);
+    lights[2].dir_ = normalize(float3(0.2f, 0.5f, -0.85f));
+    lights[2].radiance_ = 0.9f.xxx;
+
+    float3 color = 0.0f.xxx;
+    [unroll]
+    for (uint l = 0; l < 3; ++l)
+    {
+        float3 L = lights[l].dir_;
+        float NdotL = saturate(dot(N, L));
+        if (NdotL <= 0.0f)
+            continue;
+        float3 H = normalize(L + V);
+        float NdotH = saturate(dot(N, H));
+        float HdotV = saturate(dot(H, V));
+        float3 F = F_Schlick(HdotV, F0);
+        float3 spec = D_GGX(NdotH, roughness) * G_Smith(NdotV, NdotL, roughness) * F /
+                      max(4.0f * NdotV * NdotL, 1e-4f);
+        float3 kd = (1.0f.xxx - F) * (1.0f - metallic);
+        color += (kd * albedo / PI + spec) * lights[l].radiance_ * NdotL;
+    }
+
+    float ambient = lerp(0.22f, 0.42f, N.y * 0.5f + 0.5f);
+    color += (albedo * (1.0f - metallic) + F0 * (1.0f - roughness) * 0.5f) * ambient;
+    color += mat.emissive * mat.emissiveStrength * 1.5e-5f;
+    return float4(SrgbEncode(PbrNeutral(color)), 1.0f);
+}

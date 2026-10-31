@@ -27,6 +27,7 @@ enum DescriptorSetIndex : uint
     BindlessSet = 0,    // owned by ResourceManager
     FrameSet = 1,       // owned by FrameBindings
     RayTracingSet = 2,  // owned by FrameBindings
+    ThumbnailSet = 1,
 };
 
 enum RayTracingSetBinding : uint
@@ -448,6 +449,32 @@ static const uint DebugGiSides = 8u;
 static const uint DebugGiCache = 16u;
 static const uint DebugMotionVectors = 32u;
 
+enum ThumbnailSetBinding : uint
+{
+    ThumbnailMaterialsBinding = 0,
+    ThumbnailDrawsBinding = 1,
+};
+
+static const uint ThumbnailImage = 1u;
+static const uint ThumbnailImageHdr = 2u;
+
+struct ThumbnailDrawGPUData
+{
+    float4x4 worldView_;
+    float4x4 normalView_;
+    float4x4 proj_;
+    uint materialBase_;
+    uint materialCount_;
+    uint textureIndex_;
+    uint flags_;
+};
+
+struct ThumbnailPush
+{
+    uint drawIndex_;
+    uint submeshIndex_;
+};
+
 #ifdef __cplusplus
 
 static_assert(sizeof(CameraGPUData) == 272);
@@ -457,6 +484,8 @@ static_assert(sizeof(Material) == 64);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(AtmosphereGPUData) == 64);
 static_assert(sizeof(DrawPush) == 36);
+static_assert(sizeof(ThumbnailDrawGPUData) == 208);
+static_assert(sizeof(ThumbnailPush) == 8);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
 static_assert(sizeof(FrameGPUData) == 224);
 static_assert(sizeof(ShadowGPUData) == 112);
@@ -487,7 +516,8 @@ static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
               gpuStrideOk<BillboardGPUData> && gpuStrideOk<ShadowGPUData> &&
               gpuStrideOk<TerrainVertexGPUData> && gpuStrideOk<TerrainChunkGPUData> &&
               gpuStrideOk<TerrainWorldGPUData> && gpuStrideOk<RtGeometryGPUData> &&
-              gpuStrideOk<RtInstanceGPUData> && gpuStrideOk<RtCacheValueGPUData>);
+              gpuStrideOk<RtInstanceGPUData> && gpuStrideOk<RtCacheValueGPUData> &&
+              gpuStrideOk<ThumbnailDrawGPUData>);
 
 static_assert(offsetof(CameraGPUData, pos_) == 128 && offsetof(CameraGPUData, znear_) == 140);
 static_assert(offsetof(SkyboxGPUData, color1) == 160);

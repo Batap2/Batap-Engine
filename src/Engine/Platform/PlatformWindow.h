@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -9,6 +10,7 @@ namespace batap
 {
 struct Engine;
 struct WindowDesc;
+enum class Key : uint16_t;
 
 // Debug console + DPI awareness. Call once, before creating the window.
 void platformInit();
@@ -61,6 +63,8 @@ void platformImGuiShutdown();
 // Same client-space pixels InputManager reports.
 void platformSetCursorPos(void* nativeHandle, int clientX, int clientY);
 void platformShowCursor(bool show);
+
+std::string platformKeyLabel(Key key);
 
 void platformMinimizeWindow(void* nativeHandle);
 void platformToggleMaximizeWindow(void* nativeHandle);

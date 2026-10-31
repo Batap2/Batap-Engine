@@ -172,6 +172,7 @@ struct ComponentType
     // entt's on_update; undefined behaviour on an entity without the component.
     void (*patch)(entt::registry&, entt::entity) = nullptr;
     std::string (*refusal)(const entt::registry&, entt::entity) = nullptr;
+    const void* (*defaultOf)() = nullptr;
 
     // The componentBitSlot<T> this type was registered from. importFrom
     // copies the host's bit through it so componentMask<T> agrees across
@@ -330,6 +331,11 @@ void addComponentType(std::string_view name, ComponentMeta meta, std::vector<Fie
     t.patch = [](entt::registry& r, entt::entity e) { r.patch<T>(e); };
     t.refusal = [](const entt::registry& r, entt::entity e)
     { return ComponentAdmission<T>::refusal(r, e); };
+    t.defaultOf = +[]() -> const void*
+    {
+        static const T* def = new T{};
+        return def;
+    };
     t.bitSlot_ = &componentBitSlot<T>();
 
     ComponentRegistry::instance().add(std::move(t));

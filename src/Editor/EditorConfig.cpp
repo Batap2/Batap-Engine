@@ -1,5 +1,6 @@
 #include "EditorConfig.h"
 
+#include "Shortcuts.h"
 #include "UserConfig.h"
 
 #include <nlohmann/json.hpp>
@@ -75,6 +76,36 @@ void writeRender(const EngineSettings& render)
     userConfig::writeRender(configPath(), render);
 }
 
+void readShortcuts(Shortcuts& io)
+{
+    const nlohmann::json section = objectAt(readFile(), "shortcuts");
+    for (size_t i = 0; i < kShortcuts.size(); ++i)
+    {
+        const auto it = section.find(kShortcuts[i].id_);
+        if (it == section.end() || !it->is_string())
+            continue;
+        if (const auto chord = parseChord(it->get<std::string>()))
+            io.chords_[i] = *chord;
+    }
+}
+
+void writeShortcuts(const Shortcuts& shortcuts)
+{
+    const auto path = configPath();
+    std::filesystem::create_directories(path.parent_path());
+
+    // Only what differs from the defaults, so a default changed in the code
+    // still reaches those who never touched that shortcut.
+    nlohmann::json section = nlohmann::json::object();
+    for (size_t i = 0; i < kShortcuts.size(); ++i)
+        if (shortcuts.chords_[i] != kShortcuts[i].default_)
+            section[kShortcuts[i].id_] = chordText(shortcuts.chords_[i]);
+
+    nlohmann::json j = readFile();
+    j["shortcuts"] = std::move(section);
+    std::ofstream(path) << j.dump(2);
+}
+
 std::string pathKey(const std::string& path)
 {
     std::error_code ec;
@@ -107,6 +138,9 @@ void read(File& io, const std::string& projectDir, const std::string& scene)
         if (!dir.empty())
             io.recent.push_back(std::move(dir));
     }
+    const nlohmann::json browser = objectAt(j, "contentBrowser");
+    io.browserGrid = browser.value("grid", io.browserGrid);
+    io.browserTileSize = browser.value("tileSize", io.browserTileSize);
 
     if (projectDir.empty())
         return;
@@ -159,6 +193,7 @@ void write(const File& file, const std::string& projectDir, const std::string& s
     nlohmann::json j = readFile();
     j["recent"] = file.recent;
     j["theme"] = file.theme == ui::Theme::Dark ? "dark" : "light";
+    j["contentBrowser"] = {{"grid", file.browserGrid}, {"tileSize", file.browserTileSize}};
 
     if (!projectDir.empty())
     {

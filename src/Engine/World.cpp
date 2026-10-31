@@ -326,4 +326,22 @@ bool World::loadScene(const std::string& path)
     EntitySerializer::clearSceneAndLoad(*this, *ctx_, scenePath.string());
     return true;
 }
+
+EntityHandle World::instantiate(std::string_view templatePath)
+{
+    namespace fs = std::filesystem;
+
+    fs::path path{templatePath};
+    if (path.is_relative())
+        path = fs::path(ctx_->assetManager_->baseDir()) / path;
+
+    std::string why;
+    const entt::entity e = EntitySerializer::instantiateLinked(*this, *ctx_, path.string(), &why);
+    if (e == entt::null)
+    {
+        std::cerr << "[World] instantiate " << templatePath << ": " << why << "\n";
+        return {};
+    }
+    return {&registry_, e};
+}
 }  // namespace batap

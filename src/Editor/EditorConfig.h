@@ -11,6 +11,7 @@ namespace batap
 {
 struct WindowDesc;
 struct EngineSettings;
+struct Shortcuts;
 }  // namespace batap
 
 namespace batap::editorConfig
@@ -22,6 +23,8 @@ void readWindow(WindowDesc& io);
 void writeWindow(int screen, bool focusOnShow, bool behindOnShow);
 void readRender(EngineSettings& io);
 void writeRender(const EngineSettings& render);
+void readShortcuts(Shortcuts& io);
+void writeShortcuts(const Shortcuts& shortcuts);
 
 // One spelling per path, or C:\Foo, C:/Foo and a relative argument key three
 // different projects.
@@ -69,6 +72,8 @@ struct File
 {
     ui::Theme theme = ui::Theme::Light;
     std::vector<std::string> recent;
+    bool browserGrid = true;
+    float browserTileSize = 80.f;
 
     Camera camera;
     Pose pose;

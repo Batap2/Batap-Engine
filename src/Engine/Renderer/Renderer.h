@@ -25,6 +25,7 @@ struct RenderTargets;
 struct DebugDraw;
 struct Billboards;
 struct TerrainDraws;
+struct Thumbnails;
 struct Renderer
 {
     Renderer(void* nativeWindow, bool transparent = false);
@@ -46,6 +47,8 @@ struct Renderer
     // ImGui::Image. Asked for this frame, the scene is not drawn into the
     // swapchain: the host is drawing it.
     ImTextureID sceneTexture();
+
+    Thumbnails& thumbnails();
 
     // The size every render target has: the window unless the host narrows
     // it. A change recreates the targets and fires the resize callbacks.
@@ -88,6 +91,7 @@ struct Renderer
 
     std::unique_ptr<ResourceManager> resources_;
     std::unique_ptr<SceneFrame> sceneFrame_;
+    std::unique_ptr<Thumbnails> thumbnails_;
     SceneGraphFn sceneGraph_;
     RenderGraph graph_;
 

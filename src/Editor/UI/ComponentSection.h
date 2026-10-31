@@ -12,7 +12,7 @@ namespace batap::ui
 struct ComponentSection
 {
     ComponentSection(const char* label, ComponentColor color, bool removable = false,
-                     const char* summary = nullptr)
+                     const char* summary = nullptr, bool templated = false, bool overridden = false)
     {
         ImDrawList* dl = ImGui::GetWindowDrawList();
 
@@ -32,10 +32,17 @@ struct ComponentSection
 
         // Opened while the heading is still the last item: a caller cannot get
         // the ordering wrong.
-        if (removable && ImGui::BeginPopupContextItem(label))
+        if ((removable || templated) && ImGui::BeginPopupContextItem(label))
         {
-            if (ImGui::MenuItem("Remove"))
+            if (removable && ImGui::MenuItem("Remove"))
                 remove_ = true;
+            if (templated)
+            {
+                if (ImGui::MenuItem("Revert to template"))
+                    revert_ = true;
+                if (ImGui::MenuItem("Apply to template"))
+                    apply_ = true;
+            }
             ImGui::EndPopup();
         }
 
@@ -58,6 +65,12 @@ struct ComponentSection
         dl->AddText(face, faceSize, labelPos, hue, label);
         dl->AddText(face, faceSize, {labelPos.x + 0.5f, labelPos.y}, hue, label);
         float x = textX + labelSize.x + SectionRuleGap;
+        if (overridden)
+        {
+            const float dot = h * 0.14f;
+            dl->AddCircleFilled({x + dot, mid}, dot, ImGui::GetColorU32(accent));
+            x += dot * 2.0f + SectionRuleGap;
+        }
 
         if (!open_ && summary && summary[0] != '\0')
         {
@@ -74,6 +87,8 @@ struct ComponentSection
     }
 
     bool removeClicked() const { return remove_; }
+    bool revertClicked() const { return revert_; }
+    bool applyClicked() const { return apply_; }
 
     explicit operator bool() const { return open_; }
 
@@ -83,6 +98,8 @@ struct ComponentSection
    private:
     bool open_ = false;
     bool remove_ = false;
+    bool revert_ = false;
+    bool apply_ = false;
 };
 
 }  // namespace batap::ui

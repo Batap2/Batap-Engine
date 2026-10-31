@@ -71,3 +71,9 @@ every run.
   them.
 - Serialization: `Serialization/EntitySerializer.cpp`. Components unknown to the
   registry are kept as JSON blobs (`UnknownComponents_C`) and re-emitted on save.
+  Every entry in a .btpl has a stable `id`. A .btpl placed in another one is an
+  entry `{"template": path, "overrides": [...]}`: the root carries
+  `TemplateInstance_C`, the entities it brought `TemplateMember_C` + `FileId_C`,
+  and the save writes only what differs from the template (per field, by id
+  chain). `Serialization/TemplateInstances.cpp` holds the diff, revert, apply
+  and unlink; `--save-scene <out>` re-saves a `--scene` headlessly.

@@ -587,6 +587,8 @@ void App::loadConfig()
     editorConfig::read(file, {}, {});
     theme_ = file.theme;
     recentProjects_ = std::move(file.recent);
+    uiPanels_.contentBrowser().setView(file.browserGrid, file.browserTileSize);
+    editorConfig::readShortcuts(uiPanels_.shortcuts());
 }
 
 void App::saveConfig()
@@ -594,6 +596,8 @@ void App::saveConfig()
     editorConfig::File file;
     file.theme = theme_;
     file.recent = recentProjects_;
+    file.browserGrid = uiPanels_.contentBrowser().grid();
+    file.browserTileSize = uiPanels_.contentBrowser().tileSize();
     file.camera = {editorCamCtrl_.moveSpeed_, editorCamCtrl_.boostSpeed_,
                    editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_, editorCamView_.znear_};
     file.pose = {editorCamPos_,         editorCamCtrl_.yaw_,        editorCamCtrl_.pitch_,
