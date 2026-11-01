@@ -21,7 +21,7 @@ inline constexpr int32_t kMaxChunkCells = 128;
 int32_t clampChunkCells(int32_t cells);
 
 inline constexpr int32_t kMaxTerrainLevel = 24;
-inline constexpr size_t kMaxTerrainStrata = 8;
+inline constexpr size_t kMaxTerrainStrata = 16;
 
 struct TerrainGrid
 {

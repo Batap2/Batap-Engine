@@ -197,7 +197,7 @@ struct TerrainVertexGPUData
 // frames in flight still read the old one.
 struct TerrainChunkGPUData
 {
-    uint materialIndices_[8];  // per stratum
+    uint materialIndices_[16];  // per stratum
     uint vertexBase_;
     uint cells_;
     // Sides 0..3 (j = 0, i = cells_, j = cells_, i = 0) and corners 4..7
@@ -494,7 +494,7 @@ static_assert(sizeof(DebugVertexGPUData) == 16);
 static_assert(sizeof(DebugShapeGPUData) == 80);
 static_assert(sizeof(BillboardGPUData) == 64);
 static_assert(sizeof(TerrainVertexGPUData) == 48);
-static_assert(sizeof(TerrainChunkGPUData) == 64);
+static_assert(sizeof(TerrainChunkGPUData) == 96);
 static_assert(sizeof(TerrainWorldGPUData) == 160);
 static_assert(sizeof(TerrainMorphRowGPUData) == 16);
 static_assert(sizeof(RtGeometryGPUData) == 32);
