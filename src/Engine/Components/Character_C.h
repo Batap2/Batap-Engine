@@ -23,6 +23,8 @@ struct Character_C
     float maxSlopeDeg_ = 50.f;
     float mass_ = 70.f;
     float jumpSpeed_ = 4.f;
+    float coyoteTime_ = 0.f;
+    float jumpBuffer_ = 0.f;
 
     v3f gravity_ = {0.f, -9.81f, 0.f};
 
@@ -33,6 +35,10 @@ struct Character_C
 
     bool onGround_ = false;
     v3f velocity_ = v3f::Zero();
+
+    float airTime_ = 0.f;
+    float jumpTimer_ = 0.f;
+    bool jumped_ = false;
 
     // Raised by entt's on_update: whoever edits this component must go through
     // registry.patch or the character keeps its old shape.
@@ -50,12 +56,18 @@ static_assert(refl::fieldName<Character_C, 2>() == "halfHeight");
 static_assert(refl::fieldName<Character_C, 3>() == "maxSlopeDeg");
 static_assert(refl::fieldName<Character_C, 4>() == "mass");
 static_assert(refl::fieldName<Character_C, 5>() == "jumpSpeed");
-static_assert(refl::fieldName<Character_C, 6>() == "gravity");
-static_assert(refl::fieldName<Character_C, 7>() == "moveVelocity");
-static_assert(refl::fieldName<Character_C, 8>() == "wantJump");
+static_assert(refl::fieldName<Character_C, 6>() == "coyoteTime");
+static_assert(refl::fieldName<Character_C, 7>() == "jumpBuffer");
+static_assert(refl::fieldName<Character_C, 8>() == "gravity");
+static_assert(refl::fieldName<Character_C, 9>() == "moveVelocity");
+static_assert(refl::fieldName<Character_C, 10>() == "wantJump");
 
 BATAP_COMPONENT(Character_C, "character", fieldSkip<&Character_C::dirty_>(),
                 fieldSkip<&Character_C::prevPos_>(), fieldSkip<&Character_C::prevValid_>(),
+                fieldSkip<&Character_C::airTime_>(), fieldSkip<&Character_C::jumpTimer_>(),
+                fieldSkip<&Character_C::jumped_>(),
+                fieldMeta<&Character_C::coyoteTime_>({.speed = 0.01f, .min = 0.f, .max = 2.f}),
+                fieldMeta<&Character_C::jumpBuffer_>({.speed = 0.01f, .min = 0.f, .max = 2.f}),
                 fieldMeta<&Character_C::radius_>({.speed = 0.01f, .min = 0.01f, .max = 10.f}),
                 fieldMeta<&Character_C::halfHeight_>({.speed = 0.01f, .min = 0.01f, .max = 10.f}),
                 fieldMeta<&Character_C::maxSlopeDeg_>({.speed = 0.5f, .min = 0.f, .max = 89.f}),

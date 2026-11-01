@@ -306,6 +306,7 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
     WindowDesc editor;
     editorConfig::readWindow(editor);
     editorSettings_ = {editor.screen,
+                       {static_cast<int>(editor.width), static_cast<int>(editor.height)},
                        editor.focusOnShow,
                        editor.behindOnShow,
                        ctx.settings().rayTracing_,
@@ -325,6 +326,7 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
         userConfig::readRender(config, gameRender);
     }
     gameSettings_ = {game.screen,
+                     {static_cast<int>(game.width), static_cast<int>(game.height)},
                      game.focusOnShow,
                      game.behindOnShow,
                      gameRender.rayTracing_,
@@ -387,6 +389,14 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
                 }
             }
             ImGui::EndCombo();
+        }
+        ImGui::SetNextItemWidth(220.0f);
+        ImGui::InputInt2("Size at launch", s.size.data());
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            s.size[0] = std::max(s.size[0], 320);
+            s.size[1] = std::max(s.size[1], 240);
+            change = Launch;
         }
         if (ImGui::Checkbox("Open behind the other windows", &s.behindOnShow))
             change = Launch;
@@ -456,6 +466,17 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         return render;
     };
 
+    const auto windowOf = [](const AppSettings& s)
+    {
+        WindowDesc window;
+        window.screen = s.screen;
+        window.width = static_cast<uint32_t>(s.size[0]);
+        window.height = static_cast<uint32_t>(s.size[1]);
+        window.focusOnShow = s.focusOnShow;
+        window.behindOnShow = s.behindOnShow;
+        return window;
+    };
+
     const Change editorChange = section("Editor", "editor", editorSettings_);
     if (editorChange == Render)
     {
@@ -470,8 +491,7 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
     }
     else if (editorChange != None)
     {
-        editorConfig::writeWindow(editorSettings_.screen, editorSettings_.focusOnShow,
-                                  editorSettings_.behindOnShow);
+        editorConfig::writeWindow(windowOf(editorSettings_));
         if (editorChange == Screen)
             platformMoveWindowToMonitor(ctx.nativeWindow(), editorSettings_.screen);
     }
@@ -487,8 +507,7 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
     if (hasGame && gameChange == Render)
         userConfig::writeRender(gameFile, renderOf(gameSettings_));
     else if (hasGame && gameChange != None)
-        userConfig::writeWindow(gameFile, gameSettings_.screen, gameSettings_.focusOnShow,
-                                gameSettings_.behindOnShow);
+        userConfig::writeWindow(gameFile, windowOf(gameSettings_));
     ImGui::EndDisabled();
 }
 

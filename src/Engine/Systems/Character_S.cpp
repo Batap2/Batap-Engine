@@ -12,6 +12,7 @@
 #include "Systems/Transform_S.h"
 #include "World.h"
 
+#include <algorithm>
 #include <numbers>
 
 namespace batap
@@ -120,14 +121,33 @@ void Character_S::fixedUpdate(World& world, float dt)
             const bool onGround = cv->GetGroundState() ==
                                   JPH::CharacterBase::EGroundState::OnGround;
             const bool towardGround = (verticalVelocity - groundVelocity).dot(up) < 0.1f;
+            const bool resting = onGround && towardGround;
 
-            v3f wanted = onGround && towardGround ? groundVelocity : verticalVelocity;
-            if (onGround && towardGround && ch.wantJump_)
+            if (resting)
+            {
+                ch.airTime_ = 0.f;
+                ch.jumped_ = false;
+            }
+            else
+                ch.airTime_ += dt;
+            if (ch.wantJump_)
+                ch.jumpTimer_ = ch.jumpBuffer_;
+
+            v3f wanted = resting ? groundVelocity : verticalVelocity;
+            const bool canJump = !ch.jumped_ && (resting || ch.airTime_ <= ch.coyoteTime_);
+            if (canJump && (ch.wantJump_ || ch.jumpTimer_ > 0.f))
+            {
+                if (!resting)
+                    wanted = up * std::max(0.f, wanted.dot(up));
                 wanted += up * ch.jumpSpeed_;
+                ch.jumped_ = true;
+                ch.jumpTimer_ = 0.f;
+            }
+            ch.jumpTimer_ = std::max(0.f, ch.jumpTimer_ - dt);
             v3f fall = ch.gravity_ * dt;
             // Jolt only cancels the part of the velocity into the ground: on a
             // walkable slope the rest would slide the character down it.
-            if (onGround && towardGround)
+            if (resting)
             {
                 const v3f normal = toEigen(cv->GetGroundNormal());
                 fall = normal * fall.dot(normal);

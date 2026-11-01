@@ -36,8 +36,7 @@ void readWindow(const nlohmann::json& config, WindowDesc& io);
 
 // Writes that section and nothing else: the file is read back first, so
 // whatever else it holds survives.
-void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow,
-                 bool behindOnShow);
+void writeWindow(const std::filesystem::path& file, const WindowDesc& window);
 
 // The "render" section: `rayTracing` picks the ray traced renderer over the
 // raster one, `maxFps` caps the frame rate, 0 for none. Same rules as the

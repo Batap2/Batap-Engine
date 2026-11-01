@@ -15,6 +15,7 @@
 #include "UI/MaterialEditorPanel.h"
 #include "UI/ScenePanel.h"
 
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -67,6 +68,7 @@ struct UIPanels
     struct AppSettings
     {
         int screen = 0;
+        std::array<int, 2> size{1280, 720};
         bool focusOnShow = true;
         bool behindOnShow = false;
         bool rayTracing = true;
