@@ -63,15 +63,20 @@ void readWindow(const nlohmann::json& config, WindowDesc& io)
         return;
 
     io.screen = it->value("screen", io.screen);
+    io.width = it->value("width", io.width);
+    io.height = it->value("height", io.height);
     io.focusOnShow = it->value("focusOnShow", io.focusOnShow);
     io.behindOnShow = it->value("behindOnShow", io.behindOnShow);
 }
 
-void writeWindow(const std::filesystem::path& file, int screen, bool focusOnShow, bool behindOnShow)
+void writeWindow(const std::filesystem::path& file, const WindowDesc& window)
 {
-    writeSection(
-        file, "window",
-        {{"screen", screen}, {"focusOnShow", focusOnShow}, {"behindOnShow", behindOnShow}});
+    writeSection(file, "window",
+                 {{"screen", window.screen},
+                  {"width", window.width},
+                  {"height", window.height},
+                  {"focusOnShow", window.focusOnShow},
+                  {"behindOnShow", window.behindOnShow}});
 }
 
 void readRender(const nlohmann::json& config, EngineSettings& io)

@@ -61,9 +61,9 @@ void readWindow(WindowDesc& io)
     userConfig::readWindow(readFile(), io);
 }
 
-void writeWindow(int screen, bool focusOnShow, bool behindOnShow)
+void writeWindow(const WindowDesc& window)
 {
-    userConfig::writeWindow(configPath(), screen, focusOnShow, behindOnShow);
+    userConfig::writeWindow(configPath(), window);
 }
 
 void readRender(EngineSettings& io)

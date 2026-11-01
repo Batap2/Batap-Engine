@@ -20,7 +20,7 @@ namespace batap::editorConfig
 // read before the window exists: a key the file lacks leaves `io` alone. The
 // settings menu writes them back, the rest of the file untouched.
 void readWindow(WindowDesc& io);
-void writeWindow(int screen, bool focusOnShow, bool behindOnShow);
+void writeWindow(const WindowDesc& window);
 void readRender(EngineSettings& io);
 void writeRender(const EngineSettings& render);
 void readShortcuts(Shortcuts& io);
