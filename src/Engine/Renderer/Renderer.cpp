@@ -321,6 +321,12 @@ void Renderer::uploadTerrain(TerrainDraws& draws, bool rayTracing)
         sceneFrame_->uploadTerrain(draws, rayTracing);
 }
 
+void Renderer::uploadScatter(ScatterDraws& draws)
+{
+    if (sceneFrame_)
+        sceneFrame_->uploadScatter(draws);
+}
+
 void Renderer::setSceneGraph(SceneGraphFn fn)
 {
     sceneGraph_ = std::move(fn);

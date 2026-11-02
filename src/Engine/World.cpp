@@ -16,6 +16,7 @@
 #include "Instance/EntityFactory.h"
 #include "Instance/InstanceManager.h"
 #include "Physics/PhysicsWorld.h"
+#include "Renderer/ScatterDraws.h"
 
 #include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Body/BodyLock.h>
@@ -197,6 +198,7 @@ void World::update()
     systems_->cascadeLights_->enforce(registry_);
     systems_->update(ctx_->deltaTime_, *ctx_, *this);
     systems_->terrain_->publish(*this);
+    ctx_->scatterDraws().place(registry_, renderCamera(), viewRect());
     instanceManager_->uploadRemainingFrameDirty(*ctx_);
 }
 
@@ -226,6 +228,7 @@ void World::update(Game& game)
     systems_->transforms_->update(registry_, *instanceManager_);
     systems_->audio_->update(*this, ctx_->deltaTime_);
     systems_->terrain_->publish(*this);
+    ctx_->scatterDraws().place(registry_, renderCamera(), viewRect());
     instanceManager_->uploadRemainingFrameDirty(*ctx_);
 }
 
@@ -272,6 +275,11 @@ TerrainDraws& World::terrainDraws()
     return ctx_->terrainDraws();
 }
 
+ScatterDraws& World::scatterDraws()
+{
+    return ctx_->scatterDraws();
+}
+
 Terrain_S& World::terrain()
 {
     return *systems_->terrain_;
@@ -294,6 +302,7 @@ void World::resetScene()
     for (auto e : roots)
         entityFactory_->destroy({&reg, e});
     systems_->terrain_->clear(*this);
+    ctx_->scatterDraws().clear();
 
     reg = entt::registry{};
     reg.ctx().emplace<World*>(this);

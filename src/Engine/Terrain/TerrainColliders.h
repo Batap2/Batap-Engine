@@ -40,6 +40,9 @@ struct TerrainColliders
     // A node's shape around `center`, in the terrain's frame.
     void add(PhysicsWorld& physics, const ChunkKey& key, const v3d& center,
              const JPH::ShapeRefC& shape);
+    void replace(PhysicsWorld& physics, const ChunkKey& key, const v3d& center,
+                 const JPH::ShapeRefC& shape);
+    std::vector<ChunkKey> keys() const;
     void clear(PhysicsWorld& physics);
 
     bool wants(const ChunkKey& key) const { return wanted_.contains(key); }
@@ -56,6 +59,7 @@ struct TerrainColliders
     };
 
     JPH::RVec3 positionOf(const v3d& center) const;
+    JPH::BodyID create(PhysicsWorld& physics, const v3d& center, const JPH::ShapeRefC& shape) const;
     void move(PhysicsWorld& physics, const Body& body) const;
 
     std::unordered_map<ChunkKey, Body, ChunkKeyHash> bodies_;

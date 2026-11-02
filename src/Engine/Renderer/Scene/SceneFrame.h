@@ -7,6 +7,7 @@
 #include "Renderer/Draws/DebugDrawer.h"
 #include "Renderer/Draws/FullscreenDrawers.h"
 #include "Renderer/Draws/MeshDrawer.h"
+#include "Renderer/Draws/ScatterDrawer.h"
 #include "Renderer/Draws/TerrainDrawer.h"
 #include "Renderer/Features/Exposure/Exposure.h"
 #include "Renderer/Features/Gi/GiCache.h"
@@ -27,6 +28,7 @@ struct ResourceManager;
 struct DebugDraw;
 struct Billboards;
 struct TerrainDraws;
+struct ScatterDraws;
 
 struct RenderTargets
 {
@@ -49,6 +51,7 @@ struct SceneFrame
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
     void uploadBillboards(const Billboards& billboards);
     void uploadTerrain(TerrainDraws& draws, bool rayTracing);
+    void uploadScatter(ScatterDraws& draws);
 
     void checkHotReload();
 
@@ -73,6 +76,7 @@ struct SceneFrame
     Shadows shadows_;
     MeshDrawer meshes_;
     TerrainDrawer terrain_;
+    ScatterDrawer scatter_;
     BillboardDrawer billboards_;
     FullscreenDrawers fullscreen_;
     DebugDrawer debug_;

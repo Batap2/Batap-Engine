@@ -67,7 +67,9 @@ struct Terrain_S
         std::vector<ChunkKey> wanted_;
         ChunkKeySet shown_;
         std::vector<Wish> wishes_;
+        std::unordered_map<ChunkKey, uint64_t, ChunkKeyHash> stale_;
         TerrainColliders colliders_;
+        std::unordered_map<ChunkKey, uint64_t, ChunkKeyHash> staleColliders_;
         // For the debug view.
         TerrainGrid grid_;
         double ratio_ = 0.0;
@@ -92,6 +94,8 @@ struct Terrain_S
     };
 
     void drop(World& world, State& state);
+    void markChanged(World& world, State& state, const std::vector<Reach>& changes,
+                     const NodeBoundsFn& bounds);
     void syncColliders(World& world, entt::entity owner, const Terrain_C& terrain,
                        const TerrainSource::Ground& ground, const TerrainGrid& grid, State& state,
                        const std::vector<Mover>& movers,

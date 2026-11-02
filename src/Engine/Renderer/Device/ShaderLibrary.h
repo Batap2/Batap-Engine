@@ -38,6 +38,10 @@ enum ShaderId : size_t
     GiResolvePS,
     GiVotePS,
     GiTracePS,
+    ScatterVS,
+    ScatterPS,
+    ScatterShadowVS,
+    ScatterRtPS,
     ShaderCount,
 };
 
@@ -77,6 +81,10 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"GiResolvePS", "GiResolvePS", "ps_6_6", true},
     {"GiVotePS", "GiVotePS", "ps_6_6", true},
     {"GiTracePS", "GiTracePS", "ps_6_6", true},
+    {"ScatterVS", "ScatterVS", "vs_6_6"},
+    {"ScatterPS", "ScatterPS", "ps_6_6"},
+    {"ScatterShadowVS", "ScatterShadowVS", "vs_6_6"},
+    {"ScatterPSRT", "ScatterPS", "ps_6_6", true},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

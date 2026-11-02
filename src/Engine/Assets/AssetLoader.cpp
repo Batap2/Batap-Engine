@@ -249,8 +249,10 @@ static bool buildTexture(const std::string& key, AssetManager& assetManager, boo
     }
 
     const uint32_t bytesPerPixel = isHdr ? 16u : 4u;
-    const ResourceFormat resFmt = isHdr ? ResourceFormat::R32G32B32A32_FLOAT
-                                        : ResourceFormat::R8G8B8A8_UNORM;
+    const bool srgb = isBtex && desc.colorSpace == TextureColorSpace::SRGB;
+    const ResourceFormat resFmt = isHdr  ? ResourceFormat::R32G32B32A32_FLOAT
+                                  : srgb ? ResourceFormat::R8G8B8A8_UNORM_SRGB
+                                         : ResourceFormat::R8G8B8A8_UNORM;
 
     auto* rm = assetManager.resourceManager_;
     const std::string prefix = key + "_" + std::to_string(next_uid64());

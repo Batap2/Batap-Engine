@@ -12,6 +12,7 @@
 #include "Renderer/Device/ResourceManager.h"
 #include "Renderer/Device/VulkanContext.h"
 #include "Renderer/Draws/MeshDrawer.h"
+#include "Renderer/Draws/ScatterDrawer.h"
 #include "Renderer/Draws/TerrainDrawer.h"
 #include "Renderer/EngineConfig.h"
 #include "Renderer/Features/Shadows/ShadowCascades.h"
@@ -151,7 +152,7 @@ void Shadows::fitCascades(entt::registry& reg, GPUInstanceManager& instances, en
 }
 
 Shadows::Output Shadows::addPasses(RenderGraph& graph, GraphBuffer uploads, const DrawContext& draw,
-                                   TerrainDrawer& terrain)
+                                   TerrainDrawer& terrain, ScatterDrawer& scatter)
 {
     const auto atlas = [&](const char* name, GPUResourceHandle image, uint32_t size,
                            std::span<const ShadowView> views)
@@ -217,7 +218,7 @@ Shadows::Output Shadows::addPasses(RenderGraph& graph, GraphBuffer uploads, cons
             .read(shadows, Usage::ShaderRead)
             .execute(
                 [draw, views = atlasViews.views_, pipeline = pipeline_,
-                 &resources = setup_.resources_, &terrain](GraphContext& c)
+                 &resources = setup_.resources_, &terrain, &scatter](GraphContext& c)
                 {
                     DrawContext shadowDraw = bindDraw(draw, c.cmd());
                     for (const ShadowView& view : views)
@@ -228,6 +229,7 @@ Shadows::Output Shadows::addPasses(RenderGraph& graph, GraphBuffer uploads, cons
                         vkCmdBindPipeline(c.cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
                         recordMeshDraws(shadowDraw, resources, 1, true);
                         terrain.recordShadow(shadowDraw);
+                        scatter.recordShadow(shadowDraw);
                     }
                 });
     }

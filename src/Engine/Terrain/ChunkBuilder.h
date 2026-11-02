@@ -33,12 +33,14 @@ struct ChunkBuilder
         TerrainGrid grid_;
         ChunkKey key_;
         bool collider_ = false;
+        uint64_t stamp_ = 0;
     };
 
     struct Result
     {
         entt::entity owner_ = entt::null;
         uint64_t fingerprint_ = 0;
+        uint64_t stamp_ = 0;
         ChunkKey key_;
         v3d center_ = v3d::Zero();
         bool collider_ = false;

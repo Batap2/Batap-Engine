@@ -113,6 +113,46 @@ void TerrainColliders::add(PhysicsWorld& physics, const ChunkKey& key, const v3d
 {
     if (!shape || bodies_.contains(key))
         return;
+    const JPH::BodyID id = create(physics, center, shape);
+    if (id.IsInvalid())
+        return;
+    const Body& body = bodies_.emplace(key, Body{id, center, seconds_}).first->second;
+    if (!velocity_.isZero())
+        move(physics, body);
+}
+
+void TerrainColliders::replace(PhysicsWorld& physics, const ChunkKey& key, const v3d& center,
+                               const JPH::ShapeRefC& shape)
+{
+    const auto it = bodies_.find(key);
+    if (!shape || it == bodies_.end())
+        return;
+    const JPH::BodyID id = create(physics, center, shape);
+    if (id.IsInvalid())
+        return;
+    JPH::BodyInterface& bi = physics.bodies();
+    bi.RemoveBody(it->second.id_);
+    bi.DestroyBody(it->second.id_);
+    it->second.id_ = id;
+    it->second.center_ = center;
+    if (!velocity_.isZero())
+        move(physics, it->second);
+    // Bodies asleep on the old surface would hang above the new one.
+    bi.ActivateBodiesInAABox(bi.GetTransformedShape(id).GetWorldSpaceBounds(), {}, {});
+}
+
+std::vector<ChunkKey> TerrainColliders::keys() const
+{
+    std::vector<ChunkKey> out;
+    out.reserve(bodies_.size());
+    for (const auto& [key, body] : bodies_)
+        out.push_back(key);
+    return out;
+}
+
+JPH::BodyID TerrainColliders::create(PhysicsWorld& physics, const v3d& center,
+                                     const JPH::ShapeRefC& shape) const
+{
     JPH::BodyCreationSettings settings(shape, positionOf(center),
                                        toJolt(quatf{rotation_.cast<float>()}),
                                        JPH::EMotionType::Static, objectLayers::NonMoving);
@@ -125,13 +165,7 @@ void TerrainColliders::add(PhysicsWorld& physics, const ChunkKey& key, const v3d
     settings.mMassPropertiesOverride.SetMassAndInertiaOfSolidBox(
         JPH::Vec3::sMax(shape->GetLocalBounds().GetSize(), JPH::Vec3::sReplicate(1e-3f)), 1.f);
     settings.mMaxLinearVelocity = std::numeric_limits<float>::max();
-    const JPH::BodyID id =
-        physics.bodies().CreateAndAddBody(settings, JPH::EActivation::DontActivate);
-    if (id.IsInvalid())
-        return;
-    const Body& body = bodies_.emplace(key, Body{id, center, seconds_}).first->second;
-    if (!velocity_.isZero())
-        move(physics, body);
+    return physics.bodies().CreateAndAddBody(settings, JPH::EActivation::DontActivate);
 }
 
 void TerrainColliders::clear(PhysicsWorld& physics)

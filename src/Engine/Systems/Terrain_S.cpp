@@ -111,10 +111,40 @@ void Terrain_S::drop(World& world, State& state)
     for (const auto& [key, chunk] : state.chunks_)
         draws.remove(chunk.mesh_);
     state.chunks_.clear();
+    state.stale_.clear();
     state.colliders_.clear(world.physics());
+    state.staleColliders_.clear();
     state.wanted_.clear();
     state.shown_.clear();
     state.wishes_.clear();
+}
+
+void Terrain_S::markChanged(World& world, State& state, const std::vector<Reach>& changes,
+                            const NodeBoundsFn& bounds)
+{
+    const auto touched = [&](const ChunkKey& key)
+    {
+        const Box3d box = bounds(key);
+        return std::any_of(changes.begin(), changes.end(),
+                           [&](const Reach& r) { return distanceTo(box, r.center_) <= r.radius_; });
+    };
+    TerrainDraws& draws = world.terrainDraws();
+    const ChunkKeySet tree = quadtreeOf(state.wanted_);
+    for (auto it = state.chunks_.begin(); it != state.chunks_.end();)
+    {
+        if (!touched(it->first))
+            ++it;
+        else if (tree.contains(it->first))
+            state.stale_[(it++)->first] = syncs_;
+        else
+        {
+            draws.remove(it->second.mesh_);
+            it = state.chunks_.erase(it);
+        }
+    }
+    for (const ChunkKey& key : state.colliders_.keys())
+        if (touched(key))
+            state.staleColliders_[key] = syncs_;
 }
 
 void Terrain_S::clear(World& world)
@@ -217,6 +247,8 @@ void Terrain_S::sync(World& world, TerrainSource& source)
         }
         const NodeBoundsFn bounds = [&](const ChunkKey& key)
         { return state.bounds_.get(key, relief, grid); };
+        if (const std::vector<Reach> changes = source.takeChanges(world, e); !changes.empty())
+            markChanged(world, state, changes, bounds);
 
         std::vector<ChunkKey> wanted;
         std::optional<v3d> camera;
@@ -250,8 +282,24 @@ void Terrain_S::sync(World& world, TerrainSource& source)
 
         for (ChunkBuilder::Result& r : arrivals)
         {
-            if (r.collider_ || r.owner_ != e || r.fingerprint_ != fingerprint ||
-                !tree.contains(r.key_) || state.chunks_.contains(r.key_))
+            if (r.collider_ || r.owner_ != e || r.fingerprint_ != fingerprint)
+                continue;
+            if (const auto stale = state.stale_.find(r.key_); stale != state.stale_.end())
+            {
+                if (const auto old = state.chunks_.find(r.key_); old != state.chunks_.end())
+                {
+                    Chunk& chunk = old->second;
+                    r.mesh_.params_ = chunk.params_;
+                    r.mesh_.shown_ = chunk.shown_;
+                    draws.remove(chunk.mesh_);
+                    chunk.mesh_ = draws.add(std::move(r.mesh_));
+                    chunk.center_ = r.center_;
+                }
+                if (r.stamp_ >= stale->second)
+                    state.stale_.erase(stale);
+                continue;
+            }
+            if (!tree.contains(r.key_) || state.chunks_.contains(r.key_))
                 continue;
             Chunk& chunk = state.chunks_[r.key_];
             chunk.center_ = r.center_;
@@ -319,6 +367,19 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             state.wanted_ = std::move(wanted);
         }
         wishes.insert(wishes.end(), state.wishes_.begin(), state.wishes_.end());
+        for (auto it = state.stale_.begin(); it != state.stale_.end();)
+        {
+            if (!state.chunks_.contains(it->first))
+            {
+                it = state.stale_.erase(it);
+                continue;
+            }
+            ChunkBuilder::Request request{e, fingerprint, ground.relief_, grid, it->first};
+            request.stamp_ = syncs_;
+            wishes.push_back(
+                {camera ? distanceTo(bounds(it->first), *camera) : 0.0, std::move(request)});
+            ++it;
+        }
         syncColliders(world, e, terrain, ground, grid, state, movers, arrivals, wishes);
 
         const double ratio = static_cast<double>(terrain.lodRatio_);
@@ -406,9 +467,32 @@ void Terrain_S::syncColliders(World& world, entt::entity owner, const Terrain_C&
         state.colliders_.update(physics, grid, level, reaches, bounds, seconds);
 
     for (const ChunkBuilder::Result& r : arrivals)
-        if (r.collider_ && r.owner_ == owner && r.fingerprint_ == state.fingerprint_ &&
-            state.colliders_.wants(r.key_))
+    {
+        if (!r.collider_ || r.owner_ != owner || r.fingerprint_ != state.fingerprint_)
+            continue;
+        if (const auto stale = state.staleColliders_.find(r.key_);
+            stale != state.staleColliders_.end())
+        {
+            state.colliders_.replace(physics, r.key_, r.center_, r.shape_);
+            if (r.stamp_ >= stale->second)
+                state.staleColliders_.erase(stale);
+        }
+        else if (state.colliders_.wants(r.key_))
             state.colliders_.add(physics, r.key_, r.center_, r.shape_);
+    }
+    for (auto it = state.staleColliders_.begin(); it != state.staleColliders_.end();)
+    {
+        if (!state.colliders_.has(it->first))
+        {
+            it = state.staleColliders_.erase(it);
+            continue;
+        }
+        ChunkBuilder::Request request{owner, state.fingerprint_, ground.relief_, grid, it->first};
+        request.collider_ = true;
+        request.stamp_ = syncs_;
+        wishes.push_back({0.0, std::move(request)});
+        ++it;
+    }
 
     for (const ChunkKey& key : missing)
     {

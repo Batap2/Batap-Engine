@@ -1,12 +1,14 @@
 #pragma once
 
 #include "EigenTypes.h"
+#include "Terrain/TerrainLod.h"
 
 #include <entt/entt.hpp>
 
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace batap
 {
@@ -64,6 +66,7 @@ struct TerrainSource
     // Called every frame: keep it cheap. sample() and stratum() run on worker
     // threads.
     virtual Ground ground(World& world, entt::entity entity) = 0;
+    virtual std::vector<Reach> takeChanges(World&, entt::entity) { return {}; }
 };
 
 }  // namespace batap

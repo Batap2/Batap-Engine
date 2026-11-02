@@ -46,6 +46,7 @@ SceneFrame::SceneFrame(VulkanContext& ctx, ResourceManager& resources, VkFormat 
       shadows_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       meshes_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       terrain_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
+      scatter_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       billboards_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       fullscreen_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat), outputFormat),
       debug_(bindings_.drawSetup(outputFormat, depthFormat)),
@@ -77,6 +78,7 @@ void SceneFrame::buildPipelines(const ShaderModules& modules)
     shadows_.buildPipelines(modules);
     meshes_.buildPipelines(modules);
     terrain_.buildPipelines(modules);
+    scatter_.buildPipelines(modules);
     billboards_.buildPipelines(modules);
     fullscreen_.buildPipelines(modules);
     debug_.buildPipelines(modules);
@@ -97,6 +99,11 @@ void SceneFrame::uploadBillboards(const Billboards& billboards)
 void SceneFrame::uploadTerrain(TerrainDraws& draws, bool rayTracing)
 {
     terrain_.upload(draws, accelerationStructures_ && rayTracing);
+}
+
+void SceneFrame::uploadScatter(ScatterDraws& draws)
+{
+    scatter_.upload(draws);
 }
 
 void SceneFrame::checkHotReload()
@@ -133,6 +140,8 @@ void SceneFrame::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engi
     claim(TerrainWorldsBinding, resources_.bufferFor(terrain_.worldBuffer()));
     claim(TerrainTracedBinding, resources_.bufferFor(terrain_.tracedBuffer()));
     claim(TerrainMorphRowsBinding, resources_.bufferFor(terrain_.morphRowBuffer()));
+    claim(ScatterBatchesBinding, resources_.bufferFor(scatter_.batchBuffer()));
+    claim(ScatterInstancesBinding, resources_.bufferFor(scatter_.instanceBuffer()));
 
     bindings_.writeFrameSet(frame, buffers);
 }
@@ -232,7 +241,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         giUpdate_.report(giCache_->addStatsPass(graph, gi, frame), args.showGiCache_);
     }
 
-    const Shadows::Output shadows = shadows_.addPasses(graph, uploads, draw, terrain_);
+    const Shadows::Output shadows = shadows_.addPasses(graph, uploads, draw, terrain_, scatter_);
 
     const GraphImage normals =
         graph.createImage("view normals", {targets.extent_, ViewNormalFormat});
@@ -250,6 +259,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 const DrawContext bound = bindDraw(draw, c.cmd());
                 meshes_.recordPrepass(bound);
                 terrain_.recordPrepass(bound);
+                scatter_.recordPrepass(bound);
             });
 
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
@@ -271,6 +281,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                                    }
                                    meshes_.record(bound);
                                    terrain_.record(bound);
+                                   scatter_.record(bound);
                                    billboards_.record(bound);
                                    fullscreen_.recordSky(bound);
                                });
