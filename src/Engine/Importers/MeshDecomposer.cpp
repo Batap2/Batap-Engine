@@ -26,6 +26,7 @@
 #include <fstream>
 #include <iostream>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -45,6 +46,7 @@ struct ImportCaches
     std::unordered_map<uint32_t, std::string> matCache;
     std::unordered_map<std::string, std::string> imgCache;
     std::unordered_map<std::string, std::string> texCache;
+    std::unordered_set<std::string> imgNames;
 };
 
 static std::string relToBase(const fs::path& p, std::string_view baseDir)
@@ -157,7 +159,8 @@ static Material extractMaterial(const aiMaterial* aiMat)
 }
 
 static fs::path extractEmbeddedImage(const aiScene* scene, const std::string& rawPath,
-                                     const fs::path& subDir)
+                                     const fs::path& subDir,
+                                     std::unordered_set<std::string>& names)
 {
     const int idx = std::atoi(rawPath.c_str() + 1);
     if (idx < 0 || static_cast<unsigned>(idx) >= scene->mNumTextures)
@@ -172,6 +175,8 @@ static fs::path extractEmbeddedImage(const aiScene* scene, const std::string& ra
     name = sanitizeName(fs::path(name).stem().string());
     if (name.empty())
         name = "embedded_" + std::to_string(idx);
+    if (!names.insert(name).second)
+        name += "_" + std::to_string(idx);
 
     fs::create_directories(subDir);
 
@@ -240,7 +245,7 @@ static fs::path resolveSourceImage(const aiMaterial* aiMat, aiTextureType texTyp
     fs::path out;
     if (rawPath[0] == '*')
     {
-        out = extractEmbeddedImage(scene, rawPath, subDir);
+        out = extractEmbeddedImage(scene, rawPath, subDir, caches.imgNames);
     }
     else
     {

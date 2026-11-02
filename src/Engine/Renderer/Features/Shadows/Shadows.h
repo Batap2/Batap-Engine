@@ -19,6 +19,7 @@ namespace batap
 {
 struct GPUInstanceManager;
 struct TerrainDrawer;
+struct ScatterDrawer;
 
 struct ShadowView
 {
@@ -51,7 +52,7 @@ struct Shadows
     void prepare(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
                  v2i frameSize, bool rayTracing);
     Output addPasses(RenderGraph& graph, GraphBuffer uploads, const DrawContext& draw,
-                     TerrainDrawer& terrain);
+                     TerrainDrawer& terrain, ScatterDrawer& scatter);
 
     GPUResourceHandle buffer() const { return buffer_; }
 

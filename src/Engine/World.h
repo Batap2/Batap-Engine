@@ -30,6 +30,7 @@ struct Game;
 struct DebugDraw;
 struct Billboards;
 struct TerrainDraws;
+struct ScatterDraws;
 struct Terrain_S;
 struct InputManager;
 struct PhysicsWorld;
@@ -60,6 +61,7 @@ struct World
     bool flag(std::string_view name, bool initial);
     Billboards& billboards();
     TerrainDraws& terrainDraws();
+    ScatterDraws& scatterDraws();
     Terrain_S& terrain();
     SceneRenderArgs renderArgs();
     void setRenderCamera(entt::entity e) { renderCamera_ = e; }

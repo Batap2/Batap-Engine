@@ -25,6 +25,7 @@ struct RenderTargets;
 struct DebugDraw;
 struct Billboards;
 struct TerrainDraws;
+struct ScatterDraws;
 struct Thumbnails;
 struct Renderer
 {
@@ -74,6 +75,7 @@ struct Renderer
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
     void uploadBillboards(const Billboards& billboards);
     void uploadTerrain(TerrainDraws& draws, bool rayTracing);
+    void uploadScatter(ScatterDraws& draws);
 
     ResourceManager* resourceManager_ = nullptr;
 

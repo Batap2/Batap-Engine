@@ -145,7 +145,9 @@ enum FrameSetBinding : uint
     TerrainTracedBinding = 14,
     TerrainMorphRowsBinding = 15,
     AtmospheresBinding = 16,
-    FrameSetBindingCount = 17,
+    ScatterBatchesBinding = 17,
+    ScatterInstancesBinding = 18,
+    FrameSetBindingCount = 19,
 };
 
 enum ShadingModel : uint
@@ -238,6 +240,26 @@ struct TerrainMorphRowGPUData
 };
 
 static const uint TerrainMorphRowWidth = 256u;
+
+// In the batch's frame: the mesh scaled, turned by the quaternion, then moved.
+struct ScatterInstanceGPUData
+{
+    float3 position_;
+    float scale_;
+    float4 rotation_;
+};
+
+// Every frame, at the batch's index for that frame. Placed in its owner's
+// frame as a terrain chunk is, whose GI cells it reads.
+struct ScatterBatchGPUData
+{
+    TerrainWorldGPUData placed_;
+    uint materialIndices_[8];
+    uint firstInstance_;
+    float fadeStart_;
+    float fadeEnd_;
+    uint pad0_;
+};
 
 // A kind leaves the fields it has no use for at zero.
 enum LightType : uint
@@ -497,6 +519,8 @@ static_assert(sizeof(TerrainVertexGPUData) == 48);
 static_assert(sizeof(TerrainChunkGPUData) == 96);
 static_assert(sizeof(TerrainWorldGPUData) == 160);
 static_assert(sizeof(TerrainMorphRowGPUData) == 16);
+static_assert(sizeof(ScatterInstanceGPUData) == 32);
+static_assert(sizeof(ScatterBatchGPUData) == 208);
 static_assert(sizeof(RtGeometryGPUData) == 32);
 static_assert(sizeof(RtInstanceGPUData) == 16);
 static_assert(sizeof(RtCacheValueGPUData) == 48);
@@ -515,7 +539,8 @@ static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
               gpuStrideOk<DebugVertexGPUData> && gpuStrideOk<DebugShapeGPUData> &&
               gpuStrideOk<BillboardGPUData> && gpuStrideOk<ShadowGPUData> &&
               gpuStrideOk<TerrainVertexGPUData> && gpuStrideOk<TerrainChunkGPUData> &&
-              gpuStrideOk<TerrainWorldGPUData> && gpuStrideOk<RtGeometryGPUData> &&
+              gpuStrideOk<TerrainWorldGPUData> && gpuStrideOk<ScatterInstanceGPUData> &&
+              gpuStrideOk<ScatterBatchGPUData> && gpuStrideOk<RtGeometryGPUData> &&
               gpuStrideOk<RtInstanceGPUData> && gpuStrideOk<RtCacheValueGPUData> &&
               gpuStrideOk<ThumbnailDrawGPUData>);
 

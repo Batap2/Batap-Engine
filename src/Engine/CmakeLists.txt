@@ -171,6 +171,7 @@ set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/GiPath.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RtHit.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Motion.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Scatter.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Sky.hlsli")
 
 function(batap_compile_shader src out target)
@@ -212,6 +213,10 @@ batap_compile_shader(GiUpdatePS.hlsl   GiUpdatePS.spv   ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(GiResolvePS.hlsl  GiResolvePS.spv  ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(GiVotePS.hlsl     GiVotePS.spv     ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(GiTracePS.hlsl    GiTracePS.spv    ps_6_6 -D BATAP_RT=1)
+batap_compile_shader(ScatterVS.hlsl    ScatterVS.spv    vs_6_6)
+batap_compile_shader(ScatterPS.hlsl    ScatterPS.spv    ps_6_6)
+batap_compile_shader(ScatterShadowVS.hlsl ScatterShadowVS.spv vs_6_6)
+batap_compile_shader(ScatterPS.hlsl    ScatterPSRT.spv  ps_6_6 -D BATAP_RT=1)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -238,7 +243,11 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/GiUpdatePS.spv"
   "${engine_shader_out}/GiResolvePS.spv"
   "${engine_shader_out}/GiVotePS.spv"
-  "${engine_shader_out}/GiTracePS.spv")
+  "${engine_shader_out}/GiTracePS.spv"
+  "${engine_shader_out}/ScatterVS.spv"
+  "${engine_shader_out}/ScatterPS.spv"
+  "${engine_shader_out}/ScatterShadowVS.spv"
+  "${engine_shader_out}/ScatterPSRT.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —

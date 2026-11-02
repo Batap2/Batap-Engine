@@ -61,6 +61,7 @@ struct RigidBody_C
     bool sensor_ = false;
 
     v3f centerOfMassOffset_ = v3f::Zero();
+    bool continuous_ = false;
 
     uint32_t bodyId_ = kInvalidBodyId;
     v3f shapeScale_ = {1.f, 1.f, 1.f};
@@ -90,6 +91,7 @@ static_assert(refl::fieldName<RigidBody_C, 7>() == "angularDamping");
 static_assert(refl::fieldName<RigidBody_C, 8>() == "gravityFactor");
 static_assert(refl::fieldName<RigidBody_C, 9>() == "sensor");
 static_assert(refl::fieldName<RigidBody_C, 10>() == "centerOfMassOffset");
+static_assert(refl::fieldName<RigidBody_C, 11>() == "continuous");
 
 BATAP_COMPONENT(
     RigidBody_C, "rigidBody", ComponentMeta{.color = ComponentColor::Green},

@@ -115,6 +115,7 @@ void ChunkBuilder::work()
         result.fingerprint_ = job.fingerprint_;
         result.key_ = job.key_;
         result.collider_ = job.collider_;
+        result.stamp_ = request.stamp_;
         if (job.collider_)
         {
             const ChunkSurface surface =

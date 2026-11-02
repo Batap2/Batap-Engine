@@ -288,6 +288,8 @@ void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const T
     settings.mGravityFactor = rb.gravityFactor_;
     settings.mMaxLinearVelocity = maxSpeed;
     settings.mIsSensor = rb.sensor_;
+    settings.mMotionQuality = rb.continuous_ ? JPH::EMotionQuality::LinearCast
+                                             : JPH::EMotionQuality::Discrete;
     settings.mOverrideMassProperties = JPH::EOverrideMassProperties::MassAndInertiaProvided;
     settings.mMassPropertiesOverride = massPropertiesOf(*shape, rb.mass_);
     // Offset by one so that a destroyed body, whose GetUserData reads back 0,
@@ -479,6 +481,8 @@ void Physics_S::fixedUpdate(World& world, float dt)
             bi.SetFriction(id, rb.friction_);
             bi.SetRestitution(id, rb.restitution_);
             bi.SetGravityFactor(id, rb.gravityFactor_);
+            bi.SetMotionQuality(id, rb.continuous_ ? JPH::EMotionQuality::LinearCast
+                                                   : JPH::EMotionQuality::Discrete);
             applyLockedProperties(physics, id, rb, *shape);
         }
 
