@@ -281,7 +281,8 @@ RectFace RectLightFace(LightGPUData light, float3 P)
 // intensity_ is the face's radiance: the integrals are fractions of the
 // hemisphere, so no 1/pi appears.
 float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, float NdotV,
-                             float3 albedo, float roughness, float metallic, float3 F0)
+                             float3 albedo, float roughness, float metallic, float3 F0,
+                             float coverage = 1.0f)
 {
     const RectFace face = RectLightFace(light, P);
     if (face.window_ <= 0.0f)
@@ -300,7 +301,8 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
     // albedo, and the rest toward F90 = 1.
     float3 fresnel = F0 * t2.x + (1.0f - F0) * t2.y;
     float3 specular = fresnel * LtcEvaluate(N, V, P, mInv, face.corners_);
-    float3 diffuse = albedo * (1.0f - metallic) * LtcEvaluate(N, V, P, identity, face.corners_);
+    float3 diffuse =
+        albedo * (1.0f - metallic) * LtcEvaluate(N, V, P, identity, face.corners_) * coverage;
 
     return (diffuse + specular) * light.color_ * (light.intensity_ * face.window_);
 }
@@ -389,10 +391,10 @@ bool LightIncidence(LightGPUData light, float3 P, out float3 L, out float dist,
     return attenuation > 0.0f;
 }
 
-float3 ShadeSurface(uint shadingModel, Surface s)
+float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 {
     if (shadingModel == ShadingUnlit)
-        return s.albedo_;
+        return s.albedo_ * coverage;
 
     CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
 
@@ -404,7 +406,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
     float3 F_ibl = F_Schlick(NdotV, F0);
     float3 kD    = (1.0f - F_ibl) * (1.0f - s.metallic_);
-    float3 color = kD * DiffuseIrradiance(s) * s.albedo_ / PI;
+    float3 color = kD * DiffuseIrradiance(s) * s.albedo_ / PI * coverage;
     if (g_draw.skyboxCount_ != 0)
     {
         float3 R        = reflect(-V, s.N_);
@@ -425,7 +427,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
         if (light.type_ == LightRect)
         {
             float3 lit = RectLightContribution(light, s.posRel_, s.N_, V, NdotV, s.albedo_,
-                                               s.roughness_, s.metallic_, F0);
+                                               s.roughness_, s.metallic_, F0, coverage);
             if (any(lit > 0.0f))
                 lit *= RectLightShadow(light, s.posRel_, s.Ngeom_, s.Nface_);
             color += lit;
@@ -472,7 +474,7 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
         // Diffuse lambertien : les métaux n'ont pas de diffuse
         float3 kD_light = (1.0f - F) * (1.0f - s.metallic_);
-        float3 diffuse = kD_light * s.albedo_ / PI;
+        float3 diffuse = kD_light * s.albedo_ / PI * coverage;
 
         // Direct term only: the ambient does not see shadows.
         color += (diffuse + specular) * radiance * NdotL * shadow;
@@ -480,7 +482,8 @@ float3 ShadeSurface(uint shadingModel, Surface s)
 
     color += s.emissive_;
     if (g_draw.atmosphereCount_ != 0)
-        color = SkyAerial(g_draw.atmosphereCount_, cam.pos_, s.posRel_, SkyFindSun(cam.pos_), color);
+        color = SkyAerial(g_draw.atmosphereCount_, cam.pos_, s.posRel_, SkyFindSun(cam.pos_), color,
+                          coverage);
 
     color *= FrameBuffer[0].exposure_;
     if (debugCascade < ShadowCascadeCount)

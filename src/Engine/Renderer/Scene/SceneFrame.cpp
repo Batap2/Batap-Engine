@@ -223,14 +223,31 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const GraphImage hdr = graph.createImage("hdr", {targets.extent_, toVkFormat(HdrFormat)});
     const GraphImage depth = graph.createImage("depth", {targets.extent_, depthFormat_});
 
+    const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
+    const bool translucent = !rtFirstHit && hasTranslucentMeshes(*reg, assets);
+    GraphImage accum;
+    GraphImage reveal;
+    if (translucent)
+    {
+        accum = graph.createImage("translucent accum", {targets.extent_, TranslucentAccumFormat});
+        reveal =
+            graph.createImage("translucent reveal", {targets.extent_, TranslucentRevealFormat});
+    }
+
     const GraphBuffer frameConstants = graph.importBuffer(
         "frame constants", resources_, frameConstants_, Usage::None, Usage::None);
     graph.addPass("frame constants")
         .write(frameConstants, Usage::TransferDst)
         .execute(
-            [frameConstants, hdr, data = frameData_](GraphContext& c) mutable
+            [frameConstants, hdr, translucent, accum, reveal,
+             data = frameData_](GraphContext& c) mutable
             {
                 data.hdrTexture_ = c.graph_.textureIndex(hdr);
+                if (translucent)
+                {
+                    data.translucentAccumTexture_ = c.graph_.textureIndex(accum);
+                    data.translucentRevealTexture_ = c.graph_.textureIndex(reveal);
+                }
                 vkCmdUpdateBuffer(c.cmd(), c.buffer(frameConstants), 0, sizeof data, &data);
             });
 
@@ -262,14 +279,25 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 scatter_.recordPrepass(bound);
             });
 
-    const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
+    const auto readsLighting = [&](GraphPass& pass)
+    {
+        pass.read(uploads, Usage::AnyRead)
+            .read(frameConstants, Usage::ShaderRead)
+            .read(shadows.atlases_[0], Usage::ShaderRead)
+            .read(shadows.atlases_[1], Usage::ShaderRead);
+        if (shadows.hasEntries_)
+            pass.read(shadows.shadows_, Usage::ShaderRead);
+        if (rayTracing)
+            pass.read(gi.keys_, Usage::ShaderRead)
+                .read(gi.values_, Usage::ShaderRead)
+                .read(as.tlas_, Usage::AccelerationStructureRead)
+                .read(as.blases_, Usage::AccelerationStructureRead)
+                .read(traced, Usage::ShaderRead);
+    };
+
     GraphPass& scene = graph.addPass("scene")
                            .color(hdr, Load::Clear, targets.clearColor_)
                            .depth(depth, Load::Keep)
-                           .read(uploads, Usage::AnyRead)
-                           .read(frameConstants, Usage::ShaderRead)
-                           .read(shadows.atlases_[0], Usage::ShaderRead)
-                           .read(shadows.atlases_[1], Usage::ShaderRead)
                            .execute(
                                [this, draw, rtFirstHit](GraphContext& c)
                                {
@@ -285,14 +313,27 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                                    billboards_.record(bound);
                                    fullscreen_.recordSky(bound);
                                });
-    if (shadows.hasEntries_)
-        scene.read(shadows.shadows_, Usage::ShaderRead);
-    if (rayTracing)
-        scene.read(gi.keys_, Usage::ShaderRead)
-            .read(gi.values_, Usage::ShaderRead)
-            .read(as.tlas_, Usage::AccelerationStructureRead)
-            .read(as.blases_, Usage::AccelerationStructureRead)
-            .read(traced, Usage::ShaderRead);
+    readsLighting(scene);
+
+    if (translucent)
+    {
+        GraphPass& accumulate =
+            graph.addPass("translucent")
+                .color(accum, Load::Clear, VkClearColorValue{{0.f, 0.f, 0.f, 0.f}})
+                .color(reveal, Load::Clear, VkClearColorValue{{1.f, 1.f, 1.f, 1.f}})
+                .depth(depth, Load::Keep)
+                .execute([this, draw](GraphContext& c)
+                         { meshes_.recordTranslucent(bindDraw(draw, c.cmd())); });
+        readsLighting(accumulate);
+        graph.addPass("translucent composite")
+            .color(hdr, Load::Keep)
+            .read(uploads, Usage::AnyRead)
+            .read(frameConstants, Usage::ShaderRead)
+            .read(accum, Usage::ShaderRead)
+            .read(reveal, Usage::ShaderRead)
+            .execute([this, draw](GraphContext& c)
+                     { fullscreen_.recordTranslucentComposite(bindDraw(draw, c.cmd())); });
+    }
 
     exposure_.addPasses(graph, hdr, frameConstants, draw, frame);
 

@@ -16,6 +16,8 @@ struct AssetManager;
 struct GPUInstanceManager;
 
 inline constexpr VkFormat ViewNormalFormat = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+inline constexpr VkFormat TranslucentAccumFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+inline constexpr VkFormat TranslucentRevealFormat = VK_FORMAT_R8_UNORM;
 
 struct DrawSetup
 {

@@ -2,6 +2,7 @@
 
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
+#include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Instance/InstanceManager.h"
 #include "Renderer/Device/Formats.h"
@@ -9,6 +10,7 @@
 #include "Renderer/Device/ResourceManager.h"
 #include "Renderer/Device/VulkanContext.h"
 
+#include <algorithm>
 #include <array>
 
 namespace batap
@@ -18,6 +20,8 @@ MeshDrawer::~MeshDrawer()
     vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, translucentPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, translucentRtPipeline_, nullptr);
 }
 
 void MeshDrawer::buildPipelines(const ShaderModules& modules)
@@ -25,6 +29,8 @@ void MeshDrawer::buildPipelines(const ShaderModules& modules)
     vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, translucentPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, translucentRtPipeline_, nullptr);
 
     const auto geometry = [&](VkShaderModule pixelShader)
     {
@@ -50,29 +56,88 @@ void MeshDrawer::buildPipelines(const ShaderModules& modules)
     pipeline_ = lit(modules[GeometryPS], setup_.layout_);
     rtPipeline_ = modules[GeometryRtPS] ? lit(modules[GeometryRtPS], setup_.rtLayout_)
                                         : VK_NULL_HANDLE;
+
+    const auto translucent = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
+    {
+        return geometry(pixelShader)
+            .colorFormat(TranslucentAccumFormat,
+                         blendState(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE))
+            .colorFormat(TranslucentRevealFormat,
+                         blendState(VK_BLEND_FACTOR_ZERO, VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR))
+            .depth(setup_.depthFormat_, false, VK_COMPARE_OP_GREATER_OR_EQUAL)
+            .build(setup_.ctx_.device_, layout);
+    };
+    translucentPipeline_ = translucent(modules[TranslucentPS], setup_.layout_);
+    translucentRtPipeline_ = modules[TranslucentRtPS]
+                                 ? translucent(modules[TranslucentRtPS], setup_.rtLayout_)
+                                 : VK_NULL_HANDLE;
 }
 
 void MeshDrawer::recordPrepass(const DrawContext& draw)
 {
     vkCmdBindPipeline(draw.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, prepassPipeline_);
-    recordMeshDraws(draw, setup_.resources_, Mesh::VertexStreams, false);
+    recordMeshDraws(draw, setup_.resources_, Mesh::VertexStreams, MeshPass::Opaque);
 }
 
 void MeshDrawer::record(const DrawContext& draw)
 {
     vkCmdBindPipeline(draw.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       draw.rayTracing_ ? rtPipeline_ : pipeline_);
-    recordMeshDraws(draw, setup_.resources_, Mesh::VertexStreams, false);
+    recordMeshDraws(draw, setup_.resources_, Mesh::VertexStreams, MeshPass::Opaque);
+}
+
+void MeshDrawer::recordTranslucent(const DrawContext& draw)
+{
+    vkCmdBindPipeline(draw.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      draw.rayTracing_ ? translucentRtPipeline_ : translucentPipeline_);
+    recordMeshDraws(draw, setup_.resources_, Mesh::VertexStreams, MeshPass::Translucent);
+}
+
+bool isTranslucent(const Material& material)
+{
+    return material.albedo[3] < 1.f;
+}
+
+uint32_t translucentSubmeshes(AssetManager& assets, const Mesh& mesh, const Materials_C* materials)
+{
+    if (!materials)
+        return 0;
+    const size_t count =
+        std::min<size_t>(std::max<uint32_t>(mesh.subMeshCount, 1u), materials->slots.size());
+    uint32_t mask = 0;
+    for (size_t sub = 0; sub < count; ++sub)
+    {
+        const MaterialHandle slot = materials->slots[sub];
+        if (!slot)
+            continue;
+        if (const Material* material = assets.get(slot); material && isTranslucent(*material))
+            mask |= 1u << sub;
+    }
+    return mask;
+}
+
+bool hasTranslucentMeshes(entt::registry& reg, AssetManager& assets)
+{
+    for (auto [e, meshC, materials] : reg.view<Mesh_C, Materials_C>().each())
+    {
+        if (!meshC.mesh_ || !meshC.visible_)
+            continue;
+        if (const Mesh* mesh = assets.get(meshC.mesh_);
+            mesh && translucentSubmeshes(assets, *mesh, &materials) != 0)
+            return true;
+    }
+    return false;
 }
 
 void recordMeshDraws(const DrawContext& draw, ResourceManager& resources, uint32_t streams,
-                     bool castersOnly)
+                     MeshPass pass)
 {
     DrawPush push = draw.push_;
     draw.reg_->view<Mesh_C>().each(
         [&](entt::entity e, Mesh_C& meshC)
         {
-            if (!meshC.mesh_ || !meshC.visible_ || (castersOnly && !meshC.castShadows_))
+            if (!meshC.mesh_ || !meshC.visible_ ||
+                (pass == MeshPass::ShadowCasters && !meshC.castShadows_))
                 return;
             auto* mesh = draw.assetManager_->get(meshC.mesh_);
             if (!mesh)
@@ -84,6 +149,12 @@ void recordMeshDraws(const DrawContext& draw, ResourceManager& resources, uint32
                 return;
 
             if (!mesh->isRenderable())
+                return;
+
+            const uint32_t translucent = translucentSubmeshes(*draw.assetManager_, *mesh,
+                                                              draw.reg_->try_get<Materials_C>(e));
+            const uint32_t drawn = pass == MeshPass::Translucent ? translucent : ~translucent;
+            if ((drawn & ((1u << std::max<uint32_t>(mesh->subMeshCount, 1u)) - 1u)) == 0)
                 return;
 
             const VkBuffer meshBuffer = resources.bufferFor(mesh->buffer_);
@@ -105,6 +176,8 @@ void recordMeshDraws(const DrawContext& draw, ResourceManager& resources, uint32
             }
             for (uint8_t sub = 0; sub < mesh->subMeshCount; ++sub)
             {
+                if ((drawn & (1u << sub)) == 0)
+                    continue;
                 push.submeshIndex_ = sub;
                 pushDraw(draw, push);
                 const auto& subMesh = mesh->subMeshes[sub];

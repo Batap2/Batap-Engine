@@ -9,6 +9,7 @@ FullscreenDrawers::~FullscreenDrawers()
 {
     vkDestroyPipeline(setup_.ctx_.device_, sky_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, tonemap_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, translucentComposite_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtFirstHit_, nullptr);
 }
 
@@ -17,6 +18,7 @@ void FullscreenDrawers::buildPipelines(const ShaderModules& modules)
     const VkDevice device = setup_.ctx_.device_;
     vkDestroyPipeline(device, sky_, nullptr);
     vkDestroyPipeline(device, tonemap_, nullptr);
+    vkDestroyPipeline(device, translucentComposite_, nullptr);
     vkDestroyPipeline(device, rtFirstHit_, nullptr);
 
     sky_ = GraphicsPipelineBuilder()
@@ -29,6 +31,12 @@ void FullscreenDrawers::buildPipelines(const ShaderModules& modules)
                    .colorFormat(outputFormat_)
                    .depth(setup_.depthFormat_, false, VK_COMPARE_OP_ALWAYS)
                    .build(device, setup_.layout_);
+    translucentComposite_ =
+        GraphicsPipelineBuilder()
+            .shaders(modules[SkyVS], modules[TranslucentCompositePS])
+            .colorFormat(setup_.colorFormat_,
+                         blendState(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA))
+            .build(device, setup_.layout_);
     rtFirstHit_ = modules[RtDebugPS] ? GraphicsPipelineBuilder()
                                            .shaders(modules[SkyVS], modules[RtDebugPS])
                                            .colorFormat(setup_.colorFormat_)
@@ -52,6 +60,13 @@ void FullscreenDrawers::recordSky(const DrawContext& draw)
 void FullscreenDrawers::recordTonemap(const DrawContext& draw)
 {
     vkCmdBindPipeline(draw.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, tonemap_);
+    pushDraw(draw, draw.push_);
+    vkCmdDraw(draw.cmd_, 3, 1, 0, 0);
+}
+
+void FullscreenDrawers::recordTranslucentComposite(const DrawContext& draw)
+{
+    vkCmdBindPipeline(draw.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, translucentComposite_);
     pushDraw(draw, draw.push_);
     vkCmdDraw(draw.cmd_, 3, 1, 0, 0);
 }

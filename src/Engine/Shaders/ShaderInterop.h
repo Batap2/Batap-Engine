@@ -44,6 +44,7 @@ enum RayTracingSetBinding : uint
 
 static const uint TlasMaskShadowCaster = 1u;
 static const uint TlasMaskNoShadow = 2u;
+static const uint TlasMaskTranslucent = 4u;
 
 struct RtGeometryGPUData
 {
@@ -360,8 +361,8 @@ struct FrameGPUData
     uint hdrTexture_;
     uint tonemap_;
     float exposure_;
-    uint pad0_;
-    uint pad1_;
+    uint translucentAccumTexture_;
+    uint translucentRevealTexture_;
     uint pad2_;
     // The render camera, world. sh_ is the sky's irradiance seen from it, read
     // instead of the skybox's own once a scene has atmospheres.
