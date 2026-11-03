@@ -683,7 +683,7 @@ void App::setTheme(ui::Theme theme)
     saveConfig();
 }
 
-void App::selectProject(const std::string& dir)
+void App::selectProject(const std::string& dir, bool openStartScene)
 {
     if (!projectDir_.empty())
         saveConfig();
@@ -728,6 +728,21 @@ void App::selectProject(const std::string& dir)
     if (recentProjects_.size() > 10)
         recentProjects_.resize(10);
     saveConfig();
+
+    const std::string start = editorConfig::readStartScene(dir);
+    if (!openStartScene || start.empty() || editingTemplate())
+        return;
+    const std::string path = (std::filesystem::path(dir) / start).string();
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec))
+    {
+        showToast("Start scene not found: " + start);
+        return;
+    }
+    stopPlay();
+    EntitySerializer::clearSceneAndLoad(*world_, *ctx_, path);
+    setScenePath(path);
+    uiPanels_.clearSelection();
 }
 
 uint64_t App::openFileDialogAsyncWithAfterJob(std::span<const FileDialogFilter> filters,
