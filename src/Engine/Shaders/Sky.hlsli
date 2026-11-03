@@ -202,7 +202,8 @@ float3 SkyComposite(uint count, float3 cameraPos, float3 dir, SkySun sun, float3
     return color;
 }
 
-float3 SkyAerial(uint count, float3 cameraPos, float3 posRel, SkySun sun, float3 color)
+float3 SkyAerial(uint count, float3 cameraPos, float3 posRel, SkySun sun, float3 color,
+                 float coverage = 1.0f)
 {
     float dist = length(posRel);
     if (dist < 1e-4f)
@@ -214,7 +215,7 @@ float3 SkyAerial(uint count, float3 cameraPos, float3 posRel, SkySun sun, float3
         AtmosphereGPUData atm = AtmosphereBuffer[i];
         float3 t;
         float3 s = SkyInscatter(atm, cameraPos - atm.center_, dir, dist, sun, 8, 4, true, t);
-        color = color * t + s;
+        color = color * t + s * coverage;
     }
     return color;
 }

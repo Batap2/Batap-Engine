@@ -227,7 +227,7 @@ Shadows::Output Shadows::addPasses(RenderGraph& graph, GraphBuffer uploads, cons
                         setViewportYUpRect(c.cmd(), view.x_, view.y_, view.size_, view.size_);
                         // Again for every view: the terrain binds its own.
                         vkCmdBindPipeline(c.cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-                        recordMeshDraws(shadowDraw, resources, 1, true);
+                        recordMeshDraws(shadowDraw, resources, 1, MeshPass::ShadowCasters);
                         terrain.recordShadow(shadowDraw);
                         scatter.recordShadow(shadowDraw);
                     }

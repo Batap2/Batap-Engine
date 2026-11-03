@@ -2,6 +2,7 @@
 
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
+#include "Components/Materials_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Transform_C.h"
 #include "EigenTypes.h"
@@ -10,6 +11,7 @@
 #include "Renderer/Device/ResourceManager.h"
 #include "Renderer/Device/Usage.h"
 #include "Renderer/Device/VulkanContext.h"
+#include "Renderer/Draws/MeshDrawer.h"
 #include "Renderer/Draws/TerrainDrawer.h"
 #include "Renderer/Graph/RenderGraph.h"
 #include "Shaders/ShaderInterop.h"
@@ -593,7 +595,13 @@ GraphBuffer AccelerationStructures::buildTlas(RenderGraph& graph, GraphBuffer bl
             m4f world = transform.worldMatrix();
             world.topRightCorner<3, 1>() =
                 (transform.world().translation().cast<double>() - eye).cast<float>();
-            const uint32_t mask = meshC.castShadows_ ? TlasMaskShadowCaster : TlasMaskNoShadow;
+            const uint32_t submeshes = std::max<uint32_t>(mesh->subMeshCount, 1u);
+            const bool translucent =
+                translucentSubmeshes(assets, *mesh, reg.try_get<Materials_C>(e)) ==
+                (1u << submeshes) - 1u;
+            const uint32_t mask = translucent          ? TlasMaskTranslucent
+                                  : meshC.castShadows_ ? TlasMaskShadowCaster
+                                                       : TlasMaskNoShadow;
             tlasInstances.push_back(tlasInstance(world, id, mask, blas->second.address_));
             hitInstances.push_back({first->second, id, RtInstanceMesh, 0});
         });

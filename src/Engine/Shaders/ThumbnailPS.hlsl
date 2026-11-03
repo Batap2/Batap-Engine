@@ -81,6 +81,15 @@ float4 SampleOr(uint index, float2 uv, float4 fallback)
     return g_textures[index].Sample(g_sampler, uv);
 }
 
+// ImGui draws the atlas with straight alpha, not premultiplied.
+float4 ThumbnailOutput(float3 premultiplied, float coverage)
+{
+    if (coverage >= 1.0f)
+        return float4(premultiplied, 1.0f);
+    const float alpha = max(coverage, max(premultiplied.r, max(premultiplied.g, premultiplied.b)));
+    return alpha > 0.0f ? float4(premultiplied / alpha, alpha) : 0.0f.xxxx;
+}
+
 float4 main(VS_OUTPUT i) : SV_Target
 {
     ThumbnailDrawGPUData draw = ThumbnailDraws[g_push.drawIndex_];
@@ -95,9 +104,11 @@ float4 main(VS_OUTPUT i) : SV_Target
 
     Material mat = ThumbnailMaterials[draw.materialBase_ +
                                       min(g_push.submeshIndex_, draw.materialCount_ - 1u)];
-    float3 albedo = mat.albedo.rgb * SampleOr(mat.albedoTexIdx_, i.uv_, 1.0f.xxxx).rgb;
+    const float4 albedoSample = SampleOr(mat.albedoTexIdx_, i.uv_, 1.0f.xxxx);
+    float3 albedo = mat.albedo.rgb * albedoSample.rgb;
+    const float coverage = mat.albedo.a < 1.0f ? saturate(mat.albedo.a * albedoSample.a) : 1.0f;
     if (mat.shadingModel_ == ShadingUnlit)
-        return float4(SrgbEncode(PbrNeutral(albedo)), 1.0f);
+        return ThumbnailOutput(SrgbEncode(PbrNeutral(albedo * coverage)), coverage);
 
     float roughness = clamp(mat.roughness * SampleOr(mat.roughnessTexIdx_, i.uv_, 1.0f.xxxx).r,
                             0.05f, 1.0f);
@@ -142,11 +153,11 @@ float4 main(VS_OUTPUT i) : SV_Target
         float3 spec = D_GGX(NdotH, roughness) * G_Smith(NdotV, NdotL, roughness) * F /
                       max(4.0f * NdotV * NdotL, 1e-4f);
         float3 kd = (1.0f.xxx - F) * (1.0f - metallic);
-        color += (kd * albedo / PI + spec) * lights[l].radiance_ * NdotL;
+        color += (kd * albedo / PI * coverage + spec) * lights[l].radiance_ * NdotL;
     }
 
     float ambient = lerp(0.22f, 0.42f, N.y * 0.5f + 0.5f);
-    color += (albedo * (1.0f - metallic) + F0 * (1.0f - roughness) * 0.5f) * ambient;
+    color += (albedo * (1.0f - metallic) * coverage + F0 * (1.0f - roughness) * 0.5f) * ambient;
     color += mat.emissive * mat.emissiveStrength * 1.5e-5f;
-    return float4(SrgbEncode(PbrNeutral(color)), 1.0f);
+    return ThumbnailOutput(SrgbEncode(PbrNeutral(color)), coverage);
 }

@@ -69,7 +69,18 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::vertexAttribute(uint32_t locat
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::colorFormat(VkFormat format)
 {
-    colorFormat_ = format;
+    VkPipelineColorBlendAttachmentState opaque{};
+    opaque.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    return colorFormat(format, opaque);
+}
+
+GraphicsPipelineBuilder&
+GraphicsPipelineBuilder::colorFormat(VkFormat format,
+                                     const VkPipelineColorBlendAttachmentState& blend)
+{
+    colorFormats_.push_back(format);
+    blends_.push_back(blend);
     return *this;
 }
 
@@ -158,14 +169,10 @@ VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layo
     depthStencil.depthWriteEnable = depthWrite_;
     depthStencil.depthCompareOp = depthCompare_;
 
-    VkPipelineColorBlendAttachmentState blendAttachment{};
-    blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
     VkPipelineColorBlendStateCreateInfo blend{};
     blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    blend.attachmentCount = depthOnly_ ? 0u : 1u;
-    blend.pAttachments = depthOnly_ ? nullptr : &blendAttachment;
+    blend.attachmentCount = static_cast<uint32_t>(blends_.size());
+    blend.pAttachments = blends_.data();
 
     const VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dynamic{};
@@ -175,8 +182,8 @@ VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layo
 
     VkPipelineRenderingCreateInfo rendering{};
     rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    rendering.colorAttachmentCount = depthOnly_ ? 0u : 1u;
-    rendering.pColorAttachmentFormats = depthOnly_ ? nullptr : &colorFormat_;
+    rendering.colorAttachmentCount = static_cast<uint32_t>(colorFormats_.size());
+    rendering.pColorAttachmentFormats = colorFormats_.data();
     rendering.depthAttachmentFormat = depthFormat_;
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -199,6 +206,21 @@ VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layo
         VK_SUCCESS)
         throw std::runtime_error("GraphicsPipelineBuilder : vkCreateGraphicsPipelines");
     return pipeline;
+}
+
+VkPipelineColorBlendAttachmentState blendState(VkBlendFactor source, VkBlendFactor destination)
+{
+    VkPipelineColorBlendAttachmentState state{};
+    state.blendEnable = VK_TRUE;
+    state.srcColorBlendFactor = source;
+    state.dstColorBlendFactor = destination;
+    state.colorBlendOp = VK_BLEND_OP_ADD;
+    state.srcAlphaBlendFactor = source;
+    state.dstAlphaBlendFactor = destination;
+    state.alphaBlendOp = VK_BLEND_OP_ADD;
+    state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    return state;
 }
 
 void setViewportYUpRect(VkCommandBuffer cmd, uint32_t x, uint32_t y, uint32_t width,

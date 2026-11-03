@@ -18,6 +18,7 @@ struct FullscreenDrawers
     void buildPipelines(const ShaderModules& modules);
     void recordSky(const DrawContext& draw);
     void recordTonemap(const DrawContext& draw);
+    void recordTranslucentComposite(const DrawContext& draw);
     void recordRtFirstHit(const DrawContext& draw);
 
    private:
@@ -25,6 +26,7 @@ struct FullscreenDrawers
     VkFormat outputFormat_ = VK_FORMAT_UNDEFINED;
     VkPipeline sky_ = VK_NULL_HANDLE;
     VkPipeline tonemap_ = VK_NULL_HANDLE;
+    VkPipeline translucentComposite_ = VK_NULL_HANDLE;
     VkPipeline rtFirstHit_ = VK_NULL_HANDLE;
 };
 }  // namespace batap

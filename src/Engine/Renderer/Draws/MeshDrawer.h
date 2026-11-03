@@ -7,6 +7,16 @@
 
 namespace batap
 {
+struct Mesh;
+struct Materials_C;
+
+enum class MeshPass : uint8_t
+{
+    Opaque,
+    ShadowCasters,
+    Translucent,
+};
+
 struct MeshDrawer
 {
     explicit MeshDrawer(const DrawSetup& setup) : setup_(setup) {}
@@ -18,14 +28,21 @@ struct MeshDrawer
     void buildPipelines(const ShaderModules& modules);
     void recordPrepass(const DrawContext& draw);
     void record(const DrawContext& draw);
+    void recordTranslucent(const DrawContext& draw);
 
    private:
     DrawSetup setup_;
     VkPipeline prepassPipeline_ = VK_NULL_HANDLE;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     VkPipeline rtPipeline_ = VK_NULL_HANDLE;
+    VkPipeline translucentPipeline_ = VK_NULL_HANDLE;
+    VkPipeline translucentRtPipeline_ = VK_NULL_HANDLE;
 };
 
+bool isTranslucent(const Material& material);
+uint32_t translucentSubmeshes(AssetManager& assets, const Mesh& mesh, const Materials_C* materials);
+bool hasTranslucentMeshes(entt::registry& reg, AssetManager& assets);
+
 void recordMeshDraws(const DrawContext& draw, ResourceManager& resources, uint32_t streams,
-                     bool castersOnly);
+                     MeshPass pass);
 }  // namespace batap

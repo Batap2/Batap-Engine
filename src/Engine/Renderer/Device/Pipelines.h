@@ -31,6 +31,8 @@ struct GraphicsPipelineBuilder
     GraphicsPipelineBuilder& shaders(VkShaderModule vs, VkShaderModule ps);
     GraphicsPipelineBuilder& vertexAttribute(uint32_t location, VkFormat format, uint32_t stride);
     GraphicsPipelineBuilder& colorFormat(VkFormat format);
+    GraphicsPipelineBuilder& colorFormat(VkFormat format,
+                                         const VkPipelineColorBlendAttachmentState& blend);
     GraphicsPipelineBuilder& depth(VkFormat format, bool write, VkCompareOp compare);
     GraphicsPipelineBuilder& cullBack();
     GraphicsPipelineBuilder& cullFront();
@@ -45,7 +47,8 @@ struct GraphicsPipelineBuilder
     VkShaderModule ps_ = VK_NULL_HANDLE;
     std::vector<VkVertexInputBindingDescription> vertexBindings_;
     std::vector<VkVertexInputAttributeDescription> vertexAttributes_;
-    VkFormat colorFormat_ = VK_FORMAT_UNDEFINED;
+    std::vector<VkFormat> colorFormats_;
+    std::vector<VkPipelineColorBlendAttachmentState> blends_;
     VkFormat depthFormat_ = VK_FORMAT_UNDEFINED;
     bool depthWrite_ = false;
     VkCompareOp depthCompare_ = VK_COMPARE_OP_ALWAYS;
@@ -54,6 +57,8 @@ struct GraphicsPipelineBuilder
     bool depthOnly_ = false;
     bool depthClamp_ = false;
 };
+
+VkPipelineColorBlendAttachmentState blendState(VkBlendFactor source, VkBlendFactor destination);
 
 void setViewportYUp(VkCommandBuffer cmd, uint32_t width, uint32_t height);
 // Same flip, so an atlas tile derives its UV exactly like a full target.
