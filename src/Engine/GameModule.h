@@ -25,8 +25,7 @@
 // 6. The host patches drawUI on the imported fields' slots (by typeName).
 //
 // After that a single engine lives (host World, pools, registry); the DLL
-// only contributes code. Traps: game_module.cpp must include
-// GameComponents.h (the include *is* the registration); App::gameModule_ is
+// only contributes code. Traps: App::gameModule_ is
 // declared before game_ (~Game is DLL code, must run before FreeLibrary);
 // and it must call adoptHostImGui(*out) and adoptHostVulkan(*out), or the game
 // draws no UI and crashes on its first Vulkan call (see below).
