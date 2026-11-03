@@ -711,6 +711,11 @@ bool platformIsWindowMaximized(void* nativeHandle)
     return wp.showCmd == SW_SHOWMAXIMIZED;
 }
 
+bool platformIsWindowFocused(void* nativeHandle)
+{
+    return nativeHandle && ::GetForegroundWindow() == static_cast<HWND>(nativeHandle);
+}
+
 void platformBindContext(void* nativeHandle, Engine* ctx)
 {
     ::SetWindowLongPtrW(static_cast<HWND>(nativeHandle), GWLP_USERDATA,

@@ -561,6 +561,11 @@ bool platformIsWindowMaximized(void* nativeHandle)
     return ((__bridge NSWindow*)nativeHandle).isZoomed;
 }
 
+bool platformIsWindowFocused(void* nativeHandle)
+{
+    return nativeHandle && NSApp.isActive && ((__bridge NSWindow*)nativeHandle).isKeyWindow;
+}
+
 bool platformPumpMessages()
 {
     @autoreleasepool
