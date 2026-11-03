@@ -252,10 +252,12 @@ void decodeEvent(InputManager& input, UINT message, WPARAM wParam, LPARAM lParam
     switch (message)
     {
         case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
             input.feed(InputManager::KeyEvent{KeyState::Pressed, keyOf(wParam, lParam)});
             break;
 
         case WM_KEYUP:
+        case WM_SYSKEYUP:
             input.feed(InputManager::KeyEvent{KeyState::Released, keyOf(wParam, lParam)});
             break;
 
@@ -415,6 +417,11 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         // The default handler plays a notification sound on Alt+Enter.
         case WM_SYSCHAR:
             break;
+
+        case WM_SYSCOMMAND:
+            if ((wParam & 0xFFF0) == SC_KEYMENU && lParam == 0)
+                return 0;
+            return ::DefWindowProcW(hwnd, message, wParam, lParam);
 
         case WM_SIZE: {
             RECT client{};
