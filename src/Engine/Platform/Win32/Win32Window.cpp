@@ -664,12 +664,17 @@ void platformSetCursorPos(void* nativeHandle, int clientX, int clientY)
 
 void platformShowCursor(bool show)
 {
-    // ShowCursor keeps an internal counter, so the calls have to be paired.
-    static bool visible = true;
-    if (visible == show)
-        return;
-    visible = show;
-    ::ShowCursor(show ? TRUE : FALSE);
+    // ShowCursor moves a counter and the cursor shows while it is >= 0. Window
+    // creation already raised it, and the game DLL has its own copy of this
+    // function, so step until the counter crosses rather than pairing calls.
+    if (show)
+        while (::ShowCursor(TRUE) < 0)
+        {
+        }
+    else
+        while (::ShowCursor(FALSE) >= 0)
+        {
+        }
 }
 
 std::string platformKeyLabel(Key key)

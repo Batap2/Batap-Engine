@@ -125,6 +125,27 @@ std::string sceneKey(const std::string& projectDir, const std::string& scenePath
     return rel.generic_string();
 }
 
+std::string readStartScene(const std::string& projectDir)
+{
+    const nlohmann::json project = objectAt(objectAt(readFile(), "projects"), pathKey(projectDir));
+    const auto it = project.find("startScene");
+    return it != project.end() && it->is_string() ? it->get<std::string>() : std::string{};
+}
+
+void writeStartScene(const std::string& projectDir, const std::string& scene)
+{
+    const auto path = configPath();
+    std::filesystem::create_directories(path.parent_path());
+
+    nlohmann::json j = readFile();
+    nlohmann::json& project = objectRef(objectRef(j, "projects"), pathKey(projectDir));
+    if (scene.empty())
+        project.erase("startScene");
+    else
+        project["startScene"] = scene;
+    std::ofstream(path) << j.dump(2);
+}
+
 void read(File& io, const std::string& projectDir, const std::string& scene)
 {
     const nlohmann::json j = readFile();

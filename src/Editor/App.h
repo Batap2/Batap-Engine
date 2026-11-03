@@ -111,7 +111,7 @@ struct App
     using FileDialogAfterJob = std::function<void(std::vector<std::string>&&)>;
     std::unordered_map<uint64_t, FileDialogAfterJob> fileDialogAfterJobs_;
 
-    void selectProject(const std::string& dir);
+    void selectProject(const std::string& dir, bool openStartScene = true);
     void setTheme(ui::Theme theme);
     ui::Theme theme_ = ui::Theme::Light;
     bool themeDirty_ = false;

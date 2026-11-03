@@ -34,6 +34,9 @@ std::string pathKey(const std::string& path);
 // --scene or from the file dialog, and the file stays readable.
 std::string sceneKey(const std::string& projectDir, const std::string& scenePath);
 
+std::string readStartScene(const std::string& projectDir);
+void writeStartScene(const std::string& projectDir, const std::string& sceneKey);
+
 struct Camera
 {
     float moveSpeed = 0.f;

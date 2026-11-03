@@ -335,6 +335,9 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
                      static_cast<int>(gameRender.giPasses_),
                      gameRender.tonemap_,
                      gameRender.giPerCell_};
+
+    startScene_ = app.projectDir_.empty() ? std::string{}
+                                          : editorConfig::readStartScene(app.projectDir_);
 }
 
 void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
@@ -476,6 +479,43 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         window.behindOnShow = s.behindOnShow;
         return window;
     };
+
+    ImGui::BeginDisabled(app.projectDir_.empty());
+    ImGui::TextUnformatted("Project");
+    ImGui::Indent();
+    ImGui::SetNextItemWidth(220.0f);
+    if (ImGui::BeginCombo("Start scene", startScene_.empty() ? "None" : startScene_.c_str()))
+    {
+        std::optional<std::string> pick;
+        if (ImGui::Selectable("None", startScene_.empty()))
+            pick = std::string{};
+        const std::string current = app.editingTemplate() ? std::string{} : app.sceneKey();
+        if (!current.empty() &&
+            ImGui::Selectable(("Current: " + current).c_str(), current == startScene_))
+            pick = current;
+        if (ImGui::Selectable("Browse..."))
+            app.openFileDialogAsyncWithAfterJob(
+                kSceneFilter,
+                [this, &app](std::vector<std::string>&& paths)
+                {
+                    if (paths.empty())
+                        return;
+                    startScene_ = editorConfig::sceneKey(app.projectDir_, paths[0]);
+                    editorConfig::writeStartScene(app.projectDir_, startScene_);
+                });
+        ImGui::EndCombo();
+        if (pick && *pick != startScene_)
+        {
+            startScene_ = *pick;
+            editorConfig::writeStartScene(app.projectDir_, startScene_);
+        }
+    }
+    ImGui::Unindent();
+    ImGui::EndDisabled();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
 
     const Change editorChange = section("Editor", "editor", editorSettings_);
     if (editorChange == Render)

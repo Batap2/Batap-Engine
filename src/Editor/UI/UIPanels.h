@@ -80,6 +80,7 @@ struct UIPanels
     };
     AppSettings editorSettings_;
     AppSettings gameSettings_;
+    std::string startScene_;
     void drawFileMenu(World& world, App& app);
     void drawImportMenu(World& world, App& app, Engine& ctx);
     void drawViewMenu(World& world, App& app);

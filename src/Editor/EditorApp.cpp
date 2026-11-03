@@ -7,6 +7,7 @@
 #include "Serialization/EntitySerializer.h"
 #include "World.h"
 
+#include <algorithm>
 #include <exception>
 #include <iostream>
 
@@ -29,12 +30,15 @@ int runEditor(const EditorConfig& cfg)
         // `--game <dll>` (dev mode): the game is loaded as a module instead of
         // coming from the opened project.
         const auto args = platformCommandLineArgs();
+        const bool startScene = std::ranges::none_of(
+            args, [](const std::string& a)
+            { return a == "--scene" || a == "--template" || a == "--import"; });
         for (size_t i = 0; i + 1 < args.size(); ++i)
         {
             if (args[i] == "--game" && app.gameModule_.load(args[i + 1]))
                 app.game_ = app.gameModule_.makeGame();
             else if (args[i] == "--project")
-                app.selectProject(args[i + 1]);
+                app.selectProject(args[i + 1], startScene);
             else if (args[i] == "--scene")
             {
                 EntitySerializer::clearSceneAndLoad(world, engine, args[i + 1]);
