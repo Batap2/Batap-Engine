@@ -395,12 +395,20 @@ bool registerComponent(std::string_view name, Extra&&... extra)
 
 // Registers T at static init. Place after the struct, in its header —
 // `inline` collapses the multiple inclusions into one registration.
+// Only a file that defines BATAP_REGISTER_COMPONENTS before its first include
+// registers (ComponentRegistry.cpp, a game's GameComponents.cpp); elsewhere the
+// macro is empty, or every file including a component would compile its
+// registration (seconds per file).
 // Registration at static init is the point: silence -Wglobal-constructors.
 // The trailing static_assert takes the caller's semicolon (-Wextra-semi).
+#ifdef BATAP_REGISTER_COMPONENTS
 #define BATAP_COMPONENT(T, ...)                                                         \
     _Pragma("clang diagnostic push")                                                    \
         _Pragma("clang diagnostic ignored \"-Wglobal-constructors\"") inline const bool \
             _batapComponentRegistered_##T = ::batap::registerComponent<T>(__VA_ARGS__); \
     _Pragma("clang diagnostic pop") static_assert(true, "")
+#else
+#define BATAP_COMPONENT(T, ...) static_assert(true, "")
+#endif
 
 }  // namespace batap

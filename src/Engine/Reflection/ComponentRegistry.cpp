@@ -1,6 +1,25 @@
+#define BATAP_REGISTER_COMPONENTS
+
 #include "ComponentRegistry.h"
 
+#include "Components/Atmosphere_C.h"
+#include "Components/AudioSource_C.h"
+#include "Components/Billboard_C.h"
+#include "Components/Camera_C.h"
+#include "Components/Character_C.h"
+#include "Components/DirectionalLight_C.h"
 #include "Components/EntityRef.h"
+#include "Components/FarPointLight_C.h"
+#include "Components/FreeCamController_C.h"
+#include "Components/Materials_C.h"
+#include "Components/Mesh_C.h"
+#include "Components/PointLight_C.h"
+#include "Components/RectLight_C.h"
+#include "Components/RigidBody_C.h"
+#include "Components/ShadowSphere_C.h"
+#include "Components/Skybox_C.h"
+#include "Components/SpotLight_C.h"
+#include "Components/Terrain_C.h"
 #include "DebugUtils.h"
 #include "EigenTypes.h"
 

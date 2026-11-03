@@ -1,6 +1,9 @@
 # Adding a component
 
-## CPU-only — one file
+## CPU-only — one file, plus one include line
+
+The header is included by `Reflection/ComponentRegistry.cpp` (engine) or the
+game's `GameComponents.h`: only there does `BATAP_COMPONENT` register.
 
 ```cpp
 // Components/Health_C.h

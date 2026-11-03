@@ -56,8 +56,11 @@ every run. `BATAP_NO_AUDIO=1` opens no audio device: every sound call is a no-op
 
 - ECS on entt. A component is a plain struct + `BATAP_COMPONENT(Foo_C, "jsonKey")`
   in its header — fields, JSON serialization and inspector UI are all derived
-  from the struct via `Reflection/ComponentRegistry.h`. No per-component code
-  elsewhere.
+  from the struct via `Reflection/ComponentRegistry.h`. The macro registers
+  only in files that define `BATAP_REGISTER_COMPONENTS` first: an engine
+  component's header must be included by `Reflection/ComponentRegistry.cpp`, a
+  game component's by the game's `GameComponents.h` (compiled by its
+  `GameComponents.cpp`), or it is never registered.
 - Keep components trivially copyable where possible (flat values + handles, no
   `std::string`/`std::vector`) — hot-reload snapshots depend on it.
 - C++/HLSL shared layouts live once in `src/Engine/Shaders/ShaderInterop.h`
