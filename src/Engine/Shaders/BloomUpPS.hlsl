@@ -1,5 +1,7 @@
 #include "Bloom.hlsli"
 
+static const float BloomScatter = 0.7f;
+
 float4 main(BloomInput i) : SV_Target
 {
     const float2 uv = BloomUv(i.ndc_);
@@ -12,5 +14,6 @@ float4 main(BloomInput i) : SV_Target
          2.0f;
     c += BloomFetch(uv + float2(-r.x, -r.y), t) + BloomFetch(uv + float2(r.x, -r.y), t) +
          BloomFetch(uv + float2(-r.x, r.y), t) + BloomFetch(uv + float2(r.x, r.y), t);
-    return float4(c / 16.0f, 0.0f);
+    // Blended ONE, ONE_MINUS_SRC_ALPHA (Bloom.cpp): alpha is what keeps 1 - scatter of the level below.
+    return float4(c / 16.0f * BloomScatter, BloomScatter);
 }

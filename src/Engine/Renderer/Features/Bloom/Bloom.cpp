@@ -43,11 +43,11 @@ void Bloom::buildPipelines(const ShaderModules& modules)
                 .shaders(modules[SkyVS], modules[BloomDownPS])
                 .colorFormat(setup_.colorFormat_)
                 .build(setup_.ctx_.device_, setup_.layout_);
-    up_ =
-        GraphicsPipelineBuilder()
-            .shaders(modules[SkyVS], modules[BloomUpPS])
-            .colorFormat(setup_.colorFormat_, blendState(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE))
-            .build(setup_.ctx_.device_, setup_.layout_);
+    up_ = GraphicsPipelineBuilder()
+              .shaders(modules[SkyVS], modules[BloomUpPS])
+              .colorFormat(setup_.colorFormat_,
+                           blendState(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA))
+              .build(setup_.ctx_.device_, setup_.layout_);
 }
 
 std::optional<GraphImage> Bloom::createImages(RenderGraph& graph, VkExtent2D extent,

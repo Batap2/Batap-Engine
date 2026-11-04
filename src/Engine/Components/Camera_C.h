@@ -25,7 +25,7 @@ struct Camera_C
     float meteringPercentile_ = 0.98f;
     float meteringRange_ = 6;
     float orthoHeight_ = 0;
-    float bloomIntensity_ = 0.04f;
+    float bloomIntensity_ = 0.1f;
     float bloomRadius_ = 1;
 
     bool ortho() const { return orthoHeight_ > 0; }
