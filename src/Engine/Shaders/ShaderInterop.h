@@ -398,6 +398,10 @@ struct Material
     uint shadingModel_ INIT(0u);  // ShadingModel
     float3 emissive INIT({0.f, 0.f, 0.f});
     float emissiveStrength INIT(1.f);
+    float glintDensity INIT(0.f);
+    float glintIntensity INIT(1.f);
+    float pad0_ INIT(0.f);
+    float pad1_ INIT(0.f);
 };
 
 struct SkyboxGPUData
@@ -513,7 +517,7 @@ struct ThumbnailPush
 static_assert(sizeof(CameraGPUData) == 272);
 static_assert(sizeof(StaticMeshGPUData) == 176);
 static_assert(sizeof(LightGPUData) == 96);
-static_assert(sizeof(Material) == 64);
+static_assert(sizeof(Material) == 80);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(AtmosphereGPUData) == 64);
 static_assert(sizeof(DrawPush) == 48);

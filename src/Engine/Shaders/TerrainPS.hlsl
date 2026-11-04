@@ -35,6 +35,7 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.metallic_ = saturate(mat.metallic * g_textures[mat.metallicTexIdx_].Sample(g_sampler, uv).r);
     s.reflectivity_ = mat.reflectivity;
     s.emissive_ = mat.emissive * mat.emissiveStrength;
+    s.glintDensity_ = 0.0f;
     s.posRel_ = i.posRel_;
     s.Ngeom_ = normalize(i.nrmWS_);
     s.Nface_ = FaceNormal(i.posRel_, s.Ngeom_);

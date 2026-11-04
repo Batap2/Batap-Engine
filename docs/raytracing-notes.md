@@ -639,6 +639,47 @@ d'exposition et le tonemap.
 moyen 11,9/255, max 92 (halo du soleil, bord du terrain sur le ciel). GPU :
 médiane 1,694 ms contre 1,650 ms, soit ~0,04 ms.
 
+## 3.2d Paillettes (glints)
+
+*Fait (2026-11-04)* : `Shaders/Glints.hlsli`, version simplifiée de Deliot
+& Belcour 2023 (lois binomiales sur grille) : grille hachée en UV, comptes
+binomiaux de facettes par case et par direction, sans dictionnaire ni
+grille anisotrope.
+- **Modèle** : `glintDensity` cases par unité d'UV, une facette par case
+  fine. Le niveau de grille suit l'empreinte du pixel en UV (`ddx`/`ddy`,
+  axe mineur borné au quart du majeur) : une case de niveau `l` couvre à
+  peu près le pixel et compte `4^l` facettes. Leurs pentes suivent la GGX
+  du matériau ; l'espace des pentes est découpé en cases de 0,25 α. Pour
+  chaque case de grille et case de pente, le nombre de facettes alignées
+  est tiré (hash, puis binomiale : Poisson par inversion sous une moyenne
+  de 6, gaussienne au-dessus) et divisé par son espérance. Interpolation
+  bilinéaire sur 4 cases de grille et 4 cases de pente, linéaire entre 2
+  niveaux : 32 tirages par lumière et par pixel.
+- **Effet** : le `D` de la GGX est multiplié par
+  `(1 − min(intensité, 1)) + intensité × rapport`. Le rapport vaut 1 en
+  moyenne. De près, peu de facettes par pixel : éclats rares et forts. De
+  loin, des milliers : le rapport tend vers 1 et la GGX revient (sortie
+  directe quand l'espérance au pic dépasse 10⁴). Il dépend de H, donc de la
+  vue, de la lumière et de l'orientation de l'objet. Repère des pentes : la
+  tangente du mesh, ou un repère arbitraire autour de N si le mesh n'en a
+  pas.
+- **Où** : lumières ponctuelles et directionnelles de `ShadeSurface`, sur
+  les surfaces de `MeshSurface` (passe opaque, translucide, variante RT).
+  Terrain, scatter et billboards mettent la densité à 0. Ni l'IBL, ni les
+  rect lights, ni le chemin GI.
+- **Matériau** : `Material::glintDensity` (0 = GGX seule) et
+  `glintIntensity` (1 par défaut ; 0,5 garde la moitié du reflet lisse ;
+  au-delà de 1, éclats renforcés sans reflet lisse). La struct passe à 80
+  octets. Le `.bmat` n'écrit les deux clés que si la densité est non nulle.
+  Material Editor : « Glint density », « Glint intensity ».
+- **Réglage** : `3d/resources/metal.bmat`, `3d/trash/can_blue.bmat` et
+  `can_red.bmat` à 1 500 / 0,5 (cube propre de 0,2 m, 1,25 UV/m, vu à
+  ~1 m : ~15 facettes par pixel).
+
+*Mesuré* (1280 × 720, faces de cube au soleil sur ~40 % de l'écran) :
+~0,15 ms (médianes 2,31 ms sans, 2,43 et 2,50 ms avec, bruitées par
+d'autres charges GPU).
+
 ## 3.3 Prépasse profondeur + normales
 
 *Fait (2026-10-30)* :

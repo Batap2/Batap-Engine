@@ -32,6 +32,7 @@ Surface BillboardSurface(VS_OUTPUT i, out Material mat, out float alpha)
     s.metallic_ = saturate(mat.metallic);
     s.reflectivity_ = mat.reflectivity;
     s.emissive_ = mat.emissive * mat.emissiveStrength;
+    s.glintDensity_ = 0.0f;
     s.N_ = normalize(i.normalWS_);
     s.posRel_ = i.posRel_;
     s.cell_ = 0.0f;
