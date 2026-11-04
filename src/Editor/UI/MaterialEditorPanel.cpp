@@ -53,6 +53,9 @@ void drawParameters(App& app, MaterialHandle handle, const Material& mat, AssetP
         changed |= ui::Field("Emissive", [&] { return ui::ColorField("##emi", copy.emissive, 3); });
         changed |= ui::FieldDragFloat("Emissive strength", &copy.emissiveStrength,
                                       std::max(copy.emissiveStrength * 0.02f, 0.01f), 0.f, 1e9f);
+        changed |= ui::FieldDragFloat("Glint density", &copy.glintDensity,
+                                      std::max(copy.glintDensity * 0.02f, 1.f), 0.f, 1e6f);
+        changed |= ui::FieldDragFloat("Glint intensity", &copy.glintIntensity, 0.01f, 0.f, 100.f);
         changed |=
             ui::Field("Shading",
                       [&]

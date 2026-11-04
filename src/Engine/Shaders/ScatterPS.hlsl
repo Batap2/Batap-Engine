@@ -24,6 +24,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.metallic_ = saturate(mat.metallic * g_textures[mat.metallicTexIdx_].Sample(g_sampler, i.uv_).r);
     s.reflectivity_ = mat.reflectivity;
     s.emissive_ = mat.emissive * mat.emissiveStrength;
+    s.glintDensity_ = 0.0f;
     s.posRel_ = i.posRel_;
 
     const float3 Ngeom = normalize(i.nrmWS_);

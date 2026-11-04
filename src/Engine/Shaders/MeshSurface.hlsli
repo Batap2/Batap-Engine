@@ -54,6 +54,17 @@ Surface MeshSurface(VS_OUTPUT i, StaticMeshGPUData inst, Material mat, out float
     {
         s.N_ = Ngeom;
     }
+
+    s.glintDensity_ = mat.glintDensity;
+    s.glintIntensity_ = mat.glintIntensity;
+    s.uv_ = i.uv_;
+    s.uvDx_ = ddx(i.uv_);
+    s.uvDy_ = ddy(i.uv_);
+    float3 T = i.tanWS_.xyz - dot(i.tanWS_.xyz, s.N_) * s.N_;
+    // A mesh without tangents gives NaN here (VertexShader normalizes zero): the negated test catches it.
+    if (!(dot(T, T) > 1e-8f))
+        T = cross(abs(s.N_.y) < 0.99f ? float3(0.0f, 1.0f, 0.0f) : float3(1.0f, 0.0f, 0.0f), s.N_);
+    s.T_ = normalize(T);
     return s;
 }
 

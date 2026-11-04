@@ -3,6 +3,7 @@
 
 #include "Camera.hlsli"
 #include "GiCache.hlsli"
+#include "Glints.hlsli"
 #include "ShaderInterop.h"
 #include "Shadows.hlsli"
 // The in-scatter on surfaces sees the relief's shadow through the sun's cascades.
@@ -336,6 +337,12 @@ struct Surface
     float3 posRel_;
     float cell_;
     GiPoint gi_;
+    float2 uv_;
+    float2 uvDx_;
+    float2 uvDy_;
+    float3 T_;
+    float glintDensity_;
+    float glintIntensity_;
 };
 
 static const float FacetEscapeCells = 2.0f;
@@ -465,6 +472,10 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
         // Cook-Torrance specular
         float  D = D_GGX(NdotH, s.roughness_);
+        if (s.glintDensity_ > 0.0f)
+            D *= (1.0f - min(s.glintIntensity_, 1.0f)) +
+                 s.glintIntensity_ * GlintRatio(s.uv_, s.uvDx_, s.uvDy_, s.T_, s.N_, H,
+                                                s.roughness_ * s.roughness_, s.glintDensity_);
         float  G = G_Smith(NdotV, NdotL, s.roughness_);
         float3 F = F_Schlick(HdotV, F0);
 

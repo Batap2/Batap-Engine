@@ -20,6 +20,11 @@ bool writeBmat(const MaterialDesc& desc, const std::string& outPath)
     j["emissive"] = {desc.mat->emissive[0], desc.mat->emissive[1], desc.mat->emissive[2]};
     j["emissiveStrength"] = desc.mat->emissiveStrength;
     j["shadingModel"] = desc.mat->shadingModel_;
+    if (desc.mat->glintDensity > 0.f)
+    {
+        j["glintDensity"] = desc.mat->glintDensity;
+        j["glintIntensity"] = desc.mat->glintIntensity;
+    }
 
     if (!desc.albedoTexPath.empty())
         j["albedoTex"] = desc.albedoTexPath;
@@ -94,6 +99,10 @@ std::optional<MaterialFileData> readBmat(const std::string& path)
         data.mat.emissiveStrength = j["emissiveStrength"].get<float>();
     if (j.contains("shadingModel"))
         data.mat.shadingModel_ = j["shadingModel"].get<uint32_t>();
+    if (j.contains("glintDensity"))
+        data.mat.glintDensity = j["glintDensity"].get<float>();
+    if (j.contains("glintIntensity"))
+        data.mat.glintIntensity = j["glintIntensity"].get<float>();
 
     if (j.contains("albedoTex"))
         data.albedoTexPath = j["albedoTex"].get<std::string>();
