@@ -619,25 +619,33 @@ d'exposition et le tonemap.
   taille (pas d'accès par mip, rendergraph 5.3). Filtre 13 points : 5 boîtes
   2 × 2, pondérées 0,5 (centre) et 4 × 0,125. Au premier niveau, moyenne de
   Karis : chaque boîte pondérée par 1 / (1 + luma), ce qui éteint les
-  lucioles. Sortie plafonnée à 8 000 (valeur exposée) : la remontée
-  additionne les niveaux, la somme reste un demi-flottant fini.
-- **Remontée** (`BloomUpPS`) : tente 3 × 3 du niveau `i + 1` ajoutée (blend
-  `ONE, ONE`) au niveau `i`. Le niveau 0 finit avec la somme de tous les
-  flous.
+  lucioles. Les lectures sont bornées à 60 000 : un pixel HDR débordé vaut
+  inf, et les poids de Karis en feraient un NaN dans toute la chaîne.
+- **Remontée** (`BloomUpPS`), à la Unity :
+  `up(i) = lerp(down(i), tente(up(i + 1)), 0,7)`. La tente 3 × 3 sort
+  multipliée par 0,7 avec un alpha de 0,7, et le blend `ONE,
+  ONE_MINUS_SRC_ALPHA` garde 0,3 du niveau en place : pas d'image de plus.
+  Le niveau 0 est une moyenne pondérée des niveaux (0,3 ; 0,21 ; 0,15 ;
+  0,10 ; 0,07 ; 0,17 pour le dernier), de somme 1 : une image uniforme reste
+  uniforme.
 - **Composition** : `TonemapPS` ajoute `bloom × FrameGPUData::bloomIntensity_`
   à la couleur HDR avant le tonemap (lecture bilinéaire de la
   demi-résolution).
 - Le seul sampler répète : les UV sont bornés à un demi-texel du bord, sinon
   le soleil d'un bord fleurit sur le bord opposé.
 - **Réglages** (`Camera_C`, donc aussi la caméra de l'éditeur) :
-  `bloomIntensity_` (0,04 ; 0 retire les passes), `bloomRadius_` (écart des
+  `bloomIntensity_` (0,1 ; 0 retire les passes), `bloomRadius_` (écart des
   points de la tente, en texels du niveau lu ; 1). Une zone uniforme gagne
-  `bloomIntensity × niveaux` de sa valeur (+24 % à 0,04 avec 6 niveaux) :
-  l'exposition auto mesure avant le bloom.
+  exactement `bloomIntensity` de sa valeur ; l'exposition auto mesure avant
+  le bloom.
+- Défaut 0,1 et non 0,04 : à 0,04, le halo du soleil ne se distingue pas du
+  halo de Mie de l'atmosphère ; il se lit à 0,1.
 
-*Mesuré* (1280 × 720, soleil dans le champ, intensité 0,04 contre 0) : écart
-moyen 11,9/255, max 92 (halo du soleil, bord du terrain sur le ciel). GPU :
-médiane 1,694 ms contre 1,650 ms, soit ~0,04 ms.
+*Mesuré* (1280 × 720, soleil dans le champ, intensité 0,1 contre 0) : ciel
+uniforme +4,4/255 en vert (121,8 → 126,1 après AgX ; 0,2 donne +8,3, le
+gain suit l'intensité), près du soleil +6,9/255 ; écart moyen 5,4/255,
+max 61. La première version, qui sommait les niveaux, donnait un écart
+moyen de 11,9/255 dès 0,04 : un voile sur tout le ciel. GPU : ~0,04 ms.
 
 ## 3.2d Paillettes (glints)
 

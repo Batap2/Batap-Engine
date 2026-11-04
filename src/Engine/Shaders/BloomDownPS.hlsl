@@ -1,7 +1,5 @@
 #include "Bloom.hlsli"
 
-static const float BloomMax = 8000.0f;
-
 float3 BloomBox(float3 a, float3 b, float3 c, float3 d)
 {
     return (a + b + c + d) * 0.25f;
@@ -45,6 +43,5 @@ float4 main(BloomInput i) : SV_Target
         sum += boxes[box] * weight;
         total += weight;
     }
-    // Every level is summed on the way up: capped so the sum stays a finite half float.
-    return float4(min(sum / total, BloomMax), 1.0f);
+    return float4(sum / total, 1.0f);
 }

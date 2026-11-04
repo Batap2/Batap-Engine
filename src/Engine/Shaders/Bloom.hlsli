@@ -8,6 +8,8 @@
 
 [[vk::push_constant]] DrawPush g_draw;
 
+static const float BloomMax = 60000.0f;
+
 struct BloomInput
 {
     float4 svpos_ : SV_POSITION;
@@ -31,7 +33,8 @@ float3 BloomFetch(float2 uv, float2 texel)
 {
     // The only sampler repeats: unclamped, the sun at one edge blooms on the opposite one.
     const float2 at = clamp(uv, 0.5f * texel, 1.0f - 0.5f * texel);
-    return max(g_textures[g_draw.bloomSource_].SampleLevel(g_sampler, at, 0.0f).rgb, 0.0f);
+    // An overflowed HDR pixel is inf: uncapped, the Karis weights make it NaN across the chain.
+    return clamp(g_textures[g_draw.bloomSource_].SampleLevel(g_sampler, at, 0.0f).rgb, 0.0f, BloomMax);
 }
 
 #endif
