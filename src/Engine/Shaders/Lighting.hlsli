@@ -19,8 +19,6 @@ StructuredBuffer<Material> MaterialBuffer;
 StructuredBuffer<SkyboxGPUData> SkyboxBuffer;
 [[vk::binding(SphereOccludersBinding, FrameSet)]]
 StructuredBuffer<SphereOccluderGPUData> SphereOccluderBuffer;
-[[vk::binding(FrameConstantsBinding, FrameSet)]]
-StructuredBuffer<FrameGPUData> FrameBuffer;
 
 [[vk::binding(SamplerBinding, BindlessSet)]]  SamplerState      g_sampler;
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];

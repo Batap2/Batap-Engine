@@ -3,10 +3,9 @@
 
 #include "GiCache.hlsli"
 #include "Lighting.hlsli"
+#include "MeshInstances.hlsli"
 #include "Terrain.hlsli"
 
-[[vk::binding(InstancesBinding, FrameSet)]]
-StructuredBuffer<StaticMeshGPUData> StaticMeshInstancebuffer;
 [[vk::binding(RtGeometriesBinding, RayTracingSet)]]
 StructuredBuffer<RtGeometryGPUData> RtGeometryBuffer;
 [[vk::binding(RtInstancesBinding, RayTracingSet)]]

@@ -23,6 +23,7 @@ struct ResourceManager;
 struct SceneFrame;
 struct RenderTargets;
 struct DebugDraw;
+struct AssetManager;
 struct Billboards;
 struct TerrainDraws;
 struct ScatterDraws;
@@ -73,7 +74,7 @@ struct Renderer
     void setSceneGraph(SceneGraphFn fn);
 
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
-    void uploadBillboards(const Billboards& billboards);
+    void uploadBillboards(const Billboards& billboards, const AssetManager& assets);
     void uploadTerrain(TerrainDraws& draws, bool rayTracing);
     void uploadScatter(ScatterDraws& draws);
 

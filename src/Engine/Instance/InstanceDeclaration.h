@@ -30,6 +30,7 @@
 #include "Components/DirectionalLight_C.h"
 #include "Components/FarPointLight_C.h"
 #include "Components/Materials_C.h"
+#include "Components/MeshCut_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/RectLight_C.h"
@@ -138,16 +139,18 @@ using MarkersOf = typename detail::MarkersOfInstance<Instance>::type;
 struct StaticMeshInstance
 {
     using GPUData = StaticMeshGPUData;
-    using Uses = TypeList<Mesh_C, Transform_C, Materials_C>;
+    using Uses = TypeList<Mesh_C, Transform_C, Materials_C, MeshCut_C>;
     static constexpr uint32_t Binding = InstancesBinding;
     static constexpr size_t InitialCapacity = 256;
     static constexpr bool History = true;
 
     static void fill(AccessOf<Uses> in, GPUData& out, const GPUData* previous)
     {
-        if (auto* t = in.get<Transform_C>())
+        const auto* t = in.get<Transform_C>();
+        if (t)
             flatten(out.world_, t->worldMatrix());
         std::memcpy(out.prevWorld_, (previous ? previous : &out)->world_, sizeof out.prevWorld_);
+        fillCut(in.get<MeshCut_C>(), t, out);
 
         auto indices = std::span{out.materialIndices_};
         std::fill(indices.begin(), indices.end(), InvalidGPUIndex);
@@ -158,6 +161,23 @@ struct StaticMeshInstance
         for (size_t i = 0; i < indices.size() && i < mats->slots.size(); ++i)
             if (mats->slots[i])
                 indices[i] = mats->slots[i].index;
+    }
+
+    static void fillCut(const MeshCut_C* cut, const Transform_C* t, GPUData& out)
+    {
+        out.cut_[0] = out.cut_[1] = out.cut_[2] = 0.f;
+        out.cut_[3] = 1.f;
+        if (!cut || !t || cut->up_.squaredNorm() < 1e-12f)
+            return;
+        const v3d up = cut->up_.cast<double>().normalized();
+        const v3d normal = cut->keepAbove_ ? up : v3d(-up);
+        const m4d world = t->worldMatrix().cast<double>();
+        const v3d local = world.topLeftCorner<3, 3>().transpose() * normal;
+        const double offset = normal.dot(world.topRightCorner<3, 1>() - cut->point_.cast<double>());
+        out.cut_[0] = static_cast<float>(local.x());
+        out.cut_[1] = static_cast<float>(local.y());
+        out.cut_[2] = static_cast<float>(local.z());
+        out.cut_[3] = static_cast<float>(offset);
     }
 };
 

@@ -9,14 +9,38 @@
 
 [[vk::binding(ShadowsBinding, FrameSet)]]
 StructuredBuffer<ShadowGPUData> ShadowBuffer;
+[[vk::binding(FrameConstantsBinding, FrameSet)]]
+StructuredBuffer<FrameGPUData> FrameBuffer;
 
 #if BATAP_RT
+#include "MeshInstances.hlsli"
+
 [[vk::binding(TlasBinding, RayTracingSet)]] RaytracingAccelerationStructure Tlas;
 
 static const float ShadowRayOffset = 1e-4f;
 static const float ShadowRayOffsetPerMetre = 1e-5f;
 
 static const float ShadowRayFar = 1e30f;
+
+// The TLAS holds a cut mesh whole: its triangles are kept or dropped one
+// candidate at a time, against the plane in the mesh's own space.
+bool CutShadowHit(RayDesc ray, float frontOnlyUntil)
+{
+    if (FrameBuffer[0].rtCutInstances_ == 0u)
+        return false;
+    RayQuery<RAY_FLAG_FORCE_NON_OPAQUE> cut;
+    cut.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskCut, ray);
+    while (cut.Proceed())
+    {
+        const float t = cut.CandidateTriangleRayT();
+        if (!cut.CandidateTriangleFrontFace() && t <= frontOnlyUntil)
+            continue;
+        const float3 p = cut.CandidateObjectRayOrigin() + cut.CandidateObjectRayDirection() * t;
+        if (MeshCutDistance(StaticMeshInstancebuffer[cut.CandidateInstanceID()], p) >= 0.0f)
+            return true;
+    }
+    return false;
+}
 
 float TraceShadowRay(float3 P, float3 Nface, float3 L, float tMax, float frontOnlyUntil = 0.0f)
 {
@@ -34,12 +58,14 @@ float TraceShadowRay(float3 P, float3 Nface, float3 L, float tMax, float frontOn
             if (filtered.CandidateTriangleFrontFace() ||
                 filtered.CandidateTriangleRayT() > frontOnlyUntil)
                 return 0.0f;
-        return 1.0f;
+        return CutShadowHit(ray, frontOnlyUntil) ? 0.0f : 1.0f;
     }
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE> query;
     query.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster, ray);
     query.Proceed();
-    return query.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 0.0f : 1.0f;
+    if (query.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
+        return 0.0f;
+    return CutShadowHit(ray, -1.0f) ? 0.0f : 1.0f;
 }
 #endif
 

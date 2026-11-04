@@ -75,6 +75,8 @@ VulkanContext::VulkanContext()
     features10.samplerAnisotropy = VK_TRUE;
     // Shadow pass: a caster before the near plane flattens onto it, not clipped.
     features10.depthClamp = VK_TRUE;
+    // MeshCut_C, in the vertex shaders.
+    features10.shaderClipDistance = VK_TRUE;
 
     auto selection = vkb::PhysicalDeviceSelector(vkbInstance)
                          .set_minimum_version(1, 3)

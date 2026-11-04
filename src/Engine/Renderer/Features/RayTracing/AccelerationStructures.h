@@ -35,6 +35,7 @@ struct AccelerationStructures
     {
         GraphBuffer tlas_;
         GraphBuffer blases_;
+        uint32_t cutInstances_ = 0;
     };
 
     Buffers addPasses(RenderGraph& graph, GraphBuffer uploads, GraphBuffer traced, uint32_t frame,
@@ -108,6 +109,7 @@ struct AccelerationStructures
     std::array<std::vector<Blas>, FramesInFlight> retired_;
     std::array<CompactionQueries, FramesInFlight> queries_;
     std::array<Tlas, FramesInFlight> tlases_;
+    uint32_t cutInstances_ = 0;
     std::array<HitTables, FramesInFlight> hitTables_;
 };
 }  // namespace batap

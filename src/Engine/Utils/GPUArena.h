@@ -139,6 +139,11 @@ struct GPUArena
 
     bool contains(TKey k) const { return isValid(k); }
 
+    const T* atSlot(uint32_t index) const
+    {
+        return index < data_.size() && alive_[index] ? &data_[index] : nullptr;
+    }
+
     GPUResourceHandle bufferHandle() const { return resourceHandle_; }
 
     size_t capacity() const { return data_.size(); }
