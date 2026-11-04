@@ -46,6 +46,8 @@ enum ShaderId : size_t
     TranslucentRtPS,
     TranslucentCompositePS,
     BillboardTranslucentPS,
+    BloomDownPS,
+    BloomUpPS,
     ShaderCount,
 };
 
@@ -93,6 +95,8 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"TranslucentPSRT", "TranslucentPS", "ps_6_6", true},
     {"TranslucentCompositePS", "TranslucentCompositePS", "ps_6_6"},
     {"BillboardTranslucentPS", "BillboardTranslucentPS", "ps_6_6"},
+    {"BloomDownPS", "BloomDownPS", "ps_6_6"},
+    {"BloomUpPS", "BloomUpPS", "ps_6_6"},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

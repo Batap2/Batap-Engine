@@ -1,5 +1,6 @@
 #include "ShaderInterop.h"
 
+[[vk::binding(SamplerBinding, BindlessSet)]] SamplerState g_sampler;
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
 [[vk::binding(FrameConstantsBinding, FrameSet)]] StructuredBuffer<FrameGPUData> FrameBuffer;
 
@@ -108,6 +109,19 @@ float3 Tonemap(float3 c, uint op)
 float4 main(float4 svpos : SV_POSITION) : SV_Target
 {
     const FrameGPUData frame = FrameBuffer[0];
-    const float4 hdr = g_textures[frame.hdrTexture_].Load(int3(svpos.xy, 0));
+    float4 hdr = g_textures[frame.hdrTexture_].Load(int3(svpos.xy, 0));
+    if (frame.bloomIntensity_ > 0.0f)
+    {
+        uint width;
+        uint height;
+        g_textures[frame.hdrTexture_].GetDimensions(width, height);
+        uint bloomWidth;
+        uint bloomHeight;
+        g_textures[frame.bloomTexture_].GetDimensions(bloomWidth, bloomHeight);
+        const float2 texel = 1.0f / float2(bloomWidth, bloomHeight);
+        const float2 uv = clamp(svpos.xy / float2(width, height), 0.5f * texel, 1.0f - 0.5f * texel);
+        hdr.rgb += g_textures[frame.bloomTexture_].SampleLevel(g_sampler, uv, 0.0f).rgb *
+                   frame.bloomIntensity_;
+    }
     return float4(Tonemap(max(hdr.rgb, 0.0f), frame.tonemap_), hdr.a);
 }

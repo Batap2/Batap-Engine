@@ -9,6 +9,7 @@
 #include "Renderer/Draws/MeshDrawer.h"
 #include "Renderer/Draws/ScatterDrawer.h"
 #include "Renderer/Draws/TerrainDrawer.h"
+#include "Renderer/Features/Bloom/Bloom.h"
 #include "Renderer/Features/Exposure/Exposure.h"
 #include "Renderer/Features/Gi/GiCache.h"
 #include "Renderer/Features/Gi/GiUpdate.h"
@@ -82,5 +83,6 @@ struct SceneFrame
     DebugDrawer debug_;
     GiUpdate giUpdate_;
     Exposure exposure_;
+    Bloom bloom_;
 };
 }  // namespace batap

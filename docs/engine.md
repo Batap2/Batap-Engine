@@ -26,7 +26,7 @@ graph TD
     R --> Res[ResourceManager]
     R --> Graph[RenderGraph]
     R --> SF[SceneFrame]
-    SF --> Feat["Features: Shadows, RayTracing, Gi, Exposure"]
+    SF --> Feat["Features: Shadows, RayTracing, Gi, Exposure, Bloom"]
     SF --> Draws["Draws: meshes, terrain, billboards, debug, fullscreen"]
 
     P --> Mac[MacOS]
@@ -59,7 +59,7 @@ flowchart TD
     subgraph RR["Renderer::render()"]
         direction TB
         AC["acquire swapchain image<br/>out of date → recreate + skip frame"] --> FU["uploads pass<br/>flushUploads() into the graph"]
-        FU --> REC["SceneFrame::addPasses()<br/>features + scene, exposure, tonemap passes"]
+        FU --> REC["SceneFrame::addPasses()<br/>features + scene, exposure, bloom, tonemap passes"]
         REC --> IMG["imgui pass"]
         IMG --> SP["compile graph · submit batches · present"]
     end

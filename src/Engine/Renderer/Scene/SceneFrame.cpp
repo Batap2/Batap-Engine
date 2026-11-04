@@ -51,7 +51,8 @@ SceneFrame::SceneFrame(VulkanContext& ctx, ResourceManager& resources, VkFormat 
       fullscreen_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat), outputFormat),
       debug_(bindings_.drawSetup(outputFormat, depthFormat)),
       giUpdate_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
-      exposure_(bindings_.drawSetup(outputFormat, depthFormat))
+      exposure_(bindings_.drawSetup(outputFormat, depthFormat)),
+      bloom_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat))
 {
     const auto uploadTable =
         [&](const std::array<uint16_t, LtcTableTexels * 4>& table, const char* name)
@@ -84,6 +85,7 @@ void SceneFrame::buildPipelines(const ShaderModules& modules)
     debug_.buildPipelines(modules);
     giUpdate_.buildPipelines(modules);
     exposure_.buildPipelines(modules);
+    bloom_.buildPipelines(modules);
 }
 
 void SceneFrame::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay)
@@ -223,6 +225,9 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
 
     const GraphImage hdr = graph.createImage("hdr", {targets.extent_, toVkFormat(HdrFormat)});
     const GraphImage depth = graph.createImage("depth", {targets.extent_, depthFormat_});
+    const std::optional<GraphImage> bloom =
+        bloom_.createImages(graph, targets.extent_, reg->get<Camera_C>(args.camera_));
+    frameData_.bloomIntensity_ = bloom_.intensity();
 
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
     const bool translucent = !rtFirstHit &&
@@ -241,10 +246,12 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     graph.addPass("frame constants")
         .write(frameConstants, Usage::TransferDst)
         .execute(
-            [frameConstants, hdr, translucent, accum, reveal,
+            [frameConstants, hdr, translucent, accum, reveal, bloom,
              data = frameData_](GraphContext& c) mutable
             {
                 data.hdrTexture_ = c.graph_.textureIndex(hdr);
+                if (bloom)
+                    data.bloomTexture_ = c.graph_.textureIndex(*bloom);
                 if (translucent)
                 {
                     data.translucentAccumTexture_ = c.graph_.textureIndex(accum);
@@ -343,20 +350,23 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     }
 
     exposure_.addPasses(graph, hdr, frameConstants, draw, frame);
+    bloom_.addPasses(graph, hdr, draw);
 
-    graph.addPass("tonemap")
-        .color(targets.color_, Load::DontCare)
-        .depth(depth, Load::Keep)
-        .read(uploads, Usage::AnyRead)
-        .read(hdr, Usage::ShaderRead)
-        .read(frameConstants, Usage::ShaderRead)
-        .execute(
-            [this, draw](GraphContext& c)
-            {
-                const DrawContext bound = bindDraw(draw, c.cmd());
-                fullscreen_.recordTonemap(bound);
-                debug_.record(bound);
-            });
+    GraphPass& tonemap = graph.addPass("tonemap")
+                             .color(targets.color_, Load::DontCare)
+                             .depth(depth, Load::Keep)
+                             .read(uploads, Usage::AnyRead)
+                             .read(hdr, Usage::ShaderRead)
+                             .read(frameConstants, Usage::ShaderRead)
+                             .execute(
+                                 [this, draw](GraphContext& c)
+                                 {
+                                     const DrawContext bound = bindDraw(draw, c.cmd());
+                                     fullscreen_.recordTonemap(bound);
+                                     debug_.record(bound);
+                                 });
+    if (bloom)
+        tonemap.read(*bloom, Usage::ShaderRead);
     return true;
 }
 }  // namespace batap
