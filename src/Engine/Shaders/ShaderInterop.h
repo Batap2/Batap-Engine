@@ -45,6 +45,7 @@ enum RayTracingSetBinding : uint
 static const uint TlasMaskShadowCaster = 1u;
 static const uint TlasMaskNoShadow = 2u;
 static const uint TlasMaskTranslucent = 4u;
+static const uint TlasMaskCut = 8u;
 
 struct RtGeometryGPUData
 {
@@ -182,6 +183,8 @@ struct StaticMeshGPUData
     float4x4 world_;
     uint materialIndices_[8];  // GPU arena slot per submesh
     float4x4 prevWorld_;
+    // MeshCut_C in the mesh's own space: drawn where dot(xyz, p) + w >= 0.
+    float4 cut_;
 };
 
 // The normals are octahedral, two snorm16 in a uint (Terrain.hlsli). The
@@ -363,7 +366,7 @@ struct FrameGPUData
     float exposure_;
     uint translucentAccumTexture_;
     uint translucentRevealTexture_;
-    uint pad2_;
+    uint rtCutInstances_;
     // The render camera, world. sh_ is the sky's irradiance seen from it, read
     // instead of the skybox's own once a scene has atmospheres.
     float3 cameraPos_;
@@ -501,7 +504,7 @@ struct ThumbnailPush
 #ifdef __cplusplus
 
 static_assert(sizeof(CameraGPUData) == 272);
-static_assert(sizeof(StaticMeshGPUData) == 160);
+static_assert(sizeof(StaticMeshGPUData) == 176);
 static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 64);
 static_assert(sizeof(SkyboxGPUData) == 224);

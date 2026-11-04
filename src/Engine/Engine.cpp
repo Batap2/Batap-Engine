@@ -159,7 +159,7 @@ void Engine::endFrame()
     inputManager_->ClearFrameState();
     audio_->update();
     renderer_->uploadDebugDraw(*debugDraw_, *debugOverlay_);
-    renderer_->uploadBillboards(*billboards_);
+    renderer_->uploadBillboards(*billboards_, *assetManager_);
     renderer_->uploadTerrain(*terrainDraws_, settings().rayTracing_);
     terrainDraws_->placed_.clear();
     renderer_->uploadScatter(*scatterDraws_);

@@ -14,7 +14,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     ray.TMin = cam.znear_;
     ray.TMax = RtHitFar;
     RayQuery<RAY_FLAG_FORCE_OPAQUE> query;
-    query.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow, ray);
+    query.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow | TlasMaskCut, ray);
     while (query.Proceed())
     {
     }

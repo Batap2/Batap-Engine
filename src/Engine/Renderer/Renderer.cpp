@@ -309,10 +309,10 @@ void Renderer::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& ov
         sceneFrame_->uploadDebugDraw(depthTested, overlay);
 }
 
-void Renderer::uploadBillboards(const Billboards& billboards)
+void Renderer::uploadBillboards(const Billboards& billboards, const AssetManager& assets)
 {
     if (sceneFrame_)
-        sceneFrame_->uploadBillboards(billboards);
+        sceneFrame_->uploadBillboards(billboards, assets);
 }
 
 void Renderer::uploadTerrain(TerrainDraws& draws, bool rayTracing)

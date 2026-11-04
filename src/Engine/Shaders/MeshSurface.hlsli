@@ -2,9 +2,7 @@
 #define BATAP_MESH_SURFACE_HLSLI
 
 #include "Lighting.hlsli"
-
-[[vk::binding(InstancesBinding, FrameSet)]]
-StructuredBuffer<StaticMeshGPUData> StaticMeshInstancebuffer;
+#include "MeshInstances.hlsli"
 
 struct VS_OUTPUT
 {

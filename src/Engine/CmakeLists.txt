@@ -174,6 +174,8 @@ set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Scatter.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Sky.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/MeshSurface.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/MeshInstances.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Billboard.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Translucency.hlsli")
 
 function(batap_compile_shader src out target)
@@ -222,6 +224,7 @@ batap_compile_shader(ScatterPS.hlsl    ScatterPSRT.spv  ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(TranslucentPS.hlsl TranslucentPS.spv ps_6_6)
 batap_compile_shader(TranslucentPS.hlsl TranslucentPSRT.spv ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(TranslucentCompositePS.hlsl TranslucentCompositePS.spv ps_6_6)
+batap_compile_shader(BillboardTranslucentPS.hlsl BillboardTranslucentPS.spv ps_6_6)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -255,7 +258,8 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/ScatterPSRT.spv"
   "${engine_shader_out}/TranslucentPS.spv"
   "${engine_shader_out}/TranslucentPSRT.spv"
-  "${engine_shader_out}/TranslucentCompositePS.spv")
+  "${engine_shader_out}/TranslucentCompositePS.spv"
+  "${engine_shader_out}/BillboardTranslucentPS.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —

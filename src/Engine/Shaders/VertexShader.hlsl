@@ -2,12 +2,10 @@
 //   set 0 = bindless global (sampler, textures) — pas utilisé ici
 //   set 1 = données de frame (storage buffers : caméras, instances, …)
 //   push constants = indices du draw courant
-#include "ShaderInterop.h"
+#include "MeshInstances.hlsli"
 
 [[vk::binding(CamerasBinding, FrameSet)]]
 StructuredBuffer<CameraGPUData> CameraInstancebuffer;
-[[vk::binding(InstancesBinding, FrameSet)]]
-StructuredBuffer<StaticMeshGPUData> StaticMeshInstancebuffer;
 
 [[vk::push_constant]] DrawPush g_draw;
 
@@ -28,6 +26,7 @@ struct VS_OUTPUT
     float3 nrmWS_    : TEXCOORD1;   // world normal
     float2 uv_       : TEXCOORD2;
     float4 tanWS_    : TEXCOORD3;   // xyz = world tangent, w = handedness
+    float  cut_      : SV_ClipDistance0;
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -54,6 +53,7 @@ VS_OUTPUT main(VS_INPUT input)
     o.position_ = mul(cam.proj_, float4(mul((float3x3)cam.view_, posRel), 1.0f));
 
     o.uv_ = input.uv_;
+    o.cut_ = MeshCutDistance(inst, input.position_);
 
     return o;
 }

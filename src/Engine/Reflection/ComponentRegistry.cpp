@@ -12,6 +12,7 @@
 #include "Components/FarPointLight_C.h"
 #include "Components/FreeCamController_C.h"
 #include "Components/Materials_C.h"
+#include "Components/MeshCut_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/RectLight_C.h"

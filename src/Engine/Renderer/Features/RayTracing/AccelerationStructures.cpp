@@ -3,6 +3,7 @@
 #include "Assets/AssetManager.h"
 #include "Assets/Mesh.h"
 #include "Components/Materials_C.h"
+#include "Components/MeshCut_C.h"
 #include "Components/Mesh_C.h"
 #include "Components/Transform_C.h"
 #include "EigenTypes.h"
@@ -163,6 +164,7 @@ AccelerationStructures::addPasses(RenderGraph& graph, GraphBuffer uploads, Graph
     updateBlases(graph, buffers.blases_, uploads, traced, frame, reg, assets, terrain);
     buffers.tlas_ =
         buildTlas(graph, buffers.blases_, frame, reg, instances, assets, terrain, camera);
+    buffers.cutInstances_ = cutInstances_;
     return buffers;
 }
 
@@ -563,6 +565,7 @@ GraphBuffer AccelerationStructures::buildTlas(RenderGraph& graph, GraphBuffer bl
     std::vector<RtInstanceGPUData> hitInstances;
     std::vector<RtGeometryGPUData> geometries;
     std::unordered_map<MeshHandle, uint32_t> meshGeometries;
+    cutInstances_ = 0;
     reg.view<Mesh_C, Transform_C>().each(
         [&](entt::entity e, const Mesh_C& meshC, const Transform_C& transform)
         {
@@ -599,7 +602,10 @@ GraphBuffer AccelerationStructures::buildTlas(RenderGraph& graph, GraphBuffer bl
             const bool translucent =
                 translucentSubmeshes(assets, *mesh, reg.try_get<Materials_C>(e)) ==
                 (1u << submeshes) - 1u;
+            const bool cut = meshC.castShadows_ && reg.all_of<MeshCut_C>(e);
+            cutInstances_ += !translucent && cut ? 1u : 0u;
             const uint32_t mask = translucent          ? TlasMaskTranslucent
+                                  : cut                ? TlasMaskCut
                                   : meshC.castShadows_ ? TlasMaskShadowCaster
                                                        : TlasMaskNoShadow;
             tlasInstances.push_back(tlasInstance(world, id, mask, blas->second.address_));

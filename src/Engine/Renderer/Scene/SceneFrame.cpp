@@ -91,9 +91,9 @@ void SceneFrame::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& 
     debug_.upload(depthTested, overlay);
 }
 
-void SceneFrame::uploadBillboards(const Billboards& billboards)
+void SceneFrame::uploadBillboards(const Billboards& billboards, const AssetManager& assets)
 {
-    billboards_.upload(billboards);
+    billboards_.upload(billboards, assets);
 }
 
 void SceneFrame::uploadTerrain(TerrainDraws& draws, bool rayTracing)
@@ -203,6 +203,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         bindings_.writeRayTracingSet(frame, *accelerationStructures_, *giCache_);
     }
 
+    frameData_.rtCutInstances_ = rayTracing ? as.cutInstances_ : 0u;
     const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
     frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
     frameData_.exposure_ =
@@ -224,7 +225,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const GraphImage depth = graph.createImage("depth", {targets.extent_, depthFormat_});
 
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
-    const bool translucent = !rtFirstHit && hasTranslucentMeshes(*reg, assets);
+    const bool translucent = !rtFirstHit &&
+                             (billboards_.hasTranslucent() || hasTranslucentMeshes(*reg, assets));
     GraphImage accum;
     GraphImage reveal;
     if (translucent)
@@ -322,8 +324,13 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 .color(accum, Load::Clear, VkClearColorValue{{0.f, 0.f, 0.f, 0.f}})
                 .color(reveal, Load::Clear, VkClearColorValue{{1.f, 1.f, 1.f, 1.f}})
                 .depth(depth, Load::Keep)
-                .execute([this, draw](GraphContext& c)
-                         { meshes_.recordTranslucent(bindDraw(draw, c.cmd())); });
+                .execute(
+                    [this, draw](GraphContext& c)
+                    {
+                        const DrawContext bound = bindDraw(draw, c.cmd());
+                        meshes_.recordTranslucent(bound);
+                        billboards_.recordTranslucent(bound);
+                    });
         readsLighting(accumulate);
         graph.addPass("translucent composite")
             .color(hdr, Load::Keep)

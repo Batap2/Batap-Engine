@@ -49,7 +49,7 @@ struct SceneFrame
                    GraphBuffer uploads, const SceneRenderArgs& args, Engine& ctx);
 
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
-    void uploadBillboards(const Billboards& billboards);
+    void uploadBillboards(const Billboards& billboards, const AssetManager& assets);
     void uploadTerrain(TerrainDraws& draws, bool rayTracing);
     void uploadScatter(ScatterDraws& draws);
 

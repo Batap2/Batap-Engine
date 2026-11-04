@@ -131,7 +131,7 @@ bool GiCameraHit(float2 sample, out RtHit hit)
     ray.TMin = cam.znear_;
     ray.TMax = RtHitFar;
     RayQuery<RAY_FLAG_FORCE_OPAQUE> query;
-    query.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow, ray);
+    query.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow | TlasMaskCut, ray);
     while (query.Proceed())
     {
     }
@@ -162,7 +162,7 @@ float3 GiPathIrradiance(RtHit first, float2 firstU, inout uint seed, uint bucket
         ray2.TMin = 0.0f;
         ray2.TMax = RtHitFar;
         RayQuery<RAY_FLAG_FORCE_OPAQUE> bounceQuery;
-        bounceQuery.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow, ray2);
+        bounceQuery.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow | TlasMaskCut, ray2);
         while (bounceQuery.Proceed())
         {
         }
@@ -208,7 +208,7 @@ float GiProbeRadiance(float3 origin, float3 direction, uint seed, out uint hitSl
     ray.TMin = 0.0f;
     ray.TMax = RtHitFar;
     RayQuery<RAY_FLAG_FORCE_OPAQUE> query;
-    query.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow, ray);
+    query.TraceRayInline(Tlas, RAY_FLAG_NONE, TlasMaskShadowCaster | TlasMaskNoShadow | TlasMaskCut, ray);
     while (query.Proceed())
     {
     }
