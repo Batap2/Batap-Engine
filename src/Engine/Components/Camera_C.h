@@ -25,6 +25,8 @@ struct Camera_C
     float meteringPercentile_ = 0.98f;
     float meteringRange_ = 6;
     float orthoHeight_ = 0;
+    float bloomIntensity_ = 0.04f;
+    float bloomRadius_ = 1;
 
     bool ortho() const { return orthoHeight_ > 0; }
 
@@ -53,5 +55,7 @@ BATAP_COMPONENT(
     fieldMeta<&Camera_C::maxEv100_>({.speed = 0.05f, .min = -10.f, .max = 25.f}),
     fieldMeta<&Camera_C::meteringPercentile_>({.speed = 0.005f, .min = 0.5f, .max = 1.f}),
     fieldMeta<&Camera_C::meteringRange_>({.speed = 0.05f, .min = 0.f, .max = 20.f}),
-    fieldSkip<&Camera_C::orthoHeight_>());
+    fieldSkip<&Camera_C::orthoHeight_>(),
+    fieldMeta<&Camera_C::bloomIntensity_>({.speed = 0.002f, .min = 0.f, .max = 1.f}),
+    fieldMeta<&Camera_C::bloomRadius_>({.speed = 0.01f, .min = 0.25f, .max = 4.f}));
 }  // namespace batap

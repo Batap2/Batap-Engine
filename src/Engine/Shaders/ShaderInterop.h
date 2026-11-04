@@ -367,6 +367,10 @@ struct FrameGPUData
     uint translucentAccumTexture_;
     uint translucentRevealTexture_;
     uint rtCutInstances_;
+    uint bloomTexture_;
+    float bloomIntensity_;
+    uint pad1_;
+    uint pad2_;
     // The render camera, world. sh_ is the sky's irradiance seen from it, read
     // instead of the skybox's own once a scene has atmospheres.
     float3 cameraPos_;
@@ -466,6 +470,9 @@ struct DrawPush
     uint shadowViewIndex_;
     uint debugFlags_;
     uint atmosphereCount_;
+    uint bloomSource_;
+    uint bloomKaris_;
+    float bloomRadius_;
 };
 
 static const uint DebugShadowCascades = 1u;
@@ -509,11 +516,11 @@ static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 64);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(AtmosphereGPUData) == 64);
-static_assert(sizeof(DrawPush) == 36);
+static_assert(sizeof(DrawPush) == 48);
 static_assert(sizeof(ThumbnailDrawGPUData) == 208);
 static_assert(sizeof(ThumbnailPush) == 8);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 224);
+static_assert(sizeof(FrameGPUData) == 240);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);

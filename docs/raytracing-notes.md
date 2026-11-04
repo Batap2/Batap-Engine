@@ -608,6 +608,37 @@ sombre ne fait plus monter l'exposition, et le soleil ou les spéculaires
 (au-dessus du percentile) ne la font pas descendre. Réglables dans
 l'inspecteur et les options de caméra de l'éditeur.
 
+## 3.2c Bloom
+
+*Fait (2026-11-04)* : chaîne de Jimenez 2014 (Call of Duty: Advanced
+Warfare), sans seuil, dans `Renderer/Features/Bloom/`, entre la mesure
+d'exposition et le tonemap.
+- **Descente** (`BloomDownPS`) : de la cible HDR vers une image `RGBA16F` de
+  demi-résolution, puis chaque niveau vers sa moitié, jusqu'à 6 niveaux
+  (1/64) ou un côté sous 8 px. Une image du graphe par niveau, chacune à sa
+  taille (pas d'accès par mip, rendergraph 5.3). Filtre 13 points : 5 boîtes
+  2 × 2, pondérées 0,5 (centre) et 4 × 0,125. Au premier niveau, moyenne de
+  Karis : chaque boîte pondérée par 1 / (1 + luma), ce qui éteint les
+  lucioles. Sortie plafonnée à 8 000 (valeur exposée) : la remontée
+  additionne les niveaux, la somme reste un demi-flottant fini.
+- **Remontée** (`BloomUpPS`) : tente 3 × 3 du niveau `i + 1` ajoutée (blend
+  `ONE, ONE`) au niveau `i`. Le niveau 0 finit avec la somme de tous les
+  flous.
+- **Composition** : `TonemapPS` ajoute `bloom × FrameGPUData::bloomIntensity_`
+  à la couleur HDR avant le tonemap (lecture bilinéaire de la
+  demi-résolution).
+- Le seul sampler répète : les UV sont bornés à un demi-texel du bord, sinon
+  le soleil d'un bord fleurit sur le bord opposé.
+- **Réglages** (`Camera_C`, donc aussi la caméra de l'éditeur) :
+  `bloomIntensity_` (0,04 ; 0 retire les passes), `bloomRadius_` (écart des
+  points de la tente, en texels du niveau lu ; 1). Une zone uniforme gagne
+  `bloomIntensity × niveaux` de sa valeur (+24 % à 0,04 avec 6 niveaux) :
+  l'exposition auto mesure avant le bloom.
+
+*Mesuré* (1280 × 720, soleil dans le champ, intensité 0,04 contre 0) : écart
+moyen 11,9/255, max 92 (halo du soleil, bord du terrain sur le ciel). GPU :
+médiane 1,694 ms contre 1,650 ms, soit ~0,04 ms.
+
 ## 3.3 Prépasse profondeur + normales
 
 *Fait (2026-10-30)* :
