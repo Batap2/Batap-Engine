@@ -377,7 +377,7 @@ struct FrameGPUData
     uint bloomTexture_;
     float bloomIntensity_;
     uint aoTexture_;
-    float aoStrength_;
+    uint pad2_;
     uint skyLevels_[SkyPrefilterLevels];
     // The render camera, world. sh_ is the sky's irradiance seen from it, read
     // instead of the skybox's own once a scene has atmospheres.
@@ -388,7 +388,7 @@ struct FrameGPUData
     uint viewNormalTexture_;
     // 0: the GI cache cell at the pixel's distance (ray tracing).
     float aoRadius_;
-    float aoThickness_;
+    uint pad7_;
     uint aoRawTexture_;
     uint aoFilteredTexture_;
     uint pad5_;

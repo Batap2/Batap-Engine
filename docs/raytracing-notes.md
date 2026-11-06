@@ -1127,3 +1127,12 @@ restent visibles ») :
   caméra tourne près d'un mur : un ray query de longueur R dans la tranche,
   au milieu des secteurs encore libres, à la sortie de l'écran (passe en
   variante `BATAP_RT`, layout RT).
+
+## AO sortie de la caméra
+
+*2026-11-07* : `aoStrength`, `aoRadius` et `aoThickness` quittent `Camera_C`
+(l'AO décrit l'éclairage de la scène, pas l'objectif). Constantes :
+intensité 1, rayon raster 1 m (`AoRasterRadius`), épaisseur plancher 10 cm
+(`AoMinThickness`). Seul réglage : `render.ambientOcclusion`. Les scènes
+qui gardent ces clés se chargent (champs inconnus ignorés). Raster
+identique à 4.4.

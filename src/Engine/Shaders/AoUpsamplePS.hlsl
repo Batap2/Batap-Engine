@@ -44,5 +44,5 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
         weight += w;
     }
     const float4 ao = weight > 1e-3f ? sum / weight : float4(1.0f, 0.0f, 0.0f, 0.0f);
-    return float4(lerp(1.0f, saturate(ao.x), frame.aoStrength_), ao.yzw * frame.aoStrength_);
+    return float4(saturate(ao.x), ao.yzw);
 }

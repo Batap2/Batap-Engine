@@ -10,6 +10,9 @@ namespace batap
 {
 struct Camera_C;
 
+// In ray tracing the radius is the GI cache cell instead.
+inline constexpr float AoRasterRadius = 1.f;
+
 struct Ao
 {
     struct Images

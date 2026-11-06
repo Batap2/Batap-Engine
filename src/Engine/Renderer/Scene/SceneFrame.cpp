@@ -240,9 +240,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     frameData_.bloomIntensity_ = bloom_.intensity();
     const std::optional<Ao::Images> ao =
         ao_.createImages(graph, targets.extent_, camera, ctx.settings().ambientOcclusion_);
-    frameData_.aoStrength_ = camera.aoStrength_;
-    frameData_.aoRadius_ = rayTracing ? 0.f : camera.aoRadius_;
-    frameData_.aoThickness_ = camera.aoThickness_;
+    frameData_.aoRadius_ = rayTracing ? 0.f : AoRasterRadius;
     skyPrefilter_.createImages(graph, draw.push_.skyboxCount_ != 0);
 
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;

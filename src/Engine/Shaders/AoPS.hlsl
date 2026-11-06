@@ -5,6 +5,7 @@ static const float AoPi = 3.14159265358979f;
 static const uint AoSlices = 1u;
 static const uint AoSteps = 8u;
 static const uint AoSectors = 32u;
+static const float AoMinThickness = 0.1f;
 static const float AoThicknessPixels = 2.0f;
 static const float AoMaxRadiusOfHeight = 0.25f;
 static const float AoAngleScale = 1.05f;
@@ -172,7 +173,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 
                 const float Ls = v.znear_ / sampleDepth;
                 const float minThickness =
-                    frame.aoThickness_ + AoThicknessPixels * Ls / pixelsPerMetreAtUnit;
+                    AoMinThickness + AoThicknessPixels * Ls / pixelsPerMetreAtUnit;
                 const float thickness = max(connected ? abs(Ls - prevL) : 0.0f, minThickness);
                 prevL = Ls;
 

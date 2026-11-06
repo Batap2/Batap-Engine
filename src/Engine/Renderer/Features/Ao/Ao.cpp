@@ -51,7 +51,7 @@ std::optional<Ao::Images> Ao::createImages(RenderGraph& graph, VkExtent2D extent
                                            const Camera_C& settings, bool enabled)
 {
     images_.reset();
-    if (!enabled || settings.aoStrength_ <= 0.f || settings.ortho())
+    if (!enabled || settings.ortho())
         return images_;
     const VkExtent2D half{(extent.width + 1) / 2, (extent.height + 1) / 2};
     images_ = Images{graph.createImage("ao raw", {half, AoRawFormat}),
