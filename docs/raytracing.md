@@ -1082,8 +1082,15 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       texels : écart max 0,012 (alpha = r donnerait 0,23). Le canal z est
       vide, disponible pour E_avg si la compensation passe un jour de
       Turquin à Kulla-Conty. À μ = 1 : E(r = 0,5) = 0,91, E(r = 1) = 0,31.
-- [ ] **B.3 Compensation multi-diffusion** (Kulla-Conty) via la LUT.
+- [x] **B.3 Compensation multi-diffusion** (Kulla-Conty) via la LUT.
       *Vérif* : les métaux rugueux ne s'assombrissent plus.
+      *Fait (2026-11-06)* : forme de Turquin 2019, `SpecularEnergy` =
+      `1 + F0 (1/E(μ) − 1)` avec E lu dans la table LTC (`Dfg`), appliqué au
+      spéculaire direct, aux rect lights (depuis leur `t2.x`) et au
+      spéculaire IBL. Vignettes (`ThumbnailPS`, sans données de frame) :
+      E ≈ 1 − 0,7 r³. Scène `test_brdf` : 3 904 px à plus de 8 niveaux
+      (max 46), tous sur les cuivres de rugosité ≥ 0,6, plus clairs ;
+      plastiques et sol inchangés.
 - [ ] **B.4 Couplage diffus/spéculaire** par la LUT, à la place de
       `(1−F)(1−metallic)`.
 - [ ] **B.5 `reflectivity` remplacé par l'IOR.** Changement du `Material`, du
