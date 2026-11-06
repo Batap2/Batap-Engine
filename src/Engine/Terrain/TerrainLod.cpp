@@ -111,9 +111,22 @@ std::vector<ChunkKey> selectChunks(const LodParams& params, const v3d& camera,
                                    const ChunkKeySet& existing, const NodeBoundsFn& bounds)
 {
     std::vector<ChunkKey> out;
-    for (const ChunkKey& root : rootChunks(params.grid_))
+    for (const ChunkKey& root : params.roots_.empty() ? rootChunks(params.grid_) : params.roots_)
         select(root, params, camera, existing, bounds, out);
     return out;
+}
+
+bool underRoots(const ChunkKey& key, const std::vector<ChunkKey>& roots)
+{
+    for (const ChunkKey& root : roots)
+    {
+        if (root.face_ != key.face_ || root.level_ > key.level_)
+            continue;
+        const int32_t shift = key.level_ - root.level_;
+        if ((key.x_ >> shift) == root.x_ && (key.y_ >> shift) == root.y_)
+            return true;
+    }
+    return false;
 }
 
 std::vector<ChunkKey> rootChunks(const TerrainGrid& grid)
@@ -124,12 +137,12 @@ std::vector<ChunkKey> rootChunks(const TerrainGrid& grid)
     return roots;
 }
 
-ChunkKeySet quadtreeOf(const std::vector<ChunkKey>& leaves)
+ChunkKeySet quadtreeOf(const std::vector<ChunkKey>& leaves, int32_t topLevel)
 {
     ChunkKeySet tree;
     tree.reserve(leaves.size() * 4 / 3 + 8);
     for (ChunkKey key : leaves)
-        while (tree.insert(key).second && key.level_ > 0)
+        while (tree.insert(key).second && key.level_ > topLevel)
             key = parentOf(key);
     return tree;
 }
@@ -156,18 +169,19 @@ std::optional<ChunkKey> neighbour(const TerrainGrid& grid, const ChunkKey& key, 
 }
 
 std::vector<ChunkKey> shownChunks(const TerrainGrid& grid, const ChunkKeySet& quadtree,
-                                  const ChunkTest& built)
+                                  const ChunkTest& built, const std::vector<ChunkKey>& roots)
 {
     std::vector<ChunkKey> shown;
-    std::vector<ChunkKey> level = rootChunks(grid);
+    std::vector<ChunkKey> level = roots.empty() ? rootChunks(grid) : roots;
     ChunkKeySet reached(level.begin(), level.end());
+    // A neighbour outside the roots is no one's business.
     const auto besideReached = [&](const ChunkKey& key)
     {
         for (int32_t dy = -1; dy <= 1; ++dy)
             for (int32_t dx = -1; dx <= 1; ++dx)
                 if (dx != 0 || dy != 0)
                     if (const std::optional<ChunkKey> n = neighbour(grid, key, dx, dy);
-                        n && !reached.contains(*n))
+                        n && !reached.contains(*n) && (roots.empty() || underRoots(*n, roots)))
                         return false;
         return true;
     };
@@ -189,11 +203,12 @@ std::vector<ChunkKey> shownChunks(const TerrainGrid& grid, const ChunkKeySet& qu
     return shown;
 }
 
-std::vector<ChunkKey> buildFrontier(const ChunkKeySet& quadtree, const ChunkTest& built)
+std::vector<ChunkKey> buildFrontier(const ChunkKeySet& quadtree, const ChunkTest& built,
+                                    int32_t topLevel)
 {
     std::vector<ChunkKey> frontier;
     for (const ChunkKey& key : quadtree)
-        if (!built(key) && (key.level_ == 0 || built(parentOf(key))))
+        if (!built(key) && (key.level_ <= topLevel || built(parentOf(key))))
             frontier.push_back(key);
     return frontier;
 }

@@ -27,6 +27,7 @@ struct TerrainDraws
         float morphEnd_ = 0.f;
         bool morphs_ = false;
         bool outline_ = false;
+        bool flat_ = false;
 
         // Bit for bit: any change is one to send.
         bool operator==(const Params& o) const
@@ -34,7 +35,7 @@ struct TerrainDraws
             return materials_ == o.materials_ && force_ == o.force_ &&
                    std::bit_cast<uint32_t>(morphStart_) == std::bit_cast<uint32_t>(o.morphStart_) &&
                    std::bit_cast<uint32_t>(morphEnd_) == std::bit_cast<uint32_t>(o.morphEnd_) &&
-                   morphs_ == o.morphs_ && outline_ == o.outline_;
+                   morphs_ == o.morphs_ && outline_ == o.outline_ && flat_ == o.flat_;
         }
     };
 

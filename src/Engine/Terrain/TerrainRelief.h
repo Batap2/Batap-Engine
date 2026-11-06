@@ -35,6 +35,9 @@ struct TerrainRelief
         double height_ = 0.0;
         // Free for the game; handed back to stratum() for each triangle.
         int32_t zone_ = 0;
+        double du_ = 0.0;
+        double dv_ = 0.0;
+        bool flip_ = false;
     };
 
     virtual ~TerrainRelief() = default;

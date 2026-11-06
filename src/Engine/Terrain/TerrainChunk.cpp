@@ -49,13 +49,24 @@ struct NodeSampler
           v0_(-1.0 + span_ * key.y_)
     {}
 
-    std::pair<v3d, int32_t> operator()(double i, double j, int32_t level) const
+    struct Vertex
     {
-        const SurfacePoint p = surfacePoint(grid_, face_, u0_ + span_ * i / grid_.cells_,
-                                            v0_ + span_ * j / grid_.cells_);
+        v3d pos_ = v3d::Zero();
+        int32_t zone_ = 0;
+        bool flip_ = false;
+    };
+
+    Vertex operator()(double i, double j, int32_t level) const
+    {
+        const double u = u0_ + span_ * i / grid_.cells_;
+        const double v = v0_ + span_ * j / grid_.cells_;
+        const SurfacePoint p = surfacePoint(grid_, face_, u, v);
         const TerrainRelief::Sample s =
             relief_.sample({p.base_, p.up_, level, cellSize(grid_, level)});
-        return {p.base_ + p.up_ * s.height_, s.zone_};
+        const SurfacePoint q = std::abs(s.du_) + std::abs(s.dv_) > 0.0
+                                   ? surfacePoint(grid_, face_, u + s.du_, v + s.dv_)
+                                   : p;
+        return {q.base_ + q.up_ * s.height_, s.zone_, s.flip_};
     }
 
     const TerrainRelief& relief_;
@@ -186,14 +197,20 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
 
     ChunkMesh out;
     out.cells_ = cells;
-    out.center_ = sample(0.5 * cells, 0.5 * cells, level).first;
+    out.center_ = sample(0.5 * cells, 0.5 * cells, level).pos_;
 
     // One ring more than the chunk, for the normals of its border.
     std::vector<v3d> world(static_cast<size_t>(paddedSide * paddedSide));
     std::vector<int32_t> zones(static_cast<size_t>(paddedSide * paddedSide));
+    std::vector<uint8_t> flips(static_cast<size_t>(paddedSide * paddedSide));
     for (int32_t j = -1; j <= side; ++j)
         for (int32_t i = -1; i <= side; ++i)
-            std::tie(world[padded(i, j)], zones[padded(i, j)]) = sample(i, j, level);
+        {
+            const NodeSampler::Vertex v = sample(i, j, level);
+            world[padded(i, j)] = v.pos_;
+            zones[padded(i, j)] = v.zone_;
+            flips[padded(i, j)] = v.flip_ ? 1u : 0u;
+        }
 
     const size_t count = static_cast<size_t>(side * side);
     out.positions_.resize(count);
@@ -225,9 +242,14 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
         const auto ring = [&](int32_t i, int32_t j)
         { return static_cast<size_t>((j / 2 + 1) * parentSide + (i / 2 + 1)); };
         std::vector<v3d> parentRing(static_cast<size_t>(parentSide * parentSide));
+        std::vector<uint8_t> parentFlip(static_cast<size_t>(parentSide * parentSide));
         for (int32_t j = -2; j <= cells + 2; j += 2)
             for (int32_t i = -2; i <= cells + 2; i += 2)
-                parentRing[ring(i, j)] = sample(i, j, level - 1).first;
+            {
+                const NodeSampler::Vertex v = sample(i, j, level - 1);
+                parentRing[ring(i, j)] = v.pos_;
+                parentFlip[ring(i, j)] = v.flip_ ? 1u : 0u;
+            }
 
         std::vector<v3d> parent(count);
         std::vector<v3d> parentNormal(count);
@@ -244,7 +266,9 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
             const bool oddI = (i & 1) != 0;
             const bool oddJ = (j & 1) != 0;
             if (oddI && oddJ)
-                v[at(i, j)] = 0.5 * (v[at(i - 1, j - 1)] + v[at(i + 1, j + 1)]);
+                v[at(i, j)] = parentFlip[ring(i - 1, j - 1)] != 0u
+                                  ? v3d{0.5 * (v[at(i - 1, j + 1)] + v[at(i + 1, j - 1)])}
+                                  : v3d{0.5 * (v[at(i - 1, j - 1)] + v[at(i + 1, j + 1)])};
             else if (oddI)
                 v[at(i, j)] = 0.5 * (v[at(i - 1, j)] + v[at(i + 1, j)]);
             else if (oddJ)
@@ -280,9 +304,14 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
         const auto ring = [&](int32_t gi, int32_t gj)
         { return static_cast<size_t>((gj + 1) * gpSide + (gi + 1)); };
         std::vector<v3d> gp(static_cast<size_t>(gpSide * gpSide));
+        std::vector<uint8_t> gpFlip(static_cast<size_t>(gpSide * gpSide));
         for (int32_t gj = -1; gj <= gpCells + 1; ++gj)
             for (int32_t gi = -1; gi <= gpCells + 1; ++gi)
-                gp[ring(gi, gj)] = sample(4 * gi, 4 * gj, level - 2).first;
+            {
+                const NodeSampler::Vertex v = sample(4 * gi, 4 * gj, level - 2);
+                gp[ring(gi, gj)] = v.pos_;
+                gpFlip[ring(gi, gj)] = v.flip_ ? 1u : 0u;
+            }
         std::vector<v3d> gpNormal(static_cast<size_t>(gpSide * gpSide));
         for (int32_t gj = 0; gj <= gpCells; ++gj)
             for (int32_t gi = 0; gi <= gpCells; ++gi)
@@ -301,6 +330,9 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
             const v3d& p10 = v[ring(gi + 1, gj)];
             const v3d& p11 = v[ring(gi + 1, gj + 1)];
             const v3d& p01 = v[ring(gi, gj + 1)];
+            if (gpFlip[ring(gi, gj)] != 0u)
+                return s + t <= 1.0 ? v3d{p00 + s * (p10 - p00) + t * (p01 - p00)}
+                                    : v3d{p11 + (1.0 - s) * (p01 - p11) + (1.0 - t) * (p10 - p11)};
             return s >= t ? v3d{p00 + s * (p10 - p00) + t * (p11 - p10)}
                           : v3d{p00 + t * (p01 - p00) + s * (p11 - p01)};
         };
@@ -341,8 +373,16 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
             const size_t b = at(i + 1, j);
             const size_t c = at(i + 1, j + 1);
             const size_t d = at(i, j + 1);
-            classify(a, b, c, i, j, i + 1, j, i + 1, j + 1);
-            classify(a, c, d, i, j, i + 1, j + 1, i, j + 1);
+            if (flips[padded(i, j)] != 0u)
+            {
+                classify(a, b, d, i, j, i + 1, j, i, j + 1);
+                classify(b, c, d, i + 1, j, i + 1, j + 1, i, j + 1);
+            }
+            else
+            {
+                classify(a, b, c, i, j, i + 1, j, i + 1, j + 1);
+                classify(a, c, d, i, j, i + 1, j + 1, i, j + 1);
+            }
         }
 
     std::array<uint32_t, kMaxTerrainStrata> cursor{};
@@ -371,12 +411,12 @@ ChunkSurface chunkSurface(const TerrainRelief& relief, const TerrainGrid& grid, 
     const NodeSampler sample(relief, grid, key);
     const int32_t cells = grid.cells_;
     ChunkSurface out;
-    out.center_ = sample(0.5 * cells, 0.5 * cells, sample.level_).first;
+    out.center_ = sample(0.5 * cells, 0.5 * cells, sample.level_).pos_;
     out.positions_.reserve(static_cast<size_t>((cells + 1) * (cells + 1)));
     for (int32_t j = 0; j <= cells; ++j)
         for (int32_t i = 0; i <= cells; ++i)
             out.positions_.push_back(
-                (sample(i, j, sample.level_).first - out.center_).cast<float>());
+                (sample(i, j, sample.level_).pos_ - out.center_).cast<float>());
     return out;
 }
 
