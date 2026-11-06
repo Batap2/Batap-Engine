@@ -235,7 +235,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const Camera_C& camera = reg->get<Camera_C>(args.camera_);
     const std::optional<GraphImage> bloom = bloom_.createImages(graph, targets.extent_, camera);
     frameData_.bloomIntensity_ = bloom_.intensity();
-    const std::optional<GraphImage> ao = ao_.createImage(graph, targets.extent_, camera);
+    const std::optional<Ao::Images> ao = ao_.createImages(graph, targets.extent_, camera);
     frameData_.aoStrength_ = camera.aoStrength_;
     frameData_.aoRadius_ = rayTracing ? 0.f : camera.aoRadius_;
     frameData_.aoThickness_ = camera.aoThickness_;
@@ -265,7 +265,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 data.aoTexture_ = InvalidGPUIndex;
                 if (ao)
                 {
-                    data.aoTexture_ = c.graph_.textureIndex(*ao);
+                    data.aoTexture_ = c.graph_.textureIndex(ao->filtered_);
+                    data.aoRawTexture_ = c.graph_.textureIndex(ao->raw_);
                     data.depthTexture_ = c.graph_.textureIndex(depth);
                     data.viewNormalTexture_ = c.graph_.textureIndex(normals);
                 }
@@ -324,7 +325,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 .read(traced, Usage::ShaderRead);
     };
     skyPrefilter_.addPasses(graph, draw, readsLighting);
-    ao_.addPass(graph, depth, normals, frameConstants, uploads, draw);
+    ao_.addPasses(graph, depth, normals, frameConstants, uploads, draw);
     const auto readsShading = [&](GraphPass& pass)
     {
         readsLighting(pass);
@@ -352,7 +353,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                                });
     readsShading(scene);
     if (ao)
-        scene.read(*ao, Usage::ShaderRead);
+        scene.read(ao->filtered_, Usage::ShaderRead);
 
     if (translucent)
     {

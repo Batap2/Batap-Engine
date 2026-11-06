@@ -12,6 +12,12 @@ struct Camera_C;
 
 struct Ao
 {
+    struct Images
+    {
+        GraphImage raw_;
+        GraphImage filtered_;
+    };
+
     explicit Ao(const DrawSetup& setup);
     ~Ao();
 
@@ -19,14 +25,15 @@ struct Ao
     Ao& operator=(const Ao&) = delete;
 
     void buildPipelines(const ShaderModules& modules);
-    std::optional<GraphImage> createImage(RenderGraph& graph, VkExtent2D extent,
-                                          const Camera_C& settings);
-    void addPass(RenderGraph& graph, GraphImage depth, GraphImage normals,
-                 GraphBuffer frameConstants, GraphBuffer uploads, const DrawContext& draw);
+    std::optional<Images> createImages(RenderGraph& graph, VkExtent2D extent,
+                                       const Camera_C& settings);
+    void addPasses(RenderGraph& graph, GraphImage depth, GraphImage normals,
+                   GraphBuffer frameConstants, GraphBuffer uploads, const DrawContext& draw);
 
    private:
     DrawSetup setup_;
-    VkPipeline pipeline_ = VK_NULL_HANDLE;
-    std::optional<GraphImage> image_;
+    VkPipeline trace_ = VK_NULL_HANDLE;
+    VkPipeline filter_ = VK_NULL_HANDLE;
+    std::optional<Images> images_;
 };
 }  // namespace batap

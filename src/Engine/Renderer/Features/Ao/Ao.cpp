@@ -7,52 +7,70 @@ namespace batap
 {
 namespace
 {
+constexpr VkFormat AoRawFormat = VK_FORMAT_R16_SFLOAT;
 constexpr VkFormat AoFormat = VK_FORMAT_R8_UNORM;
+
+void drawFullscreen(const DrawContext& draw, GraphContext& c, VkPipeline pipeline)
+{
+    const DrawContext bound = bindDraw(draw, c.cmd());
+    vkCmdBindPipeline(bound.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    pushDraw(bound, bound.push_);
+    vkCmdDraw(bound.cmd_, 3, 1, 0, 0);
 }
+}  // namespace
 
 Ao::Ao(const DrawSetup& setup) : setup_(setup) {}
 
 Ao::~Ao()
 {
-    vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
 }
 
 void Ao::buildPipelines(const ShaderModules& modules)
 {
-    vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
-    pipeline_ = GraphicsPipelineBuilder()
-                    .shaders(modules[SkyVS], modules[AoPS])
-                    .colorFormat(AoFormat)
-                    .build(setup_.ctx_.device_, setup_.layout_);
+    vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
+    trace_ = GraphicsPipelineBuilder()
+                 .shaders(modules[SkyVS], modules[AoPS])
+                 .colorFormat(AoRawFormat)
+                 .build(setup_.ctx_.device_, setup_.layout_);
+    filter_ = GraphicsPipelineBuilder()
+                  .shaders(modules[SkyVS], modules[AoFilterPS])
+                  .colorFormat(AoFormat)
+                  .build(setup_.ctx_.device_, setup_.layout_);
 }
 
-std::optional<GraphImage> Ao::createImage(RenderGraph& graph, VkExtent2D extent,
-                                          const Camera_C& settings)
+std::optional<Ao::Images> Ao::createImages(RenderGraph& graph, VkExtent2D extent,
+                                           const Camera_C& settings)
 {
-    image_.reset();
+    images_.reset();
     if (settings.aoStrength_ > 0.f && !settings.ortho())
-        image_ = graph.createImage("ao", {extent, AoFormat});
-    return image_;
+        images_ = Images{graph.createImage("ao raw", {extent, AoRawFormat}),
+                         graph.createImage("ao", {extent, AoFormat})};
+    return images_;
 }
 
-void Ao::addPass(RenderGraph& graph, GraphImage depth, GraphImage normals,
-                 GraphBuffer frameConstants, GraphBuffer uploads, const DrawContext& draw)
+void Ao::addPasses(RenderGraph& graph, GraphImage depth, GraphImage normals,
+                   GraphBuffer frameConstants, GraphBuffer uploads, const DrawContext& draw)
 {
-    if (!image_)
+    if (!images_)
         return;
     graph.addPass("ao")
         .read(depth, Usage::ShaderRead)
         .read(normals, Usage::ShaderRead)
         .read(frameConstants, Usage::ShaderRead)
         .read(uploads, Usage::AnyRead)
-        .color(*image_, Load::DontCare)
-        .execute(
-            [draw, pipeline = pipeline_](GraphContext& c)
-            {
-                const DrawContext bound = bindDraw(draw, c.cmd());
-                vkCmdBindPipeline(bound.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-                pushDraw(bound, bound.push_);
-                vkCmdDraw(bound.cmd_, 3, 1, 0, 0);
-            });
+        .color(images_->raw_, Load::DontCare)
+        .execute([draw, pipeline = trace_](GraphContext& c) { drawFullscreen(draw, c, pipeline); });
+    graph.addPass("ao filter")
+        .read(images_->raw_, Usage::ShaderRead)
+        .read(depth, Usage::ShaderRead)
+        .read(normals, Usage::ShaderRead)
+        .read(frameConstants, Usage::ShaderRead)
+        .read(uploads, Usage::AnyRead)
+        .color(images_->filtered_, Load::DontCare)
+        .execute([draw, pipeline = filter_](GraphContext& c)
+                 { drawFullscreen(draw, c, pipeline); });
 }
 }  // namespace batap

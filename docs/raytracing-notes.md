@@ -990,3 +990,47 @@ cube, sphère, plaque de 3 cm à 30 cm du sol, ailette de 3 cm, ciel seul ;
   arêtes du traîneau, pied des blocs, robot) ; le reste à ±1, l'exposition
   auto.
 - Validation (debug, synchronisation) : rien de nouveau.
+
+## 4.3 Bruit et filtre
+
+*Fait (2026-11-06)* :
+- **Estimateur linéaire.** La passe écrivait par pixel le ratio
+  visible / total de sa tranche : exact (1) sans occultant, mais moyenner
+  des ratios ne donne pas l'intégrale, et la tranche rasante tournée de 90°
+  biaisait l'échantillonnage. Sur des angles de tranche uniformes,
+  |N projetée| × (intégrale de la tranche entière) vaut 1 en moyenne
+  (∫ N·ω sur l'hémisphère / π) : `1 − |N projetée| × occulté` est sans
+  biais, linéaire pour le filtre, et vaut exactement 1 sans occultant. Il
+  descend sous 0, d'où une cible brute `R16_SFLOAT` (`ao raw`). La tranche
+  rasante (|N projetée| < 0,4) est laissée de côté au lieu d'être tournée :
+  elle ne pèse que |N projetée|.
+- **Passe `ao filter`** (`AoFilterPS`) : 5 × 5 binomial, coupé par la
+  distance au plan tangent du centre (tolérance 2 % de la distance) et par
+  `(N·Nq)^8`. Sortie `R8_UNORM` (`aoTexture_`), `aoStrength` appliqué ici.
+  `Ao.hlsli` partage les bindings et la reconstruction de position.
+- **Bruit : IGN, pas FAST.** Mesuré contre une référence (32 tranches
+  stratifiées × 32 pas, sans filtre), vue debug, raster, erreur RMS sur les
+  pixels occultés :
+
+| | brut | filtré 5 × 5 |
+|---|---|---|
+| ratio (4.2), IGN | 9,7 | 5,4 |
+| ratio, FAST | 9,7 | 5,5 |
+| linéaire, IGN (retenu) | 14,6 | 4,9 |
+| linéaire, FAST | 14,6 | 5,1 |
+
+  FAST (`vector2_uniform_binomial5x5`) ne gagne rien : l'occlusion dépend de
+  l'angle de tranche de façon très non linéaire, l'optimisation spectrale du
+  bruit ne passe pas. Retiré (pas de données EA dans le moteur). À
+  réessayer avec un filtre temporel (5.3), son vrai terrain. Noyau : 3 × 3
+  binomial, 5 × 5 binomial et 5 × 5 boîte se valent (4,91 / 4,87 / 4,88).
+- **Ce qui reste est la marche, pas le bruit.** Contre une référence à
+  32 tranches mais 8 pas, le filtré a un biais de −0,03 et une erreur de
+  0,85. Contre 32 pas, le biais est de +2,3 (plus clair) : 8 pas ratent des
+  occultants. Levier qualité / coût séparé.
+- Image : le grain d'IGN a disparu, contacts nets. L'AO est plus légère
+  qu'en 4.2 : le ratio d'avant assombrissait.
+- Coût : 0,28 ms en 720p dans les deux modes (+0,07 ms de filtre), soit
+  ≈ 1,1 ms en 1440p sur la 5070, environ le double sur une 3060 : au-dessus
+  du budget de 0,5–1 ms. La demi-résolution est le levier suivant.
+- Validation (debug, synchronisation) : rien de nouveau.

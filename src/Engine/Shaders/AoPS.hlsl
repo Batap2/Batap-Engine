@@ -1,10 +1,5 @@
+#include "Ao.hlsli"
 #include "GiCache.hlsli"
-#include "ShaderInterop.h"
-
-[[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
-[[vk::binding(FrameConstantsBinding, FrameSet)]] StructuredBuffer<FrameGPUData> FrameBuffer;
-[[vk::binding(CamerasBinding, FrameSet)]] StructuredBuffer<CameraGPUData> CameraInstancebuffer;
-[[vk::push_constant]] DrawPush g_draw;
 
 static const float AoPi = 3.14159265358979f;
 static const uint AoSlices = 1u;
@@ -15,28 +10,6 @@ static const float AoMaxRadiusOfHeight = 0.25f;
 static const float AoAngleScale = 1.05f;
 static const float AoSlopeTolerance = 0.5f;
 static const float AoMinProjectedNormal = 0.4f;
-
-struct AoSlice
-{
-    float2 dir_;
-    float3 ortho_;
-    float3 axis_;
-    float projLength_;
-};
-
-struct AoScreen
-{
-    float2 size_;
-    float2 invProj_;
-    float znear_;
-};
-
-float3 AoViewPosition(AoScreen v, float2 pixel, float linearDepth)
-{
-    const float2 ndc =
-        float2(pixel.x / v.size_.x * 2.0f - 1.0f, 1.0f - pixel.y / v.size_.y * 2.0f);
-    return float3(ndc * v.invProj_ * linearDepth, -linearDepth);
-}
 
 float AoNoise(float2 pixel)
 {
@@ -80,17 +53,6 @@ float2 AoSlicePoint(float3 d, float3 N, float3 perp, float invProjLength)
     return float2(dot(d, N) * invProjLength, dot(d, perp));
 }
 
-AoSlice AoSliceAt(AoScreen v, float2 pixel, float L, float3 P, float3 V, float3 N, float phi)
-{
-    AoSlice s;
-    s.dir_ = float2(cos(phi), sin(phi));
-    const float3 along = AoViewPosition(v, pixel + s.dir_, L) - P;
-    s.ortho_ = normalize(along - dot(along, V) * V);
-    s.axis_ = cross(V, s.ortho_);
-    s.projLength_ = length(N - s.axis_ * dot(N, s.axis_));
-    return s;
-}
-
 bool AoClipToSphere(float3 P, float3 dir, float2 span, float radius, out float2 clipped)
 {
     const float b = dot(dir, P);
@@ -112,13 +74,7 @@ float main(float4 svpos : SV_POSITION) : SV_Target
     if (depth <= 0.0f)
         return 1.0f;
 
-    AoScreen v;
-    uint width;
-    uint height;
-    depths.GetDimensions(width, height);
-    v.size_ = float2(width, height);
-    v.invProj_ = 1.0f / float2(cam.proj_[0][0], cam.proj_[1][1]);
-    v.znear_ = cam.znear_;
+    const AoScreen v = AoScreenOf(depths, cam);
 
     const float L = v.znear_ / depth;
     const float3 P = AoViewPosition(v, svpos.xy, L);
@@ -138,24 +94,21 @@ float main(float4 svpos : SV_POSITION) : SV_Target
     const float noiseSlice = AoNoise(svpos.xy);
     const float noiseStep = AoNoise(svpos.xy + float2(5.588238f, 5.588238f));
 
-    float visible = 0.0f;
-    float total = 0.0f;
+    float occlusion = 0.0f;
     [unroll]
     for (uint slice = 0u; slice < AoSlices; ++slice)
     {
         const float phi = AoPi * (float(slice) + noiseSlice) / float(AoSlices);
-        AoSlice sl = AoSliceAt(v, svpos.xy, L, P, V, N, phi);
-        // A slice close to the tangent plane reads heights a 10-bit normal
-        // cannot resolve; the slice a quarter turn away holds the normal.
-        if (sl.projLength_ < AoMinProjectedNormal)
-            sl = AoSliceAt(v, svpos.xy, L, P, V, N, phi + 0.5f * AoPi);
-        if (sl.projLength_ < AoMinProjectedNormal)
-            continue;
-        const float2 dir = sl.dir_;
-        const float3 ortho = sl.ortho_;
-        const float3 axis = sl.axis_;
-        const float projLength = sl.projLength_;
+        const float2 dir = float2(cos(phi), sin(phi));
+        const float3 along = AoViewPosition(v, svpos.xy + dir, L) - P;
+        const float3 ortho = normalize(along - dot(along, V) * V);
+        const float3 axis = cross(V, ortho);
         const float3 projN = N - axis * dot(N, axis);
+        const float projLength = length(projN);
+        // A slice close to the tangent plane reads heights a 10-bit normal
+        // cannot resolve, and weighs projLength in the estimate: left out.
+        if (projLength < AoMinProjectedNormal)
+            continue;
         const float invProjLength = 1.0f / projLength;
         const float nCos = dot(projN, V) * invProjLength;
         const float nSin = dot(projN, ortho) * invProjLength;
@@ -228,7 +181,6 @@ float main(float4 svpos : SV_POSITION) : SV_Target
         }
 
         const float sinN = sin(n);
-        const float sliceTotal = AoIntegral(-0.5f * AoPi, 0.5f * AoPi, n, sinN);
         float sliceOccluded = 0.0f;
         uint runs = occluded;
         [loop]
@@ -240,10 +192,11 @@ float main(float4 svpos : SV_POSITION) : SV_Target
             sliceOccluded += AoIntegral(AoSectorEdge(first), AoSectorEdge(end), n, sinN);
             runs = end < AoSectors ? runs & (0xFFFFFFFFu << end) : 0u;
         }
-        visible += projLength * max(sliceTotal - sliceOccluded, 0.0f);
-        total += projLength * sliceTotal;
+        occlusion += projLength * sliceOccluded;
     }
 
-    const float ao = total > 0.0f ? visible / total : 1.0f;
-    return lerp(1.0f, ao, frame.aoStrength_);
+    // Over uniform slice angles, projLength times the slice's whole integral
+    // averages to 1: this is unbiased, linear for the filter, and exactly 1
+    // where nothing occludes. It can go below 0, hence a float target.
+    return 1.0f - occlusion / float(AoSlices);
 }

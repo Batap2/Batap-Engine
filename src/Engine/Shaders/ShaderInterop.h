@@ -389,6 +389,10 @@ struct FrameGPUData
     // 0: the GI cache cell at the pixel's distance (ray tracing).
     float aoRadius_;
     float aoThickness_;
+    uint aoRawTexture_;
+    uint pad4_;
+    uint pad5_;
+    uint pad6_;
 };
 
 struct SphereOccluderGPUData
@@ -541,7 +545,7 @@ static_assert(sizeof(DrawPush) == 60);
 static_assert(sizeof(ThumbnailDrawGPUData) == 208);
 static_assert(sizeof(ThumbnailPush) == 8);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 288);
+static_assert(sizeof(FrameGPUData) == 304);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);
