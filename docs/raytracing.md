@@ -1144,8 +1144,14 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       un segment, 6,0 → 4,6 sur l'autre), le minimum par frame monte de
       0,03 à 0,2 ms. À mesurer dans tracy si le budget serre ; amortir sur
       plusieurs frames est possible.
-- [ ] **B.8 Scène white furnace.**
+- [x] **B.8 Scène white furnace.**
       *Vérif* : l'image est uniforme pour toutes les rugosités.
+      *Fait (2026-11-06)* : `scenes/test_furnace.btpl` de Compacteur
+      (`tools/make_furnace_scene.py`) : ciel plat blanc 1000 cd/m², pas de
+      soleil ni de sol, deux rangées de sept sphères blanches (diélectrique
+      ior 1,5, métal) de rugosité 0,05 à 1, caméra fixe ev100 10. Dump :
+      196 partout sauf les 104 px du réticule du HUD ; contrôle avec une
+      sphère à albédo 0,5 : elle seule ressort (−16 niveaux de luma).
 - [ ] **B.9 Échantillonnage VNDF** (calottes sphériques, Dupuy & Benyoub 2023),
       `eval`/`sample`/`pdf` dans un `.hlsli` partagé.
 - [ ] **B.10 Diffus EON** *(option)*.
