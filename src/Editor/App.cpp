@@ -114,11 +114,11 @@ void setExposure(Camera_C& view, const editorConfig::Exposure& exposure)
     view.meteringRange_ = exposure.meteringRange;
 }
 
-auto exposureState(const Camera_C& view)
+void setLook(Camera_C& view, const Camera_C& from)
 {
-    return std::tuple{view.ev100_,        view.autoExposure_, view.exposureCompensation_,
-                      view.minEv100_,     view.maxEv100_,     view.meteringPercentile_,
-                      view.meteringRange_};
+    setExposure(view, exposureOf(from));
+    view.bloomIntensity_ = from.bloomIntensity_;
+    view.bloomRadius_ = from.bloomRadius_;
 }
 }  // namespace
 
@@ -145,6 +145,15 @@ EntityHandle App::editorCamera()
     auto view = reg.view<EditorOnly_C, Camera_C>();
     const auto it = view.begin();
     return it == view.end() ? EntityHandle{} : EntityHandle{&reg, *it};
+}
+
+EntityHandle App::activeSceneCamera()
+{
+    auto& reg = world_->registry_;
+    for (auto [e, camera] : reg.view<Camera_C>(entt::exclude<EditorOnly_C>).each())
+        if (camera.active_)
+            return EntityHandle{&reg, e};
+    return EntityHandle{};
 }
 
 void App::focusEditorCamera(EntityHandle target)
@@ -215,24 +224,16 @@ void App::syncEditorCamera()
         const FreeCamController_C& ctrl = cam.get<FreeCamController_C>();
         Camera_C& view = cam.get<Camera_C>();
 
-        if (exposureState(view) != exposureState(editorCamView_))
-            editorExposureFromScene_ = false;
-        if (editorExposureFromScene_)
-        {
-            auto& reg = world_->registry_;
-            for (auto [e, sceneCam] : reg.view<Camera_C>(entt::exclude<EditorOnly_C>).each())
-            {
-                if (!sceneCam.active_)
-                    continue;
-                setExposure(view, exposureOf(sceneCam));
-                editorExposureFromScene_ = false;
-                break;
-            }
-        }
+        // While a scene camera lends its look, the view shows it and the
+        // editor's own stays as it was, for a scene without one.
+        const EntityHandle scene = activeSceneCamera();
+        Camera_C own = view;
+        if (scene.valid())
+            setLook(own, editorCamView_);
 
         // A template is looked at from wherever: its moves must not become
         // the scene's saved pose.
-        if (!editingTemplate() && camState(tc.pos(), ctrl, view) !=
+        if (!editingTemplate() && camState(tc.pos(), ctrl, own) !=
                                       camState(editorCamPos_, editorCamCtrl_, editorCamView_))
             markConfigDirty();
 
@@ -243,7 +244,8 @@ void App::syncEditorCamera()
         editorCamView_.fov_ = view.fov_;
         editorCamView_.znear_ = view.znear_;
         editorCamView_.orthoHeight_ = view.orthoHeight_;
-        setExposure(editorCamView_, exposureOf(view));
+        setLook(editorCamView_, own);
+        setLook(view, scene.valid() ? scene.get<Camera_C>() : editorCamView_);
     }
 
     world_->setRenderCamera(playing_ ? entt::null : cam.entity_);
@@ -611,7 +613,7 @@ void App::saveConfig()
     file.camera = {editorCamCtrl_.moveSpeed_, editorCamCtrl_.boostSpeed_,
                    editorCamCtrl_.mouseSensitivity_, editorCamView_.fov_, editorCamView_.znear_};
     file.pose = {editorCamPos_,         editorCamCtrl_.yaw_,        editorCamCtrl_.pitch_,
-                 editorCamCtrl_.frame_, exposureOf(editorCamView_), !editorExposureFromScene_};
+                 editorCamCtrl_.frame_, exposureOf(editorCamView_), true};
     file.hasPose = true;
 
     editorConfig::write(file, projectDir_, sceneKey());
@@ -652,7 +654,6 @@ void App::loadSceneCamera()
     file.pose = {editorCamPos_, editorCamCtrl_.yaw_, editorCamCtrl_.pitch_, editorCamCtrl_.frame_,
                  exposureOf(editorCamView_)};
     editorConfig::read(file, projectDir_, scene);
-    editorExposureFromScene_ = !file.pose.hasExposure;
     if (!file.hasPose)
         return;
 

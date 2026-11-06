@@ -1155,6 +1155,15 @@ void UIPanels::drawCameraOptions(World& world, App& app)
 
         bool camChanged = ui::FieldDragFloat("FOV", &camera->fov_, 0.01f, 0.01f, 3.14f);
         camChanged |= ui::FieldDragFloat("Near", &camera->znear_, 0.01f, 0.001f, 10.0f);
+        const bool fromScene = app.activeSceneCamera().valid();
+        if (fromScene)
+            ui::Field("Exposure",
+                      []
+                      {
+                          ImGui::TextDisabled("from the active scene camera");
+                          return false;
+                      });
+        ImGui::BeginDisabled(fromScene);
         camChanged |= ui::FieldDragFloat("EV100", &camera->ev100_, 0.05f, -10.0f, 25.0f);
         ui::Field("Auto exposure",
                   [&] { return ImGui::Checkbox("##autoExposure", &camera->autoExposure_); });
@@ -1164,6 +1173,7 @@ void UIPanels::drawCameraOptions(World& world, App& app)
         ui::FieldDragFloat("Max EV100", &camera->maxEv100_, 0.05f, -10.0f, 25.0f);
         ui::FieldDragFloat("Percentile", &camera->meteringPercentile_, 0.005f, 0.5f, 1.0f);
         ui::FieldDragFloat("Range (EV)", &camera->meteringRange_, 0.05f, 0.0f, 20.0f);
+        ImGui::EndDisabled();
         ImGui::EndDisabled();
         if (camChanged)
             world.instances().markDirty<Camera_C>(cam);

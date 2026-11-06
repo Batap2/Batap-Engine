@@ -61,6 +61,7 @@ struct App
     void syncEditorCamera();
     void applyEditorCamera();
     EntityHandle editorCamera();
+    EntityHandle activeSceneCamera();
     void focusEditorCamera(EntityHandle target);
     void frameEditorCamera(const AABB& box, const v3f& fallbackCentre);
 
@@ -88,7 +89,6 @@ struct App
     quatf editorCamRot_ = quatf::Identity();
     FreeCamController_C editorCamCtrl_;
     Camera_C editorCamView_;
-    bool editorExposureFromScene_ = false;
     v3f playCamPos_{v3f::Zero()};
     quatf playCamRot_ = quatf::Identity();
 
