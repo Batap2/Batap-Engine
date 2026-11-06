@@ -875,3 +875,68 @@ plus. À l'arrêt, +0,3 à +0,4 ms de GPU sur la lune : le VS lit les positions
 mais calcule encore tout le morph pour la normale. Caméra rapide : plus de
 taches. Banc : raster identique, RT dans le bruit, validation propre.
 
+
+## 4.1 Passe bitmask
+
+*Fait (2026-11-06)* :
+- **Passe `ao`** (`Features/Ao`), entre `prepass` et `scene` : triangle plein
+  écran (`SkyVS` + `AoPS`), sortie `R8_UNORM` pleine résolution. Elle lit la
+  profondeur (Z inversé, `L = znear / z`) et les normales de vue par leur
+  index bindless (`FrameGPUData::depthTexture_`, `viewNormalTexture_`) ; les
+  PS de la géométrie lisent `aoTexture_` à `SV_Position` (`ScreenAo`). Le
+  graphe ajoute `SAMPLED` à la profondeur, que `scene` reprend en
+  attachement.
+- **Réglages sur `Camera_C`**, comme le bloom (pas de `Ssgi_C`) :
+  `aoStrength` (0 coupe la passe), `aoRadius` (raster seulement),
+  `aoThickness` (épaisseur plancher, m). En RT, rayon = cellule du cache à la
+  distance du pixel, `GiCellBase × max(d / GiLevelDistance, 1)` : 15 cm sous
+  3,75 m, puis 4 % de la distance, sans saut aux changements de niveau.
+  Rayon écran borné à 25 % de la hauteur ; sous 2 px, AO = 1. Caméra
+  ortho : pas de passe.
+- **Marche** : 1 tranche par pixel, 8 pas de chaque côté, répartis en carré
+  (`t = 1 + s²(R − 1)` px), IGN pour l'angle et le décalage des pas (FAST en
+  4.3). Plan de tranche exact : celui de l'œil, de P et du pixel voisin sur
+  la ligne.
+- **Épaisseur** : chaque pas est un segment le long du rayon caméra, de
+  l'échantillon à `max(|ΔL| si connecté, aoThickness + 2 px)`. Connecté =
+  la pente du Z inversé (linéaire sur un plan) reste à ±50 % des deux
+  précédentes. Le segment est coupé exactement par la sphère de rayon R
+  autour de P (EEVEE l'approche dans l'axe de vue). Les angles sont
+  multipliés par 1,05 autour de la normale : un pas à moins de ~4° du plan
+  tangent ne masque rien.
+- **Pondération** : visibilité en cosinus exacte. Intégrale de
+  `cos φ · |sin(φ + n)|` (l'intégrande de GTAO), en forme fermée, sur chaque
+  plage de secteurs occultés ; divisée par l'hémisphère entier, un pixel
+  dégagé vaut exactement 1.
+- **Vue debug** « Ambient occlusion » (menu View). `BATAP_DEBUG_FLAGS=<bits>`
+  force les bits `Debug*` sans éditeur (64 = AO).
+
+*Scène* : `scenes/test_ao.btpl` (`tools/make_ao_scene.py`) : coin de pièce,
+cube, sphère, plaque de 3 cm à 30 cm du sol, ailette de 3 cm, ciel seul ;
+`test_ao_sun.btpl` y ajoute un soleil bas.
+
+*Mesuré* (1280 × 720, RTX 5070, médiane GPU de la frame) :
+
+| | raster | RT |
+|---|---|---|
+| AO coupée | 0,25 ms | 0,54 ms |
+| 2 tranches, poids par secteur | 0,59 ms | 0,88 ms |
+| 2 tranches, intégrale par plage | 0,56 ms | 0,84 ms |
+| 1 tranche (retenu) | 0,42 ms | 0,70 ms |
+
+- Le coût suit le nombre d'échantillons : 4 pas au lieu de 8, ou 1 tranche
+  au lieu de 2, le divise par deux. Un bruit constant (cache cohérent) ne
+  gagne que 13 % : une pyramide de profondeur n'est pas la priorité.
+- ≈ 0,65 ms en 1440p sur la 5070, environ le double sur la cible 3060 : la
+  demi-résolution sera probablement nécessaire (4.3).
+- Vue debug, après AgX (sol dégagé = 200) : coin du fond 162 en raster,
+  175 en RT ; pied du cube 175 / 180 ; sous la plaque 182 / 200 (en RT la
+  plaque est au-delà de la cellule, c'est le cache qui l'assombrit) ;
+  milieu d'un mur 201.
+- Reste : des points sombres isolés aux silhouettes (haut de la sphère et
+  de l'ailette), en raster comme en RT. À revoir avec le débruitage.
+- Validation (build debug, synchronisation comprise, raster et RT) : rien
+  de la passe. Trois erreurs préexistantes, `independentBlend` non activé
+  pour les pipelines translucides (accum et reveal n'ont pas le même
+  blend, 585044a), et une assertion VMA « allocations non libérées » à la
+  fermeture, présente aussi AO coupée.

@@ -116,6 +116,8 @@ struct Engine
     bool rtSupported() const;
 
     float deltaTime_ = 0;
+    // BATAP_DEBUG_FLAGS: Debug* bits of ShaderInterop.h forced on every view.
+    uint32_t forcedDebugFlags_ = 0;
 
     // ImGui points. Read by the platform layer to know what drags the window.
     float titleBarHeight_ = 0.0f;

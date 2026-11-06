@@ -37,6 +37,7 @@ Surface MeshSurface(VS_OUTPUT i, StaticMeshGPUData inst, Material mat, out float
     s.Ngeom_ = Ngeom;
     s.Nface_ = FaceNormal(i.posRel_, Ngeom);
     s.cell_ = 0.0f;
+    s.ao_ = 1.0f;
     s.gi_ = GiMeshPoint(g_draw.instanceIndex_, (float3x3)inst.world_,
                         inst.world_._m03_m13_m23 - CameraInstancebuffer[g_draw.cameraIndex_].pos_,
                         i.posRel_, GiFacing(s.Nface_, i.posRel_));

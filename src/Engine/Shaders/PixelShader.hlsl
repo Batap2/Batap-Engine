@@ -11,6 +11,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     Material mat = MeshMaterial(inst);
     float albedoAlpha;
     Surface s = MeshSurface(i, inst, mat, albedoAlpha);
+    s.ao_ = ScreenAo(i.position_);
 
     if ((g_draw.debugFlags_ & DebugMotionVectors) != 0u)
     {

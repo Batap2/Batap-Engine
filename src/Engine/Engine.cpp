@@ -45,6 +45,8 @@ Engine::Engine(const WindowDesc& desc, const EngineSettings& settings)
         settings_.rayTracing_ = *rayTracing != "0";
     if (const auto dt = platformEnvVar("BATAP_FIXED_DT"))
         fixedDeltaTime_ = std::max(std::strtof(dt->c_str(), nullptr), 0.f);
+    if (const auto flags = platformEnvVar("BATAP_DEBUG_FLAGS"))
+        forcedDebugFlags_ = static_cast<uint32_t>(std::strtoul(flags->c_str(), nullptr, 10));
 
     platformInit();
 

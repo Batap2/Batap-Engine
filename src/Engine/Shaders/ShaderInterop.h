@@ -376,14 +376,19 @@ struct FrameGPUData
     uint rtCutInstances_;
     uint bloomTexture_;
     float bloomIntensity_;
-    uint pad1_;
-    uint pad2_;
+    uint aoTexture_;
+    float aoStrength_;
     uint skyLevels_[SkyPrefilterLevels];
     // The render camera, world. sh_ is the sky's irradiance seen from it, read
     // instead of the skybox's own once a scene has atmospheres.
     float3 cameraPos_;
     float pad3_;
     float4 sh_[9];
+    uint depthTexture_;
+    uint viewNormalTexture_;
+    // 0: the GI cache cell at the pixel's distance (ray tracing).
+    float aoRadius_;
+    float aoThickness_;
 };
 
 struct SphereOccluderGPUData
@@ -496,6 +501,7 @@ static const uint DebugGiCells = 4u;
 static const uint DebugGiSides = 8u;
 static const uint DebugGiCache = 16u;
 static const uint DebugMotionVectors = 32u;
+static const uint DebugAo = 64u;
 
 enum ThumbnailSetBinding : uint
 {
@@ -535,7 +541,7 @@ static_assert(sizeof(DrawPush) == 60);
 static_assert(sizeof(ThumbnailDrawGPUData) == 208);
 static_assert(sizeof(ThumbnailPush) == 8);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 272);
+static_assert(sizeof(FrameGPUData) == 288);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);

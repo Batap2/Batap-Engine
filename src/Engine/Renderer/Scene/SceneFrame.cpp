@@ -53,6 +53,7 @@ SceneFrame::SceneFrame(VulkanContext& ctx, ResourceManager& resources, VkFormat 
       giUpdate_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       exposure_(bindings_.drawSetup(outputFormat, depthFormat)),
       bloom_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
+      ao_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       skyPrefilter_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat))
 {
     const auto uploadTable =
@@ -87,6 +88,7 @@ void SceneFrame::buildPipelines(const ShaderModules& modules)
     giUpdate_.buildPipelines(modules);
     exposure_.buildPipelines(modules);
     bloom_.buildPipelines(modules);
+    ao_.buildPipelines(modules);
     skyPrefilter_.buildPipelines(modules);
 }
 
@@ -159,7 +161,8 @@ DrawContext SceneFrame::drawContext(uint32_t frame, uint32_t camera, const Scene
         (args.showShadowCascades_ ? DebugShadowCascades : 0u) |
         (args.showRtFirstHit_ ? DebugRtFirstHit : 0u) | (args.showGiCells_ ? DebugGiCells : 0u) |
         (args.showGiSides_ ? DebugGiSides : 0u) | (args.showGiCache_ ? DebugGiCache : 0u) |
-        (args.showMotionVectors_ ? DebugMotionVectors : 0u);
+        (args.showMotionVectors_ ? DebugMotionVectors : 0u) | (args.showAo_ ? DebugAo : 0u) |
+        ctx.forcedDebugFlags_;
     draw.reg_ = args.reg_;
     draw.instanceManager_ = args.instanceManager_;
     draw.assetManager_ = ctx.assetManager_.get();
@@ -227,9 +230,15 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
 
     const GraphImage hdr = graph.createImage("hdr", {targets.extent_, toVkFormat(HdrFormat)});
     const GraphImage depth = graph.createImage("depth", {targets.extent_, depthFormat_});
-    const std::optional<GraphImage> bloom =
-        bloom_.createImages(graph, targets.extent_, reg->get<Camera_C>(args.camera_));
+    const GraphImage normals =
+        graph.createImage("view normals", {targets.extent_, ViewNormalFormat});
+    const Camera_C& camera = reg->get<Camera_C>(args.camera_);
+    const std::optional<GraphImage> bloom = bloom_.createImages(graph, targets.extent_, camera);
     frameData_.bloomIntensity_ = bloom_.intensity();
+    const std::optional<GraphImage> ao = ao_.createImage(graph, targets.extent_, camera);
+    frameData_.aoStrength_ = camera.aoStrength_;
+    frameData_.aoRadius_ = rayTracing ? 0.f : camera.aoRadius_;
+    frameData_.aoThickness_ = camera.aoThickness_;
     skyPrefilter_.createImages(graph, draw.push_.skyboxCount_ != 0);
 
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
@@ -249,10 +258,17 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     graph.addPass("frame constants")
         .write(frameConstants, Usage::TransferDst)
         .execute(
-            [frameConstants, hdr, translucent, accum, reveal, bloom,
+            [frameConstants, hdr, translucent, accum, reveal, bloom, ao, depth, normals,
              skyLevels = skyPrefilter_.levels(), data = frameData_](GraphContext& c) mutable
             {
                 data.hdrTexture_ = c.graph_.textureIndex(hdr);
+                data.aoTexture_ = InvalidGPUIndex;
+                if (ao)
+                {
+                    data.aoTexture_ = c.graph_.textureIndex(*ao);
+                    data.depthTexture_ = c.graph_.textureIndex(depth);
+                    data.viewNormalTexture_ = c.graph_.textureIndex(normals);
+                }
                 auto levels = std::span{data.skyLevels_};
                 for (size_t i = 0; i < skyLevels.size(); ++i)
                     levels[i] = c.graph_.textureIndex(skyLevels[i]);
@@ -275,8 +291,6 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
 
     const Shadows::Output shadows = shadows_.addPasses(graph, uploads, draw, terrain_, scatter_);
 
-    const GraphImage normals =
-        graph.createImage("view normals", {targets.extent_, ViewNormalFormat});
     GraphPass& prepass = graph.addPass("prepass");
     if (rayTracing)
         prepass.read(traced, Usage::ShaderRead);
@@ -310,6 +324,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 .read(traced, Usage::ShaderRead);
     };
     skyPrefilter_.addPasses(graph, draw, readsLighting);
+    ao_.addPass(graph, depth, normals, frameConstants, uploads, draw);
     const auto readsShading = [&](GraphPass& pass)
     {
         readsLighting(pass);
@@ -336,6 +351,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                                    fullscreen_.recordSky(bound);
                                });
     readsShading(scene);
+    if (ao)
+        scene.read(*ao, Usage::ShaderRead);
 
     if (translucent)
     {

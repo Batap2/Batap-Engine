@@ -351,6 +351,7 @@ struct Surface
     // World axes, camera at the origin: the TLAS space, where rays start.
     float3 posRel_;
     float cell_;
+    float ao_;
     GiPoint gi_;
     float2 uv_;
     float2 uvDx_;
@@ -370,6 +371,12 @@ float3 FaceNormal(float3 P, float3 Ngeom)
         return Ngeom;
     c *= rsqrt(l2);
     return dot(c, Ngeom) >= 0.0f ? c : -c;
+}
+
+float ScreenAo(float4 svpos)
+{
+    const uint ao = FrameBuffer[0].aoTexture_;
+    return ao == InvalidGPUIndex ? 1.0f : g_textures[ao].Load(int3(svpos.xy, 0)).r;
 }
 
 // The sky buffer keeps the last sky's values after it is removed, so the
@@ -527,6 +534,8 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
         color = GiDebugColor(GiCacheKey(s.gi_, GiLevel(length(s.posRel_))));
     if ((g_draw.debugFlags_ & DebugGiSides) != 0u)
         color = GiSideColor(GiSide(s.gi_));
+    if ((g_draw.debugFlags_ & DebugAo) != 0u)
+        color = s.ao_.xxx;
 #if BATAP_RT
     if ((g_draw.debugFlags_ & DebugGiCache) != 0u)
     {

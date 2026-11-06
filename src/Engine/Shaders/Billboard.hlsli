@@ -37,6 +37,7 @@ Surface BillboardSurface(VS_OUTPUT i, out Material mat, out float alpha)
     s.N_ = normalize(i.normalWS_);
     s.posRel_ = i.posRel_;
     s.cell_ = 0.0f;
+    s.ao_ = 1.0f;
     return s;
 }
 

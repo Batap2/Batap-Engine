@@ -141,7 +141,10 @@ argument — pas avant.
       géométrique suffit à de l'occlusion. Dériver la normale de la profondeur
       (ddx/ddy) éviterait la cible mais casse sur les silhouettes — c'est la
       sortie de secours si le MRT coûte trop.
-- [ ] **4. La passe bitmask** — triangle plein écran, `FullscreenVS` + `SsgiPS`
+- [x] **4. La passe bitmask** — *fait le 2026-11-06* (étape 4.1 du plan RT,
+      détail dans `docs/raytracing-notes.md`) : `SkyVS` + `AoPS`, réglages sur
+      `Camera_C` et non un `Ssgi_C`, épaisseur adaptative à la place de la
+      constante. Le plan d'origine : triangle plein écran, `FullscreenVS` + `SsgiPS`
       à déclarer dans `ShaderCatalog.h` (le hot reload recompile tout
       `kShaders` : un shader non déclaré ne se recharge pas). Sortie `R8_UNORM`.
       L'algorithme 1 du papier tel quel : Nd directions, Ns pas de chaque côté,

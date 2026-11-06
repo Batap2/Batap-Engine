@@ -43,6 +43,7 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.N_ = (chunk.flags_ & TerrainFlat) != 0u ? s.Nface_ : s.Ngeom_;
     s.cell_ = (length(ddx(i.posRel_)) + length(ddy(i.posRel_))) /
               max(length(ddx(i.grid_)) + length(ddy(i.grid_)), 1e-6f);
+    s.ao_ = ScreenAo(i.position_);
     s.gi_ = GiTerrainPoint(TerrainWorldBuffer[g_draw.instanceIndex_], i.posRel_,
                            GiFacing(s.Nface_, i.posRel_));
 

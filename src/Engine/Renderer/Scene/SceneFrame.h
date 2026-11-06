@@ -9,6 +9,7 @@
 #include "Renderer/Draws/MeshDrawer.h"
 #include "Renderer/Draws/ScatterDrawer.h"
 #include "Renderer/Draws/TerrainDrawer.h"
+#include "Renderer/Features/Ao/Ao.h"
 #include "Renderer/Features/Bloom/Bloom.h"
 #include "Renderer/Features/Exposure/Exposure.h"
 #include "Renderer/Features/Gi/GiCache.h"
@@ -85,6 +86,7 @@ struct SceneFrame
     GiUpdate giUpdate_;
     Exposure exposure_;
     Bloom bloom_;
+    Ao ao_;
     SkyPrefilter skyPrefilter_;
 };
 }  // namespace batap

@@ -1268,9 +1268,52 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 4 — AO
 
-- [ ] **4.1–4.4** = `OBJECTIFS.md` §4, étapes 4 à 7. Le rayon d'action de l'AO
-      vaut la taille de cellule du cache, et l'AO multiplie l'irradiance du
-      cache.
+**Veille du 2026-11-06.** Pas de successeur à SSILVB (2023) ; il est devenu
+le choix de production : Blender EEVEE 4.2+ (« horizon scan », « Fast GI »),
+Bevy 0.15+, plugins UE. EEVEE l'a durci en production
+(`eevee_fast_gi.bsl.hh`, `eevee_ray_types_lib.bsl.hh`) ; on en reprend :
+- **Épaisseur adaptative**, le « travail futur » du papier. Un pas est un
+  segment depuis le pas précédent : épaisseur = |Δz| entre les deux, remise à
+  zéro quand la pente de profondeur casse (autre objet), plancher = constante
+  monde + k × empreinte du pixel à cette profondeur
+  (`ScreenThicknessEstimator`).
+- **Occlusion pondérée en cosinus.** `1 − countbits/32` est uniforme en
+  angle, alors que l'irradiance que l'AO multiplie est en cosinus. EEVEE
+  pondère les secteurs par quatre masques (lobe cosinus linéaire par
+  morceaux).
+- **Pas en carré** : `t = 1 + ((j + ξ)/Ns)² · tMax` pixels, au moins un pixel.
+- **Visibilité en SH L1** (4 valeurs) au lieu d'un scalaire : AO diffus =
+  évaluation lambertienne sur N, occlusion spéculaire = évaluation dans la
+  direction dominante du reflet. Ni bent normal ni AO scalaire à côté.
+- **Bruit FAST** (Donnelly et al., EA SEED 2024, BSD-3, textures fournies) :
+  bruit spatio-temporel optimisé pour le filtre qui suit, évalué sur l'AO.
+  Remplace le Bayer/R2 de l'étape 6, et sert aussi à 5.1.
+
+Inchangé : SSILVB plutôt que de la RTAO, rayon = cellule du cache, jamais
+sur le direct. EEVEE combine rayons et horizon scan par un seuil de
+rugosité, ce qui est déjà le plan de 7.3. L'hybride de 4.5 n'a pas de
+précédent trouvé : il reste une option.
+
+Résidu connu : la cellule du cache moyenne déjà l'occlusion de ses propres
+points, donc un coin est un peu assombri deux fois. Rayon = une cellule le
+borne ; à mesurer en 4.2.
+
+- [x] **4.1 Passe bitmask** = `OBJECTIFS.md` §4 étape 4, avec épaisseur
+      adaptative, pondération cosinus et pas en carré. Rayon : en RT, la
+      cellule du cache à la distance du pixel ; en raster, `aoRadius`.
+      *Fait (2026-11-06)* : passe `ao` en `R8_UNORM` entre la prépasse et
+      la scène, réglages sur `Camera_C`, vue debug « Ambient occlusion ».
+      1 tranche × 2 × 8 pas : +0,17 ms en 720p sur la 5070 (≈ 0,65 ms en
+      1440p). Détail dans les notes.
+- [ ] **4.2 Application** = étape 5. L'AO multiplie `DiffuseIrradiance`
+      (le cache en RT, le ciel SH9 en raster) et donne l'occlusion
+      spéculaire de `SampleSkyPrefiltered` (Lagarde 2014 depuis le scalaire,
+      en attendant 4.4).
+- [ ] **4.3 Bruit** = étape 6, avec FAST et le filtre bilatéral. Pas
+      d'historique avant 5.3.
+- [ ] **4.4 Visibilité SH L1 + ambiant directionnel** = étape 7. Le ciel par
+      secteur (raster), la SH L1 pour le spéculaire. En RT, le cache n'est pas
+      directionnel : seul le scalaire s'applique.
 - [ ] **4.5 Hybride RT** *(option)*. Un ray query court sur les pas ambigus.
 
 ### Phase 5 — Pénombres
@@ -1353,3 +1396,6 @@ règles temporelles et le MSAA.
 - Stachowiak 2015, Stochastic Screen-Space Reflections (réutilisation des rayons) — https://www.ea.com/frostbite/news/stochastic-screen-space-reflections
 - Ray cones (LOD texture en RT) — https://research.nvidia.com/publication/2021-04_improved-shader-and-texture-level-detail-using-ray-cones
 - Ray Tracing Gems ch. 6 (offset) — https://link.springer.com/chapter/10.1007/978-1-4842-4427-2_6
+- SSILVB, Therrien et al. 2023 — https://arxiv.org/abs/2301.11376
+- EEVEE horizon scan (épaisseur, cosinus, SH L1) — https://github.com/blender/blender/blob/main/source/blender/draw/engines/eevee/shaders/eevee_fast_gi.bsl.hh
+- FAST, Donnelly et al. 2024 (bruit adapté au filtre) — https://github.com/electronicarts/fastnoise
