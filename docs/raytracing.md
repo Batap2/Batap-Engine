@@ -1152,8 +1152,20 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       ior 1,5, métal) de rugosité 0,05 à 1, caméra fixe ev100 10. Dump :
       196 partout sauf les 104 px du réticule du HUD ; contrôle avec une
       sphère à albédo 0,5 : elle seule ressort (−16 niveaux de luma).
-- [ ] **B.9 Échantillonnage VNDF** (calottes sphériques, Dupuy & Benyoub 2023),
+- [x] **B.9 Échantillonnage VNDF** (calottes sphériques, Dupuy & Benyoub 2023),
       `eval`/`sample`/`pdf` dans un `.hlsli` partagé.
+      *Fait (2026-11-06)* : `Brdf.hlsli`, sans binding, inclus par
+      `Lighting.hlsli` et `ThumbnailPS` : `BrdfF0`, `D_GGX`,
+      `V_SmithGGXCorrelated`, `F_Schlick`, `BrdfEvalSpecular` (D × Vis × F,
+      sans cosinus), `G1_GGX`, `BrdfSampleVndf` (calottes sphériques, V et H
+      en espace tangent) et `BrdfPdfVndf` (densité sur L, jacobien du
+      reflet inclus). Convention alpha = r² partout. La boucle raster
+      assemble D, Vis et F elle-même pour garder le crochet des glints sur
+      D. Vérifié par `tools/check_vndf.py` (Compacteur) : l'estimateur
+      `D Vis F cos / pdf` sur les directions échantillonnées retrouve la
+      table LTC à 0,012 près sur les 15 texels ; scène `test_brdf`
+      identique. Rien n'échantillonne encore : le cache GI reste en cosinus,
+      le mode photo viendra avec.
 - [ ] **B.10 Diffus EON** *(option)*.
 - [ ] **B.11 `ShadingModel` régolithe** (Lommel-Seeliger / Hapke) *(option)*.
 

@@ -178,7 +178,8 @@ set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Billboard.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Translucency.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Bloom.hlsli"
-                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Glints.hlsli")
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Glints.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Brdf.hlsli")
 
 function(batap_compile_shader src out target)
   add_custom_command(

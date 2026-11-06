@@ -1,3 +1,4 @@
+#include "Brdf.hlsli"
 #include "ShaderInterop.h"
 
 [[vk::binding(ThumbnailMaterialsBinding, ThumbnailSet)]]
@@ -26,28 +27,6 @@ struct ThumbLight
     float3 dir_;
     float3 radiance_;
 };
-
-float D_GGX(float NdotH, float roughness)
-{
-    float a  = roughness * roughness;
-    float a2 = a * a;
-    float d  = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
-    return a2 / (PI * d * d);
-}
-
-float V_SmithGGXCorrelated(float NdotV, float NdotL, float roughness)
-{
-    float a  = roughness * roughness;
-    float a2 = a * a;
-    float gv = NdotL * sqrt(NdotV * NdotV * (1.0f - a2) + a2);
-    float gl = NdotV * sqrt(NdotL * NdotL * (1.0f - a2) + a2);
-    return 0.5f / max(gv + gl, 1e-5f);
-}
-
-float3 F_Schlick(float HdotV, float3 F0)
-{
-    return F0 + (1.0f - F0) * pow(saturate(1.0f - HdotV), 5.0f);
-}
 
 float3 SrgbEncode(float3 c)
 {
@@ -125,8 +104,7 @@ float4 main(VS_OUTPUT i) : SV_Target
 
     float3 V = normalize(-i.posVS_);
     float NdotV = max(dot(N, V), 1e-4f);
-    float f0 = (mat.ior - 1.0f) / (mat.ior + 1.0f);
-    float3 F0 = lerp((f0 * f0).xxx, albedo, metallic);
+    float3 F0 = BrdfF0(mat.ior, albedo, metallic);
     // No frame data here: 1 - 0.7 r³ fits the LTC amplitude table's GGX
     // albedo at normal incidence within 0.07.
     float3 energy =
@@ -152,9 +130,8 @@ float4 main(VS_OUTPUT i) : SV_Target
         float3 H = normalize(L + V);
         float NdotH = saturate(dot(N, H));
         float HdotV = saturate(dot(H, V));
-        float3 F = F_Schlick(HdotV, F0);
-        float3 spec = D_GGX(NdotH, roughness) *
-                      V_SmithGGXCorrelated(NdotV, NdotL, roughness) * F * energy;
+        float3 spec =
+            BrdfEvalSpecular(NdotV, NdotL, NdotH, HdotV, roughness * roughness, F0) * energy;
         color += (kd * albedo / PI * coverage + spec) * lights[l].radiance_ * NdotL;
     }
 

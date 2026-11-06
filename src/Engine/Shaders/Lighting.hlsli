@@ -1,6 +1,7 @@
 #ifndef BATAP_LIGHTING_HLSLI
 #define BATAP_LIGHTING_HLSLI
 
+#include "Brdf.hlsli"
 #include "Camera.hlsli"
 #include "GiCache.hlsli"
 #include "Glints.hlsli"
@@ -91,32 +92,6 @@ float3 SampleSkyPrefiltered(float3 dir, float roughness)
                    .SampleLevel(g_sampler, uv, 0.0f)
                    .rgb;
     return lerp(a, b, frac(level));
-}
-
-// GGX Normal Distribution Function
-float D_GGX(float NdotH, float roughness)
-{
-    float a  = roughness * roughness;
-    float a2 = a * a;
-    float d  = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
-    return a2 / (PI * d * d);
-}
-
-// Height-correlated Smith visibility for GGX (Heitz 2014), with the
-// 1 / (4 NdotV NdotL) of Cook-Torrance folded in: specular = D * Vis * F.
-float V_SmithGGXCorrelated(float NdotV, float NdotL, float roughness)
-{
-    float a  = roughness * roughness;
-    float a2 = a * a;
-    float gv = NdotL * sqrt(NdotV * NdotV * (1.0f - a2) + a2);
-    float gl = NdotV * sqrt(NdotL * NdotL * (1.0f - a2) + a2);
-    return 0.5f / max(gv + gl, 1e-5f);
-}
-
-// Fresnel-Schlick
-float3 F_Schlick(float HdotV, float3 F0)
-{
-    return F0 + (1.0f - F0) * pow(saturate(1.0f - HdotV), 5.0f);
 }
 
 // A depth map where the light has one for P, analytic sphere occluders
@@ -431,8 +406,7 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
     CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
 
-    float f0 = (s.ior_ - 1.0f) / (s.ior_ + 1.0f);
-    float3 F0 = lerp((f0 * f0).xxx, s.albedo_, s.metallic_);
+    float3 F0 = BrdfF0(s.ior_, s.albedo_, s.metallic_);
 
     float3 V = CameraToEye(cam, s.posRel_);
     float  NdotV = saturate(dot(s.N_, V));
@@ -497,13 +471,13 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
         float NdotH = saturate(dot(s.N_, H));
         float HdotV = saturate(dot(H, V));
 
-        // Cook-Torrance specular
-        float  D = D_GGX(NdotH, s.roughness_);
+        float  alpha = s.roughness_ * s.roughness_;
+        float  D = D_GGX(NdotH, alpha);
         if (s.glintDensity_ > 0.0f)
             D *= (1.0f - min(s.glintIntensity_, 1.0f)) +
-                 s.glintIntensity_ * GlintRatio(s.uv_, s.uvDx_, s.uvDy_, s.T_, s.N_, H,
-                                                s.roughness_ * s.roughness_, s.glintDensity_);
-        float  Vis = V_SmithGGXCorrelated(NdotV, NdotL, s.roughness_);
+                 s.glintIntensity_ * GlintRatio(s.uv_, s.uvDx_, s.uvDy_, s.T_, s.N_, H, alpha,
+                                                s.glintDensity_);
+        float  Vis = V_SmithGGXCorrelated(NdotV, NdotL, alpha);
         float3 F = F_Schlick(HdotV, F0);
 
         float3 specular = D * Vis * F * energy;
