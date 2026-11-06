@@ -125,7 +125,8 @@ float4 main(VS_OUTPUT i) : SV_Target
 
     float3 V = normalize(-i.posVS_);
     float NdotV = max(dot(N, V), 1e-4f);
-    float3 F0 = lerp(0.04f.xxx, albedo, metallic);
+    float f0 = (mat.ior - 1.0f) / (mat.ior + 1.0f);
+    float3 F0 = lerp((f0 * f0).xxx, albedo, metallic);
     // No frame data here: 1 - 0.7 r³ fits the LTC amplitude table's GGX
     // albedo at normal incidence within 0.07.
     float3 energy =

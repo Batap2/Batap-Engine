@@ -151,9 +151,9 @@ static Material extractMaterial(const aiMaterial* aiMat)
     if (aiMat->Get(AI_MATKEY_EMISSIVE_INTENSITY, val) == AI_SUCCESS)
         mat.emissiveStrength = val;
 
-    mat.reflectivity = 1.f;
-    if (aiMat->Get(AI_MATKEY_SPECULAR_FACTOR, val) == AI_SUCCESS)
-        mat.reflectivity = val;
+    // Most exporters write 1 when they have no IOR; glTF carries the real one.
+    if (aiMat->Get(AI_MATKEY_REFRACTI, val) == AI_SUCCESS && val > 1.f)
+        mat.ior = val;
 
     return mat;
 }

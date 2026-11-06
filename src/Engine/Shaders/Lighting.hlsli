@@ -356,7 +356,7 @@ struct Surface
     float3 albedo_;
     float  roughness_;
     float  metallic_;
-    float  reflectivity_;
+    float  ior_;
     float3 emissive_;
     float3 N_;
     float3 Ngeom_;
@@ -431,8 +431,8 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
     CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
 
-    // F0 : diélectrique = 0.04, métal = albedo
-    float3 F0 = lerp(float3(0.04f, 0.04f, 0.04f), s.albedo_, s.metallic_);
+    float f0 = (s.ior_ - 1.0f) / (s.ior_ + 1.0f);
+    float3 F0 = lerp((f0 * f0).xxx, s.albedo_, s.metallic_);
 
     float3 V = CameraToEye(cam, s.posRel_);
     float  NdotV = saturate(dot(s.N_, V));
@@ -444,7 +444,7 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
     float3 color = kD * DiffuseIrradiance(s) * s.albedo_ / PI * coverage;
     if (g_draw.skyboxCount_ != 0)
-        color += SampleSkyPrefiltered(reflect(-V, s.N_), s.roughness_) * lobe * s.reflectivity_;
+        color += SampleSkyPrefiltered(reflect(-V, s.N_), s.roughness_) * lobe;
 
     uint debugCascade = ShadowCascadeCount;
     float3 debugTint = float3(0.0f, 0.0f, 0.0f);

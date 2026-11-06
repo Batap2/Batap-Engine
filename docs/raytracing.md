@@ -1102,8 +1102,22 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       sombre, davantage vers l'horizon), 963 px à plus de 8 (max 90) sur
       les bords rasants des plastiques lisses, plus sombres ; cuivres
       inchangés.
-- [ ] **B.5 `reflectivity` remplacé par l'IOR.** Changement du `Material`, du
+- [x] **B.5 `reflectivity` remplacé par l'IOR.** Changement du `Material`, du
       sérialiseur `.bmat` et de l'import assimp.
+      *Fait (2026-11-06)* : `Material::ior` (défaut 1,5) à la place de
+      `reflectivity`, même offset ; `F0 = ((n − 1)/(n + 1))²` pour les
+      diélectriques dans `ShadeSurface` et les vignettes, le spéculaire IBL
+      n'est plus multiplié par rien. `.bmat` : clé `ior`, `reflectivity`
+      ignorée ; assimp : `AI_MATKEY_REFRACTI` si > 1 (les exporteurs sans
+      IOR écrivent 1) ; éditeur : curseur IOR 1 à 3. Pas de `specular` glTF :
+      couper le spéculaire se fait par ior = 1. Compacteur :
+      `tools/migrate_bmat_ior.py` a converti 101 `.bmat` (44 étaient à 0,
+      55 à 1) et les 4 outils qui en écrivent. Scène `test_brdf` :
+      identique (ior 1,5 ≡ 0,04) ; `planet.btpl` : les matériaux qui
+      étaient à 0 (couches du terrain, rocher, ressources) gagnent le reflet
+      du ciel à 4 % de face, visible sur les facettes rasantes du cratère.
+      Space Fret garde ses `reflectivity` dans ses 17 `.bmat` : ignorés,
+      ior 1,5.
 - [x] **B.6 `emissive`** dans le `Material` (`emissive × emissiveStrength`, cd/m²,
       exposé, ignoré par les Unlit), et pris en compte par le cache.
 - [x] **B.7 IBL préfiltrée GGX.** Une passe de préfiltrage par mip, plus le

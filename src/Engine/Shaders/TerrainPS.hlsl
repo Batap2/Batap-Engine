@@ -33,7 +33,7 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.roughness_ =
         clamp(mat.roughness * g_textures[mat.roughnessTexIdx_].Sample(g_sampler, uv).r, 0.05f, 1.0f);
     s.metallic_ = saturate(mat.metallic * g_textures[mat.metallicTexIdx_].Sample(g_sampler, uv).r);
-    s.reflectivity_ = mat.reflectivity;
+    s.ior_ = mat.ior;
     s.emissive_ = mat.emissive * mat.emissiveStrength;
     s.glintDensity_ = 0.0f;
     s.posRel_ = i.posRel_;
