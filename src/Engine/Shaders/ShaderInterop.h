@@ -339,6 +339,11 @@ struct ShadowGPUData
 
 static const uint ExposureGridSize = 64u;
 
+// Equirect levels of the sky convolved with the GGX lobe, level i for roughness
+// i / (SkyPrefilterLevels - 1), SkyPrefilterWidth wide at level 0, halved after.
+static const uint SkyPrefilterLevels = 8u;
+static const uint SkyPrefilterWidth = 512u;
+
 enum TonemapOperator : uint
 {
     TonemapNone = 0,
@@ -372,6 +377,7 @@ struct FrameGPUData
     float bloomIntensity_;
     uint pad1_;
     uint pad2_;
+    uint skyLevels_[SkyPrefilterLevels];
     // The render camera, world. sh_ is the sky's irradiance seen from it, read
     // instead of the skybox's own once a scene has atmospheres.
     float3 cameraPos_;
@@ -478,6 +484,9 @@ struct DrawPush
     uint bloomSource_;
     uint bloomKaris_;
     float bloomRadius_;
+    uint skySource_;
+    float skyRoughness_;
+    uint skySamples_;
 };
 
 static const uint DebugShadowCascades = 1u;
@@ -521,11 +530,11 @@ static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 80);
 static_assert(sizeof(SkyboxGPUData) == 224);
 static_assert(sizeof(AtmosphereGPUData) == 64);
-static_assert(sizeof(DrawPush) == 48);
+static_assert(sizeof(DrawPush) == 60);
 static_assert(sizeof(ThumbnailDrawGPUData) == 208);
 static_assert(sizeof(ThumbnailPush) == 8);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 240);
+static_assert(sizeof(FrameGPUData) == 272);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);

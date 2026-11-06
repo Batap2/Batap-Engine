@@ -61,10 +61,9 @@ float3 SampleSky(float3 dir, float mipLevel)
     float3 background;
     if (sky.mode == 0u && sky.bindlessIndex != InvalidGPUIndex)
     {
-        float  phi   = atan2(dir.z, dir.x);
-        float  theta = asin(clamp(dir.y, -1.0f, 1.0f));
-        float2 uv    = float2((phi + PI) / (2.0f * PI), 0.5f - theta / PI);
-        background = g_textures[sky.bindlessIndex].SampleLevel(g_sampler, uv, mipLevel).rgb;
+        background = g_textures[sky.bindlessIndex]
+                         .SampleLevel(g_sampler, SkyEquirectUv(dir), mipLevel)
+                         .rgb;
     }
     else
     {
@@ -76,6 +75,22 @@ float3 SampleSky(float3 dir, float mipLevel)
     float3 cameraPos = FrameBuffer[0].cameraPos_;
     return SkyComposite(g_draw.atmosphereCount_, cameraPos, dir, SkyFindSun(cameraPos), background,
                         false);
+}
+
+float3 SampleSkyPrefiltered(float3 dir, float roughness)
+{
+    FrameGPUData frame = FrameBuffer[0];
+    float level = roughness * float(SkyPrefilterLevels - 1u);
+    uint i0 = uint(level);
+    uint i1 = min(i0 + 1u, SkyPrefilterLevels - 1u);
+    float2 uv = SkyEquirectUv(dir);
+    float3 a = g_textures[NonUniformResourceIndex(frame.skyLevels_[i0])]
+                   .SampleLevel(g_sampler, uv, 0.0f)
+                   .rgb;
+    float3 b = g_textures[NonUniformResourceIndex(frame.skyLevels_[i1])]
+                   .SampleLevel(g_sampler, uv, 0.0f)
+                   .rgb;
+    return lerp(a, b, frac(level));
 }
 
 // GGX Normal Distribution Function
@@ -423,17 +438,13 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
     float  NdotV = saturate(dot(s.N_, V));
     float2 dfg = Dfg(NdotV, s.roughness_);
     float3 energy = SpecularEnergy(F0, dfg.x);
+    float3 lobe = (F0 * (dfg.x - dfg.y) + dfg.y) * energy;
     // What the whole specular lobe sends back is what the diffuse never sees.
-    float3 kD = (1.0f - (F0 * (dfg.x - dfg.y) + dfg.y) * energy) * (1.0f - s.metallic_);
+    float3 kD = (1.0f - lobe) * (1.0f - s.metallic_);
 
-    float3 F_ibl = F_Schlick(NdotV, F0);
     float3 color = kD * DiffuseIrradiance(s) * s.albedo_ / PI * coverage;
     if (g_draw.skyboxCount_ != 0)
-    {
-        float3 R        = reflect(-V, s.N_);
-        float  mipLevel = s.roughness_ * float(max(SkyboxBuffer[0].mipCount, 1u) - 1u);
-        color += F_ibl * energy * SampleSky(R, mipLevel) * s.reflectivity_;
-    }
+        color += SampleSkyPrefiltered(reflect(-V, s.N_), s.roughness_) * lobe * s.reflectivity_;
 
     uint debugCascade = ShadowCascadeCount;
     float3 debugTint = float3(0.0f, 0.0f, 0.0f);
