@@ -189,6 +189,13 @@ float3 SpecularEnergy(float3 F0, float albedoAtOne)
     return 1.0f + F0 * (1.0f / max(albedoAtOne, 1e-3f) - 1.0f);
 }
 
+// Lagarde 2014, on alpha = roughness^2 as Filament feeds it.
+float SpecularOcclusion(float NdotV, float ao, float roughness)
+{
+    const float alpha = roughness * roughness;
+    return saturate(pow(NdotV + ao, exp2(-16.0f * alpha - 1.0f)) - 1.0f + ao);
+}
+
 // Rational fit of theta / sin(theta), accurate to float and free of acos.
 float3 LtcEdgeFormFactor(float3 v1, float3 v2)
 {
@@ -440,9 +447,12 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
     float3 ambientAlbedo = regolith ? BrdfRegolithAlbedo(s.albedo_, NdotV)
                                     : BrdfDiffuseAlbedo(s.albedo_, s.diffuseRoughness_, NdotV);
-    float3 color = kD * DiffuseIrradiance(s) * ambientAlbedo / PI * coverage;
+    // The occlusion darkens the ambient only: the shadow rays already hold
+    // the direct light's.
+    float3 color = kD * DiffuseIrradiance(s) * s.ao_ * ambientAlbedo / PI * coverage;
     if (g_draw.skyboxCount_ != 0 && !regolith)
-        color += SampleSkyPrefiltered(reflect(-V, s.N_), s.roughness_) * lobe;
+        color += SampleSkyPrefiltered(reflect(-V, s.N_), s.roughness_) * lobe *
+                 SpecularOcclusion(NdotV, s.ao_, s.roughness_);
 
     uint debugCascade = ShadowCascadeCount;
     float3 debugTint = float3(0.0f, 0.0f, 0.0f);

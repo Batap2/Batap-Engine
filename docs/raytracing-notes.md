@@ -940,3 +940,53 @@ cube, sphère, plaque de 3 cm à 30 cm du sol, ailette de 3 cm, ciel seul ;
   pour les pipelines translucides (accum et reveal n'ont pas le même
   blend, 585044a), et une assertion VMA « allocations non libérées » à la
   fermeture, présente aussi AO coupée.
+
+## 4.2 Application
+
+*Fait (2026-11-06)* :
+- **`ShadeSurface`** : l'AO multiplie `DiffuseIrradiance` (le cache en RT, le
+  ciel SH9 en raster) et donne l'occlusion spéculaire du ciel préfiltré,
+  `SpecularOcclusion` de Lagarde 2014 sur α = r² (comme Filament). Le direct
+  n'y passe jamais. AO = 1 sur les translucides et les billboards (pas dans
+  la prépasse).
+- **Fausses occlusions de la passe 4.1** : le critère de l'étape (« une face
+  dégagée ne bouge pas ») a montré que le sol plat s'occultait lui-même, en
+  pointillés suivant l'IGN. Trois causes, corrigées dans `AoPS` :
+  - le centre de texel d'un pas d'un pixel est jusqu'à 0,7 px hors de la
+    ligne de tranche. Mesuré en 3D, un point du plan tangent montait
+    au-dessus de l'horizon ; projeté perpendiculairement à la tranche, aussi
+    (il quitte le plan tangent). L'angle se lit maintenant en coordonnées de
+    tranche, (hauteur au-dessus du plan tangent / |N projetée|, écart à la
+    normale projetée) : un point du plan tombe exactement sur l'horizon ;
+  - le bout arrière du segment, sous le plan, pouvait dépasser ±π et
+    remplir tout le masque : le segment est coupé au plan tangent avant la
+    mesure ;
+  - une tranche presque couchée dans le plan tangent (|N projetée| petit,
+    vues rasantes) amplifie l'erreur de la normale 10 bits de la prépasse :
+    sous 0,4, la tranche est tournée d'un quart de tour, où la normale est
+    presque dans la tranche (tourner plutôt que sauter : avec une tranche
+    par pixel, sauter donne AO = 1).
+  Les points sombres aux silhouettes notés en 4.1 avaient la même origine.
+
+*Mesuré* (`test_ao`, 1280 × 720, luminance de la frame, avant → après) :
+
+| zone | raster | RT |
+|---|---|---|
+| sol dégagé | 119,6 → 119,6 | 117,4 → 117,4 |
+| milieu d'un mur | 110,8 → 110,8 | 104,9 → 104,9 |
+| coin du fond | 116,9 → 78,3 | 93,2 → 70,6 |
+| pied du cube | 117,4 → 90,3 | 106,3 → 86,5 |
+| sous la plaque | 119,6 → 99,7 | 93,2 → 93,2 |
+
+- Vue debug : 0 pixel occulté sur le sol dégagé (1 555 avant les
+  corrections), 0 point isolé sur le sol rasant au loin (612).
+- En RT, le dessous de la plaque (30 cm, au-delà de la cellule) ne change
+  pas : le cache l'assombrissait déjà. Le coin perd 24 % de plus que le
+  cache seul ; sans référence, le double compte du résidu n'est pas
+  chiffrable, mais le coin reste lisible.
+- Coût, passe et lecture : +0,21 ms en 720p dans les deux modes (+0,04 ms
+  sur 4.1 : `atan2`, tranche tournée, lecture dans les PS).
+- `planet.btpl` en RT : 0,36 % des pixels à plus de 8 niveaux (intérieur et
+  arêtes du traîneau, pied des blocs, robot) ; le reste à ±1, l'exposition
+  auto.
+- Validation (debug, synchronisation) : rien de nouveau.

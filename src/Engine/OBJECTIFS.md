@@ -161,7 +161,8 @@ argument — pas avant.
       image et pas au raisonnement ; et `CameraGPUData` n'a aucune matrice
       inverse — reconstruire le rayon depuis `right_/up_/fwd_/fov_/znear_`
       plutôt que d'en ajouter une.
-- [ ] **5. Application** — dans `Lighting.hlsli`, l'AO multiplie le terme
+- [x] **5. Application** — *fait le 2026-11-06* (étape 4.2 du plan RT) :
+      ambiant et occlusion spéculaire de Lagarde. Le plan d'origine : dans `Lighting.hlsli`, l'AO multiplie le terme
       ambiant et lui seul (`kD * EvalSH9(N) * albedo`, et le spéculaire IBL avec
       un AO spéculaire dérivé ou rien). **Jamais les lumières directes** : la
       boucle sur `PointLightBuffer` a déjà son `NdotL`, l'assombrir une seconde

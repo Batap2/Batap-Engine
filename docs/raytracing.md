@@ -1305,10 +1305,15 @@ borne ; à mesurer en 4.2.
       la scène, réglages sur `Camera_C`, vue debug « Ambient occlusion ».
       1 tranche × 2 × 8 pas : +0,17 ms en 720p sur la 5070 (≈ 0,65 ms en
       1440p). Détail dans les notes.
-- [ ] **4.2 Application** = étape 5. L'AO multiplie `DiffuseIrradiance`
+- [x] **4.2 Application** = étape 5. L'AO multiplie `DiffuseIrradiance`
       (le cache en RT, le ciel SH9 en raster) et donne l'occlusion
       spéculaire de `SampleSkyPrefiltered` (Lagarde 2014 depuis le scalaire,
       en attendant 4.4).
+      *Fait (2026-11-06)* : faces dégagées identiques au pixel, coin du fond
+      de `test_ao` −33 % en raster, −24 % en RT. Trois fausses occlusions
+      de la passe corrigées au passage (angle lu en coordonnées de tranche,
+      segment coupé au plan tangent, tranche rasante tournée).
+      +0,21 ms en 720p au total. Détail dans les notes.
 - [ ] **4.3 Bruit** = étape 6, avec FAST et le filtre bilatéral. Pas
       d'historique avant 5.3.
 - [ ] **4.4 Visibilité SH L1 + ambiant directionnel** = étape 7. Le ciel par

@@ -14,6 +14,15 @@ static const float AoThicknessPixels = 2.0f;
 static const float AoMaxRadiusOfHeight = 0.25f;
 static const float AoAngleScale = 1.05f;
 static const float AoSlopeTolerance = 0.5f;
+static const float AoMinProjectedNormal = 0.4f;
+
+struct AoSlice
+{
+    float2 dir_;
+    float3 ortho_;
+    float3 axis_;
+    float projLength_;
+};
 
 struct AoScreen
 {
@@ -44,13 +53,6 @@ uint AoSectorMask(float2 range)
     return (count >= 32u ? 0xFFFFFFFFu : (1u << count) - 1u) << a;
 }
 
-float AoAcos(float x)
-{
-    const float ax = abs(x);
-    const float r = (-0.156583f * ax + AoPi * 0.5f) * sqrt(1.0f - ax);
-    return x >= 0.0f ? r : AoPi - r;
-}
-
 // Antiderivative of cos(phi) * sin(phi + n): the cosine-weighted solid angle
 // of a slice around V, phi measured from the projected normal at angle n.
 float AoPrimitive(float phi, float n, float sinN)
@@ -68,6 +70,25 @@ float AoIntegral(float a, float b, float n, float sinN)
 float AoSectorEdge(uint k)
 {
     return (float(k) / float(AoSectors) - 0.5f) * (AoPi / AoAngleScale);
+}
+
+// In the slice, along the projected normal and across it. The first is read
+// from the height above the tangent plane: a texel centre off the slice line
+// still lands on the horizon when it lies on that plane.
+float2 AoSlicePoint(float3 d, float3 N, float3 perp, float invProjLength)
+{
+    return float2(dot(d, N) * invProjLength, dot(d, perp));
+}
+
+AoSlice AoSliceAt(AoScreen v, float2 pixel, float L, float3 P, float3 V, float3 N, float phi)
+{
+    AoSlice s;
+    s.dir_ = float2(cos(phi), sin(phi));
+    const float3 along = AoViewPosition(v, pixel + s.dir_, L) - P;
+    s.ortho_ = normalize(along - dot(along, V) * V);
+    s.axis_ = cross(V, s.ortho_);
+    s.projLength_ = length(N - s.axis_ * dot(N, s.axis_));
+    return s;
 }
 
 bool AoClipToSphere(float3 P, float3 dir, float2 span, float radius, out float2 clipped)
@@ -123,17 +144,23 @@ float main(float4 svpos : SV_POSITION) : SV_Target
     for (uint slice = 0u; slice < AoSlices; ++slice)
     {
         const float phi = AoPi * (float(slice) + noiseSlice) / float(AoSlices);
-        const float2 dir = float2(cos(phi), sin(phi));
-
-        const float3 along = AoViewPosition(v, svpos.xy + dir, L) - P;
-        const float3 ortho = normalize(along - dot(along, V) * V);
-        const float3 axis = cross(V, ortho);
-        const float3 projN = N - axis * dot(N, axis);
-        const float projLength = length(projN);
-        if (projLength < 1e-4f)
+        AoSlice sl = AoSliceAt(v, svpos.xy, L, P, V, N, phi);
+        // A slice close to the tangent plane reads heights a 10-bit normal
+        // cannot resolve; the slice a quarter turn away holds the normal.
+        if (sl.projLength_ < AoMinProjectedNormal)
+            sl = AoSliceAt(v, svpos.xy, L, P, V, N, phi + 0.5f * AoPi);
+        if (sl.projLength_ < AoMinProjectedNormal)
             continue;
-        const float n = (dot(projN, ortho) < 0.0f ? -1.0f : 1.0f) *
-                        acos(clamp(dot(projN, V) / projLength, 0.0f, 1.0f));
+        const float2 dir = sl.dir_;
+        const float3 ortho = sl.ortho_;
+        const float3 axis = sl.axis_;
+        const float projLength = sl.projLength_;
+        const float3 projN = N - axis * dot(N, axis);
+        const float invProjLength = 1.0f / projLength;
+        const float nCos = dot(projN, V) * invProjLength;
+        const float nSin = dot(projN, ortho) * invProjLength;
+        const float3 perp = nCos * ortho - nSin * V;
+        const float n = clamp(atan2(nSin, nCos), -0.5f * AoPi, 0.5f * AoPi);
 
         uint occluded = 0u;
         [unroll]
@@ -183,11 +210,19 @@ float main(float4 svpos : SV_POSITION) : SV_Target
                                     radius, span))
                     continue;
 
-                const float2 cosines = float2(dot(normalize(ray * span.x - P), V),
-                                              dot(normalize(ray * span.y - P), V));
-                const float2 theta = sideSign * float2(AoAcos(clamp(cosines.x, -1.0f, 1.0f)),
-                                                       AoAcos(clamp(cosines.y, -1.0f, 1.0f)));
-                const float2 range = (theta - n) * (AoAngleScale / AoPi) + 0.5f;
+                // What lies under the tangent plane hides nothing: cut there,
+                // both ends stay within a quarter turn of the normal and their
+                // angles cannot wrap.
+                float2 f = AoSlicePoint(ray * span.x - P, N, perp, invProjLength);
+                float2 b = AoSlicePoint(ray * span.y - P, N, perp, invProjLength);
+                if (f.x <= 0.0f && b.x <= 0.0f)
+                    continue;
+                if (b.x < 0.0f)
+                    b = f + (b - f) * (f.x / (f.x - b.x));
+                else if (f.x < 0.0f)
+                    f = b + (f - b) * (b.x / (b.x - f.x));
+                const float2 range =
+                    float2(atan2(f.y, f.x), atan2(b.y, b.x)) * (AoAngleScale / AoPi) + 0.5f;
                 occluded |= AoSectorMask(float2(min(range.x, range.y), max(range.x, range.y)));
             }
         }
