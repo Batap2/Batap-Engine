@@ -87,18 +87,15 @@ float D_GGX(float NdotH, float roughness)
     return a2 / (PI * d * d);
 }
 
-// Smith-Schlick-GGX Geometry term (single direction)
-float G_SchlickGGX(float NdotV, float roughness)
+// Height-correlated Smith visibility for GGX (Heitz 2014), with the
+// 1 / (4 NdotV NdotL) of Cook-Torrance folded in: specular = D * Vis * F.
+float V_SmithGGXCorrelated(float NdotV, float NdotL, float roughness)
 {
-    float r = roughness + 1.0f;
-    float k = (r * r) / 8.0f;
-    return NdotV / (NdotV * (1.0f - k) + k);
-}
-
-// Smith combined geometry term
-float G_Smith(float NdotV, float NdotL, float roughness)
-{
-    return G_SchlickGGX(NdotV, roughness) * G_SchlickGGX(NdotL, roughness);
+    float a  = roughness * roughness;
+    float a2 = a * a;
+    float gv = NdotL * sqrt(NdotV * NdotV * (1.0f - a2) + a2);
+    float gl = NdotV * sqrt(NdotL * NdotL * (1.0f - a2) + a2);
+    return 0.5f / max(gv + gl, 1e-5f);
 }
 
 // Fresnel-Schlick
@@ -476,10 +473,10 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
             D *= (1.0f - min(s.glintIntensity_, 1.0f)) +
                  s.glintIntensity_ * GlintRatio(s.uv_, s.uvDx_, s.uvDy_, s.T_, s.N_, H,
                                                 s.roughness_ * s.roughness_, s.glintDensity_);
-        float  G = G_Smith(NdotV, NdotL, s.roughness_);
+        float  Vis = V_SmithGGXCorrelated(NdotV, NdotL, s.roughness_);
         float3 F = F_Schlick(HdotV, F0);
 
-        float3 specular = (D * G * F) / max(4.0f * NdotV * NdotL, 0.0001f);
+        float3 specular = D * Vis * F;
 
         // Diffuse lambertien : les métaux n'ont pas de diffuse
         float3 kD_light = (1.0f - F) * (1.0f - s.metallic_);
