@@ -33,10 +33,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
 
     if (sky.mode == 0u && sky.bindlessIndex != InvalidGPUIndex)  // HDRI
     {
-        float phi   = atan2(dir.z, dir.x);
-        float theta = asin(clamp(dir.y, -1.0f, 1.0f));
-        float2 uv   = float2((phi + PI) / (2.0f * PI), 0.5f - theta / PI);
-        color = g_textures[sky.bindlessIndex].Sample(g_sampler, uv).rgb;
+        color = g_textures[sky.bindlessIndex].Sample(g_sampler, SkyEquirectUv(dir)).rgb;
     }
     else
     {

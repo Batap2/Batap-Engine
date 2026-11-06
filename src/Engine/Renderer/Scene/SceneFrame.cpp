@@ -52,7 +52,8 @@ SceneFrame::SceneFrame(VulkanContext& ctx, ResourceManager& resources, VkFormat 
       debug_(bindings_.drawSetup(outputFormat, depthFormat)),
       giUpdate_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       exposure_(bindings_.drawSetup(outputFormat, depthFormat)),
-      bloom_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat))
+      bloom_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
+      skyPrefilter_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat))
 {
     const auto uploadTable =
         [&](const std::array<uint16_t, LtcTableTexels * 4>& table, const char* name)
@@ -86,6 +87,7 @@ void SceneFrame::buildPipelines(const ShaderModules& modules)
     giUpdate_.buildPipelines(modules);
     exposure_.buildPipelines(modules);
     bloom_.buildPipelines(modules);
+    skyPrefilter_.buildPipelines(modules);
 }
 
 void SceneFrame::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay)
@@ -228,6 +230,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const std::optional<GraphImage> bloom =
         bloom_.createImages(graph, targets.extent_, reg->get<Camera_C>(args.camera_));
     frameData_.bloomIntensity_ = bloom_.intensity();
+    skyPrefilter_.createImages(graph, draw.push_.skyboxCount_ != 0);
 
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
     const bool translucent = !rtFirstHit &&
@@ -247,9 +250,12 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         .write(frameConstants, Usage::TransferDst)
         .execute(
             [frameConstants, hdr, translucent, accum, reveal, bloom,
-             data = frameData_](GraphContext& c) mutable
+             skyLevels = skyPrefilter_.levels(), data = frameData_](GraphContext& c) mutable
             {
                 data.hdrTexture_ = c.graph_.textureIndex(hdr);
+                auto levels = std::span{data.skyLevels_};
+                for (size_t i = 0; i < skyLevels.size(); ++i)
+                    levels[i] = c.graph_.textureIndex(skyLevels[i]);
                 if (bloom)
                     data.bloomTexture_ = c.graph_.textureIndex(*bloom);
                 if (translucent)
@@ -303,6 +309,13 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 .read(as.blases_, Usage::AccelerationStructureRead)
                 .read(traced, Usage::ShaderRead);
     };
+    skyPrefilter_.addPasses(graph, draw, readsLighting);
+    const auto readsShading = [&](GraphPass& pass)
+    {
+        readsLighting(pass);
+        for (const GraphImage level : skyPrefilter_.levels())
+            pass.read(level, Usage::ShaderRead);
+    };
 
     GraphPass& scene = graph.addPass("scene")
                            .color(hdr, Load::Clear, targets.clearColor_)
@@ -322,7 +335,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                                    billboards_.record(bound);
                                    fullscreen_.recordSky(bound);
                                });
-    readsLighting(scene);
+    readsShading(scene);
 
     if (translucent)
     {
@@ -338,7 +351,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                         meshes_.recordTranslucent(bound);
                         billboards_.recordTranslucent(bound);
                     });
-        readsLighting(accumulate);
+        readsShading(accumulate);
         graph.addPass("translucent composite")
             .color(hdr, Load::Keep)
             .read(uploads, Usage::AnyRead)

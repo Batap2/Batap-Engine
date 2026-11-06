@@ -15,6 +15,7 @@
 #include "Renderer/Features/Gi/GiUpdate.h"
 #include "Renderer/Features/RayTracing/AccelerationStructures.h"
 #include "Renderer/Features/Shadows/Shadows.h"
+#include "Renderer/Features/SkyPrefilter/SkyPrefilter.h"
 #include "Renderer/Graph/RenderGraph.h"
 #include "Renderer/Scene/FrameBindings.h"
 #include "Renderer/SceneBinding.h"
@@ -84,5 +85,6 @@ struct SceneFrame
     GiUpdate giUpdate_;
     Exposure exposure_;
     Bloom bloom_;
+    SkyPrefilter skyPrefilter_;
 };
 }  // namespace batap

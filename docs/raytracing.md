@@ -1106,8 +1106,30 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       sérialiseur `.bmat` et de l'import assimp.
 - [x] **B.6 `emissive`** dans le `Material` (`emissive × emissiveStrength`, cd/m²,
       exposé, ignoré par les Unlit), et pris en compte par le cache.
-- [ ] **B.7 IBL préfiltrée GGX.** Une passe de préfiltrage par mip, plus le
+- [x] **B.7 IBL préfiltrée GGX.** Une passe de préfiltrage par mip, plus le
       split-sum avec la LUT.
+      *Fait (2026-11-06)* : `Features/SkyPrefilter`, chaque frame. Le ciel
+      composé (`SampleSky` : HDRI ou dégradé, atmosphère, sans disque
+      solaire) est rendu en équirect 512×256 RGBA16F (`SkyEquirectPS`, le
+      mip de l'HDRI choisi par `GetDimensions`), puis 7 niveaux moitié
+      (`SkyPrefilterPS`) : le niveau i convolue le niveau i − 1 par le lobe
+      GGX de rugosité i/7, N = V = R, 64 échantillons (128 à partir du
+      niveau 4), Hammersley. Images transitoires du graphe, indices dans
+      `FrameGPUData::skyLevels_`, lus par `SampleSkyPrefiltered` (lerp entre
+      deux niveaux, `NonUniformResourceIndex`). Spéculaire IBL =
+      `préfiltré(R, r) × (F0 (x − y) + y) × energy × reflectivity`, ce
+      dernier jusqu'à B.5. Le mode dégradé était réfléchi net quelle que
+      soit la rugosité : il est maintenant flouté comme l'HDRI. Limites :
+      reflets miroir d'une HDRI plafonnés à 512 px de large ; la chaîne
+      sur-floute un peu (chaque niveau part du précédent) ; pas d'occlusion
+      spéculaire. Scène `test_brdf` : 2 453 px à plus de 8 niveaux (max 55),
+      la ligne d'horizon disparaît des cuivres de rugosité moyenne, le sol
+      perd 1 à 2 niveaux (le lobe voit le nadir). GPU : +0,13 ms sur
+      `test_brdf` (0,56 → 0,69 ms) ; sur `planet.btpl` les médianes ne le
+      résolvent pas (éditeur de Baptiste sur le même GPU, 7,6 → 10,7 ms sur
+      un segment, 6,0 → 4,6 sur l'autre), le minimum par frame monte de
+      0,03 à 0,2 ms. À mesurer dans tracy si le budget serre ; amortir sur
+      plusieurs frames est possible.
 - [ ] **B.8 Scène white furnace.**
       *Vérif* : l'image est uniforme pour toutes les rugosités.
 - [ ] **B.9 Échantillonnage VNDF** (calottes sphériques, Dupuy & Benyoub 2023),

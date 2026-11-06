@@ -8,6 +8,21 @@ StructuredBuffer<AtmosphereGPUData> AtmosphereBuffer;
 
 static const float SKY_PI = 3.14159265358979f;
 
+float2 SkyEquirectUv(float3 dir)
+{
+    float phi = atan2(dir.z, dir.x);
+    float theta = asin(clamp(dir.y, -1.0f, 1.0f));
+    return float2((phi + SKY_PI) / (2.0f * SKY_PI), 0.5f - theta / SKY_PI);
+}
+
+float3 SkyEquirectDir(float2 uv)
+{
+    float phi = uv.x * 2.0f * SKY_PI - SKY_PI;
+    float theta = (0.5f - uv.y) * SKY_PI;
+    float c = cos(theta);
+    return float3(c * cos(phi), sin(theta), c * sin(phi));
+}
+
 struct SkySun
 {
     float3 dir;
