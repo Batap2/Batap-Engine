@@ -126,6 +126,10 @@ float4 main(VS_OUTPUT i) : SV_Target
     float3 V = normalize(-i.posVS_);
     float NdotV = max(dot(N, V), 1e-4f);
     float3 F0 = lerp(0.04f.xxx, albedo, metallic);
+    // No frame data here: 1 - 0.7 r³ fits the LTC amplitude table's GGX
+    // albedo at normal incidence within 0.07.
+    float3 energy =
+        1.0f + F0 * (1.0f / (1.0f - 0.7f * roughness * roughness * roughness) - 1.0f);
 
     ThumbLight lights[3];
     lights[0].dir_ = normalize(float3(-0.45f, 0.75f, 0.55f));
@@ -147,8 +151,8 @@ float4 main(VS_OUTPUT i) : SV_Target
         float NdotH = saturate(dot(N, H));
         float HdotV = saturate(dot(H, V));
         float3 F = F_Schlick(HdotV, F0);
-        float3 spec =
-            D_GGX(NdotH, roughness) * V_SmithGGXCorrelated(NdotV, NdotL, roughness) * F;
+        float3 spec = D_GGX(NdotH, roughness) *
+                      V_SmithGGXCorrelated(NdotV, NdotL, roughness) * F * energy;
         float3 kd = (1.0f.xxx - F) * (1.0f - metallic);
         color += (kd * albedo / PI * coverage + spec) * lights[l].radiance_ * NdotL;
     }

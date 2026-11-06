@@ -183,6 +183,22 @@ float2 LtcUv(float NdotV, float roughness)
     return float2(roughness, sqrt(1.0f - NdotV)) * ((size - 1.0f) / size) + 0.5f / size;
 }
 
+// The LTC amplitude table doubles as the DFG lookup: x is the GGX albedo at
+// F0 = 1, y its F90 part (checked by Compacteur's tools/check_ltc_dfg.py).
+float2 Dfg(float NdotV, float roughness)
+{
+    FrameGPUData frame = FrameBuffer[0];
+    return g_textures[frame.ltcAmpTexture_]
+        .SampleLevel(g_sampler, LtcUv(NdotV, roughness), 0.0f)
+        .xy;
+}
+
+// Turquin 2019: what the single-scattering lobe loses comes back, scaled by F0.
+float3 SpecularEnergy(float3 F0, float albedoAtOne)
+{
+    return 1.0f + F0 * (1.0f / max(albedoAtOne, 1e-3f) - 1.0f);
+}
+
 // Rational fit of theta / sin(theta), accurate to float and free of acos.
 float3 LtcEdgeFormFactor(float3 v1, float3 v2)
 {
@@ -296,7 +312,8 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
     // Hill's split of the Fresnel term over the lobe: F0 scaled by the GGX
     // albedo, and the rest toward F90 = 1.
     float3 fresnel = F0 * t2.x + (1.0f - F0) * t2.y;
-    float3 specular = fresnel * LtcEvaluate(N, V, P, mInv, face.corners_);
+    float3 specular =
+        fresnel * SpecularEnergy(F0, t2.x) * LtcEvaluate(N, V, P, mInv, face.corners_);
     float3 diffuse =
         albedo * (1.0f - metallic) * LtcEvaluate(N, V, P, identity, face.corners_) * coverage;
 
@@ -405,6 +422,7 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
     float3 V = CameraToEye(cam, s.posRel_);
     float  NdotV = saturate(dot(s.N_, V));
+    float3 energy = SpecularEnergy(F0, Dfg(NdotV, s.roughness_).x);
 
     float3 F_ibl = F_Schlick(NdotV, F0);
     float3 kD    = (1.0f - F_ibl) * (1.0f - s.metallic_);
@@ -413,7 +431,7 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
     {
         float3 R        = reflect(-V, s.N_);
         float  mipLevel = s.roughness_ * float(max(SkyboxBuffer[0].mipCount, 1u) - 1u);
-        color += F_ibl * SampleSky(R, mipLevel) * s.reflectivity_;
+        color += F_ibl * energy * SampleSky(R, mipLevel) * s.reflectivity_;
     }
 
     uint debugCascade = ShadowCascadeCount;
@@ -476,7 +494,7 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
         float  Vis = V_SmithGGXCorrelated(NdotV, NdotL, s.roughness_);
         float3 F = F_Schlick(HdotV, F0);
 
-        float3 specular = D * Vis * F;
+        float3 specular = D * Vis * F * energy;
 
         // Diffuse lambertien : les métaux n'ont pas de diffuse
         float3 kD_light = (1.0f - F) * (1.0f - s.metallic_);
