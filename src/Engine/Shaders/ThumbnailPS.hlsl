@@ -35,16 +35,13 @@ float D_GGX(float NdotH, float roughness)
     return a2 / (PI * d * d);
 }
 
-float G_SchlickGGX(float NdotV, float roughness)
+float V_SmithGGXCorrelated(float NdotV, float NdotL, float roughness)
 {
-    float r = roughness + 1.0f;
-    float k = (r * r) / 8.0f;
-    return NdotV / (NdotV * (1.0f - k) + k);
-}
-
-float G_Smith(float NdotV, float NdotL, float roughness)
-{
-    return G_SchlickGGX(NdotV, roughness) * G_SchlickGGX(NdotL, roughness);
+    float a  = roughness * roughness;
+    float a2 = a * a;
+    float gv = NdotL * sqrt(NdotV * NdotV * (1.0f - a2) + a2);
+    float gl = NdotV * sqrt(NdotL * NdotL * (1.0f - a2) + a2);
+    return 0.5f / max(gv + gl, 1e-5f);
 }
 
 float3 F_Schlick(float HdotV, float3 F0)
@@ -150,8 +147,8 @@ float4 main(VS_OUTPUT i) : SV_Target
         float NdotH = saturate(dot(N, H));
         float HdotV = saturate(dot(H, V));
         float3 F = F_Schlick(HdotV, F0);
-        float3 spec = D_GGX(NdotH, roughness) * G_Smith(NdotV, NdotL, roughness) * F /
-                      max(4.0f * NdotV * NdotL, 1e-4f);
+        float3 spec =
+            D_GGX(NdotH, roughness) * V_SmithGGXCorrelated(NdotV, NdotL, roughness) * F;
         float3 kd = (1.0f.xxx - F) * (1.0f - metallic);
         color += (kd * albedo / PI * coverage + spec) * lights[l].radiance_ * NdotL;
     }

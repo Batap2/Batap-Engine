@@ -1060,9 +1060,18 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 3b — BRDF physique
 
-- [ ] **B.1 Smith à hauteur corrélée** (Heitz 2014), à la place de
+- [x] **B.1 Smith à hauteur corrélée** (Heitz 2014), à la place de
       Schlick-GGX.
       *Vérif* : le dump change peu, surtout aux angles rasants.
+      *Fait (2026-11-06)* : `V_SmithGGXCorrelated` dans `Lighting.hlsli` et
+      `ThumbnailPS.hlsl`, le `1 / (4 NdotV NdotL)` replié dedans
+      (`specular = D × Vis × F`). Scène de test `scenes/test_brdf.btpl` de
+      Compacteur (`tools/make_brdf_scene.py`) : sphères de rugosité 0,02 à 1
+      en plastique rouge, cuivre et plastique blanc sur un sol gris, soleil
+      250 000 lux, ciel dégradé, caméra fixe, sans planète ni joueur ; bruit
+      entre deux runs : 1 niveau. Après : 1 097 px à plus de 8 niveaux (max
+      31), tous sur les cuivres de rugosité ≥ 0,3, plus clairs ; le sol au
+      rasant gagne 1 niveau.
 - [ ] **B.2 LUT DFG.** Générée au démarrage par un PS, sur une cible 2D.
 - [ ] **B.3 Compensation multi-diffusion** (Kulla-Conty) via la LUT.
       *Vérif* : les métaux rugueux ne s'assombrissent plus.
