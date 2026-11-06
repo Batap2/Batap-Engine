@@ -156,6 +156,7 @@ enum ShadingModel : uint
 {
     ShadingLit = 0,
     ShadingUnlit = 1,
+    ShadingRegolith = 2,
 };
 
 static const uint InvalidGPUIndex = 0xFFFFFFFFu;
@@ -407,7 +408,7 @@ struct Material
     float emissiveStrength INIT(1.f);
     float glintDensity INIT(0.f);
     float glintIntensity INIT(1.f);
-    float pad0_ INIT(0.f);
+    float diffuseRoughness INIT(0.f);
     float pad1_ INIT(0.f);
 };
 

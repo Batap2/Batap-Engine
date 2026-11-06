@@ -1166,8 +1166,105 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       table LTC à 0,012 près sur les 15 texels ; scène `test_brdf`
       identique. Rien n'échantillonne encore : le cache GI reste en cosinus,
       le mode photo viendra avec.
-- [ ] **B.10 Diffus EON** *(option)*.
-- [ ] **B.11 `ShadingModel` régolithe** (Lommel-Seeliger / Hapke) *(option)*.
+- [x] **B.10 Diffus EON** *(option)*.
+      *Fait (2026-11-06)* : `Material::diffuseRoughness` (0 à 1, à la place
+      de `pad0_`), défaut 0 = Lambert exact ; `.bmat` : clé
+      `diffuseRoughness`, écrite si > 0 ; éditeur : curseur *Diffuse
+      roughness*. `Brdf.hlsli` : `BrdfEvalDiffuse` (EON, Portsmouth, Kutz &
+      Hill 2025 : Oren-Nayar de Fujii plus un lobe de multi-diffusion,
+      albédo FON par le polynôme du papier, sans LUT ; renvoie la BRDF, 1/π
+      compris) et `BrdfDiffuseAlbedo` (albédo directionnel, pour la lumière
+      venue de partout). Diffus direct : EON(L, V) ; ambiant (SH du ciel,
+      cache GI) : irradiance × `BrdfDiffuseAlbedo(n·v)` / π ; rect lights :
+      EON pris vers le centre de la face, multiplié par l'intégrale LTC en
+      cosinus ; vignettes : direct et ambiant de même. Le couplage
+      `kD = (1 − E_spec(n·v)) (1 − metallic)` ne change pas. Les rebonds du
+      cache (`GiPath`) restent lambertiens. Vérifié par
+      `tools/check_eon.py` (Compacteur) : albédo FON approché à 0,0002 de
+      l'intégrale numérique, sa moyenne en cosinus exacte, EON blanc à
+      1 ± 0,0003 à toutes les rugosités et tous les angles.
+      `make_brdf_scene.py` donne maintenant aux diélectriques et au sol leur
+      rugosité comme rugosité diffuse, et écrit aussi
+      `scenes/test_brdf_backlit.btpl` (même scène, soleil face à la caméra,
+      lacet 200°). Rugosité diffuse 0 : dump identique au bruit près (204 px
+      à 1 niveau ; deux runs du même binaire : 241 px à 1 niveau).
+      `test_brdf` (soleil dans le dos) : 395 107 px à plus de 8 niveaux
+      (max 52), tous plus clairs sauf 852 : le sol (r = 0,5) gagne ~10
+      niveaux par rétrodiffusion, les sphères rugueuses s'aplatissent (bord
+      moins sombre). `test_brdf_backlit` : 503 689 px à plus de 8 niveaux
+      (max 47), tous plus sombres. Attendu sur le sol : facteur Oren-Nayar
+      ≈ 1,4 dans cette géométrie, ≈ 0,55 en contre-jour. GPU `test_brdf` :
+      médiane 0,66 → 0,70 ms, mais déjà 0,69 à rugosité 0 : l'écart n'est
+      pas résolu. Gros plan : `tools/make_eon_scene.py` écrit
+      `scenes/test_eon.btpl` (trois sphères grises d'albédo 0,5, rugosité
+      diffuse 0, 0,5 et 1, longue focale, soleil dans l'axe de la caméra) et
+      `test_eon_side.btpl` (soleil à 40° de côté, 30° de haut). Profil sur le
+      diamètre, en raster pour écarter le rebond GI entre sphères : soleil
+      dans l'axe, Lambert passe de 160 au centre à ~90 au bord, EON 1 reste
+      entre 150 et 160 d'un bord à l'autre ; soleil de côté, EON 1 est plus
+      sombre au centre (135 contre 145), plus clair vers le bord éclairé (156
+      contre 146), avec une ligne d'ombre plus raide. En RT, EON rend visibles
+      les marches de la ligne d'ombre sur ces sphères peu tessellées
+      (32 × 64), que la chute de Lambert cachait. Les matériaux du jeu
+      restent à 0, donc rien ne change en
+      jeu tant qu'on ne règle pas `diffuseRoughness`. Vignette de l'éditeur
+      de matériau compilée, pas regardée.
+- [x] **B.11 `ShadingModel` régolithe** (Lommel-Seeliger / Hapke) *(option)*.
+      *Fait (2026-11-06)* : `ShadingRegolith = 2` (`.bmat` :
+      `"shadingModel": 2`, éditeur : *Regolith* dans le menu *Shading*).
+      `Brdf.hlsli` : `BrdfEvalRegolith`, le modèle isotrope de Hapke :
+      diffusion simple de Lommel-Seeliger `w/4π · 1/(μi + μo)`, diffusion
+      multiple par les fonctions H (approximation de Hapke 2002, un log
+      par appel), opposition par masquage d'ombres
+      `B0 / (1 + tan(g/2)/h)` sur la diffusion simple (constantes
+      `RegolithOpposition*`), fonction de phase isotrope, pas de rugosité
+      macroscopique (θ̄ de Hapke). h = 0,07 : demi-largeur ≈ 8° du pic
+      lunaire mesuré par Clementine, attribué surtout au masquage d'ombres
+      (Buratti et al. 1996, Icarus 124 ; Hapke et al. 1998, Icarus 133, lus
+      par résumés). B0 = 1 n'est pas vérifié : les ajustements de Sato et
+      al. 2014 (cartes LROC) et de Hapke et al. 1998 n'étaient pas
+      accessibles. Un résumé de Buratti 1996 cite +40 % de 4° à 0°, pente
+      générale comprise ; le modèle donne +15 % pour ρ = 0,12, et avec ce
+      terme et cette largeur le rapport B(0)/B(4°) plafonne à 1,5, même à
+      amplitude infinie. Un pic étroit (< 2°) existe en plus dans les terres
+      hautes claires, non modélisé. L'albédo
+      du matériau donne γ = √(1 − w) = (1 − ρ)/(1 + 2ρ) : soleil au zénith,
+      la surface renvoie ρ comme un Lambert de même albédo, donc les
+      rebonds lambertiens du cache GI restent cohérents. Ambiant :
+      `BrdfRegolithAlbedo` = 1 − γ H(n·v). Pas de lobe spéculaire, ni IBL ni
+      glints, `metallic` ignoré ; rect lights : Hapke pris vers le centre de
+      la face, comme EON ; vignettes de même. Vérifié par
+      `tools/check_hapke.py` (Compacteur) : albédo directionnel numérique
+      contre 1 − γ H à 0,013 près, blanc à 1 ± 0,014, ρ renvoyé à
+      ± 0,01 au zénith ; sphère en pleine phase : bord à 82 % du centre
+      pour ρ = 0,12, 45 % pour ρ = 0,5 (Lambert : 0). Chemin Lit inchangé :
+      `test_brdf` identique au dump de B.10 au bruit près (167 px à
+      1 niveau). Scènes : `tools/make_regolith_scene.py` écrit
+      `scenes/test_regolith.btpl` (sol en régolithe d'albédo 0,25 vu de
+      2,5 m en plongée de 20°, soleil à 20° pile dans le dos, donc le point
+      antisolaire au centre de l'image ; trois sphères Lambert, EON 1 et
+      régolithe), `test_regolith_lambert.btpl` (même scène, sol Lambert) et
+      `test_regolith_side.btpl` (soleil à 70° de côté). Sol, profil
+      horizontal par le point antisolaire : Lambert 101 partout ; régolithe
+      141 au point antisolaire, 135 à 7°, 131 à 19° et au-delà. À albédo
+      égal et soleil bas, le régolithe est plus clair que Lambert (×1,7 en
+      linéaire hors opposition, ×2,8 au point antisolaire pour μi = μo =
+      0,34) : c'est Lommel-Seeliger, qui ne s'assombrit pas avec le soleil
+      rasant. Repères lunaires : albédo de Bond 0,11–0,12 ; albédo normal
+      visible ≈ 0,175 pour les terres hautes, ≈ 0,09 pour les mers (LOLA à
+      1064 nm × 0,583, Lucey et al. 2014) ; ρ = 0,12 donne ici un albédo
+      normal de 0,16. Le cache GI, lui, compte les
+      rebonds du régolithe en Lambert, donc les sous-estime à soleil bas.
+      Soleil de côté : ligne d'ombre franche et bord éclairé lumineux.
+      GPU : pas de coût mesurable sur `test_regolith` (0,63 ms contre
+      0,65 avec le sol Lambert). Vignette compilée, pas regardée.
+      Compacteur : `planet.btpl` passe en lune (les trois couches du sol
+      identiques, régolithe d'albédo 0,12 ; flancs au-delà de l'angle de
+      falaise, matériau `rock`, en régolithe à 0,18 ; atmosphère retirée,
+      ciel noir ; soleil à la chromaticité mesurée x 0,3233 y 0,3326 soit
+      1 / 0,89 / 0,86 en sRGB linéaire, 128 000 lux, 0,53°). Seuls le sol
+      (0,12) et le soleil reposent sur des mesures ; les flancs et la
+      teinte sont des choix.
 
 ### Phase 4 — AO
 

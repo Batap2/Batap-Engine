@@ -203,9 +203,10 @@ argument — pas avant.
 
 Discuté le 13/09 : « l'éditeur de material et de textures, une fenêtre à part
 avec un inspecteur d'objet comme Unreal ». Fait depuis : `MaterialEditorPanel`
-(fenêtre ImGui flottante, un `.bmat` à la fois : albedo, roughness, metallic,
-ior, shading model, 4 slots texture), l'inspecteur objet réduit à
-vignette + nom + *Edit* par slot, bouton *New* dans le picker. Le reste est ici.
+(fenêtre ImGui flottante, un `.bmat` à la fois : albedo, roughness, diffuse
+roughness, metallic, ior, shading model, 4 slots texture), l'inspecteur objet
+réduit à vignette + nom + *Edit* par slot, bouton *New* dans le picker. Le
+reste est ici.
 
 **Ce qu'est un matériau aujourd'hui** : 48 octets de données pures
 (`Material` dans `ShaderInterop.h`), uploadés tels quels dans une arène GPU et

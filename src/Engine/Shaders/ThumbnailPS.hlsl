@@ -88,7 +88,11 @@ float4 main(VS_OUTPUT i) : SV_Target
 
     float roughness = clamp(mat.roughness * SampleOr(mat.roughnessTexIdx_, i.uv_, 1.0f.xxxx).r,
                             0.05f, 1.0f);
+    const bool regolith = mat.shadingModel_ == ShadingRegolith;
     float metallic = saturate(mat.metallic * SampleOr(mat.metallicTexIdx_, i.uv_, 1.0f.xxxx).r);
+    if (regolith)
+        metallic = 0.0f;
+    float diffuseRoughness = saturate(mat.diffuseRoughness);
 
     float3 Ngeom = normalize(i.nrmVS_);
     float3 N = Ngeom;
@@ -130,13 +134,28 @@ float4 main(VS_OUTPUT i) : SV_Target
         float3 H = normalize(L + V);
         float NdotH = saturate(dot(N, H));
         float HdotV = saturate(dot(H, V));
-        float3 spec =
-            BrdfEvalSpecular(NdotV, NdotL, NdotH, HdotV, roughness * roughness, F0) * energy;
-        color += (kd * albedo / PI * coverage + spec) * lights[l].radiance_ * NdotL;
+        float3 spec = 0.0f.xxx;
+        float3 diffuse;
+        if (regolith)
+        {
+            diffuse = BrdfEvalRegolith(albedo, NdotL, NdotV, dot(L, V));
+        }
+        else
+        {
+            spec = BrdfEvalSpecular(NdotV, NdotL, NdotH, HdotV, roughness * roughness, F0) * energy;
+            diffuse = kd * BrdfEvalDiffuse(albedo, diffuseRoughness, NdotL, NdotV, dot(L, V));
+        }
+        color += (diffuse * coverage + spec) * lights[l].radiance_ * NdotL;
     }
 
     float ambient = lerp(0.22f, 0.42f, N.y * 0.5f + 0.5f);
-    color += (albedo * (1.0f - metallic) * coverage + F0 * (1.0f - roughness) * 0.5f) * ambient;
+    if (regolith)
+        color += BrdfRegolithAlbedo(albedo, NdotV) * coverage * ambient;
+    else
+        color += (BrdfDiffuseAlbedo(albedo, diffuseRoughness, NdotV) * (1.0f - metallic) *
+                      coverage +
+                  F0 * (1.0f - roughness) * 0.5f) *
+                 ambient;
     color += mat.emissive * mat.emissiveStrength * 1.5e-5f;
     return ThumbnailOutput(SrgbEncode(PbrNeutral(color)), coverage);
 }
