@@ -311,11 +311,10 @@ float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, f
 
     // Hill's split of the Fresnel term over the lobe: F0 scaled by the GGX
     // albedo, and the rest toward F90 = 1.
-    float3 fresnel = F0 * t2.x + (1.0f - F0) * t2.y;
-    float3 specular =
-        fresnel * SpecularEnergy(F0, t2.x) * LtcEvaluate(N, V, P, mInv, face.corners_);
-    float3 diffuse =
-        albedo * (1.0f - metallic) * LtcEvaluate(N, V, P, identity, face.corners_) * coverage;
+    float3 lobe = (F0 * t2.x + (1.0f - F0) * t2.y) * SpecularEnergy(F0, t2.x);
+    float3 specular = lobe * LtcEvaluate(N, V, P, mInv, face.corners_);
+    float3 diffuse = albedo * (1.0f - lobe) * (1.0f - metallic) *
+                     LtcEvaluate(N, V, P, identity, face.corners_) * coverage;
 
     return (diffuse + specular) * light.color_ * (light.intensity_ * face.window_);
 }
@@ -422,10 +421,12 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
     float3 V = CameraToEye(cam, s.posRel_);
     float  NdotV = saturate(dot(s.N_, V));
-    float3 energy = SpecularEnergy(F0, Dfg(NdotV, s.roughness_).x);
+    float2 dfg = Dfg(NdotV, s.roughness_);
+    float3 energy = SpecularEnergy(F0, dfg.x);
+    // What the whole specular lobe sends back is what the diffuse never sees.
+    float3 kD = (1.0f - (F0 * (dfg.x - dfg.y) + dfg.y) * energy) * (1.0f - s.metallic_);
 
     float3 F_ibl = F_Schlick(NdotV, F0);
-    float3 kD    = (1.0f - F_ibl) * (1.0f - s.metallic_);
     float3 color = kD * DiffuseIrradiance(s) * s.albedo_ / PI * coverage;
     if (g_draw.skyboxCount_ != 0)
     {
@@ -496,9 +497,7 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
         float3 specular = D * Vis * F * energy;
 
-        // Diffuse lambertien : les métaux n'ont pas de diffuse
-        float3 kD_light = (1.0f - F) * (1.0f - s.metallic_);
-        float3 diffuse = kD_light * s.albedo_ / PI * coverage;
+        float3 diffuse = kD * s.albedo_ / PI * coverage;
 
         // Direct term only: the ambient does not see shadows.
         color += (diffuse + specular) * radiance * NdotL * shadow;

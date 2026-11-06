@@ -1091,8 +1091,17 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       E ≈ 1 − 0,7 r³. Scène `test_brdf` : 3 904 px à plus de 8 niveaux
       (max 46), tous sur les cuivres de rugosité ≥ 0,6, plus clairs ;
       plastiques et sol inchangés.
-- [ ] **B.4 Couplage diffus/spéculaire** par la LUT, à la place de
+- [x] **B.4 Couplage diffus/spéculaire** par la LUT, à la place de
       `(1−F)(1−metallic)`.
+      *Fait (2026-11-06)* : `kD = (1 − E_ms(μ)) (1 − metallic)` avec
+      `E_ms = (F0 (x − y) + y) × SpecularEnergy`, lu une fois par pixel et
+      partagé par le diffus IBL et le diffus direct (plus de `(1 − F(h·v))`
+      par lumière) ; rect lights : même `lobe` pour leur spéculaire et leur
+      `1 − lobe` diffus. Vignettes : `1 − F(n·v) × energy`. Scène
+      `test_brdf` : 74 % des pixels bougent de 1 à 2 niveaux (sol plus
+      sombre, davantage vers l'horizon), 963 px à plus de 8 (max 90) sur
+      les bords rasants des plastiques lisses, plus sombres ; cuivres
+      inchangés.
 - [ ] **B.5 `reflectivity` remplacé par l'IOR.** Changement du `Material`, du
       sérialiseur `.bmat` et de l'import assimp.
 - [x] **B.6 `emissive`** dans le `Material` (`emissive × emissiveStrength`, cd/m²,
