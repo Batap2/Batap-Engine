@@ -51,12 +51,12 @@ void Bloom::buildPipelines(const ShaderModules& modules)
 }
 
 std::optional<GraphImage> Bloom::createImages(RenderGraph& graph, VkExtent2D extent,
-                                              const Camera_C& settings)
+                                              const Camera_C& settings, bool enabled)
 {
     levels_.clear();
     intensity_ = 0.f;
     radius_ = settings.bloomRadius_;
-    if (settings.bloomIntensity_ <= 0.f)
+    if (!enabled || settings.bloomIntensity_ <= 0.f)
         return std::nullopt;
 
     VkExtent2D level{extent.width / 2, extent.height / 2};

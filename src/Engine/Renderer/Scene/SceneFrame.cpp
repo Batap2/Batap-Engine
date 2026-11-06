@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <span>
 
@@ -214,7 +215,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
     frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
     frameData_.exposure_ =
-        exposure_.update(frame, args.camera_, reg->get<Camera_C>(args.camera_), dt);
+        exposure_.update(frame, args.camera_, reg->get<Camera_C>(args.camera_), dt) *
+        std::exp2(ctx.settings().brightness_);
     const v3f cameraPos = reg->get<Transform_C>(args.camera_).world().translation();
     flatten(frameData_.cameraPos_, cameraPos);
     if (auto atmospheres = reg->view<Atmosphere_C, Transform_C>();
@@ -233,7 +235,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const GraphImage normals =
         graph.createImage("view normals", {targets.extent_, ViewNormalFormat});
     const Camera_C& camera = reg->get<Camera_C>(args.camera_);
-    const std::optional<GraphImage> bloom = bloom_.createImages(graph, targets.extent_, camera);
+    const std::optional<GraphImage> bloom =
+        bloom_.createImages(graph, targets.extent_, camera, ctx.settings().bloom_);
     frameData_.bloomIntensity_ = bloom_.intensity();
     const std::optional<Ao::Images> ao =
         ao_.createImages(graph, targets.extent_, camera, ctx.settings().ambientOcclusion_);

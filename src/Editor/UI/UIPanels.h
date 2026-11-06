@@ -76,8 +76,10 @@ struct UIPanels
         int giBounces = 2;
         int giPasses = 2;
         std::string tonemap = "agx";
-        bool giPerCell = false;
         bool ambientOcclusion = true;
+        bool vsync = false;
+        bool bloom = true;
+        float brightness = 0.0f;
     };
     AppSettings editorSettings_;
     AppSettings gameSettings_;

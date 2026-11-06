@@ -41,9 +41,12 @@ struct EngineSettings
     bool rayTracing_ = true;
     uint32_t giBounces_ = 2;
     uint32_t giPasses_ = 2;
-    bool giPerCell_ = false;
+    bool giPerCell_ = true;
     std::string tonemap_ = "agx";
     bool ambientOcclusion_ = true;
+    bool bloom_ = true;
+    // EV added to every camera's exposure, auto or not.
+    float brightness_ = 0;
 };
 
 struct Frame
@@ -115,6 +118,8 @@ struct Engine
     void setGiPerCell(bool on) { settings_.giPerCell_ = on; }
     void setTonemap(std::string key) { settings_.tonemap_ = std::move(key); }
     void setAmbientOcclusion(bool on) { settings_.ambientOcclusion_ = on; }
+    void setBloom(bool on) { settings_.bloom_ = on; }
+    void setBrightness(float ev) { settings_.brightness_ = ev; }
     bool rtSupported() const;
 
     float deltaTime_ = 0;

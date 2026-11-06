@@ -314,8 +314,10 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
                        static_cast<int>(ctx.settings().giBounces_),
                        static_cast<int>(ctx.settings().giPasses_),
                        ctx.settings().tonemap_,
-                       ctx.settings().giPerCell_,
-                       ctx.settings().ambientOcclusion_};
+                       ctx.settings().ambientOcclusion_,
+                       ctx.settings().vsync_,
+                       ctx.settings().bloom_,
+                       ctx.settings().brightness_};
 
     WindowDesc game;
     EngineSettings gameRender;
@@ -335,8 +337,10 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
                      static_cast<int>(gameRender.giBounces_),
                      static_cast<int>(gameRender.giPasses_),
                      gameRender.tonemap_,
-                     gameRender.giPerCell_,
-                     gameRender.ambientOcclusion_};
+                     gameRender.ambientOcclusion_,
+                     gameRender.vsync_,
+                     gameRender.bloom_,
+                     gameRender.brightness_};
 
     startScene_ = app.projectDir_.empty() ? std::string{}
                                           : editorConfig::readStartScene(app.projectDir_);
@@ -421,6 +425,8 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
             s.maxFps = std::max(s.maxFps, 0);
             change = Render;
         }
+        if (ImGui::Checkbox("VSync", &s.vsync))
+            change = Render;
         ImGui::SetNextItemWidth(220.0f);
         if (ImGui::BeginCombo("Tonemap", std::string(tonemapChoice(s.tonemap).label_).c_str()))
         {
@@ -438,6 +444,15 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         }
         if (ImGui::Checkbox("Ambient occlusion", &s.ambientOcclusion))
             change = Render;
+        if (ImGui::Checkbox("Bloom", &s.bloom))
+            change = Render;
+        ImGui::SetNextItemWidth(80.0f);
+        ImGui::DragFloat("Brightness (EV)", &s.brightness, 0.05f, -3.0f, 3.0f, "%+.2f");
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            s.brightness = std::clamp(s.brightness, -3.0f, 3.0f);
+            change = Render;
+        }
         ImGui::BeginDisabled(!ctx.rtSupported());
         ImGui::SetNextItemWidth(80.0f);
         ImGui::InputInt("GI bounces (1-4)", &s.giBounces, 1);
@@ -453,8 +468,6 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
             s.giPasses = std::clamp(s.giPasses, 1, 8);
             change = Render;
         }
-        if (ImGui::Checkbox("GI traced per cell (POC)", &s.giPerCell))
-            change = Render;
         ImGui::EndDisabled();
         ImGui::PopID();
         ImGui::Unindent();
@@ -468,9 +481,11 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         render.maxFps_ = static_cast<uint32_t>(s.maxFps);
         render.giBounces_ = static_cast<uint32_t>(s.giBounces);
         render.giPasses_ = static_cast<uint32_t>(s.giPasses);
-        render.giPerCell_ = s.giPerCell;
         render.tonemap_ = s.tonemap;
         render.ambientOcclusion_ = s.ambientOcclusion;
+        render.vsync_ = s.vsync;
+        render.bloom_ = s.bloom;
+        render.brightness_ = s.brightness;
         return render;
     };
 
@@ -531,9 +546,11 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         ctx.setMaxFps(render.maxFps_);
         ctx.setGiBounces(render.giBounces_);
         ctx.setGiPasses(render.giPasses_);
-        ctx.setGiPerCell(render.giPerCell_);
         ctx.setTonemap(render.tonemap_);
         ctx.setAmbientOcclusion(render.ambientOcclusion_);
+        ctx.setVsync(render.vsync_);
+        ctx.setBloom(render.bloom_);
+        ctx.setBrightness(render.brightness_);
     }
     else if (editorChange != None)
     {
@@ -1026,6 +1043,9 @@ void UIPanels::drawViewMenu(World& world, App& app)
     ImGui::MenuItem("GI cache", nullptr, &world.showGiCache_);
     ImGui::MenuItem("Motion vectors", nullptr, &world.showMotionVectors_);
     ImGui::MenuItem("Ambient occlusion", nullptr, &world.showAo_);
+    bool giPerCell = app.ctx_->settings().giPerCell_;
+    if (ImGui::MenuItem("GI traced per cell", nullptr, &giPerCell))
+        app.ctx_->setGiPerCell(giPerCell);
     ImGui::MenuItem("Icons", nullptr, &app.editorIcons_.show_);
     if (!world.flags_.empty())
         ImGui::Separator();

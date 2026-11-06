@@ -89,11 +89,13 @@ void readRender(const nlohmann::json& config, EngineSettings& io)
 
     io.rayTracing_ = it->value("rayTracing", io.rayTracing_);
     io.maxFps_ = it->value("maxFps", io.maxFps_);
+    io.vsync_ = it->value("vsync", io.vsync_);
     io.giBounces_ = it->value("giBounces", io.giBounces_);
     io.giPasses_ = it->value("giPasses", io.giPasses_);
-    io.giPerCell_ = it->value("giPerCell", io.giPerCell_);
     io.tonemap_ = it->value("tonemap", io.tonemap_);
     io.ambientOcclusion_ = it->value("ambientOcclusion", io.ambientOcclusion_);
+    io.bloom_ = it->value("bloom", io.bloom_);
+    io.brightness_ = it->value("brightness", io.brightness_);
 }
 
 void writeRender(const std::filesystem::path& file, const EngineSettings& render)
@@ -101,11 +103,13 @@ void writeRender(const std::filesystem::path& file, const EngineSettings& render
     writeSection(file, "render",
                  {{"rayTracing", render.rayTracing_},
                   {"maxFps", render.maxFps_},
+                  {"vsync", render.vsync_},
                   {"giBounces", render.giBounces_},
                   {"giPasses", render.giPasses_},
-                  {"giPerCell", render.giPerCell_},
                   {"tonemap", render.tonemap_},
-                  {"ambientOcclusion", render.ambientOcclusion_}});
+                  {"ambientOcclusion", render.ambientOcclusion_},
+                  {"bloom", render.bloom_},
+                  {"brightness", render.brightness_}});
 }
 
 void readAudio(const nlohmann::json& config, Audio& audio)

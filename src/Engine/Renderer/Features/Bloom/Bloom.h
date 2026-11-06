@@ -21,7 +21,7 @@ struct Bloom
 
     void buildPipelines(const ShaderModules& modules);
     std::optional<GraphImage> createImages(RenderGraph& graph, VkExtent2D extent,
-                                           const Camera_C& settings);
+                                           const Camera_C& settings, bool enabled);
     float intensity() const { return intensity_; }
     void addPasses(RenderGraph& graph, GraphImage hdr, const DrawContext& draw);
 
