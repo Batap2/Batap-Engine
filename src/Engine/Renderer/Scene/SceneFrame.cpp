@@ -266,8 +266,9 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 data.aoTexture_ = InvalidGPUIndex;
                 if (ao)
                 {
-                    data.aoTexture_ = c.graph_.textureIndex(ao->filtered_);
+                    data.aoTexture_ = c.graph_.textureIndex(ao->full_);
                     data.aoRawTexture_ = c.graph_.textureIndex(ao->raw_);
+                    data.aoFilteredTexture_ = c.graph_.textureIndex(ao->filtered_);
                     data.depthTexture_ = c.graph_.textureIndex(depth);
                     data.viewNormalTexture_ = c.graph_.textureIndex(normals);
                 }
@@ -354,7 +355,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                                });
     readsShading(scene);
     if (ao)
-        scene.read(ao->filtered_, Usage::ShaderRead);
+        scene.read(ao->full_, Usage::ShaderRead);
 
     if (translucent)
     {

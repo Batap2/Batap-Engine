@@ -40,4 +40,21 @@ float3 AoViewNormal(int2 pixel)
         g_textures[FrameBuffer[0].viewNormalTexture_].Load(int3(pixel, 0)).xyz * 2.0f - 1.0f);
 }
 
+// The AO runs at half resolution: a half-resolution texel stands for the
+// top-left full-resolution pixel of its 2x2 block.
+int2 AoFullTexel(int2 half)
+{
+    return half * 2;
+}
+
+static const float AoNormalPower = 8.0f;
+static const float AoPlaneTolerance = 0.02f;
+
+float AoSurfaceWeight(float3 P, float3 N, float3 Q, float3 Nq)
+{
+    const float tolerance = AoPlaneTolerance * -P.z;
+    return saturate(1.0f - abs(dot(Q - P, N)) / tolerance) *
+           pow(saturate(dot(N, Nq)), AoNormalPower);
+}
+
 #endif

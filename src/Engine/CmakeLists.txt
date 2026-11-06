@@ -235,6 +235,7 @@ batap_compile_shader(SkyEquirectPS.hlsl SkyEquirectPS.spv ps_6_6)
 batap_compile_shader(SkyPrefilterPS.hlsl SkyPrefilterPS.spv ps_6_6)
 batap_compile_shader(AoPS.hlsl         AoPS.spv         ps_6_6)
 batap_compile_shader(AoFilterPS.hlsl   AoFilterPS.spv   ps_6_6)
+batap_compile_shader(AoUpsamplePS.hlsl AoUpsamplePS.spv ps_6_6)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -275,7 +276,8 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/SkyEquirectPS.spv"
   "${engine_shader_out}/SkyPrefilterPS.spv"
   "${engine_shader_out}/AoPS.spv"
-  "${engine_shader_out}/AoFilterPS.spv")
+  "${engine_shader_out}/AoFilterPS.spv"
+  "${engine_shader_out}/AoUpsamplePS.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —

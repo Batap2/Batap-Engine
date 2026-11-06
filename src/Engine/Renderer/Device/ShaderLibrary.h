@@ -52,6 +52,7 @@ enum ShaderId : size_t
     SkyPrefilterPS,
     AoPS,
     AoFilterPS,
+    AoUpsamplePS,
     ShaderCount,
 };
 
@@ -105,6 +106,7 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"SkyPrefilterPS", "SkyPrefilterPS", "ps_6_6"},
     {"AoPS", "AoPS", "ps_6_6"},
     {"AoFilterPS", "AoFilterPS", "ps_6_6"},
+    {"AoUpsamplePS", "AoUpsamplePS", "ps_6_6"},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

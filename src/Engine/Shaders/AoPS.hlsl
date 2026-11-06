@@ -70,16 +70,17 @@ float main(float4 svpos : SV_POSITION) : SV_Target
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
     const Texture2D<float4> depths = g_textures[frame.depthTexture_];
-    const float depth = depths.Load(int3(int2(svpos.xy), 0)).r;
+    const int2 full = AoFullTexel(int2(svpos.xy));
+    const float2 pixel = float2(full) + 0.5f;
+    const float depth = depths.Load(int3(full, 0)).r;
     if (depth <= 0.0f)
         return 1.0f;
 
     const AoScreen v = AoScreenOf(depths, cam);
 
     const float L = v.znear_ / depth;
-    const float3 P = AoViewPosition(v, svpos.xy, L);
-    const float3 N = normalize(
-        g_textures[frame.viewNormalTexture_].Load(int3(int2(svpos.xy), 0)).xyz * 2.0f - 1.0f);
+    const float3 P = AoViewPosition(v, pixel, L);
+    const float3 N = AoViewNormal(full);
     const float3 V = normalize(-P);
 
     const float radius = frame.aoRadius_ > 0.0f
@@ -100,7 +101,7 @@ float main(float4 svpos : SV_POSITION) : SV_Target
     {
         const float phi = AoPi * (float(slice) + noiseSlice) / float(AoSlices);
         const float2 dir = float2(cos(phi), sin(phi));
-        const float3 along = AoViewPosition(v, svpos.xy + dir, L) - P;
+        const float3 along = AoViewPosition(v, pixel + dir, L) - P;
         const float3 ortho = normalize(along - dot(along, V) * V);
         const float3 axis = cross(V, ortho);
         const float3 projN = N - axis * dot(N, axis);
@@ -129,7 +130,7 @@ float main(float4 svpos : SV_POSITION) : SV_Target
             {
                 const float s = (float(j) + noiseStep) / float(AoSteps);
                 const float t = 1.0f + s * s * (radiusPixels - 1.0f);
-                const float2 at = svpos.xy + sideSign * dir * t;
+                const float2 at = pixel + sideSign * dir * t;
                 if (any(at < 0.0f) || any(at >= v.size_))
                     break;
                 const float2 texel = floor(at) + 0.5f;

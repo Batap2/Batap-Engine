@@ -25,29 +25,38 @@ Ao::~Ao()
 {
     vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, upsample_, nullptr);
 }
 
 void Ao::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, upsample_, nullptr);
     trace_ = GraphicsPipelineBuilder()
                  .shaders(modules[SkyVS], modules[AoPS])
                  .colorFormat(AoRawFormat)
                  .build(setup_.ctx_.device_, setup_.layout_);
     filter_ = GraphicsPipelineBuilder()
                   .shaders(modules[SkyVS], modules[AoFilterPS])
-                  .colorFormat(AoFormat)
+                  .colorFormat(AoRawFormat)
                   .build(setup_.ctx_.device_, setup_.layout_);
+    upsample_ = GraphicsPipelineBuilder()
+                    .shaders(modules[SkyVS], modules[AoUpsamplePS])
+                    .colorFormat(AoFormat)
+                    .build(setup_.ctx_.device_, setup_.layout_);
 }
 
 std::optional<Ao::Images> Ao::createImages(RenderGraph& graph, VkExtent2D extent,
                                            const Camera_C& settings, bool enabled)
 {
     images_.reset();
-    if (enabled && settings.aoStrength_ > 0.f && !settings.ortho())
-        images_ = Images{graph.createImage("ao raw", {extent, AoRawFormat}),
-                         graph.createImage("ao", {extent, AoFormat})};
+    if (!enabled || settings.aoStrength_ <= 0.f || settings.ortho())
+        return images_;
+    const VkExtent2D half{(extent.width + 1) / 2, (extent.height + 1) / 2};
+    images_ = Images{graph.createImage("ao raw", {half, AoRawFormat}),
+                     graph.createImage("ao filtered", {half, AoRawFormat}),
+                     graph.createImage("ao", {extent, AoFormat})};
     return images_;
 }
 
@@ -71,6 +80,15 @@ void Ao::addPasses(RenderGraph& graph, GraphImage depth, GraphImage normals,
         .read(uploads, Usage::AnyRead)
         .color(images_->filtered_, Load::DontCare)
         .execute([draw, pipeline = filter_](GraphContext& c)
+                 { drawFullscreen(draw, c, pipeline); });
+    graph.addPass("ao upsample")
+        .read(images_->filtered_, Usage::ShaderRead)
+        .read(depth, Usage::ShaderRead)
+        .read(normals, Usage::ShaderRead)
+        .read(frameConstants, Usage::ShaderRead)
+        .read(uploads, Usage::AnyRead)
+        .color(images_->full_, Load::DontCare)
+        .execute([draw, pipeline = upsample_](GraphContext& c)
                  { drawFullscreen(draw, c, pipeline); });
 }
 }  // namespace batap

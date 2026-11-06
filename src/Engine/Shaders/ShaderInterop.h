@@ -390,7 +390,7 @@ struct FrameGPUData
     float aoRadius_;
     float aoThickness_;
     uint aoRawTexture_;
-    uint pad4_;
+    uint aoFilteredTexture_;
     uint pad5_;
     uint pad6_;
 };

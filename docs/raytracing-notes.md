@@ -1038,3 +1038,28 @@ cube, sphère, plaque de 3 cm à 30 cm du sol, ailette de 3 cm, ciel seul ;
   « Ambient occlusion » des Settings de l'éditeur, pour l'éditeur et pour
   le jeu. Éteint, la passe n'existe pas : image identique à `aoStrength` 0,
   temps GPU revenu à la base.
+
+## 4.3b Demi-résolution
+
+*Fait (2026-11-06)* :
+- **`ao` et `ao filter` en ½ × ½** (`R16_SFLOAT`). Un texel demi-résolution
+  représente le pixel en haut à gauche de son bloc 2 × 2 (`AoFullTexel`) :
+  position, normale et marche viennent de ce pixel, la marche lit toujours
+  la profondeur pleine résolution.
+- **Passe `ao upsample`** (`AoUpsamplePS`, pleine résolution, `R8_UNORM`,
+  `aoTexture_`) : les quatre texels demi-résolution voisins, pondérés en
+  bilinéaire et par `AoSurfaceWeight` (plan tangent + normales, partagé avec
+  le filtre dans `Ao.hlsli`). Un pixel qu'aucun texel ne représente (objet
+  plus fin que le bloc) n'a pas d'AO. `aoStrength` s'applique ici.
+- Pas d'option pleine résolution : même erreur, voir ci-dessous.
+
+*Mesuré* (`test_ao`, 1280 × 720) :
+
+| | erreur RMS (pixels occultés) | AO, temps GPU |
+|---|---|---|
+| pleine résolution (4.3) | 4,87 | 0,28 ms |
+| demi-résolution | 4,93 | 0,12–0,13 ms |
+
+- ≈ 0,5 ms en 1440p sur la 5070, ≈ 1 ms sur une 3060 : dans le budget.
+- Image un peu plus douce aux contacts, sans escalier aux arêtes.
+- Validation (debug, synchronisation) : rien de nouveau.

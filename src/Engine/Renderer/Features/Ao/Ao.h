@@ -16,6 +16,7 @@ struct Ao
     {
         GraphImage raw_;
         GraphImage filtered_;
+        GraphImage full_;
     };
 
     explicit Ao(const DrawSetup& setup);
@@ -34,6 +35,7 @@ struct Ao
     DrawSetup setup_;
     VkPipeline trace_ = VK_NULL_HANDLE;
     VkPipeline filter_ = VK_NULL_HANDLE;
+    VkPipeline upsample_ = VK_NULL_HANDLE;
     std::optional<Images> images_;
 };
 }  // namespace batap
