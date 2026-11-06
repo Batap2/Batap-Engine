@@ -40,6 +40,25 @@ float AoIntegral(float a, float b, float n, float sinN)
     return abs(atSplit - AoPrimitive(a, n, sinN)) + abs(AoPrimitive(b, n, sinN) - atSplit);
 }
 
+// Antiderivatives of cos(t) and sin(t) times cos(t - n) * sin(t), t measured
+// from V: the first moment of the same weight, along V and across it.
+float2 AoMomentPrimitive(float t, float nCos, float nSin)
+{
+    const float c = cos(t);
+    const float s = sin(t);
+    const float c3 = c * c * c;
+    const float s3 = s * s * s;
+    return float2(-nCos * c3 + nSin * s3, nCos * s3 + nSin * (c3 - 3.0f * c)) / 3.0f;
+}
+
+float2 AoMoment(float a, float b, float nCos, float nSin)
+{
+    const float split = clamp(0.0f, a, b);
+    const float2 atSplit = AoMomentPrimitive(split, nCos, nSin);
+    return (AoMomentPrimitive(b, nCos, nSin) - atSplit) -
+           (atSplit - AoMomentPrimitive(a, nCos, nSin));
+}
+
 float AoSectorEdge(uint k)
 {
     return (float(k) / float(AoSectors) - 0.5f) * (AoPi / AoAngleScale);
@@ -65,7 +84,7 @@ bool AoClipToSphere(float3 P, float3 dir, float2 span, float radius, out float2 
     return clipped.x < clipped.y;
 }
 
-float main(float4 svpos : SV_POSITION) : SV_Target
+float4 main(float4 svpos : SV_POSITION) : SV_Target
 {
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
@@ -74,7 +93,7 @@ float main(float4 svpos : SV_POSITION) : SV_Target
     const float2 pixel = float2(full) + 0.5f;
     const float depth = depths.Load(int3(full, 0)).r;
     if (depth <= 0.0f)
-        return 1.0f;
+        return float4(1.0f, 0.0f, 0.0f, 0.0f);
 
     const AoScreen v = AoScreenOf(depths, cam);
 
@@ -90,12 +109,13 @@ float main(float4 svpos : SV_POSITION) : SV_Target
     const float radiusPixels =
         min(radius * pixelsPerMetreAtUnit / L, AoMaxRadiusOfHeight * v.size_.y);
     if (radiusPixels < 2.0f)
-        return 1.0f;
+        return float4(1.0f, 0.0f, 0.0f, 0.0f);
 
     const float noiseSlice = AoNoise(svpos.xy);
     const float noiseStep = AoNoise(svpos.xy + float2(5.588238f, 5.588238f));
 
     float occlusion = 0.0f;
+    float3 moment = float3(0.0f, 0.0f, 0.0f);
     [unroll]
     for (uint slice = 0u; slice < AoSlices; ++slice)
     {
@@ -182,7 +202,9 @@ float main(float4 svpos : SV_POSITION) : SV_Target
         }
 
         const float sinN = sin(n);
+        const float cosN = cos(n);
         float sliceOccluded = 0.0f;
+        float2 sliceMoment = float2(0.0f, 0.0f);
         uint runs = occluded;
         [loop]
         while (runs != 0u)
@@ -190,14 +212,22 @@ float main(float4 svpos : SV_POSITION) : SV_Target
             const uint first = firstbitlow(runs);
             const uint after = ~runs & (0xFFFFFFFFu << first);
             const uint end = after != 0u ? firstbitlow(after) : AoSectors;
-            sliceOccluded += AoIntegral(AoSectorEdge(first), AoSectorEdge(end), n, sinN);
+            const float a = AoSectorEdge(first);
+            const float b = AoSectorEdge(end);
+            sliceOccluded += AoIntegral(a, b, n, sinN);
+            sliceMoment += AoMoment(a + n, b + n, cosN, sinN);
             runs = end < AoSectors ? runs & (0xFFFFFFFFu << end) : 0u;
         }
         occlusion += projLength * sliceOccluded;
+        moment += projLength * (sliceMoment.x * V + sliceMoment.y * ortho);
     }
 
-    // Over uniform slice angles, projLength times the slice's whole integral
-    // averages to 1: this is unbiased, linear for the filter, and exactly 1
-    // where nothing occludes. It can go below 0, hence a float target.
-    return 1.0f - occlusion / float(AoSlices);
+    // Over uniform slice angles, projLength times a slice integral averages
+    // to the hemisphere integral of the same weight over pi: x is the
+    // cosine-weighted visibility, yzw the first moment of the occluded
+    // directions (2/3 N when all is occluded). Unbiased, linear for the
+    // filter, exactly (1, 0) where nothing occludes; x can go below 0.
+    moment /= float(AoSlices);
+    const float3 world = moment.x * cam.right_ + moment.y * cam.up_ - moment.z * cam.fwd_;
+    return float4(1.0f - occlusion / float(AoSlices), world);
 }

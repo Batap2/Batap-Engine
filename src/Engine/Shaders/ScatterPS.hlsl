@@ -32,7 +32,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.Ngeom_ = Ngeom;
     s.Nface_ = FaceNormal(i.posRel_, Ngeom);
     s.cell_ = 0.0f;
-    s.ao_ = ScreenAo(i.position_);
+    ApplyScreenAo(s, i.position_);
     s.gi_ = GiTerrainPoint(batch.placed_, i.posRel_, GiFacing(s.Nface_, i.posRel_));
     if (mat.normalTexIdx_ != InvalidGPUIndex)
     {

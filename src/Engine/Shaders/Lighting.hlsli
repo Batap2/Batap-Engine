@@ -189,11 +189,20 @@ float3 SpecularEnergy(float3 F0, float albedoAtOne)
     return 1.0f + F0 * (1.0f / max(albedoAtOne, 1e-3f) - 1.0f);
 }
 
-// Lagarde 2014, on alpha = roughness^2 as Filament feeds it.
-float SpecularOcclusion(float NdotV, float ao, float roughness)
+// Oat and Sander 2007, as Jimenez et al. 2016 smooth it: the solid angle two
+// caps share, over 2 pi.
+float CapsIntersection(float cos1, float cos2, float cosBetween)
 {
-    const float alpha = roughness * roughness;
-    return saturate(pow(NdotV + ao, exp2(-16.0f * alpha - 1.0f)) - 1.0f + ao);
+    const float r1 = acos(cos1);
+    const float r2 = acos(cos2);
+    const float d = acos(clamp(cosBetween, -1.0f, 1.0f));
+    if (min(r1, r2) <= max(r1, r2) - d)
+        return 1.0f - max(cos1, cos2);
+    if (r1 + r2 <= d)
+        return 0.0f;
+    const float delta = abs(r1 - r2);
+    const float x = 1.0f - saturate((d - delta) / max(r1 + r2 - delta, 1e-4f));
+    return x * x * (3.0f - 2.0f * x) * (1.0f - max(cos1, cos2));
 }
 
 // Rational fit of theta / sin(theta), accurate to float and free of acos.
@@ -359,6 +368,7 @@ struct Surface
     float3 posRel_;
     float cell_;
     float ao_;
+    float3 aoMoment_;
     GiPoint gi_;
     float2 uv_;
     float2 uvDx_;
@@ -380,10 +390,50 @@ float3 FaceNormal(float3 P, float3 Ngeom)
     return dot(c, Ngeom) >= 0.0f ? c : -c;
 }
 
-float ScreenAo(float4 svpos)
+void ApplyScreenAo(inout Surface s, float4 svpos)
 {
     const uint ao = FrameBuffer[0].aoTexture_;
-    return ao == InvalidGPUIndex ? 1.0f : g_textures[ao].Load(int3(svpos.xy, 0)).r;
+    const float4 occlusion = ao == InvalidGPUIndex ? float4(1.0f, 0.0f, 0.0f, 0.0f)
+                                                   : g_textures[ao].Load(int3(svpos.xy, 0));
+    s.ao_ = occlusion.x;
+    s.aoMoment_ = occlusion.yzw;
+}
+
+// The sky's irradiance the occluders hide: exact for a radiance linear in the
+// direction (SH bands 0 and 1), from the occluded share (1 - ao) and the
+// first moment of the occluded directions.
+float3 SkyOccludedIrradiance(float ao, float3 moment)
+{
+    float4 sh[9];
+    if (g_draw.atmosphereCount_ != 0)
+        sh = FrameBuffer[0].sh_;
+    else
+        sh = SkyboxBuffer[0].sh;
+    const float3 band0 = sh[0].rgb * 0.282095f;
+    const float3 band1 =
+        (sh[3].rgb * moment.x + sh[1].rgb * moment.y + sh[2].rgb * moment.z) * 0.488603f;
+    return PI * (band0 * (1.0f - ao) + band1);
+}
+
+// The occluded directions as a cap around their first moment, sized so its
+// cosine-weighted share, (N.D) sin^2, is 1 - ao; the reflection's cap
+// (Jimenez et al. 2016) loses what the two share. A cap of the visible
+// directions instead would cut grazing reflections as soon as ao dips below 1.
+float SpecularOcclusion(Surface s, float3 R)
+{
+    const float hidden = 1.0f - s.ao_;
+    const float momentLength = length(s.aoMoment_);
+    if (hidden <= 1e-3f || momentLength <= 1e-5f)
+        return 1.0f;
+    const float3 D = s.aoMoment_ / momentLength;
+    const float cosHidden = sqrt(saturate(1.0f - hidden / max(dot(D, s.Ngeom_), 0.05f)));
+    const float alpha = s.roughness_ * s.roughness_;
+    const float cosSpecular = exp2(-3.321928f * alpha * alpha);
+    const float covered = CapsIntersection(cosHidden, cosSpecular, dot(D, R));
+    // A mirror shows the occluder itself, which nothing here puts back: a
+    // black hole would be worse than the sky. Faded out as Filament does.
+    return lerp(1.0f, saturate(1.0f - covered / max(1.0f - cosSpecular, 1e-6f)),
+                smoothstep(0.01f, 0.09f, alpha));
 }
 
 // The sky buffer keeps the last sky's values after it is removed, so the
@@ -392,9 +442,10 @@ float3 DiffuseIrradiance(Surface s)
 {
     const float3 sky = g_draw.skyboxCount_ != 0 ? EvalSH9(s.N_) : float3(0.0f, 0.0f, 0.0f);
 #if BATAP_RT
-    return GiIrradianceAt(s.gi_, length(s.posRel_), sky);
+    return GiIrradianceAt(s.gi_, length(s.posRel_), sky) * s.ao_;
 #else
-    return sky;
+    return g_draw.skyboxCount_ != 0 ? max(sky - SkyOccludedIrradiance(s.ao_, s.aoMoment_), 0.0f)
+                                    : sky;
 #endif
 }
 
@@ -449,10 +500,12 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
                                     : BrdfDiffuseAlbedo(s.albedo_, s.diffuseRoughness_, NdotV);
     // The occlusion darkens the ambient only: the shadow rays already hold
     // the direct light's.
-    float3 color = kD * DiffuseIrradiance(s) * s.ao_ * ambientAlbedo / PI * coverage;
+    float3 color = kD * DiffuseIrradiance(s) * ambientAlbedo / PI * coverage;
     if (g_draw.skyboxCount_ != 0 && !regolith)
-        color += SampleSkyPrefiltered(reflect(-V, s.N_), s.roughness_) * lobe *
-                 SpecularOcclusion(NdotV, s.ao_, s.roughness_);
+    {
+        const float3 R = reflect(-V, s.N_);
+        color += SampleSkyPrefiltered(R, s.roughness_) * lobe * SpecularOcclusion(s, R);
+    }
 
     uint debugCascade = ShadowCascadeCount;
     float3 debugTint = float3(0.0f, 0.0f, 0.0f);

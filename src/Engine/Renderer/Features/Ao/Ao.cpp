@@ -7,8 +7,8 @@ namespace batap
 {
 namespace
 {
-constexpr VkFormat AoRawFormat = VK_FORMAT_R16_SFLOAT;
-constexpr VkFormat AoFormat = VK_FORMAT_R8_UNORM;
+constexpr VkFormat AoRawFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+constexpr VkFormat AoFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
 void drawFullscreen(const DrawContext& draw, GraphContext& c, VkPipeline pipeline)
 {

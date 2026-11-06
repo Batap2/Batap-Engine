@@ -1063,3 +1063,49 @@ cube, sphère, plaque de 3 cm à 30 cm du sol, ailette de 3 cm, ciel seul ;
 - ≈ 0,5 ms en 1440p sur la 5070, ≈ 1 ms sur une 3060 : dans le budget.
 - Image un peu plus douce aux contacts, sans escalier aux arêtes.
 - Validation (debug, synchronisation) : rien de nouveau.
+
+## 4.4 Occlusion directionnelle
+
+*Fait (2026-11-06)* :
+- **Le moment d'ordre 1 au lieu d'une SH L1 de visibilité.** La passe sort
+  `(ao, m)` en `RGBA16F` : `m = (1/π) ∫ O(ω) ω (N·ω) dω`, la direction
+  moyenne pondérée en cosinus de ce qui est occulté, en espace monde
+  (`(2/3) N` si tout l'est). C'est la bande 1 de l'occlusion pondérée en
+  cosinus : même information qu'une SH L1, et le même estimateur linéaire
+  que l'AO (intégrales fermées de `(cos t, sin t) cos(t − n) |sin t|` par
+  plage de secteurs, `AoMoment`). Filtre et remontée le moyennent sans
+  biais.
+- **Ciel directionnel (raster)** : `DiffuseIrradiance` retire du ciel SH9
+  `π (L0 (1 − ao) + L1 · m)`, exact pour une radiance linéaire en direction
+  (bandes 0 et 1 du ciel ; L0 = 0,282095 c₀, L1 = 0,488603 (c₃, c₁, c₂)).
+  Un occultant de côté retire l'horizon, pas le zénith. Ciel uniforme :
+  identique à `ao × ciel`. En RT, le cache n'est pas directionnel : `× ao`.
+- **Occlusion spéculaire** (remplace Lagarde) : un cap des directions
+  occultées autour de `m`, taillé pour que sa part pondérée en cosinus,
+  `(N·D) sin²α`, vaille `1 − ao`, coupé par le cap du reflet
+  (`cos = 2^(−3,32 α²)`, intersection d'Oat et Sander lissée par Jimenez
+  2016). Deux échecs avant :
+  - un cap des directions *visibles* : il coupait les reflets rasants dès
+    que l'AO passait sous 1 (bords noirs sur les sphères métal du furnace) ;
+  - sans fondu : les miroirs montraient un trou noir là où l'occultant
+    aurait dû se refléter (cuivre de `test_brdf` devant la sphère rouge).
+    Estompé sur α ∈ [0,01 ; 0,09], comme Filament : les surfaces lisses
+    auront les réflexions RT (phase 7).
+- **Le furnace n'est plus un furnace avec l'AO** : en raster (rayon 1 m),
+  les sphères voisines à 30 cm s'occultent, diffus et spéculaire. Pour
+  valider une BRDF, couper l'AO (réglage `render.ambientOcclusion`). En RT
+  (rayon = cellule), le furnace ne bouge pas (182 px à ±4).
+
+*Mesuré* (luminance de la frame, 4.3b → 4.4) :
+
+| zone de `test_ao` | raster | RT |
+|---|---|---|
+| sol dégagé, milieu d'un mur | identiques | identiques |
+| coin du fond | 83,4 → 84,1 | 75,0 → 73,8 |
+| pied du cube | 94,3 → 94,5 | 90,6 → 89,4 |
+| sous la plaque | 98,5 → 97,0 | 93,2 → 93,2 |
+
+- `test_brdf` : 0,02–0,04 % des pixels à plus de 8 niveaux (contacts du
+  cuivre rugueux).
+- Coût : 0,14–0,15 ms en 720p (+0,02 ms sur 4.3b).
+- Validation (debug, synchronisation) : rien de nouveau.
