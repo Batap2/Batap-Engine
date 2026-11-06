@@ -130,6 +130,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     // albedo at normal incidence within 0.07.
     float3 energy =
         1.0f + F0 * (1.0f / (1.0f - 0.7f * roughness * roughness * roughness) - 1.0f);
+    float3 kd = (1.0f.xxx - F_Schlick(NdotV, F0) * energy) * (1.0f - metallic);
 
     ThumbLight lights[3];
     lights[0].dir_ = normalize(float3(-0.45f, 0.75f, 0.55f));
@@ -153,7 +154,6 @@ float4 main(VS_OUTPUT i) : SV_Target
         float3 F = F_Schlick(HdotV, F0);
         float3 spec = D_GGX(NdotH, roughness) *
                       V_SmithGGXCorrelated(NdotV, NdotL, roughness) * F * energy;
-        float3 kd = (1.0f.xxx - F) * (1.0f - metallic);
         color += (kd * albedo / PI * coverage + spec) * lights[l].radiance_ * NdotL;
     }
 
