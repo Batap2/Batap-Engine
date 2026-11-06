@@ -77,6 +77,7 @@ struct UIPanels
         int giPasses = 2;
         std::string tonemap = "agx";
         bool giPerCell = false;
+        bool ambientOcclusion = true;
     };
     AppSettings editorSettings_;
     AppSettings gameSettings_;

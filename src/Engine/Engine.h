@@ -43,6 +43,7 @@ struct EngineSettings
     uint32_t giPasses_ = 2;
     bool giPerCell_ = false;
     std::string tonemap_ = "agx";
+    bool ambientOcclusion_ = true;
 };
 
 struct Frame
@@ -113,6 +114,7 @@ struct Engine
     void setGiPasses(uint32_t passes) { settings_.giPasses_ = passes; }
     void setGiPerCell(bool on) { settings_.giPerCell_ = on; }
     void setTonemap(std::string key) { settings_.tonemap_ = std::move(key); }
+    void setAmbientOcclusion(bool on) { settings_.ambientOcclusion_ = on; }
     bool rtSupported() const;
 
     float deltaTime_ = 0;

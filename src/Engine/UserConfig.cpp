@@ -93,6 +93,7 @@ void readRender(const nlohmann::json& config, EngineSettings& io)
     io.giPasses_ = it->value("giPasses", io.giPasses_);
     io.giPerCell_ = it->value("giPerCell", io.giPerCell_);
     io.tonemap_ = it->value("tonemap", io.tonemap_);
+    io.ambientOcclusion_ = it->value("ambientOcclusion", io.ambientOcclusion_);
 }
 
 void writeRender(const std::filesystem::path& file, const EngineSettings& render)
@@ -103,7 +104,8 @@ void writeRender(const std::filesystem::path& file, const EngineSettings& render
                   {"giBounces", render.giBounces_},
                   {"giPasses", render.giPasses_},
                   {"giPerCell", render.giPerCell_},
-                  {"tonemap", render.tonemap_}});
+                  {"tonemap", render.tonemap_},
+                  {"ambientOcclusion", render.ambientOcclusion_}});
 }
 
 void readAudio(const nlohmann::json& config, Audio& audio)

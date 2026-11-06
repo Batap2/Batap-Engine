@@ -235,7 +235,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const Camera_C& camera = reg->get<Camera_C>(args.camera_);
     const std::optional<GraphImage> bloom = bloom_.createImages(graph, targets.extent_, camera);
     frameData_.bloomIntensity_ = bloom_.intensity();
-    const std::optional<Ao::Images> ao = ao_.createImages(graph, targets.extent_, camera);
+    const std::optional<Ao::Images> ao =
+        ao_.createImages(graph, targets.extent_, camera, ctx.settings().ambientOcclusion_);
     frameData_.aoStrength_ = camera.aoStrength_;
     frameData_.aoRadius_ = rayTracing ? 0.f : camera.aoRadius_;
     frameData_.aoThickness_ = camera.aoThickness_;

@@ -1034,3 +1034,7 @@ cube, sphère, plaque de 3 cm à 30 cm du sol, ailette de 3 cm, ciel seul ;
   ≈ 1,1 ms en 1440p sur la 5070, environ le double sur une 3060 : au-dessus
   du budget de 0,5–1 ms. La demi-résolution est le levier suivant.
 - Validation (debug, synchronisation) : rien de nouveau.
+- **Réglage utilisateur** `render.ambientOcclusion` (défaut vrai), case
+  « Ambient occlusion » des Settings de l'éditeur, pour l'éditeur et pour
+  le jeu. Éteint, la passe n'existe pas : image identique à `aoStrength` 0,
+  temps GPU revenu à la base.

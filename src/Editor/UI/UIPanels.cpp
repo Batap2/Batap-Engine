@@ -314,7 +314,8 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
                        static_cast<int>(ctx.settings().giBounces_),
                        static_cast<int>(ctx.settings().giPasses_),
                        ctx.settings().tonemap_,
-                       ctx.settings().giPerCell_};
+                       ctx.settings().giPerCell_,
+                       ctx.settings().ambientOcclusion_};
 
     WindowDesc game;
     EngineSettings gameRender;
@@ -334,7 +335,8 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
                      static_cast<int>(gameRender.giBounces_),
                      static_cast<int>(gameRender.giPasses_),
                      gameRender.tonemap_,
-                     gameRender.giPerCell_};
+                     gameRender.giPerCell_,
+                     gameRender.ambientOcclusion_};
 
     startScene_ = app.projectDir_.empty() ? std::string{}
                                           : editorConfig::readStartScene(app.projectDir_);
@@ -434,6 +436,8 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
             }
             ImGui::EndCombo();
         }
+        if (ImGui::Checkbox("Ambient occlusion", &s.ambientOcclusion))
+            change = Render;
         ImGui::BeginDisabled(!ctx.rtSupported());
         ImGui::SetNextItemWidth(80.0f);
         ImGui::InputInt("GI bounces (1-4)", &s.giBounces, 1);
@@ -466,6 +470,7 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         render.giPasses_ = static_cast<uint32_t>(s.giPasses);
         render.giPerCell_ = s.giPerCell;
         render.tonemap_ = s.tonemap;
+        render.ambientOcclusion_ = s.ambientOcclusion;
         return render;
     };
 
@@ -528,6 +533,7 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         ctx.setGiPasses(render.giPasses_);
         ctx.setGiPerCell(render.giPerCell_);
         ctx.setTonemap(render.tonemap_);
+        ctx.setAmbientOcclusion(render.ambientOcclusion_);
     }
     else if (editorChange != None)
     {

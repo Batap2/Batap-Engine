@@ -26,7 +26,7 @@ struct Ao
 
     void buildPipelines(const ShaderModules& modules);
     std::optional<Images> createImages(RenderGraph& graph, VkExtent2D extent,
-                                       const Camera_C& settings);
+                                       const Camera_C& settings, bool enabled);
     void addPasses(RenderGraph& graph, GraphImage depth, GraphImage normals,
                    GraphBuffer frameConstants, GraphBuffer uploads, const DrawContext& draw);
 

@@ -42,10 +42,10 @@ void Ao::buildPipelines(const ShaderModules& modules)
 }
 
 std::optional<Ao::Images> Ao::createImages(RenderGraph& graph, VkExtent2D extent,
-                                           const Camera_C& settings)
+                                           const Camera_C& settings, bool enabled)
 {
     images_.reset();
-    if (settings.aoStrength_ > 0.f && !settings.ortho())
+    if (enabled && settings.aoStrength_ > 0.f && !settings.ortho())
         images_ = Images{graph.createImage("ao raw", {extent, AoRawFormat}),
                          graph.createImage("ao", {extent, AoFormat})};
     return images_;
