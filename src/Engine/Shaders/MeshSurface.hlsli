@@ -29,6 +29,7 @@ Surface MeshSurface(VS_OUTPUT i, StaticMeshGPUData inst, Material mat, out float
     s.roughness_ = clamp(mat.roughness * g_textures[mat.roughnessTexIdx_].Sample(g_sampler, i.uv_).r, 0.05f, 1.0f);
     s.metallic_  = saturate(mat.metallic * g_textures[mat.metallicTexIdx_].Sample(g_sampler, i.uv_).r);
     s.ior_ = mat.ior;
+    s.diffuseRoughness_ = saturate(mat.diffuseRoughness);
     s.emissive_  = mat.emissive * mat.emissiveStrength;
     s.posRel_    = i.posRel_;
 

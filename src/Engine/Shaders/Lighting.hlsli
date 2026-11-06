@@ -283,27 +283,38 @@ RectFace RectLightFace(LightGPUData light, float3 P)
 // intensity_ is the face's radiance: the integrals are fractions of the
 // hemisphere, so no 1/pi appears.
 float3 RectLightContribution(LightGPUData light, float3 P, float3 N, float3 V, float NdotV,
-                             float3 albedo, float roughness, float metallic, float3 F0,
-                             float coverage = 1.0f)
+                             float3 albedo, float roughness, float diffuseRoughness,
+                             float metallic, float3 F0, bool regolith, float coverage = 1.0f)
 {
     const RectFace face = RectLightFace(light, P);
     if (face.window_ <= 0.0f)
         return float3(0.0f, 0.0f, 0.0f);
 
-    FrameGPUData frame = FrameBuffer[0];
-    float2 uv = LtcUv(NdotV, roughness);
-    float4 t1 = g_textures[frame.ltcMatTexture_].SampleLevel(g_sampler, uv, 0.0f);
-    float4 t2 = g_textures[frame.ltcAmpTexture_].SampleLevel(g_sampler, uv, 0.0f);
-    float3x3 mInv = float3x3(t1.x, 0.0f, t1.z,
-                             0.0f, 1.0f, 0.0f,
-                             t1.y, 0.0f, t1.w);
+    float3 lobe = float3(0.0f, 0.0f, 0.0f);
+    float3 specular = float3(0.0f, 0.0f, 0.0f);
+    if (!regolith)
+    {
+        FrameGPUData frame = FrameBuffer[0];
+        float2 uv = LtcUv(NdotV, roughness);
+        float4 t1 = g_textures[frame.ltcMatTexture_].SampleLevel(g_sampler, uv, 0.0f);
+        float4 t2 = g_textures[frame.ltcAmpTexture_].SampleLevel(g_sampler, uv, 0.0f);
+        float3x3 mInv = float3x3(t1.x, 0.0f, t1.z,
+                                 0.0f, 1.0f, 0.0f,
+                                 t1.y, 0.0f, t1.w);
+        // Hill's split of the Fresnel term over the lobe: F0 scaled by the GGX
+        // albedo, and the rest toward F90 = 1.
+        lobe = (F0 * t2.x + (1.0f - F0) * t2.y) * SpecularEnergy(F0, t2.x);
+        specular = lobe * LtcEvaluate(N, V, P, mInv, face.corners_);
+    }
     float3x3 identity = float3x3(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 
-    // Hill's split of the Fresnel term over the lobe: F0 scaled by the GGX
-    // albedo, and the rest toward F90 = 1.
-    float3 lobe = (F0 * t2.x + (1.0f - F0) * t2.y) * SpecularEnergy(F0, t2.x);
-    float3 specular = lobe * LtcEvaluate(N, V, P, mInv, face.corners_);
-    float3 diffuse = albedo * (1.0f - lobe) * (1.0f - metallic) *
+    float3 Lc = normalize(0.25f * (face.corners_[0] + face.corners_[1] + face.corners_[2] +
+                                   face.corners_[3]) - P);
+    float NdotLc = saturate(dot(N, Lc));
+    float3 rho = regolith ? BrdfEvalRegolith(albedo, NdotLc, NdotV, dot(Lc, V))
+                          : BrdfEvalDiffuse(albedo, diffuseRoughness, NdotLc, NdotV, dot(Lc, V));
+    rho *= PI;
+    float3 diffuse = rho * (1.0f - lobe) * (1.0f - metallic) *
                      LtcEvaluate(N, V, P, identity, face.corners_) * coverage;
 
     return (diffuse + specular) * light.color_ * (light.intensity_ * face.window_);
@@ -330,6 +341,7 @@ struct Surface
 {
     float3 albedo_;
     float  roughness_;
+    float  diffuseRoughness_;
     float  metallic_;
     float  ior_;
     float3 emissive_;
@@ -403,6 +415,9 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 {
     if (shadingModel == ShadingUnlit)
         return s.albedo_ * coverage;
+    const bool regolith = shadingModel == ShadingRegolith;
+    if (regolith)
+        s.metallic_ = 0.0f;
 
     CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
 
@@ -412,12 +427,14 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
     float  NdotV = saturate(dot(s.N_, V));
     float2 dfg = Dfg(NdotV, s.roughness_);
     float3 energy = SpecularEnergy(F0, dfg.x);
-    float3 lobe = (F0 * (dfg.x - dfg.y) + dfg.y) * energy;
+    float3 lobe = regolith ? float3(0.0f, 0.0f, 0.0f) : (F0 * (dfg.x - dfg.y) + dfg.y) * energy;
     // What the whole specular lobe sends back is what the diffuse never sees.
     float3 kD = (1.0f - lobe) * (1.0f - s.metallic_);
 
-    float3 color = kD * DiffuseIrradiance(s) * s.albedo_ / PI * coverage;
-    if (g_draw.skyboxCount_ != 0)
+    float3 ambientAlbedo = regolith ? BrdfRegolithAlbedo(s.albedo_, NdotV)
+                                    : BrdfDiffuseAlbedo(s.albedo_, s.diffuseRoughness_, NdotV);
+    float3 color = kD * DiffuseIrradiance(s) * ambientAlbedo / PI * coverage;
+    if (g_draw.skyboxCount_ != 0 && !regolith)
         color += SampleSkyPrefiltered(reflect(-V, s.N_), s.roughness_) * lobe;
 
     uint debugCascade = ShadowCascadeCount;
@@ -433,7 +450,8 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
         if (light.type_ == LightRect)
         {
             float3 lit = RectLightContribution(light, s.posRel_, s.N_, V, NdotV, s.albedo_,
-                                               s.roughness_, s.metallic_, F0, coverage);
+                                               s.roughness_, s.diffuseRoughness_, s.metallic_, F0,
+                                               regolith, coverage);
             if (any(lit > 0.0f))
                 lit *= RectLightShadow(light, s.posRel_, s.Ngeom_, s.Nface_);
             color += lit;
@@ -461,28 +479,37 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
         if (shadow <= 0.0f)
             continue;
 
-        float3 H = normalize(V + L);
-
         float3 radiance = light.color_ * (attenuation * light.intensity_);
         if ((light.type_ == LightFarPoint || light.type_ == LightDirectional) &&
             g_draw.atmosphereCount_ != 0)
             radiance *= SkySunTransmittance(g_draw.atmosphereCount_, cam.pos_ + s.posRel_, L);
 
-        float NdotH = saturate(dot(s.N_, H));
-        float HdotV = saturate(dot(H, V));
+        float3 diffuse;
+        float3 specular = float3(0.0f, 0.0f, 0.0f);
+        if (regolith)
+        {
+            diffuse = BrdfEvalRegolith(s.albedo_, NdotL, NdotV, dot(L, V)) * coverage;
+        }
+        else
+        {
+            float3 H = normalize(V + L);
+            float NdotH = saturate(dot(s.N_, H));
+            float HdotV = saturate(dot(H, V));
 
-        float  alpha = s.roughness_ * s.roughness_;
-        float  D = D_GGX(NdotH, alpha);
-        if (s.glintDensity_ > 0.0f)
-            D *= (1.0f - min(s.glintIntensity_, 1.0f)) +
-                 s.glintIntensity_ * GlintRatio(s.uv_, s.uvDx_, s.uvDy_, s.T_, s.N_, H, alpha,
-                                                s.glintDensity_);
-        float  Vis = V_SmithGGXCorrelated(NdotV, NdotL, alpha);
-        float3 F = F_Schlick(HdotV, F0);
+            float  alpha = s.roughness_ * s.roughness_;
+            float  D = D_GGX(NdotH, alpha);
+            if (s.glintDensity_ > 0.0f)
+                D *= (1.0f - min(s.glintIntensity_, 1.0f)) +
+                     s.glintIntensity_ * GlintRatio(s.uv_, s.uvDx_, s.uvDy_, s.T_, s.N_, H, alpha,
+                                                    s.glintDensity_);
+            float  Vis = V_SmithGGXCorrelated(NdotV, NdotL, alpha);
+            float3 F = F_Schlick(HdotV, F0);
 
-        float3 specular = D * Vis * F * energy;
-
-        float3 diffuse = kD * s.albedo_ / PI * coverage;
+            specular = D * Vis * F * energy;
+            diffuse = kD *
+                      BrdfEvalDiffuse(s.albedo_, s.diffuseRoughness_, NdotL, NdotV, dot(L, V)) *
+                      coverage;
+        }
 
         // Direct term only: the ambient does not see shadows.
         color += (diffuse + specular) * radiance * NdotL * shadow;

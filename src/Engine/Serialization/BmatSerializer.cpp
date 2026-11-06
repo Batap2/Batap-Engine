@@ -17,6 +17,8 @@ bool writeBmat(const MaterialDesc& desc, const std::string& outPath)
     j["roughness"] = desc.mat->roughness;
     j["metallic"] = desc.mat->metallic;
     j["ior"] = desc.mat->ior;
+    if (desc.mat->diffuseRoughness > 0.f)
+        j["diffuseRoughness"] = desc.mat->diffuseRoughness;
     j["emissive"] = {desc.mat->emissive[0], desc.mat->emissive[1], desc.mat->emissive[2]};
     j["emissiveStrength"] = desc.mat->emissiveStrength;
     j["shadingModel"] = desc.mat->shadingModel_;
@@ -88,6 +90,8 @@ std::optional<MaterialFileData> readBmat(const std::string& path)
         data.mat.metallic = j["metallic"].get<float>();
     if (j.contains("ior"))
         data.mat.ior = j["ior"].get<float>();
+    if (j.contains("diffuseRoughness"))
+        data.mat.diffuseRoughness = j["diffuseRoughness"].get<float>();
     if (j.contains("emissive") && j["emissive"].is_array() && j["emissive"].size() == 3)
     {
         const auto& e = j["emissive"];

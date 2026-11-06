@@ -36,6 +36,78 @@ float3 BrdfEvalSpecular(float NdotV, float NdotL, float NdotH, float HdotV, floa
     return D_GGX(NdotH, alpha) * V_SmithGGXCorrelated(NdotV, NdotL, alpha) * F_Schlick(HdotV, F0);
 }
 
+static const float EonC1 = 0.5f - 2.0f / (3.0f * BRDF_PI);
+static const float EonC2 = 2.0f / 3.0f - 28.0f / (15.0f * BRDF_PI);
+
+float EonFujiiAlbedo(float mu, float r)
+{
+    float m = 1.0f - mu;
+    float gOverPi =
+        m * (0.0571085289f + m * (0.491881867f + m * (-0.332181442f + m * 0.0714429953f)));
+    return (1.0f + r * gOverPi) / (1.0f + EonC1 * r);
+}
+
+float3 EonMultiAlbedo(float3 rho, float avg)
+{
+    return rho * rho * avg / (1.0f - rho * (1.0f - avg));
+}
+
+float3 BrdfEvalDiffuse(float3 rho, float r, float NdotL, float NdotV, float LdotV)
+{
+    if (r <= 0.0f)
+        return rho / BRDF_PI;
+    float a = 1.0f / (1.0f + EonC1 * r);
+    float s = LdotV - NdotL * NdotV;
+    float sOverT = s > 0.0f ? s / max(max(NdotL, NdotV), 1e-5f) : s;
+    float avg = a * (1.0f + EonC2 * r);
+    float lostV = max(1.0f - EonFujiiAlbedo(NdotV, r), 0.0f);
+    float lostL = max(1.0f - EonFujiiAlbedo(NdotL, r), 0.0f);
+    float multi = lostV * lostL / max(1.0f - avg, 1e-7f);
+    return (rho * (a * (1.0f + r * sOverT)) + EonMultiAlbedo(rho, avg) * multi) / BRDF_PI;
+}
+
+float3 BrdfDiffuseAlbedo(float3 rho, float r, float NdotV)
+{
+    if (r <= 0.0f)
+        return rho;
+    float avg = (1.0f + EonC2 * r) / (1.0f + EonC1 * r);
+    float e = EonFujiiAlbedo(NdotV, r);
+    return rho * e + EonMultiAlbedo(rho, avg) * (1.0f - e);
+}
+
+static const float RegolithOppositionAmplitude = 1.0f;
+static const float RegolithOppositionWidth = 0.07f;
+
+float3 RegolithGamma(float3 rho)
+{
+    return (1.0f - rho) / (1.0f + 2.0f * rho);
+}
+
+float3 RegolithH(float x, float3 gamma)
+{
+    float3 w = 1.0f - gamma * gamma;
+    float3 r0 = (1.0f - gamma) / (1.0f + gamma);
+    x = max(x, 1e-4f);
+    return 1.0f / (1.0f - w * x * (r0 + (1.0f - 2.0f * r0 * x) * (0.5f * log((1.0f + x) / x))));
+}
+
+float3 BrdfEvalRegolith(float3 rho, float NdotL, float NdotV, float LdotV)
+{
+    float3 gamma = RegolithGamma(rho);
+    float tanHalfPhase = sqrt(max((1.0f - LdotV) / max(1.0f + LdotV, 1e-4f), 0.0f));
+    float opposition =
+        RegolithOppositionAmplitude / (1.0f + tanHalfPhase / RegolithOppositionWidth);
+    float3 multiple = RegolithH(NdotL, gamma) * RegolithH(NdotV, gamma);
+    return (1.0f - gamma * gamma) / (4.0f * BRDF_PI) * (opposition + multiple) /
+           max(NdotL + NdotV, 1e-4f);
+}
+
+float3 BrdfRegolithAlbedo(float3 rho, float NdotV)
+{
+    float3 gamma = RegolithGamma(rho);
+    return 1.0f - gamma * RegolithH(NdotV, gamma);
+}
+
 float G1_GGX(float cosTheta, float alpha)
 {
     float a2 = alpha * alpha;
