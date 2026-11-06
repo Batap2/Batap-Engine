@@ -397,7 +397,7 @@ struct Material
     float4 albedo INIT({1.f, 1.f, 1.f, 1.f});
     float roughness INIT(0.3f);
     float metallic INIT(0.f);
-    float reflectivity INIT(0.f);
+    float ior INIT(1.5f);
     uint albedoTexIdx_ INIT(InvalidGPUIndex);
     uint normalTexIdx_ INIT(InvalidGPUIndex);
     uint roughnessTexIdx_ INIT(InvalidGPUIndex);

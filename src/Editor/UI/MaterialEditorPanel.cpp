@@ -49,7 +49,7 @@ void drawParameters(App& app, MaterialHandle handle, const Material& mat, AssetP
         changed |= ui::Field("Albedo", [&] { return ui::ColorField("##alb", copy.albedo, 4); });
         changed |= ui::FieldSlider("Roughness", &copy.roughness, 0.f, 1.f);
         changed |= ui::FieldSlider("Metallic", &copy.metallic, 0.f, 1.f);
-        changed |= ui::FieldSlider("Reflectivity", &copy.reflectivity, 0.f, 1.f);
+        changed |= ui::FieldSlider("IOR", &copy.ior, 1.f, 3.f);
         changed |= ui::Field("Emissive", [&] { return ui::ColorField("##emi", copy.emissive, 3); });
         changed |= ui::FieldDragFloat("Emissive strength", &copy.emissiveStrength,
                                       std::max(copy.emissiveStrength * 0.02f, 0.01f), 0.f, 1e9f);

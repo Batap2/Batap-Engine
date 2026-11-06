@@ -30,7 +30,7 @@ Surface BillboardSurface(VS_OUTPUT i, out Material mat, out float alpha)
     s.albedo_ = base.rgb;
     s.roughness_ = clamp(mat.roughness, 0.05f, 1.f);
     s.metallic_ = saturate(mat.metallic);
-    s.reflectivity_ = mat.reflectivity;
+    s.ior_ = mat.ior;
     s.emissive_ = mat.emissive * mat.emissiveStrength;
     s.glintDensity_ = 0.0f;
     s.N_ = normalize(i.normalWS_);
