@@ -168,7 +168,8 @@ void TerrainDrawer::writeChunk(uint32_t instance, const Slot& slot,
     g.vertexBase_ = static_cast<uint32_t>(slot.vertex_);
     g.cells_ = slot.cells_;
     g.force_ = params.force_;
-    g.flags_ = (params.morphs_ ? TerrainMorphs : 0u) | (params.outline_ ? TerrainOutline : 0u);
+    g.flags_ = (params.morphs_ ? TerrainMorphs : 0u) | (params.outline_ ? TerrainOutline : 0u) |
+               (params.flat_ ? TerrainFlat : 0u);
     g.morphStart_ = params.morphStart_;
     g.morphEnd_ = params.morphEnd_;
     g.level_ = slot.level_;

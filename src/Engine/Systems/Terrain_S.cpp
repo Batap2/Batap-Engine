@@ -250,6 +250,23 @@ void Terrain_S::sync(World& world, TerrainSource& source)
         if (const std::vector<Reach> changes = source.takeChanges(world, e); !changes.empty())
             markChanged(world, state, changes, bounds);
 
+        std::vector<ChunkKey> roots = rootChunks(grid);
+        int32_t topLevel = 0;
+        if (terrain.region_ && !terrain.oneChunk_)
+        {
+            topLevel = std::clamp(terrain.level_, 0, kMaxTerrainLevel);
+            const int32_t n = 1 << topLevel;
+            const int32_t face = std::clamp(terrain.face_, 0, rootCount(grid) - 1);
+            roots.clear();
+            for (int32_t dy = -1; dy <= 0; ++dy)
+                for (int32_t dx = -1; dx <= 0; ++dx)
+                {
+                    const ChunkKey key{face, topLevel, std::clamp(terrain.x_ + dx, 0, n - 1),
+                                       std::clamp(terrain.y_ + dy, 0, n - 1)};
+                    if (std::find(roots.begin(), roots.end(), key) == roots.end())
+                        roots.push_back(key);
+                }
+        }
         std::vector<ChunkKey> wanted;
         std::optional<v3d> camera;
         if (terrain.oneChunk_)
@@ -266,10 +283,11 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             params.grid_ = grid;
             params.maxLevel_ = levelForCell(grid, static_cast<double>(terrain.finestCell_));
             params.ratio_ = static_cast<double>(terrain.lodRatio_);
+            params.roots_ = roots;
             wanted = selectChunks(params, *camera, state.shown_, bounds);
         }
         else
-            wanted = rootChunks(grid);
+            wanted = roots;
         // Mixed levels only come from the quadtree.
         const bool nested = camera.has_value();
 
@@ -278,7 +296,8 @@ void Terrain_S::sync(World& world, TerrainSource& source)
         const bool moved = wanted != state.wanted_;
         ChunkKeySet tree;
         if (moved || meshesArrived)
-            tree = nested ? quadtreeOf(wanted) : ChunkKeySet(wanted.begin(), wanted.end());
+            tree = nested ? quadtreeOf(wanted, topLevel)
+                          : ChunkKeySet(wanted.begin(), wanted.end());
 
         for (ChunkBuilder::Result& r : arrivals)
         {
@@ -318,8 +337,8 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             std::vector<ChunkKey> frontier;
             if (nested)
             {
-                shownList = shownChunks(grid, tree, built);
-                frontier = buildFrontier(tree, built);
+                shownList = shownChunks(grid, tree, built, roots);
+                frontier = buildFrontier(tree, built, topLevel);
             }
             else
                 for (const ChunkKey& key : wanted)
@@ -391,6 +410,7 @@ void Terrain_S::sync(World& world, TerrainSource& source)
             params.materials_ = materials;
             params.force_ = chunk.force_;
             params.outline_ = showChunks_;
+            params.flat_ = terrain.flatShading_;
             params.morphs_ = nested && key.level_ > 0;
             if (params.morphs_)
             {

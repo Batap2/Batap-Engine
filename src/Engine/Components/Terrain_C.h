@@ -10,11 +10,13 @@ namespace batap
 
 // The quadtree follows the render camera down to finestCell_; without a
 // camera, the roots show. With oneChunk_, the one node named by face_,
-// level_, x_ and y_ shows instead.
+// level_, x_ and y_ shows instead. With region_, the quadtree's roots are the
+// four level_ nodes of face_ meeting at the corner (x_, y_).
 struct Terrain_C
 {
     int32_t level_ = 0;
     bool oneChunk_ = false;
+    bool region_ = false;
     int32_t face_ = 2;
     int32_t x_ = 0;
     int32_t y_ = 0;
@@ -30,18 +32,21 @@ struct Terrain_C
     TerrainShape shape_ = TerrainShape::Sphere;
     // Metres: the colliders' cells, as close as a level gets.
     float physicsCell_ = 0.12f;
+    bool flatShading_ = false;
 };
 
 static_assert(refl::fieldName<Terrain_C, 0>() == "level");
 static_assert(refl::fieldName<Terrain_C, 1>() == "oneChunk");
-static_assert(refl::fieldName<Terrain_C, 2>() == "face");
-static_assert(refl::fieldName<Terrain_C, 3>() == "x");
-static_assert(refl::fieldName<Terrain_C, 4>() == "y");
-static_assert(refl::fieldName<Terrain_C, 5>() == "cells");
-static_assert(refl::fieldName<Terrain_C, 6>() == "finestCell");
-static_assert(refl::fieldName<Terrain_C, 7>() == "lodRatio");
-static_assert(refl::fieldName<Terrain_C, 8>() == "shape");
-static_assert(refl::fieldName<Terrain_C, 9>() == "physicsCell");
+static_assert(refl::fieldName<Terrain_C, 2>() == "region");
+static_assert(refl::fieldName<Terrain_C, 3>() == "face");
+static_assert(refl::fieldName<Terrain_C, 4>() == "x");
+static_assert(refl::fieldName<Terrain_C, 5>() == "y");
+static_assert(refl::fieldName<Terrain_C, 6>() == "cells");
+static_assert(refl::fieldName<Terrain_C, 7>() == "finestCell");
+static_assert(refl::fieldName<Terrain_C, 8>() == "lodRatio");
+static_assert(refl::fieldName<Terrain_C, 9>() == "shape");
+static_assert(refl::fieldName<Terrain_C, 10>() == "physicsCell");
+static_assert(refl::fieldName<Terrain_C, 11>() == "flatShading");
 
 BATAP_COMPONENT(Terrain_C, "terrain",
                 fieldMeta<&Terrain_C::level_>({.speed = 1.f, .min = 0.f, .max = 24.f}),

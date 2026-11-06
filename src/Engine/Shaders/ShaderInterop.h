@@ -220,6 +220,7 @@ struct TerrainChunkGPUData
 static const uint TerrainMorphs = 1u;
 // Terrain_C::debug_: the chunk's border drawn in its level's colour.
 static const uint TerrainOutline = 2u;
+static const uint TerrainFlat = 4u;
 
 // Every frame, at the chunk's index: chunk space to world space less the
 // render camera's position, worked out in double (Terrain_S::publish).

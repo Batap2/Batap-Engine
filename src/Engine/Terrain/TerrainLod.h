@@ -22,6 +22,8 @@ struct LodParams
     int32_t maxLevel_ = 0;
     // Split while the camera is closer than ratio_ x the chunk's side.
     double ratio_ = 2.0;
+    // The nodes the descent starts from; empty for the cube's faces.
+    std::vector<ChunkKey> roots_;
 };
 
 int32_t levelForCell(const TerrainGrid& grid, double cell);
@@ -60,8 +62,10 @@ std::vector<ChunkKey> selectChunks(const LodParams& params, const v3d& camera,
                                    const ChunkKeySet& existing, const NodeBoundsFn& bounds);
 std::vector<ChunkKey> rootChunks(const TerrainGrid& grid);
 
-// The selected leaves and all their ancestors.
-ChunkKeySet quadtreeOf(const std::vector<ChunkKey>& leaves);
+// The selected leaves and all their ancestors down to topLevel.
+ChunkKeySet quadtreeOf(const std::vector<ChunkKey>& leaves, int32_t topLevel = 0);
+// Whether key lies under one of the roots.
+bool underRoots(const ChunkKey& key, const std::vector<ChunkKey>& roots);
 
 // The node beside `key` at its level, dx and dy in -1..1: across a cube edge
 // on the sphere, none past the plane's edge.
@@ -75,10 +79,11 @@ using ChunkTest = std::function<bool(const ChunkKey&)>;
 // beside it at its level is drawn or split too; until then it draws in their
 // place. So neighbours stay one level apart, which the morph needs.
 std::vector<ChunkKey> shownChunks(const TerrainGrid& grid, const ChunkKeySet& quadtree,
-                                  const ChunkTest& built);
+                                  const ChunkTest& built, const std::vector<ChunkKey>& roots = {});
 // The nodes of `quadtree` to build next: those whose parent is built, so that
 // a node arrives over a parent that can stand in for it.
-std::vector<ChunkKey> buildFrontier(const ChunkKeySet& quadtree, const ChunkTest& built);
+std::vector<ChunkKey> buildFrontier(const ChunkKeySet& quadtree, const ChunkTest& built,
+                                    int32_t topLevel = 0);
 
 // A ball in the terrain's frame.
 struct Reach
