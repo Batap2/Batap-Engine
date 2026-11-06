@@ -1072,7 +1072,16 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
       entre deux runs : 1 niveau. Après : 1 097 px à plus de 8 niveaux (max
       31), tous sur les cuivres de rugosité ≥ 0,3, plus clairs ; le sol au
       rasant gagne 1 niveau.
-- [ ] **B.2 LUT DFG.** Générée au démarrage par un PS, sur une cible 2D.
+- [x] **B.2 LUT DFG.** Générée au démarrage par un PS, sur une cible 2D.
+      *Fait (2026-11-06)* : rien à générer, la table d'amplitude LTC
+      (`LtcTables.cpp`, `frame.ltcAmpTexture_`, 64×64 fp16) est déjà cette
+      LUT : x = albédo GGX à F0 = 1 (A + B), y = sa part F90 (B), indexée
+      par `LtcUv(NdotV, roughness)` = (roughness, √(1 − NdotV)), alpha = r²,
+      Smith à hauteur corrélée. Vérifié par `tools/check_ltc_dfg.py`
+      (Compacteur) contre un Monte-Carlo à 1 M d'échantillons sur 15
+      texels : écart max 0,012 (alpha = r donnerait 0,23). Le canal z est
+      vide, disponible pour E_avg si la compensation passe un jour de
+      Turquin à Kulla-Conty. À μ = 1 : E(r = 0,5) = 0,91, E(r = 1) = 0,31.
 - [ ] **B.3 Compensation multi-diffusion** (Kulla-Conty) via la LUT.
       *Vérif* : les métaux rugueux ne s'assombrissent plus.
 - [ ] **B.4 Couplage diffus/spéculaire** par la LUT, à la place de
