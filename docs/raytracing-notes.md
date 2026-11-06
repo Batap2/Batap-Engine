@@ -1109,3 +1109,21 @@ cube, sphère, plaque de 3 cm à 30 cm du sol, ailette de 3 cm, ciel seul ;
   cuivre rugueux).
 - Coût : 0,14–0,15 ms en 720p (+0,02 ms sur 4.3b).
 - Validation (debug, synchronisation) : rien de nouveau.
+
+## 4.5 Hybride RT : écarté
+
+*Décidé (2026-11-06)*, sur le critère du plan (« seulement si des artefacts
+restent visibles ») :
+- **Hors écran.** En RT, le rayon de l'AO est une cellule du cache : 49 px
+  à 2 m, 26 px à 5 m en 720p (borné à 25 % de la hauteur de près). Au-delà,
+  le cache, tracé en 3D, voit déjà les occultants hors écran. Ce qui manque
+  se limite à une bande de cette largeur au bord de l'écran, quand un
+  occultant est juste hors champ.
+- **Épaisseur ambiguë.** L'épaisseur adaptative (4.1) et la coupe à la
+  sphère de rayon R couvrent l'ailette de 3 cm et la plaque de `test_ao`
+  sans halo ni fuite visibles.
+- Rien de visible sur `test_ao`, `test_ao_sun`, `test_brdf` ni la lune.
+- À reprendre si l'AO « apparaît » au bord de l'écran en jeu quand la
+  caméra tourne près d'un mur : un ray query de longueur R dans la tranche,
+  au milieu des secteurs encore libres, à la sortie de l'écran (passe en
+  variante `BATAP_RT`, layout RT).
