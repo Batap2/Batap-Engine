@@ -1173,3 +1173,12 @@ figées, EV100 5 ; Terre de 900 m à ~12 km, 20 × la Terre vue de la Lune) :
 | plein jour, avant / avec planetshine | 108,75 / 108,74 |
 
 Validation (debug, synchronisation, raster et RT) : rien de nouveau.
+- **2026-11-07, les deux sens** : l'option ne coupait que les rayons qui
+  touchent l'objet ; ceux qui en partent ramenaient encore la lumière des
+  autres (la lune éclairait la Terre). Maintenant un chemin GI qui part
+  d'un objet exclu ne compte que le ciel : `GiPathIrradiance` s'arrête au
+  premier objet touché, et en mode par cellule le candidat porte le
+  drapeau (7e mot, `RtCacheCandidateWords`). Vue debug « GI cache » sur la
+  Terre de nuit : cellules grises (lumière de la lune) avec le rebond,
+  noires sans. Sol de nuit, vue d'origine : 82 avec le rebond, 2 sans ;
+  avec planetshine 97,7 contre 57,1.

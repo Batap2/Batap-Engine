@@ -172,7 +172,7 @@ float3 GiPathIrradiance(RtHit first, float2 firstU, inout uint seed, uint bucket
             break;
         }
         hit = RtResolveHit(bounceQuery, ray2.Direction);
-        if (!hit.bounces_)
+        if (!hit.bounces_ || !first.bounces_)
             break;
         if (bounce == 0u && findFirst)
             firstSlot = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));

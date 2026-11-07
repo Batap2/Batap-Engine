@@ -34,6 +34,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     GiWork[at + 3u] = asuint(first.normal_.x);
     GiWork[at + 4u] = asuint(first.normal_.y);
     GiWork[at + 5u] = asuint(first.normal_.z);
+    GiWork[at + 6u] = first.bounces_ ? 1u : 0u;
 
     uint previous;
     InterlockedMax(GiValues[slot].vote_, ((GiHash(seed) | 1u) << RtCacheCandidateBits) | candidate,

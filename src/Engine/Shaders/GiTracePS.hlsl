@@ -20,6 +20,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
     RtHit from = (RtHit)0;
     from.position_ = asfloat(uint3(GiWork[at + 0u], GiWork[at + 1u], GiWork[at + 2u]));
     from.normal_ = asfloat(uint3(GiWork[at + 3u], GiWork[at + 4u], GiWork[at + 5u]));
+    from.bounces_ = GiWork[at + 6u] != 0u;
 
     const uint ray = thread - cell * rays;
     if (g_draw.instanceIndex_ == 0u && ray == 0u)

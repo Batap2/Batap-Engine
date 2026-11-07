@@ -70,7 +70,8 @@ struct RtInstanceGPUData
     uint flags_;
 };
 
-// A GI ray that hits it stops there and brings nothing back.
+// Out of GI both ways: a GI ray that hits it stops there and brings nothing
+// back, and the rays leaving it count the sky alone.
 static const uint RtInstanceNoGiBounce = 1u;
 
 // Keys are uint64, 0 = empty slot; values are fixed-point sums.
@@ -92,7 +93,7 @@ static const uint RtCacheListCapacity = 1u << 16;
 static const uint RtCacheTraceWidth = 256u;
 static const uint RtCacheCandidateBits = 19u;
 static const uint RtCacheCandidateCapacity = 1u << RtCacheCandidateBits;
-static const uint RtCacheCandidateWords = 6u;
+static const uint RtCacheCandidateWords = 7u;
 static const uint RtCacheWorkCount = 0u;
 static const uint RtCacheWorkList = 1u;
 static const uint RtCacheWorkCandidates = RtCacheWorkList + RtCacheListCapacity;
