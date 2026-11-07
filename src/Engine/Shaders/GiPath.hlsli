@@ -102,8 +102,7 @@ float3 GiDirectIrradiance(float3 P, float3 N, inout uint seed)
             continue;
         float visible = 1.0f;
         if (light.shadowIndex_ != InvalidGPUIndex)
-            visible =
-                TraceShadowRay(P, N, L, light.type_ == LightDirectional ? ShadowRayFar : dist);
+            visible = TraceShadowRay(P, N, L, ShadowRayLength(light, dist));
         E += light.color_ * (attenuation * light.intensity_ * NdotL * visible);
     }
     return E;
@@ -173,6 +172,8 @@ float3 GiPathIrradiance(RtHit first, float2 firstU, inout uint seed, uint bucket
             break;
         }
         hit = RtResolveHit(bounceQuery, ray2.Direction);
+        if (!hit.bounces_)
+            break;
         if (bounce == 0u && findFirst)
             firstSlot = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));
         if (hit.shadingModel_ == ShadingUnlit)
@@ -215,6 +216,8 @@ float GiProbeRadiance(float3 origin, float3 direction, uint seed, out uint hitSl
     if (query.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
         return g_draw.skyboxCount_ != 0 ? GiLuminance(PI * SampleSky(direction, 0.0f)) : 0.0f;
     const RtHit hit = RtResolveHit(query, direction);
+    if (!hit.bounces_)
+        return 0.0f;
     if (hit.shadingModel_ == ShadingUnlit)
         return GiLuminance(PI * hit.albedo_);
     hitSlot = GiSlotFind(GiCacheKey(hit.gi_, GiLevel(length(hit.position_))));

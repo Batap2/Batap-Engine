@@ -1136,3 +1136,40 @@ intensité 1, rayon raster 1 m (`AoRasterRadius`), épaisseur plancher 10 cm
 (`AoMinThickness`). Seul réglage : `render.ambientOcclusion`. Les scènes
 qui gardent ces clés se chargent (champs inconnus ignorés). Raster
 identique à 4.4.
+
+## Phase 6 — Planetshine
+
+*Fait (2026-11-07)* :
+- **`Planetshine_C`** (6.1), sur l'entité d'un astre : `radius` en unités
+  locales, multiplié par sa plus grande échelle monde (un mesh sphère
+  unité mis à l'échelle n'a rien à régler), `albedo` en couleur.
+- **`Planetshine_S`** (6.2) : pour chaque astre, une lumière ponctuelle
+  cachée (`EditorOnly_C`, ni sauvegardée ni listée, sans icône) au centre de
+  l'astre. Ponctuelle et non directionnelle : une scène n'a qu'une
+  directionnelle ou `FarPointLight` (`CascadeLight_S`), et le point donne de
+  lui-même la direction et le 1/d² en tout point. Intensité
+  `E_étoile (2/3) A R² Φ(α)` candelas, phase prise depuis la caméra qui
+  rend, étoile = la lumière des cascades. Rayon de source = rayon de
+  l'astre (pénombres de la phase 5). Ombres par rayon en RT, aucune en
+  raster (une cube map sur toute la scène).
+- **`ShadowRayLength`** : le rayon d'ombre d'une source sphérique s'arrête
+  à sa sphère (`dL − sourceRadius_`), sinon un astre qui projette des
+  ombres masquerait sa propre lumière (piège noté dans « Ombres »).
+- **Option « GI bounce »** de `Mesh_C` (vrai par défaut), case dans
+  l'inspecteur : un rayon GI qui touche l'objet s'arrête sans rien ramener
+  (drapeau `RtInstanceNoGiBounce` dans `RtInstanceGPUData`). L'objet reste
+  visible et éclairé. Pour un astre éclairé par planetshine, sinon sa
+  lumière compte deux fois.
+
+*Mesuré* (`planet.btpl` copié, RT, nuit : soleil sous la lune, orbites
+figées, EV100 5 ; Terre de 900 m à ~12 km, 20 × la Terre vue de la Lune) :
+
+| | luminance moyenne |
+|---|---|
+| rebond GI de la Terre (avant) | 82,0 — taches du cache, bords noirs en dents de scie |
+| Terre sans rebond GI | 2,0 |
+| sans rebond + planetshine | 57,0 — lumière nette, ombres des structures |
+| idem en raster (sans ombres) | 58,3 |
+| plein jour, avant / avec planetshine | 108,75 / 108,74 |
+
+Validation (debug, synchronisation, raster et RT) : rien de nouveau.

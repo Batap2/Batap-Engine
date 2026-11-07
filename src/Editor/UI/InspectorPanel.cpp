@@ -279,6 +279,8 @@ void InspectorPanel::drawMesh(EntityHandle ent, App& app)
         ui::Field("Cast shadows",
                   [&] { return ImGui::Checkbox("##castShadows", &meshC->castShadows_); });
         markField("Cast shadows", "mesh", "castShadows");
+        ui::Field("GI bounce", [&] { return ImGui::Checkbox("##giBounce", &meshC->giBounce_); });
+        markField("GI bounce", "mesh", "giBounce");
     }
 }
 

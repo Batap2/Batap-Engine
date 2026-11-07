@@ -67,8 +67,11 @@ struct RtInstanceGPUData
     uint firstGeometry_;
     uint gpuIndex_;
     uint kind_;
-    uint pad0_;
+    uint flags_;
 };
+
+// A GI ray that hits it stops there and brings nothing back.
+static const uint RtInstanceNoGiBounce = 1u;
 
 // Keys are uint64, 0 = empty slot; values are fixed-point sums.
 static const uint RtCacheCapacity = 1u << 20;

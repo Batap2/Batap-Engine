@@ -196,7 +196,8 @@ void EditorIcons::draw(World& world, Engine& ctx)
                  .materialIdx_ = materialIdx,
                  .sizeMode_ = Billboards::SizeMode::Screen});
     };
-    for (auto [e, light, tc] : world.registry_.view<PointLight_C, Transform_C>().each())
+    for (auto [e, light, tc] :
+         world.registry_.view<PointLight_C, Transform_C>(entt::exclude<EditorOnly_C>).each())
         lightIcon(tc, light.color_);
     for (auto [e, spot, tc] : world.registry_.view<SpotLight_C, Transform_C>().each())
         lightIcon(tc, spot.color_);

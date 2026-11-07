@@ -609,7 +609,8 @@ GraphBuffer AccelerationStructures::buildTlas(RenderGraph& graph, GraphBuffer bl
                                   : meshC.castShadows_ ? TlasMaskShadowCaster
                                                        : TlasMaskNoShadow;
             tlasInstances.push_back(tlasInstance(world, id, mask, blas->second.address_));
-            hitInstances.push_back({first->second, id, RtInstanceMesh, 0});
+            hitInstances.push_back(
+                {first->second, id, RtInstanceMesh, meshC.giBounce_ ? 0u : RtInstanceNoGiBounce});
         });
     const VkDeviceAddress tracedPool = resources_.deviceAddress(terrain.tracedBuffer());
     const VkDeviceAddress indexPool = resources_.deviceAddress(terrain.indexBuffer());

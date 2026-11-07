@@ -9,6 +9,7 @@
 #include "Engine.h"
 #include "FreeCamController_S.h"
 #include "Physics_S.h"
+#include "Planetshine_S.h"
 #include "Terrain_S.h"
 #include "Transform_S.h"
 #include "World.h"
@@ -23,6 +24,7 @@ Systems::~Systems() = default;
 void Systems::update(float deltaTime, Engine& ctx, World& world)
 {
     freecam_->update(ctx, world, deltaTime);
+    planetshine_->update(world, ctx);
     if (transforms_->update(world.registry_, world.instances()))
         world.markSpatialDirty();
     physics_->drawColliders(world);
@@ -42,5 +44,6 @@ Systems::Systems()
     cascadeLights_ = std::make_unique<CascadeLight_S>();
     terrain_ = std::make_unique<Terrain_S>();
     audio_ = std::make_unique<Audio_S>();
+    planetshine_ = std::make_unique<Planetshine_S>();
 }
 }  // namespace batap

@@ -67,6 +67,13 @@ float TraceShadowRay(float3 P, float3 Nface, float3 L, float tMax, float frontOn
         return 0.0f;
     return CutShadowHit(ray, -1.0f) ? 0.0f : 1.0f;
 }
+
+// The source's own sphere must not shadow its light: a planet lighting the
+// ground, a bulb inside its glass.
+float ShadowRayLength(LightGPUData light, float dL)
+{
+    return light.type_ == LightDirectional ? ShadowRayFar : max(dL - light.sourceRadius_, 0.0f);
+}
 #endif
 
 // Same descriptors as g_textures, typed single-channel for the depth atlases.

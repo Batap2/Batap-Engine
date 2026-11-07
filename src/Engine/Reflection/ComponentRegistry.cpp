@@ -14,6 +14,7 @@
 #include "Components/Materials_C.h"
 #include "Components/MeshCut_C.h"
 #include "Components/Mesh_C.h"
+#include "Components/Planetshine_C.h"
 #include "Components/PointLight_C.h"
 #include "Components/RectLight_C.h"
 #include "Components/RigidBody_C.h"

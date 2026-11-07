@@ -20,6 +20,7 @@ struct Billboard_S;
 struct Bounds_S;
 struct CascadeLight_S;
 struct Terrain_S;
+struct Planetshine_S;
 
 struct Systems
 {
@@ -38,5 +39,6 @@ struct Systems
     std::unique_ptr<CascadeLight_S> cascadeLights_;
     std::unique_ptr<Terrain_S> terrain_;
     std::unique_ptr<Audio_S> audio_;
+    std::unique_ptr<Planetshine_S> planetshine_;
 };
 }  // namespace batap

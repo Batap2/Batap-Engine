@@ -10,6 +10,7 @@ struct Mesh_C
     MeshHandle mesh_;
     bool visible_ = true;
     bool castShadows_ = true;
+    bool giBounce_ = true;
 };
 
 // The handle is serialized as its asset path (AssetFieldTypes); the inspector
@@ -18,6 +19,7 @@ struct Mesh_C
 static_assert(refl::fieldName<Mesh_C, 0>() == "mesh");
 static_assert(refl::fieldName<Mesh_C, 1>() == "visible");
 static_assert(refl::fieldName<Mesh_C, 2>() == "castShadows");
+static_assert(refl::fieldName<Mesh_C, 3>() == "giBounce");
 
 BATAP_COMPONENT(Mesh_C, "mesh",
                 ComponentMeta{.color = ComponentColor::Violet, .customEditor = true});

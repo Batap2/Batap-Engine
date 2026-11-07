@@ -106,8 +106,7 @@ float ShadowVisibility(float3 P, float3 N, float3 Nface, float3 L, float dL, Lig
 
 #if BATAP_RT
     if (light.type_ != LightRect)
-        return TraceShadowRay(P, Nface, L, light.type_ == LightDirectional ? ShadowRayFar : dL,
-                              frontOnlyUntil);
+        return TraceShadowRay(P, Nface, L, ShadowRayLength(light, dL), frontOnlyUntil);
 #endif
 
     // The floor keeps smoothstep defined when sourceRadius_ is 0, where the
