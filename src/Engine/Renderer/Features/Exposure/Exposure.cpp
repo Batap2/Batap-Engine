@@ -27,8 +27,7 @@ Exposure::Exposure(const DrawSetup& setup) : setup_(setup), sums_(2 * kCells)
 {
     cells_.reserve(kCells);
     for (GPUResourceHandle& readback : readback_)
-        readback =
-            setup_.resources_.createMappedBuffer(sums_.size() * sizeof(float), "exposure readback");
+        readback = setup_.resources_.createMappedBuffer(sums_.size() * sizeof(float));
 }
 
 Exposure::~Exposure()

@@ -261,15 +261,25 @@ bool DragFloatAxis(const char* id, T* v, int axis, float width, float speed, flo
     return changed;
 }
 
+inline bool BeginFieldMenu(bool hovered)
+{
+    const char* const popup = "##fieldmenu";
+    if (hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right) &&
+        !ImGui::IsMouseDown(ImGuiMouseButton_Left) && !ImGui::IsPopupOpen(popup))
+        ImGui::OpenPopup(popup);
+    if (!ImGui::BeginPopup(popup))
+        return false;
+    const ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->DC.CursorPos.y > window->DC.CursorStartPos.y)
+        ImGui::Separator();
+    return true;
+}
+
 template <typename T>
 bool VecClipboardMenu(std::span<T> v, bool hovered)
 {
     IM_ASSERT(v.size() <= 4);
-    const char* const popup = "##vecclip";
-    if (hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right) &&
-        !ImGui::IsMouseDown(ImGuiMouseButton_Left))
-        ImGui::OpenPopup(popup);
-    if (!ImGui::BeginPopup(popup))
+    if (!BeginFieldMenu(hovered))
         return false;
 
     std::array<char, 128> buf{};

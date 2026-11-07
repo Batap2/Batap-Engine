@@ -436,7 +436,11 @@ struct SkyboxGPUData
     float4 color2;  // horizon
     float4 color3;  // nadir
     float horizonWidth;
-    float3 pad;
+    float starIntensity;
+    float starCount;
+    float milkyWayIntensity;
+    float3 milkyWayPole;
+    float pad;
 };
 
 // One per planet with an Atmosphere_C, in metres (Sky.hlsli).
@@ -543,7 +547,7 @@ static_assert(sizeof(CameraGPUData) == 272);
 static_assert(sizeof(StaticMeshGPUData) == 176);
 static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 80);
-static_assert(sizeof(SkyboxGPUData) == 224);
+static_assert(sizeof(SkyboxGPUData) == 240);
 static_assert(sizeof(AtmosphereGPUData) == 64);
 static_assert(sizeof(DrawPush) == 60);
 static_assert(sizeof(ThumbnailDrawGPUData) == 208);

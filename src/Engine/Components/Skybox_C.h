@@ -23,7 +23,10 @@ struct Skybox_C
     Eigen::Vector3f color3_ = {0.25f, 0.20f, 0.15f};  // bas (nadir)
     float horizonWidth_ = 0.15f;                      // largeur de la bande horizon [0.01, 1]
     float intensity_ = 1.0f;
-
+    float starIntensity_ = 0.f;
+    float starCount_ = 20000.f;
+    float milkyWayIntensity_ = 0.f;
+    v3f milkyWayPole_ = {0.35f, 0.55f, 0.76f};
 };
 
 // Serialization is derived from the struct; the inspector keeps its own panel
@@ -31,5 +34,8 @@ struct Skybox_C
 // cannot express.
 BATAP_COMPONENT(Skybox_C, "skybox",
                 ComponentMeta{.color = ComponentColor::Cyan, .customEditor = true},
-                fieldMeta<&Skybox_C::horizonWidth_>({.speed = 0.01f, .min = 0.01f, .max = 1.f}));
+                fieldMeta<&Skybox_C::horizonWidth_>({.speed = 0.01f, .min = 0.01f, .max = 1.f}),
+                fieldMeta<&Skybox_C::starIntensity_>({.speed = 1.f, .min = 0.f, .max = 1e6f}),
+                fieldMeta<&Skybox_C::starCount_>({.speed = 100.f, .min = 0.f, .max = 50000.f}),
+                fieldMeta<&Skybox_C::milkyWayIntensity_>({.speed = 0.1f, .min = 0.f, .max = 1e6f}));
 }  // namespace batap

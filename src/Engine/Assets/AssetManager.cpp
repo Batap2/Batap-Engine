@@ -30,7 +30,7 @@ AssetManager::AssetManager(ResourceManager* rm) : resourceManager_(rm)
     std::get<AssetSlotMap<Sound>*>(maps_) = new AssetSlotMap<Sound>();
 
     std::get<AssetGPUArena<Material>*>(gpuArenas_) =
-        new AssetGPUArena<Material>(AssetGPUArena<Material>::create(*rm, 64, "MaterialArena"));
+        new AssetGPUArena<Material>(AssetGPUArena<Material>::create(*rm, 64));
 }
 
 std::string AssetManager::texturePathOf(uint32_t bindlessIndex) const

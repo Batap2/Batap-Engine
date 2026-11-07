@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <string>
 #include <vector>
 
 #include "Renderer/ResourceManager.h"
@@ -27,9 +26,9 @@ struct GPUArena
 
     GPUArena() = default;
 
-    static GPUArena create(ResourceManager& rm, size_t initCapacity, std::string name = "GPUArena")
+    static GPUArena create(ResourceManager& rm, size_t initCapacity)
     {
-        return GPUArena(rm, initCapacity, std::move(name));
+        return GPUArena(rm, initCapacity);
     }
 
     ~GPUArena()
@@ -47,7 +46,6 @@ struct GPUArena
           alive_(std::move(o.alive_)),
           free_(std::move(o.free_)),
           rm_(o.rm_),
-          name_(std::move(o.name_)),
           resourceHandle_(o.resourceHandle_),
           gpuCapacity_(o.gpuCapacity_)
     {
@@ -65,7 +63,6 @@ struct GPUArena
             alive_ = std::move(o.alive_);
             free_ = std::move(o.free_);
             rm_ = o.rm_;
-            name_ = std::move(o.name_);
             resourceHandle_ = o.resourceHandle_;
             gpuCapacity_ = o.gpuCapacity_;
             o.rm_ = nullptr;
@@ -149,8 +146,7 @@ struct GPUArena
     size_t capacity() const { return data_.size(); }
 
    private:
-    GPUArena(ResourceManager& rm, size_t initCapacity, std::string name)
-        : rm_(&rm), name_(std::move(name))
+    GPUArena(ResourceManager& rm, size_t initCapacity) : rm_(&rm)
     {
         gpuCapacity_ = initCapacity > 0 ? initCapacity : 1;
         data_.reserve(gpuCapacity_);
@@ -172,7 +168,7 @@ struct GPUArena
 
     void createGpuResources(size_t capacity)
     {
-        resourceHandle_ = rm_->createStaticBuffer(capacity * sizeof(T), name_);
+        resourceHandle_ = rm_->createStaticBuffer(capacity * sizeof(T));
         gpuCapacity_ = capacity;
     }
 
@@ -182,7 +178,6 @@ struct GPUArena
     std::vector<uint32_t> free_;
 
     ResourceManager* rm_ = nullptr;
-    std::string name_;
 
     GPUResourceHandle resourceHandle_;
     size_t gpuCapacity_ = 1;

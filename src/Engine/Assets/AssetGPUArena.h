@@ -18,10 +18,10 @@ struct AssetGPUArena
 
     AssetGPUArena() = default;
 
-    static AssetGPUArena create(ResourceManager& rm, size_t initCapacity, std::string name)
+    static AssetGPUArena create(ResourceManager& rm, size_t initCapacity)
     {
         AssetGPUArena a;
-        a.arena_ = GPUArena<T, Key>::create(rm, initCapacity, std::move(name));
+        a.arena_ = GPUArena<T, Key>::create(rm, initCapacity);
         return a;
     }
 

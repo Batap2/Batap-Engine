@@ -352,6 +352,13 @@ struct SkyboxInstance
         flatten(out.color2, sky.color2_);
         flatten(out.color3, sky.color3_);
         out.horizonWidth = sky.horizonWidth_;
+        out.starIntensity = sky.starIntensity_;
+        out.starCount = sky.starCount_;
+        out.milkyWayIntensity = sky.milkyWayIntensity_;
+        const v3f pole = sky.milkyWayPole_.squaredNorm() > 1e-12f
+                             ? v3f(sky.milkyWayPole_.normalized())
+                             : v3f(v3f::UnitY());
+        flatten(out.milkyWayPole, pole);
     }
 };
 

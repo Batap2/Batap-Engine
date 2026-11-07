@@ -416,6 +416,14 @@ void InspectorPanel::drawSkybox(EntityHandle ent, App& app)
 
             changed |= ui::FieldDragFloat("Intensity", &sky->intensity_, 0.01f);
             markField("Intensity", "skybox", "intensity");
+            changed |= ui::FieldDragFloat("Stars", &sky->starIntensity_, 1.f, 0.f, 1e6f);
+            markField("Stars", "skybox", "starIntensity");
+            changed |= ui::FieldDragFloat("Star count", &sky->starCount_, 100.f, 0.f, 50000.f);
+            markField("Star count", "skybox", "starCount");
+            changed |= ui::FieldDragFloat("Milky Way", &sky->milkyWayIntensity_, 0.1f, 0.f, 1e6f);
+            markField("Milky Way", "skybox", "milkyWayIntensity");
+            changed |= ui::FieldDragFloat3("Milky Way pole", sky->milkyWayPole_.data(), 0.01f);
+            markField("Milky Way pole", "skybox", "milkyWayPole");
         }
 
     if (changed)
@@ -588,9 +596,7 @@ void InspectorPanel::markField(const char* label, const char* type, const char* 
 
     ui::ScopedID id{label};
     const bool hovered = ImGui::GetStateStorage()->GetBool(ImGui::GetID(ui::FieldLabelHoverKey));
-    if (hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
-        ImGui::OpenPopup("##override");
-    if (!ImGui::BeginPopup("##override"))
+    if (!ui::BeginFieldMenu(hovered))
         return;
     if (ImGui::MenuItem("Revert"))
         action_ = Action::RevertField;

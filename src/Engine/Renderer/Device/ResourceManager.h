@@ -20,6 +20,7 @@ VK_DEFINE_HANDLE(VmaAllocation)
 namespace batap
 {
 struct VulkanContext;
+struct VmaEntryPoints;
 
 // Owns every GPU buffer and image, each behind one GPUResourceHandle.
 // Nothing talks to the GPU on the spot: uploads are recorded once per frame by
@@ -159,6 +160,10 @@ struct ResourceManager
 
     VulkanContext& ctx_;
     VmaAllocator allocator_ = nullptr;
+    // Taken by the constructor, which runs in the host. The game DLL links its
+    // own VMA: a memory block created there keeps its vtable in the DLL, and
+    // freeing into that block crashes once the DLL is unloaded.
+    const VmaEntryPoints* vma_ = nullptr;
     VkBufferUsageFlags defaultBufferUsage_ = 0;
 
     // A handle lives in exactly one of these.

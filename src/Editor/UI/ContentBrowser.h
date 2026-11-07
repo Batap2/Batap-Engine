@@ -69,6 +69,8 @@ struct ContentBrowser
     void place(World& world, App& app, Engine& ctx, UIPanels& panels, const Entry& e,
                bool link = true);
     void import(App& app, const Entry& e);
+    void drawNewTemplate(App& app, const std::filesystem::path& folder);
+    bool createTemplate(App& app, const std::filesystem::path& folder);
 
     bool open_ = false;
     bool hovered_ = false;
@@ -83,6 +85,7 @@ struct ContentBrowser
     std::vector<Entry> entries_;
     std::vector<Entry> all_;
     std::string search_;
+    std::string newName_;
     ThumbnailCache thumbnails_;
     VoiceHandle preview_;
 };

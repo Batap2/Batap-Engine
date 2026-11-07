@@ -1268,6 +1268,8 @@ Les étapes marquées *(option)* peuvent sauter sans bloquer la suite.
 
 ### Phase 4 — AO
 
+*Terminée le 2026-11-06* (4.1 à 4.4, 4.5 écartée). Détail dans les notes.
+
 **Veille du 2026-11-06.** Pas de successeur à SSILVB (2023) ; il est devenu
 le choix de production : Blender EEVEE 4.2+ (« horizon scan », « Fast GI »),
 Bevy 0.15+, plugins UE. EEVEE l'a durci en production
@@ -1287,7 +1289,8 @@ Bevy 0.15+, plugins UE. EEVEE l'a durci en production
   direction dominante du reflet. Ni bent normal ni AO scalaire à côté.
 - **Bruit FAST** (Donnelly et al., EA SEED 2024, BSD-3, textures fournies) :
   bruit spatio-temporel optimisé pour le filtre qui suit, évalué sur l'AO.
-  Remplace le Bayer/R2 de l'étape 6, et sert aussi à 5.1.
+  Mesuré en 4.3 : rien gagné sur IGN pour cette AO (non linéaire en
+  l'angle de tranche). Reste candidat pour 5.1 et le temporel.
 
 Inchangé : SSILVB plutôt que de la RTAO, rayon = cellule du cache, jamais
 sur le direct. EEVEE combine rayons et horizon scan par un seuil de
@@ -1314,12 +1317,32 @@ borne ; à mesurer en 4.2.
       de la passe corrigées au passage (angle lu en coordonnées de tranche,
       segment coupé au plan tangent, tranche rasante tournée).
       +0,21 ms en 720p au total. Détail dans les notes.
-- [ ] **4.3 Bruit** = étape 6, avec FAST et le filtre bilatéral. Pas
+- [x] **4.3 Bruit** = étape 6 de `OBJECTIFS.md` §4 (version `5e5cb46`), avec FAST et le filtre bilatéral. Pas
       d'historique avant 5.3.
-- [ ] **4.4 Visibilité SH L1 + ambiant directionnel** = étape 7. Le ciel par
+      *Fait (2026-11-06)* : estimateur linéaire sans biais (cible brute
+      R16F), filtre bilatéral 5 × 5 binomial (plan tangent + normales), IGN.
+      FAST mesuré sans gain, retiré. Erreur contre une référence 32 × 32 :
+      14,6 → 4,9 ; le reste vient des 8 pas (0,85 contre une référence à
+      8 pas). 0,28 ms en 720p au total. Détail dans les notes.
+- [x] **4.3b Demi-résolution** *(option)*. AO et filtre en ½ × ½,
+      remontée bilatérale à la lecture. ≈ 1,1 ms en 1440p sur la 5070 :
+      nécessaire pour tenir 0,5–1 ms sur une 3060.
+      *Fait (2026-11-06)* : passes `ao` et `ao filter` en ½ × ½, `ao
+      upsample` bilatérale (4 texels). Même erreur (4,93 contre 4,87),
+      0,12 ms en 720p au lieu de 0,28 : ≈ 0,5 ms en 1440p sur la 5070.
+- [x] **4.4 Visibilité SH L1 + ambiant directionnel** = étape 7 (même version). Le ciel par
       secteur (raster), la SH L1 pour le spéculaire. En RT, le cache n'est pas
       directionnel : seul le scalaire s'applique.
-- [ ] **4.5 Hybride RT** *(option)*. Un ray query court sur les pas ambigus.
+      *Fait (2026-11-06)* : la passe sort aussi le moment d'ordre 1 de
+      l'occlusion (bande 1, même estimateur sans biais). Ciel raster :
+      `π (L0 (1 − ao) + L1 · m)` retiré, exact pour un ciel linéaire en
+      direction. Spéculaire : cap des directions occultées coupé par le cap
+      du reflet (Jimenez 2016), estompé sur les miroirs. +0,02 ms.
+- [x] **4.5 Hybride RT** *(option)*. Un ray query court sur les pas ambigus.
+      *Écarté (2026-11-06)* : en RT le rayon est une cellule et le cache
+      voit le hors-écran au-delà ; reste une bande de 25–50 px au bord de
+      l'écran (720p), rien de visible sur les scènes de test ni la lune.
+      À reprendre si l'AO apparaît au bord de l'écran en jeu.
 
 ### Phase 5 — Pénombres
 
@@ -1339,10 +1362,15 @@ borne ; à mesurer en 4.2.
 
 ### Phase 6 — Planetshine
 
-- [ ] **6.1 Albedo des astres** (composant moteur générique).
-- [ ] **6.2 Lumière directionnelle de rebond** par astre éclairé, avec la
+- [x] **6.1 Albedo des astres** (composant moteur générique).
+      *Fait (2026-11-07)* : `Planetshine_C` (rayon, albédo couleur).
+- [x] **6.2 Lumière directionnelle de rebond** par astre éclairé, avec la
       formule de la section Planetshine.
       *Vérif* : la face nocturne de la lune est éclairée par la planète.
+      *Fait (2026-11-07)* : lumière ponctuelle cachée au centre de l'astre
+      (`Planetshine_S`), pas directionnelle : une seule directionnelle par
+      scène. Option « GI bounce » de `Mesh_C` pour que l'astre ne soit pas
+      compté deux fois. Nuit de `planet.btpl` : éclairée, ombres nettes.
 
 ### Phase 7 — Réflexions
 

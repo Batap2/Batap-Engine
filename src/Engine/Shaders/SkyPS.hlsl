@@ -3,6 +3,7 @@
 // (IBL) : une seule source de vérité.
 #include "Camera.hlsli"
 #include "Sky.hlsli"
+#include "Stars.hlsli"
 
 [[vk::binding(CamerasBinding, FrameSet)]]
 StructuredBuffer<CameraGPUData> CameraBuffer;
@@ -28,6 +29,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     float3 origin;
     float3 dir;
     CameraRay(cam, ndc, origin, dir);
+    float pixel = max(length(ddx(dir)), length(ddy(dir)));
 
     float3 color;
 
@@ -40,11 +42,13 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
         color = SkyBackground(sky, dir);
     }
     color *= sky.intensity;
+    float exposure = FrameBuffer[0].exposure_;
+    color += MilkyWay(sky, dir, pixel, exposure) + Stars(sky, dir, pixel, exposure);
 
     SkySun sun = SkyNoSun();
     for (uint i = 0; i < g_draw.lightCount_ && !sun.valid; ++i)
         sun = SkySunOf(LightBuffer[i], cam.pos_);
     color = SkyComposite(g_draw.atmosphereCount_, cam.pos_, dir, sun, color, true);
 
-    return float4(color * FrameBuffer[0].exposure_, 1.0f);
+    return float4(color * exposure, 1.0f);
 }

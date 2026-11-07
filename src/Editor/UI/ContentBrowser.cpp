@@ -408,6 +408,72 @@ void ContentBrowser::import(App& app, const Entry& e)
     scannedProject_.clear();
 }
 
+void ContentBrowser::drawNewTemplate(App& app, const fs::path& folder)
+{
+    if (!ImGui::BeginMenu("New template"))
+        return;
+    if (ImGui::IsWindowAppearing())
+    {
+        newName_ = "new_template";
+        ImGui::SetKeyboardFocusHere();
+    }
+    ImGui::SetNextItemWidth(160.0f);
+    constexpr ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue |
+                                          ImGuiInputTextFlags_AutoSelectAll;
+    bool create = ImGui::InputText("##name", &newName_, flags);
+    ImGui::SameLine();
+    create |= ImGui::Button("Create");
+    if (create && createTemplate(app, folder))
+        ImGui::CloseCurrentPopup();
+    ImGui::EndMenu();
+}
+
+bool ContentBrowser::createTemplate(App& app, const fs::path& folder)
+{
+    std::string name = newName_;
+    const size_t first = name.find_first_not_of(' ');
+    name = first == std::string::npos ? std::string{}
+                                      : name.substr(first, name.find_last_not_of(' ') - first + 1);
+    if (lower(name).ends_with(".btpl"))
+        name.resize(name.size() - 5);
+    const bool invalid = std::any_of(name.begin(), name.end(),
+                                     [](char c)
+                                     {
+                                         const auto u = static_cast<unsigned char>(c);
+                                         return u < 0x20 || u >= 0x7F ||
+                                                std::string_view{"<>:\"/\\|?*"}.find(c) !=
+                                                    std::string_view::npos;
+                                     });
+    if (name.empty() || invalid)
+    {
+        app.showToast("Invalid template name");
+        return false;
+    }
+
+    const fs::path path = folder / (name + ".btpl");
+    std::error_code ec;
+    if (fs::exists(path, ec))
+    {
+        app.showToast(name + ".btpl already exists");
+        return false;
+    }
+    EntitySerializer::save(std::vector<EntityDesc>{}, path.string());
+    if (!fs::exists(path, ec))
+    {
+        app.showToast("Could not write " + name + ".btpl");
+        return false;
+    }
+
+    all_.push_back(entryOf(path, root_.path_, false));
+    std::sort(all_.begin(), all_.end(), lessByName);
+    if (folder != current_)
+        goTo(folder);
+    else
+        refill();
+    selected_ = path;
+    return true;
+}
+
 void ContentBrowser::togglePreview(App& app, Engine& ctx, const Entry& e)
 {
     const bool wasPlaying = ctx.audio_->playing(preview_);
@@ -462,6 +528,7 @@ void ContentBrowser::drawActions(World& world, App& app, Engine& ctx, UIPanels& 
         case FileKind::Folder:
             if (ImGui::MenuItem("Open"))
                 goTo(e.path_);
+            drawNewTemplate(app, e.path_);
             break;
         case FileKind::Template:
             if (ImGui::MenuItem("Edit template"))
@@ -760,6 +827,12 @@ void ContentBrowser::draw(World& world, App& app, Engine& ctx, UIPanels& panels,
     }
     else
         drawRows(world, app, ctx, panels);
+    if (ImGui::BeginPopupContextWindow("##folderActions", ImGuiPopupFlags_MouseButtonRight |
+                                                              ImGuiPopupFlags_NoOpenOverItems))
+    {
+        drawNewTemplate(app, current_);
+        ImGui::EndPopup();
+    }
     ImGui::EndChild();
 
     ImGui::EndChild();

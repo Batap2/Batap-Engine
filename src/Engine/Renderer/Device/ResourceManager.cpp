@@ -17,8 +17,20 @@
 namespace batap
 {
 
+struct VmaEntryPoints
+{
+    decltype(&vmaCreateBuffer) createBuffer_;
+    decltype(&vmaCreateBufferWithAlignment) createBufferWithAlignment_;
+    decltype(&vmaCreateImage) createImage_;
+    decltype(&vmaDestroyBuffer) destroyBuffer_;
+    decltype(&vmaDestroyImage) destroyImage_;
+};
+
 namespace
 {
+constexpr VmaEntryPoints kVma{&vmaCreateBuffer, &vmaCreateBufferWithAlignment, &vmaCreateImage,
+                              &vmaDestroyBuffer, &vmaDestroyImage};
+
 // Every staging allocation is aligned to this — see stagingAlloc.
 constexpr uint64_t StagingAlignment = 16;
 
@@ -124,7 +136,7 @@ struct BarrierBatch
 }  // namespace
 
 ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFrame)
-    : ctx_(ctx), allocator_(ctx.allocator_)
+    : ctx_(ctx), allocator_(ctx.allocator_), vma_(&kVma)
 {
     defaultBufferUsage_ = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
@@ -299,8 +311,9 @@ ResourceManager::Buffer ResourceManager::createBufferInternal(uint64_t sizeBytes
     VmaAllocationInfo outInfo{};
     Buffer buffer{};
     buffer.size = sizeBytes;
-    if (vmaCreateBufferWithAlignment(allocator_, &bufferInfo, &allocInfo, minAlignment,
-                                     &buffer.buffer, &buffer.allocation, &outInfo) != VK_SUCCESS)
+    if (vma_->createBufferWithAlignment_(allocator_, &bufferInfo, &allocInfo, minAlignment,
+                                         &buffer.buffer, &buffer.allocation,
+                                         &outInfo) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : createBuffer");
     buffer.mapped = static_cast<std::byte*>(outInfo.pMappedData);
 
@@ -327,8 +340,8 @@ ResourceManager::Buffer ResourceManager::createStagingBuffer(uint64_t sizeBytes,
     VmaAllocationInfo outInfo{};
     Buffer buffer{};
     buffer.size = sizeBytes;
-    if (vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation,
-                        &outInfo) != VK_SUCCESS)
+    if (vma_->createBuffer_(allocator_, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation,
+                            &outInfo) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : staging buffer");
     outMapped = static_cast<std::byte*>(outInfo.pMappedData);
     return buffer;
@@ -454,8 +467,8 @@ GPUResourceHandle ResourceManager::createImageInternal(uint32_t width, uint32_t 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-    if (vmaCreateImage(allocator_, &imageInfo, &allocInfo, &image.image, &image.allocation,
-                       nullptr) != VK_SUCCESS)
+    if (vma_->createImage_(allocator_, &imageInfo, &allocInfo, &image.image, &image.allocation,
+                           nullptr) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : createImage");
 
     VkImageViewCreateInfo viewInfo{};
@@ -819,7 +832,7 @@ uint32_t ResourceManager::allocTextureIndex()
 void ResourceManager::destroyNow(Buffer& b)
 {
     if (b.buffer)
-        vmaDestroyBuffer(allocator_, b.buffer, b.allocation);
+        vma_->destroyBuffer_(allocator_, b.buffer, b.allocation);
     b.buffer = VK_NULL_HANDLE;
 }
 
@@ -828,7 +841,7 @@ void ResourceManager::destroyNow(Image& i)
     if (i.view)
         vkDestroyImageView(ctx_.device_, i.view, nullptr);
     if (i.image)
-        vmaDestroyImage(allocator_, i.image, i.allocation);
+        vma_->destroyImage_(allocator_, i.image, i.allocation);
     i.view = VK_NULL_HANDLE;
     i.image = VK_NULL_HANDLE;
 }
