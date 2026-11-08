@@ -27,6 +27,7 @@ struct Reflections
         GraphImage historySurface_;
         GraphImage output_;
         GraphImage outputSurface_;
+        GraphImage filtered_;
         bool historyValid_ = false;
     };
 
@@ -53,6 +54,7 @@ struct Reflections
     VkPipeline trace_ = VK_NULL_HANDLE;
     VkPipeline resolve_ = VK_NULL_HANDLE;
     VkPipeline temporal_ = VK_NULL_HANDLE;
+    VkPipeline filter_ = VK_NULL_HANDLE;
     std::optional<Images> images_;
     std::array<GPUResourceHandle, 2> history_{};
     std::array<GPUResourceHandle, 2> historySurface_{};

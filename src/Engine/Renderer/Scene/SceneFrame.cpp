@@ -296,7 +296,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                                                    : InvalidGPUIndex;
                     data.reflectHistorySurfaceTexture_ =
                         c.graph_.textureIndex(reflections->historySurface_);
-                    data.reflectionTexture_ = c.graph_.textureIndex(reflections->output_);
+                    data.reflectTemporalTexture_ = c.graph_.textureIndex(reflections->output_);
+                    data.reflectionTexture_ = c.graph_.textureIndex(reflections->filtered_);
                 }
                 auto levels = std::span{data.skyLevels_};
                 for (size_t i = 0; i < skyLevels.size(); ++i)
@@ -386,7 +387,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     if (ao)
         scene.read(ao->full_, Usage::ShaderRead);
     if (reflections)
-        scene.read(reflections->output_, Usage::ShaderRead);
+        scene.read(reflections->filtered_, Usage::ShaderRead);
 
     if (translucent)
     {

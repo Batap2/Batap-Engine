@@ -31,6 +31,7 @@ Reflections::~Reflections()
     vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, resolve_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, temporal_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
     releaseHistory(nullptr);
 }
 
@@ -39,6 +40,7 @@ void Reflections::buildPipelines(const ShaderModules& modules)
     vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, resolve_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, temporal_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
     resolve_ = GraphicsPipelineBuilder()
                    .shaders(modules[SkyVS], modules[ReflectResolvePS])
                    .colorFormat(ReflectRadianceFormat)
@@ -48,6 +50,10 @@ void Reflections::buildPipelines(const ShaderModules& modules)
                     .colorFormat(ReflectRadianceFormat)
                     .colorFormat(ReflectHistorySurfaceFormat)
                     .build(setup_.ctx_.device_, setup_.layout_);
+    filter_ = GraphicsPipelineBuilder()
+                  .shaders(modules[SkyVS], modules[ReflectFilterPS])
+                  .colorFormat(ReflectRadianceFormat)
+                  .build(setup_.ctx_.device_, setup_.layout_);
     trace_ = modules[ReflectTracePS] ? GraphicsPipelineBuilder()
                                            .shaders(modules[SkyVS], modules[ReflectTracePS])
                                            .colorFormat(ReflectRadianceFormat)
@@ -132,6 +138,7 @@ std::optional<Reflections::Images> Reflections::createImages(RenderGraph& graph,
     images.output_ = importHistory(graph, "reflection output", history_[write]);
     images.outputSurface_ =
         importHistory(graph, "reflection output surface", historySurface_[write]);
+    images.filtered_ = graph.createImage("reflection filtered", {extent, ReflectRadianceFormat});
     images.historyValid_ = historyValid_;
     images_ = images;
     historyWrite_ = read;
@@ -180,6 +187,17 @@ void Reflections::addPasses(RenderGraph& graph, GraphImage depth, GraphImage nor
         .color(images_->output_, Load::DontCare)
         .color(images_->outputSurface_, Load::DontCare)
         .execute([draw, pipeline = temporal_](GraphContext& c)
+                 { drawFullscreen(draw, c, pipeline); });
+    graph.addPass("reflection filter")
+        .read(depth, Usage::ShaderRead)
+        .read(normals, Usage::ShaderRead)
+        .read(images_->surface_, Usage::ShaderRead)
+        .read(images_->resolved_, Usage::ShaderRead)
+        .read(images_->output_, Usage::ShaderRead)
+        .read(frameConstants, Usage::ShaderRead)
+        .read(uploads, Usage::AnyRead)
+        .color(images_->filtered_, Load::DontCare)
+        .execute([draw, pipeline = filter_](GraphContext& c)
                  { drawFullscreen(draw, c, pipeline); });
 }
 }  // namespace batap

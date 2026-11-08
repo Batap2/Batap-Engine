@@ -406,7 +406,7 @@ struct FrameGPUData
     uint reflectResolvedTexture_;
     uint reflectHistoryTexture_;
     uint reflectHistorySurfaceTexture_;
-    uint pad8_;
+    uint reflectTemporalTexture_;
 };
 
 struct SphereOccluderGPUData
