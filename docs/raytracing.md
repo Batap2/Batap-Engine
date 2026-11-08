@@ -296,6 +296,22 @@ terrain de la lune) :
 - Scènes trop légères pour juger les estimations ci-dessus : le GPU n'y est
   pas chargé et les coûts fixes dominent.
 
+**Mesuré en phase 7 (2026-11-08, RTX 5070, 2560 × 1440, temps minimal)** :
+réflexions désactivées → activées (prépasse avec sa cible de plus, trace,
+réutilisation des voisins, temporel) :
+
+| Scène | Sans | Avec | Écart |
+|---|---|---|---|
+| Lune (copie de `planet.btpl`) | 2,45 ms | 2,90 ms | +0,45 ms |
+| `test_reflection` (miroirs, sphères) | 1,89 ms | 2,69 ms | +0,80 ms |
+| `test_brdf` (sol à 0,5 tracé, 70 % de l'écran) | 1,98 ms | 3,46 ms | +1,47 ms |
+
+- Sur une 3060 (≈ 2,5 × plus lente en RT) : ≈ 1,1 ms sur la lune, ≈ 3,7 ms
+  dans le pire cas, pour « réflexions + débruitage » (budget 1,5–4,5 ms).
+- Coût fixe même sans surface lisse : la prépasse RT écrit 8 octets de plus
+  par pixel et dessine le terrain par strate, la passe temporelle lit et
+  écrit tout l'écran.
+
 **Leviers si ça déborde :**
 - un preset par effet ;
 - une coupure de rugosité plus basse ;
@@ -1424,6 +1440,12 @@ borne ; à mesurer en 4.2.
       Caméra en orbite : reflets suivis, sans dédoublement. +0,05–0,07 ms
       en 720p.
 - [ ] **7.6 SSR d'abord** *(option)*.
+      *Écarté (2026-11-08)* : réflexions complètes (prépasse étendue,
+      trace, réutilisation, temporel) +0,45 ms en 1440p sur la 5070 sur
+      une copie de la lune, ≈ 1,1 ms sur une 3060 : sous le budget. Cas le
+      pire, `test_brdf` (sol à 0,5 tracé sur 70 % de l'écran) : +1,5 ms
+      (≈ 3,7 ms sur une 3060). À reprendre si un grand sol lisse couvre
+      l'écran en jeu.
 
 ## Portée
 

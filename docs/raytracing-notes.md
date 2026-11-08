@@ -1441,3 +1441,20 @@ chunk-là. Rochers et cailloux (scatter) ne sont pas dans la TLAS.
   Raster identique au pixel (`test_brdf`, `test_reflection`).
 - GPU de la frame : `test_reflection` 0,913 → 0,960 ms ; `test_brdf`
   temps minimal 1,02 → 1,11 ms ; lune, temps minimal 1,039 → 1,100 ms.
+
+## 7.6 SSR d'abord : écarté
+
+*Décidé (2026-11-08)*, sur le critère du plan (seulement si le coût mesuré
+dépasse le budget) :
+- Mesure en 1440p (fenêtre 2560 × 1440 dans la config de test), réflexions
+  coupées par une version temporaire de `Reflections::createImages` qui
+  rend `nullopt` (prépasse ordinaire, aucune passe) contre la version
+  normale ; temps minimal de la frame, deux lancements par cas. Lune :
+  2,45 → 2,90 ms ; `test_reflection` : 1,89 → 2,69 ms ; `test_brdf` :
+  1,98 → 3,46 ms. Tableau dans la section Budget du plan.
+- Lune ≈ 1,1 ms sur une 3060 : sous le budget de 1–3 ms (réflexions) +
+  0,5–1,5 ms (débruitage). Le SSR n'économise des rayons que sur les
+  surfaces lisses, rares sur la lune (structures et machines à 0,45–0,5,
+  petites à l'écran).
+- Leviers si un jeu y trouve un grand sol lisse : passes de réutilisation
+  et temporelle en ½ × ½ (comme l'AO), SSR d'abord, ou coupure plus basse.
