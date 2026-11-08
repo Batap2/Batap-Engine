@@ -122,6 +122,18 @@ RtGeometryGPUData geometryRecord(VkDeviceAddress indices, VkDeviceAddress vertic
     return record;
 }
 
+RtGeometryGPUData meshGeometryRecord(const Mesh& mesh, VkDeviceAddress buffer, uint32_t indexOffset)
+{
+    const uint64_t positions = mesh.streamOffsets_[Mesh::Position];
+    RtGeometryGPUData record =
+        geometryRecord(buffer + mesh.streamOffsets_[Mesh::Index] + indexOffset, buffer + positions,
+                       sizeof(float) * 3, bytesPerPixel(mesh.indexFormat_));
+    record.normalsOffset_ = static_cast<uint32_t>(mesh.streamOffsets_[Mesh::Normal] - positions);
+    record.uvsOffset_ = static_cast<uint32_t>(mesh.streamOffsets_[Mesh::UV0] - positions);
+    record.tangentsOffset_ = static_cast<uint32_t>(mesh.streamOffsets_[Mesh::Tangent] - positions);
+    return record;
+}
+
 }  // namespace
 
 struct AccelerationStructures::BlasInputs
@@ -585,15 +597,8 @@ GraphBuffer AccelerationStructures::buildTlas(RenderGraph& graph, GraphBuffer bl
             if (added)
             {
                 const VkDeviceAddress address = resources_.deviceAddress(mesh->buffer_);
-                const VkDeviceAddress indices = address + mesh->streamOffsets_[Mesh::Index];
-                const VkDeviceAddress vertices = address + mesh->streamOffsets_[Mesh::Position];
-                const uint32_t indexBytes = bytesPerPixel(mesh->indexFormat_);
-                forEachSubmesh(*mesh,
-                               [&](uint32_t offset, uint32_t)
-                               {
-                                   geometries.push_back(geometryRecord(
-                                       indices + offset, vertices, sizeof(float) * 3, indexBytes));
-                               });
+                forEachSubmesh(*mesh, [&](uint32_t offset, uint32_t)
+                               { geometries.push_back(meshGeometryRecord(*mesh, address, offset)); });
             }
             m4f world = transform.worldMatrix();
             world.topRightCorner<3, 1>() =

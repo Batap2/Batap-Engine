@@ -1374,7 +1374,14 @@ borne ; à mesurer en 4.2.
 
 ### Phase 7 — Réflexions
 
-- [ ] **7.1 Attributs au hit** (UV, normale, tangente) et LOD par ray cones.
+- [x] **7.1 Attributs au hit** (UV, normale, tangente) et LOD par ray cones.
+      *Fait (2026-11-08)* : `RtResolveSurface` rend un `Surface` complet
+      au hit (normale interpolée et normal map, tangente, UV, textures au
+      LOD du cône), ombré par le code de la passe éclairée
+      (`ShadeSurfaceToward`). Vue `rtFirstHit` contre le rendu RT :
+      0,26 % des pixels de géométrie à plus de 8 niveaux, tous sur le
+      tuyau texturé (LOD du cône contre dérivées). Raster identique au
+      pixel, coût inchangé. Détail dans les notes.
 - [ ] **7.2 Miroirs** : rugosité < 0,05, un rayon déterministe, sans filtre.
       *Vérif* : un reflet net d'un objet hors écran.
 - [ ] **7.3 Rugosité intermédiaire** : VNDF, et coupure à 0,5–0,6 vers l'IBL.

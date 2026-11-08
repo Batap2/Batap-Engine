@@ -475,7 +475,7 @@ bool LightIncidence(LightGPUData light, float3 P, out float3 L, out float dist,
     return attenuation > 0.0f;
 }
 
-float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
+float3 ShadeSurfaceToward(uint shadingModel, Surface s, float3 V, float coverage, bool seen)
 {
     if (shadingModel == ShadingUnlit)
         return s.albedo_ * coverage;
@@ -487,7 +487,6 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 
     float3 F0 = BrdfF0(s.ior_, s.albedo_, s.metallic_);
 
-    float3 V = CameraToEye(cam, s.posRel_);
     float  NdotV = saturate(dot(s.N_, V));
     float2 dfg = Dfg(NdotV, s.roughness_);
     float3 energy = SpecularEnergy(F0, dfg.x);
@@ -538,7 +537,7 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
             NdotL > 0.0f ? ShadowVisibility(s.posRel_, s.Ngeom_, s.Nface_, L, dist, light,
                                             FacetEscapeCells * s.cell_)
                          : 0.0f;
-        if ((g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
+        if (seen && (g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
             (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
         {
             debugCascade = CascadeIndexAt(s.posRel_, light.shadowIndex_ & ShadowIndexMask);
@@ -585,6 +584,8 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
     }
 
     color += s.emissive_;
+    if (!seen)
+        return color;
     if (g_draw.atmosphereCount_ != 0)
         color = SkyAerial(g_draw.atmosphereCount_, cam.pos_, s.posRel_, SkyFindSun(cam.pos_), color,
                           coverage);
@@ -608,6 +609,13 @@ float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
 #endif
 
     return color;
+}
+
+float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
+{
+    return ShadeSurfaceToward(shadingModel, s,
+                              CameraToEye(CameraInstancebuffer[g_draw.cameraIndex_], s.posRel_),
+                              coverage, true);
 }
 
 #endif

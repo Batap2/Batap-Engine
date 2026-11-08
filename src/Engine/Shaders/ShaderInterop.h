@@ -55,8 +55,14 @@ struct RtGeometryGPUData
     uint verticesAddrHi_;
     uint vertexStride_;
     uint indexBytes_;
+    // Meshes only, in bytes from the vertices: float3 normals, float2 uvs,
+    // float4 tangents.
+    uint normalsOffset_;
+    uint uvsOffset_;
+    uint tangentsOffset_;
     uint pad0_;
     uint pad1_;
+    uint pad2_;
 };
 
 static const uint RtInstanceMesh = 0u;
@@ -565,7 +571,7 @@ static_assert(sizeof(TerrainWorldGPUData) == 160);
 static_assert(sizeof(TerrainMorphRowGPUData) == 16);
 static_assert(sizeof(ScatterInstanceGPUData) == 32);
 static_assert(sizeof(ScatterBatchGPUData) == 208);
-static_assert(sizeof(RtGeometryGPUData) == 32);
+static_assert(sizeof(RtGeometryGPUData) == 48);
 static_assert(sizeof(RtInstanceGPUData) == 16);
 static_assert(sizeof(RtCacheValueGPUData) == 48);
 static_assert(RtCacheCapacity % RtCacheResolveWidth == 0);

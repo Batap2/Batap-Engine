@@ -1182,3 +1182,48 @@ Validation (debug, synchronisation, raster et RT) : rien de nouveau.
   Terre de nuit : cellules grises (lumière de la lune) avec le rebond,
   noires sans. Sol de nuit, vue d'origine : 82 avec le rebond, 2 sans ;
   avec planetshine 97,7 contre 57,1.
+
+## 7.1 Attributs au hit
+
+*Fait (2026-11-08)* :
+- **`RtGeometryGPUData` passe à 48 octets** : décalages des normales, UV et
+  tangentes depuis les positions, pris dans `Mesh::streamOffsets_`
+  (`meshGeometryRecord`). Les chunks n'en ont pas besoin.
+- **`RtResolveSurface(record, dir, coneWidth)`** rend un `Surface` comme
+  `MeshSurface` et `TerrainPS` le font :
+  - normales par sommet tournées puis normalisées comme dans le VS,
+    interpolées par les barycentriques ; tangente et signe interpolés,
+    normal map comme `MeshSurface` ;
+  - terrain : normale morphée par `terrainVertex` (la fonction de
+    `TerrainVS`), normale de face si `TerrainFlat`, `cell_` (mètres par
+    pas de grille) pour l'échappement des facettes, textures au coin
+    (0, 0) au niveau 0, comme `TerrainPS` ;
+  - `RtHitRecord` + `RtCommitted`, en deux surcharges (requête opaque ou
+    non opaque) : un hit filtré candidat par candidat (mesh coupé) se
+    résout pareil. `RtResolveHit` (GI) ne change pas.
+- **LOD par ray cone** (Akenine-Möller 2021) : λ = ½ log₂(aire UV × w × h
+  / aire monde) + log₂(largeur du cône / |n·d|), par texture
+  (`GetDimensions`). Indices bindless en `NonUniformResourceIndex` : en
+  passe plein écran, le matériau change d'un pixel à l'autre.
+- **`ShadeSurface` → `ShadeSurfaceToward(model, s, V, coverage, seen)`** :
+  même calcul, V en paramètre. `seen = false` (hit d'un rayon) s'arrête
+  avant la perspective aérienne, l'exposition et les vues de debug.
+  `RtShadeHit` ramène Unlit en radiance (`albedo / exposition`), puisque
+  la passe éclairée l'affiche tel quel après exposition.
+- **Vue `rtFirstHit`** : moitié gauche, le hit du rayon caméra ombré
+  comme la passe éclairée ; moitié droite, la normale d'ombrage.
+
+*Mesuré* (`scenes/test_reflection.btpl`, `tools/make_reflection_scene.py`,
+RT, AO et bloom coupés : le bloom de la moitié droite déborde) :
+- moitié gauche de `rtFirstHit` contre le rendu RT : 4,3 % des pixels de
+  géométrie à ±1–8, 0,26 % au-delà de 8 (max 69), tous sur le tuyau
+  texturé : LOD du cône isotrope contre dérivées matérielles, un peu plus
+  flou. Sphères, sol, miroirs : identiques ;
+- raster `test_brdf` identique au pixel, RT dans le bruit (246 px à 1) ;
+- GPU de la frame inchangé (`test_reflection`, RT : 0,689 → 0,686 ms).
+
+*Vu en passant*, non corrigé : sur une copie de `planet.btpl` (caméra de
+poursuite), le rayon caméra touche un chunk de terrain *devant* le sol
+raster dans une bande en bas de l'écran (profondeur du rayon plus courte
+que la prépasse). Les rayons d'ombre, de GI et de reflet voient ce
+chunk-là. Rochers et cailloux (scatter) ne sont pas dans la TLAS.
