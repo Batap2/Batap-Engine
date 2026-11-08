@@ -1442,6 +1442,115 @@ chunk-là. Rochers et cailloux (scatter) ne sont pas dans la TLAS.
 - GPU de la frame : `test_reflection` 0,913 → 0,960 ms ; `test_brdf`
   temps minimal 1,02 → 1,11 ms ; lune, temps minimal 1,039 → 1,100 ms.
 
+## 7.4b/7.5b Débruitage
+
+*Constat (2026-11-08)* : Baptiste, en jeu sur la lune : « extrêmement
+bruité ». Les vues de 7.5 (de haut, caméra fixe) ne le montraient pas.
+
+*Banc* (720p, RT, AO coupée, frames 1500–1507 ; scripts et scènes dans le
+scratchpad `w7b\`) :
+- copie de `planet.btpl` avec une caméra de test à 4–5 m des machines
+  (drones, conteneurs, rovers, antenne : Lit à 0,45–0,5) : fixe, en orbite
+  autour du groupe à 1,6 m/s (18°/s) et à 5 m/s (60°/s) ;
+- copies de `test_reflection` : sol métal à 0,15, 0,3 et 0,5, caméra fixe ou
+  en orbite (1,7 m/s), cube jaune qui tourne au-dessus du sol à 0,15 ;
+- référence : la passe de trace à 256 rayons VNDF par pixel, sans historique
+  ni filtre, même frame ;
+- « reflet » = vue debug Reflections (le terme démodulé, ce que débruitent
+  les passes) ; « final » = l'image. Écarts en niveaux 8 bits de luminance.
+
+*Diagnostic* : vue debug temporaire de la longueur d'historique (r =
+longueur / 32, g = confiance). 17,7 % des pixels tracés à confiance nulle à
+chaque frame, caméra fixe ; 19 % en orbite, 27 % à 5 m/s. Ils sont sur les
+faces tournées vers le haut (dessus des drones, socle de l'antenne, fond du
+traîneau) : à 0,45, leur lobe mêle le ciel (65 000 m) et des objets à
+0,5–3 m. La moyenne 3 × 3 de 1/distance saute d'une frame à l'autre et
+l'anti-traînée remettait l'historique à 1 : le bruit d'un rayon, même caméra
+fixe. Le rejet en mouvement (instance, normale, plan) ne comptait presque
+pas.
+
+*Fait* :
+- **Anti-traînée par intervalle** : l'historique (1/t moyen) n'est rejeté
+  que s'il sort de [min ; max] de 1/t sur le 3 × 3 de la frame (tolérance
+  relative 0,15, rampe 0,25 comme avant). Essais, erreur du reflet des
+  machines fixes / du cube qui bouge (final) : moyenne ± écart-type spatial
+  6,7 / 5,0 ; plus l'écart-type temporel de 1/t gardé dans l'historique
+  5,9 / 7,8 (il garde la mémoire du passage de l'objet : traînée sous le
+  reflet du cube) ; écart temporel sur 4 frames 5,9 / 8,5 ; intervalle
+  6,5 / 5,4. Seul l'intervalle ne régresse nulle part.
+- **Reprojection surface / virtuelle** : deux lectures d'historique, au
+  point virtuel `P + dir × t` et au point de surface, mêlées par
+  `1 − smoothstep(0,1 ; 0,4 ; rugosité)`. Si la lecture virtuelle échoue,
+  celle de surface sert, avec la confiance `1 − part virtuelle`. Erreur du
+  reflet des sols en orbite (0,15 / 0,3 / 0,5) : virtuel seul 7,6 / 11,7 /
+  9,0 ; surface seule 6,8 / 8,3 / 5,6 ; avec le mélange et la borne de
+  parallaxe 4,5 / 5,6 / 5,7. Avant : 4,8 / 6,3 / 6,6, l'ancienne
+  anti-traînée cassant l'historique (peu de traînée, beaucoup de bruit).
+  Avec t moyen harmonique, le point virtuel n'est juste qu'à une seule
+  distance de hit : un lobe large mêle plusieurs distances.
+- **Longueur bornée par la parallaxe** : `L ≤ 0,5 × 1,3 α / sin θ`, θ
+  l'angle entre les directions de vue du point aux deux frames, 1,3 α la
+  demi-largeur du lobe réfléchi. Caméra fixe ou rotation pure : 32 ;
+  0,45 vu à 4 m à 5 m/s : ≈ 7. Facteur 0,25 : moins de traînée, plus de
+  bruit ; 1 : l'inverse.
+- **Échantillonnage** : rayon VNDF tiré dans la suite R2 décalée par pixel
+  (les frames successives d'un pixel couvrent le lobe au lieu de tirer au
+  hasard), disque de réutilisation tourné au nombre d'or à chaque frame,
+  8 voisins à partir de 0,25 (4 en dessous). Sol fixe contre la référence :
+  0,3 4,44 → 3,66 ; 0,5 2,07 → 1,64.
+- **Filtre après le temporel** (passe `reflection filter`,
+  `ReflectFilterPS`) : 8 taps en disque de Vogel, rayon = empreinte du lobe
+  (α t |N·V|, bornée à 2 % de la hauteur) / √longueur d'historique, poids
+  normale^32 et rugosité (±0,1), rejet par le plan à 1 % de la profondeur.
+  Un historique court montre du flou, un historique de 32 frames presque
+  rien. L'historique garde la sortie non filtrée ; la passe éclairée lit la
+  sortie filtrée. `FrameGPUData::pad8_` devient `reflectTemporalTexture_`
+  (taille inchangée). Sol fixe : 0,3 3,66 → 2,34 ; 0,5 1,64 → 1,06.
+- Coupure inchangée (0,6, fondu dès 0,5) : le débruitage suffit, le repli
+  sur l'irradiance du cache n'a pas été nécessaire.
+
+*Mesuré* (avant → après) :
+- machines, caméra fixe : écart-type du reflet sur 8 frames 4,89 → 1,12 ;
+  contre la référence 14,3 → 6,5 (le reste : bords des drones qui
+  oscillent, la référence a sa propre phase) ; final 2,31 → 2,19 ;
+- machines en orbite à 1,6 m/s : reflet contre la référence 14,9 → 7,1 ;
+  dérivée seconde temporelle 11,4 → 7,0 (la référence : 7,6, le mouvement
+  de l'image) ;
+- machines en orbite à 5 m/s : 16,3 → 6,9 ; grain (passe-haut 5 × 5 de
+  l'erreur) 14,7 → 5,4 ;
+- pixels tracés à confiance nulle : 17,7 / 19 / 27 % → 0,7 / 1,0 / 1,4 % ;
+- traîneau, caméra de poursuite à l'arrêt : dérivée seconde du reflet
+  4,3 → 0,8 ;
+- sol fixe, final contre la référence : 0,3 5,19 → 2,36 ; 0,5 3,44 → 1,10 ;
+- sols en orbite, reflet : 0,15 4,75 → 3,87 ; 0,3 6,27 → 5,23 ;
+  0,5 6,63 → 5,47 (biais −0,5 : un peu de retard du reflet de surface) ;
+- cube qui tourne au-dessus du sol à 0,15, final : 5,45 → 5,41, biais
+  −0,1 → +0,3 (moins de bruit, un peu de traînée sous le reflet du cube) ;
+- raster identique au pixel (lune, sol à 0,5) ;
+- GPU (1440p, frame 1500, temps minimal) : lune caméra de poursuite 4,66 →
+  4,73 ms ; machines à 4 m 4,60 → 4,77 ms ; sol à 0,5 sur 40 % de l'écran
+  3,12 → 3,67 ms. Réflexions coupées : 4,16, 3,69, 1,89 ms.
+
+*Pièges* :
+- **Frame 200 sur la lune** : le terrain fin arrive après ~4 s réelles, vers
+  la frame 1000 sous `BATAP_FIXED_DT`. Avant, GPU deux fois plus léger
+  (1,2 ms contre 2,4 ms en 720p) et parois en facettes grossières. Mesurer à partir
+  de la frame 1500 ; une référence lente (50 ms par frame) a, elle, le
+  terrain fin dès la frame 200.
+- **Caméra de test dans une copie de scène** : la caméra du joueur
+  (template) s'active parfois après elle, selon l'ordre de chargement ; la
+  désactiver par override (`entity [2]`, `camera.active = false`).
+- **`--save-dir` réutilisé** : la sauvegarde de la course précédente
+  recharge la pose de la caméra de test (objet libre) ; vider le dossier à
+  chaque lancement.
+- Écart-type sur 8 frames : sous-estime l'erreur d'un historique long (elle
+  change lentement) ; comparer aussi à la référence.
+
+*Reste* : traînée légère d'un objet reflété qui bouge (cube : biais +0,3) ;
+un peu de grain sur les dessus de drones à 5 m/s (historique ≈ 7 frames).
+Une anti-traînée sur la luminance (historique court en plus, comme ReBLUR)
+réglerait les deux, au prix d'une cible de plus.
+
 ## 7.6 SSR d'abord : écarté
 
 *Décidé (2026-11-08)*, sur le critère du plan (seulement si le coût mesuré

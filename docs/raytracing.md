@@ -312,6 +312,17 @@ réutilisation des voisins, temporel) :
   par pixel et dessine le terrain par strate, la passe temporelle lit et
   écrit tout l'écran.
 
+**Mesuré après 7.4b/7.5b (2026-11-08, même machine, 2560 × 1440, frame 1500,
+temps minimal)** : à la frame 200 la lune n'a encore que le terrain grossier
+(GPU deux fois plus léger en 720p) ; les chiffres ci-dessus en viennent
+probablement. L'écart dû aux réflexions reste du même ordre (+0,50 ms).
+
+| Scène | Sans réflexions | Avant 7.4b | Après |
+|---|---|---|---|
+| Lune (copie de `planet.btpl`, caméra de poursuite) | 4,16 ms | 4,66 ms | 4,73 ms |
+| Lune, machines à 4 m | 3,69 ms | 4,60 ms | 4,77 ms |
+| Sol à 0,5 sur 40 % de l'écran (`test_reflection`) | 1,89 ms | 3,12 ms | 3,67 ms |
+
 **Leviers si ça déborde :**
 - un preset par effet ;
 - une coupure de rugosité plus basse ;
@@ -1426,6 +1437,11 @@ borne ; à mesurer en 4.2.
       Sol à 0,3 contre une référence à 128 rayons : erreur RMS 25,6 →
       20,9 ; la convergence vient de 7.5. +0,12 ms sur `test_brdf` (sol
       tracé), +0,06 ms sur `test_reflection` en 720p.
+      *Revu (7.4b, 2026-11-08)* : rayon VNDF tiré dans la suite R2 décalée
+      par pixel, disque tourné au nombre d'or à chaque frame, 8 voisins à
+      partir de la rugosité 0,25. Passe `reflection filter` après le
+      temporel : rayon = empreinte du lobe / √longueur d'historique. Sol à
+      0,5 fixe contre la référence : 3,44 → 1,10.
 - [x] **7.5 Reprojection par la distance de hit.**
       *Fait (2026-11-08)* : passe `reflection temporal`, historique
       persistant en ping-pong (radiance démodulée + longueur, surface).
@@ -1439,6 +1455,15 @@ borne ; à mesurer en 4.2.
       moyen +0,1 niveau contre le rendu sans historique, pas de traînée.
       Caméra en orbite : reflets suivis, sans dédoublement. +0,05–0,07 ms
       en 720p.
+      *Revu (7.5b, 2026-11-08)* : « extrêmement bruité » en jeu. L'anti-
+      traînée sur 1/distance rejetait l'historique de 18 % des pixels tracés
+      à chaque frame (27 % à 5 m/s) sur les machines à 0,45 : leur lobe mêle
+      le ciel et des objets à 0,5–3 m. Rejet désormais si 1/t de
+      l'historique sort de l'intervalle du 3 × 3 (0,7–1,4 %). Historique de
+      surface et virtuel mêlés selon la rugosité (surface au-delà de 0,4),
+      longueur bornée par la parallaxe rapportée au lobe. Machines sur la
+      lune, reflet contre la référence : fixe 14,3 → 6,5, orbite à 5 m/s
+      16,3 → 6,9. +0,07 ms (lune, 1440p). Détail : notes 7.4b/7.5b.
 - [ ] **7.6 SSR d'abord** *(option)*.
       *Écarté (2026-11-08)* : réflexions complètes (prépasse étendue,
       trace, réutilisation, temporel) +0,45 ms en 1440p sur la 5070 sur
