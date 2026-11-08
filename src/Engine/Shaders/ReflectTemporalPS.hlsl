@@ -11,6 +11,8 @@ static const float ReflectHistoryPlane = 0.01f;
 static const float ReflectHistoryNearFloor = 0.05f;
 static const float ReflectHistoryNearTolerance = 0.15f;
 static const float ReflectHistoryNearRamp = 0.25f;
+static const float ReflectHistoryNearSpread = 1.0f;
+static const float ReflectNearnessMax = 1000.0f;
 
 struct TemporalOutput
 {
@@ -50,6 +52,19 @@ float3 ReflectPreviousPosition(CameraGPUData cam, float2 ndc, float viewDepth)
            viewDepth * cam.prevViewProj_[3].xyz;
 }
 
+uint ReflectPackNearness(float mean, float meanSquare)
+{
+    const float spread = sqrt(max(meanSquare - mean * mean, 0.0f));
+    return f32tof16(mean) | (f32tof16(spread) << 16);
+}
+
+float2 ReflectUnpackNearness(uint v)
+{
+    const float mean = f16tof32(v & 0xFFFFu);
+    const float spread = f16tof32(v >> 16);
+    return float2(mean, spread * spread + mean * mean);
+}
+
 float ReflectHistoryLength(float roughness)
 {
     return 1.0f + (ReflectHistoryMax - 1.0f) *
@@ -76,8 +91,9 @@ TemporalOutput main(float4 svpos : SV_POSITION)
     const float4 current = g_textures[frame.reflectResolvedTexture_].Load(int3(pixel, 0));
     if (current.a <= 0.0f)
         return o;
-    const float nearness = 1.0f / current.a;
+    const float nearness = min(1.0f / current.a, ReflectNearnessMax);
     float localNearness = 0.0f;
+    float localSquare = 0.0f;
     float localCount = 0.0f;
     [unroll]
     for (int dy = -1; dy <= 1; ++dy)
@@ -89,16 +105,20 @@ TemporalOutput main(float4 svpos : SV_POSITION)
                 g_textures[frame.reflectResolvedTexture_].Load(int3(pixel + int2(dx, dy), 0)).a;
             if (hit > 0.0f)
             {
-                localNearness += 1.0f / hit;
+                const float n = min(1.0f / hit, ReflectNearnessMax);
+                localNearness += n;
+                localSquare += n * n;
                 localCount += 1.0f;
             }
         }
     }
     localNearness /= localCount;
+    const float localSpread =
+        sqrt(max(localSquare / localCount - localNearness * localNearness, 0.0f));
 
     const float maxLength = ReflectHistoryLength(self.surface_.roughness_);
     float4 history = float4(0.0f, 0.0f, 0.0f, 0.0f);
-    float historyNearness = nearness;
+    float2 historyNearness = float2(nearness, nearness * nearness);
     float confidence = 0.0f;
     if (frame.reflectHistoryTexture_ != InvalidGPUIndex && maxLength > 1.0f)
     {
@@ -117,6 +137,7 @@ TemporalOutput main(float4 svpos : SV_POSITION)
             const float2 f = at - float2(base);
             const uint identity = packed.y & 0x3FFFFFu;
             float weight = 0.0f;
+            float2 stats = float2(0.0f, 0.0f);
             [unroll]
             for (uint k = 0; k < 4u; ++k)
             {
@@ -137,15 +158,22 @@ TemporalOutput main(float4 svpos : SV_POSITION)
                 const float2 bilinear = lerp(1.0f - f, f, float2(offset));
                 const float w = bilinear.x * bilinear.y;
                 history += w * g_textures[frame.reflectHistoryTexture_].Load(int3(q, 0));
-                confidence += w * asfloat(previous.w);
+                stats += w * ReflectUnpackNearness(previous.w);
                 weight += w;
             }
             if (weight > 1e-3f)
             {
                 history /= weight;
-                historyNearness = confidence / weight;
-                const float change = abs(historyNearness - localNearness) /
-                                     (historyNearness + localNearness + ReflectHistoryNearFloor);
+                historyNearness = stats / weight;
+                const float spread = max(sqrt(max(historyNearness.y - historyNearness.x *
+                                                                          historyNearness.x,
+                                                  0.0f)),
+                                         localSpread);
+                const float change =
+                    max(abs(historyNearness.x - localNearness) -
+                            ReflectHistoryNearSpread * spread,
+                        0.0f) /
+                    (historyNearness.x + localNearness + ReflectHistoryNearFloor);
                 confidence = saturate(1.0f - (change - ReflectHistoryNearTolerance) /
                                                  ReflectHistoryNearRamp);
             }
@@ -162,6 +190,8 @@ TemporalOutput main(float4 svpos : SV_POSITION)
     const float historyLength = min(history.a * confidence + 1.0f, maxLength);
     o.color_ = float4(lerp(history.rgb * rescale, current.rgb, 1.0f / historyLength),
                       historyLength);
-    o.surface_.w = asuint(lerp(historyNearness, nearness, 1.0f / historyLength));
+    const float2 nearnessStats =
+        lerp(historyNearness, float2(nearness, nearness * nearness), 1.0f / historyLength);
+    o.surface_.w = ReflectPackNearness(nearnessStats.x, nearnessStats.y);
     return o;
 }
