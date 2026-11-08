@@ -35,6 +35,7 @@ ScatterDrawer::ScatterDrawer(const DrawSetup& setup) : setup_(setup)
 ScatterDrawer::~ScatterDrawer()
 {
     vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, reflectPrepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
@@ -47,6 +48,7 @@ ScatterDrawer::~ScatterDrawer()
 void ScatterDrawer::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, reflectPrepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
@@ -65,6 +67,11 @@ void ScatterDrawer::buildPipelines(const ShaderModules& modules)
                            .colorFormat(ViewNormalFormat)
                            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
                            .build(setup_.ctx_.device_, setup_.layout_);
+    reflectPrepassPipeline_ = geometry(modules[PrepassScatterRtPS])
+                                  .colorFormat(ViewNormalFormat)
+                                  .colorFormat(ReflectSurfaceFormat)
+                                  .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
+                                  .build(setup_.ctx_.device_, setup_.layout_);
     const auto lit = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
     {
         return geometry(pixelShader)
@@ -294,7 +301,8 @@ void ScatterDrawer::recordDraws(const DrawContext& draw, VkPipeline pipeline, ui
 
 void ScatterDrawer::recordPrepass(const DrawContext& draw)
 {
-    recordDraws(draw, prepassPipeline_, Mesh::VertexStreams, false);
+    recordDraws(draw, draw.reflections_ ? reflectPrepassPipeline_ : prepassPipeline_,
+                Mesh::VertexStreams, false);
 }
 
 void ScatterDrawer::record(const DrawContext& draw)

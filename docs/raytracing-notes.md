@@ -1227,3 +1227,61 @@ poursuite), le rayon caméra touche un chunk de terrain *devant* le sol
 raster dans une bande en bas de l'écran (profondeur du rayon plus courte
 que la prépasse). Les rayons d'ombre, de GI et de reflet voient ce
 chunk-là. Rochers et cailloux (scatter) ne sont pas dans la TLAS.
+
+## 7.2 Miroirs
+
+*Architecture, choisie pour 7.2 à 7.5* : prépasse étendue + passes plein
+écran, pas de rayon dans le PS des matériaux.
+- **Pourquoi pas dans le PS** : il faudrait des MRT supplémentaires à
+  toutes les pipelines de la passe `scene` (meshes, terrain, scatter,
+  billboards, ciel), et un composite après coup devrait refaire la
+  perspective aérienne et l'exposition. Surtout, la réutilisation des
+  rayons voisins (7.4) et la reprojection (7.5) ont besoin des rayons de
+  tous les voisins *avant* d'ombrer un pixel.
+- **Prépasse RT** : une deuxième cible `reflection surface`
+  (`R32G32_UINT`) : x = normale d'ombrage monde en octaèdre 2 × 16 bits,
+  y = rugosité (10 bits) | genre (2 bits : mesh, chunk, scatter) |
+  instance (20 bits, pour le rejet d'historique et les matrices de 7.5).
+  Pipelines à part (`PrepassMeshRtPS`, `PrepassTerrainRtPS`,
+  `PrepassScatterRtPS`, sans `BATAP_RT` : elles ne tracent rien), choisies
+  par `DrawContext::reflections_`. La prépasse raster ne change pas. En RT,
+  le terrain y est dessiné par strate (comme la passe éclairée) pour
+  connaître le matériau : mêmes triangles, même profondeur. Unlit et
+  régolithe s'écrivent rugosité 1 (pas de lobe spéculaire).
+- **Passe `reflection trace`** (`ReflectTracePS`, layout RT) : P depuis la
+  profondeur (`znear / z` le long du rayon caméra), normale géométrique
+  depuis `view normals` (pour décaler l'origine seulement, 1 mm + 0,1 mm
+  par mètre), N et rugosité depuis la cible ci-dessus. Sorties
+  `reflection raw` (`RGBA16F` : radiance × exposition, bornée à 256 ;
+  alpha = distance du hit, 65 000 pour le ciel, 0 = non tracé) et
+  `reflection ray` (direction, pdf ; 0 pour un miroir).
+- **Au hit** : `RtResolveSurface` (7.1), cône = angle d'un pixel ×
+  (distance caméra + t), ombré par `ShadeSurfaceToward` (lumières et rayons
+  d'ombre, cache GI pour le diffus, IBL pour le spéculaire du hit : un
+  rebond puis l'IBL). Raté : `SampleSky`. Meshes coupés : requête non
+  opaque sur `TlasMaskCut`, candidat gardé du bon côté du plan (comme
+  `CutShadowHit`). Translucides : hors masque, pas reflétés.
+- **Passe éclairée** (variantes RT de `PixelShader`, `TerrainPS`,
+  `ScatterPS`) : `ScreenReflection` lit `reflectionTexture_` au pixel,
+  divise par l'exposition ; `ShadeSurfaceToward` remplace
+  `SampleSkyPrefiltered × SpecularOcclusion` par `lerp(IBL, reflet, poids)`
+  multiplié par le même `lobe` (DFG + énergie). Le poids vient de la
+  rugosité du PS lui-même. Pas d'occlusion spéculaire sur le reflet tracé :
+  le rayon voit l'occultant. Translucides et billboards gardent l'IBL.
+- **Miroir = rugosité ≤ 0,05** : toute rugosité est bornée à 0,05
+  (`MeshSurface`), « < 0,05 » n'arrive jamais. Un miroir à normal map dont
+  le rayon réfléchi passe sous la surface géométrique garde l'IBL.
+
+*Mesuré* (720p, RT ; images dans le scratchpad de la session) :
+- `test_reflection` : le sol miroir montre la sphère de cuivre, le pilier,
+  les sphères, les deux déchets texturés et le cube rouge au-dessus du
+  champ ; la sphère de cuivre montre le cube vert derrière la caméra, le
+  cube rouge, le pilier. 6,9 % des pixels à plus de 8 niveaux.
+- `test_brdf` : la sphère de cuivre à 0,02 montre le sol et les sphères
+  rouges voisines, la rouge à 0,02 un reflet rasant du sol ; 0,15 % des
+  pixels à plus de 8 niveaux, tous sur ces deux sphères.
+- Raster `test_brdf` identique au pixel. Lune (copie de `planet.btpl`) :
+  dans le bruit (aucun pixel à plus de 2 niveaux).
+- GPU de la frame : `test_reflection` 0,686 → 0,818 ms, `test_brdf`
+  0,715 → 0,771 ms ; lune, temps minimal 0,939 → 1,003 ms (prépasse avec
+  sa cible de plus, terrain par strate, passe qui sort tout de suite).

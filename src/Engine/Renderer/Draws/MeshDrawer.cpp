@@ -18,6 +18,7 @@ namespace batap
 MeshDrawer::~MeshDrawer()
 {
     vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, reflectPrepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, translucentPipeline_, nullptr);
@@ -27,6 +28,7 @@ MeshDrawer::~MeshDrawer()
 void MeshDrawer::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, reflectPrepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, translucentPipeline_, nullptr);
@@ -46,6 +48,11 @@ void MeshDrawer::buildPipelines(const ShaderModules& modules)
                            .colorFormat(ViewNormalFormat)
                            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
                            .build(setup_.ctx_.device_, setup_.layout_);
+    reflectPrepassPipeline_ = geometry(modules[PrepassMeshRtPS])
+                                  .colorFormat(ViewNormalFormat)
+                                  .colorFormat(ReflectSurfaceFormat)
+                                  .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
+                                  .build(setup_.ctx_.device_, setup_.layout_);
     const auto lit = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
     {
         return geometry(pixelShader)
@@ -75,7 +82,8 @@ void MeshDrawer::buildPipelines(const ShaderModules& modules)
 
 void MeshDrawer::recordPrepass(const DrawContext& draw)
 {
-    vkCmdBindPipeline(draw.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, prepassPipeline_);
+    vkCmdBindPipeline(draw.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      draw.reflections_ ? reflectPrepassPipeline_ : prepassPipeline_);
     recordMeshDraws(draw, setup_.resources_, Mesh::VertexStreams, MeshPass::Opaque);
 }
 

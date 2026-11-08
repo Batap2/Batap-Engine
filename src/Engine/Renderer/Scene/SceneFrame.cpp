@@ -55,7 +55,8 @@ SceneFrame::SceneFrame(VulkanContext& ctx, ResourceManager& resources, VkFormat 
       exposure_(bindings_.drawSetup(outputFormat, depthFormat)),
       bloom_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       ao_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
-      skyPrefilter_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat))
+      skyPrefilter_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
+      reflections_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat))
 {
     const auto uploadTable =
         [&](const std::array<uint16_t, LtcTableTexels * 4>& table, const char* name)
@@ -91,6 +92,7 @@ void SceneFrame::buildPipelines(const ShaderModules& modules)
     bloom_.buildPipelines(modules);
     ao_.buildPipelines(modules);
     skyPrefilter_.buildPipelines(modules);
+    reflections_.buildPipelines(modules);
 }
 
 void SceneFrame::uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay)
@@ -198,7 +200,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     shadows_.prepare(*reg, *instances, args.camera_, ctx.getFrameSize(), rayTracing);
 
     writeFrameSet(frame, args, ctx);
-    const DrawContext draw = drawContext(frame, camID, args, ctx, rayTracing);
+    DrawContext draw = drawContext(frame, camID, args, ctx, rayTracing);
     const GraphBuffer traced = terrain_.addMorphPass(graph, draw, uploads);
 
     AccelerationStructures::Buffers as;
@@ -241,6 +243,9 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const std::optional<Ao::Images> ao =
         ao_.createImages(graph, targets.extent_, camera, ctx.settings().ambientOcclusion_);
     frameData_.aoRadius_ = rayTracing ? 0.f : AoRasterRadius;
+    const std::optional<Reflections::Images> reflections =
+        reflections_.createImages(graph, targets.extent_, camera, rayTracing);
+    draw.reflections_ = reflections.has_value();
     skyPrefilter_.createImages(graph, draw.push_.skyboxCount_ != 0);
 
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
@@ -260,18 +265,30 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     graph.addPass("frame constants")
         .write(frameConstants, Usage::TransferDst)
         .execute(
-            [frameConstants, hdr, translucent, accum, reveal, bloom, ao, depth, normals,
-             skyLevels = skyPrefilter_.levels(), data = frameData_](GraphContext& c) mutable
+            [frameConstants, hdr, translucent, accum, reveal, bloom, ao, reflections, depth,
+             normals, skyLevels = skyPrefilter_.levels(),
+             data = frameData_](GraphContext& c) mutable
             {
                 data.hdrTexture_ = c.graph_.textureIndex(hdr);
                 data.aoTexture_ = InvalidGPUIndex;
+                data.reflectionTexture_ = InvalidGPUIndex;
+                if (ao || reflections)
+                {
+                    data.depthTexture_ = c.graph_.textureIndex(depth);
+                    data.viewNormalTexture_ = c.graph_.textureIndex(normals);
+                }
                 if (ao)
                 {
                     data.aoTexture_ = c.graph_.textureIndex(ao->full_);
                     data.aoRawTexture_ = c.graph_.textureIndex(ao->raw_);
                     data.aoFilteredTexture_ = c.graph_.textureIndex(ao->filtered_);
-                    data.depthTexture_ = c.graph_.textureIndex(depth);
-                    data.viewNormalTexture_ = c.graph_.textureIndex(normals);
+                }
+                if (reflections)
+                {
+                    data.reflectSurfaceTexture_ = c.graph_.textureIndex(reflections->surface_);
+                    data.reflectRawTexture_ = c.graph_.textureIndex(reflections->raw_);
+                    data.reflectRayTexture_ = c.graph_.textureIndex(reflections->ray_);
+                    data.reflectionTexture_ = c.graph_.textureIndex(reflections->output_);
                 }
                 auto levels = std::span{data.skyLevels_};
                 for (size_t i = 0; i < skyLevels.size(); ++i)
@@ -298,8 +315,10 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     GraphPass& prepass = graph.addPass("prepass");
     if (rayTracing)
         prepass.read(traced, Usage::ShaderRead);
+    prepass.color(normals, Load::Clear);
+    if (reflections)
+        prepass.color(reflections->surface_, Load::Clear);
     prepass
-        .color(normals, Load::Clear)
         // Reversed Z (Camera_C::make_proj): the far plane is 0.
         .depth(depth, Load::Clear, 0.f)
         .read(uploads, Usage::AnyRead)
@@ -335,6 +354,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         for (const GraphImage level : skyPrefilter_.levels())
             pass.read(level, Usage::ShaderRead);
     };
+    reflections_.addPasses(graph, depth, normals, draw, readsShading);
 
     GraphPass& scene = graph.addPass("scene")
                            .color(hdr, Load::Clear, targets.clearColor_)
@@ -357,6 +377,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     readsShading(scene);
     if (ao)
         scene.read(ao->full_, Usage::ShaderRead);
+    if (reflections)
+        scene.read(reflections->output_, Usage::ShaderRead);
 
     if (translucent)
     {

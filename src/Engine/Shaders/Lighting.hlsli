@@ -10,6 +10,9 @@
 // The in-scatter on surfaces sees the relief's shadow through the sun's cascades.
 #define SKY_AIR_VISIBILITY(pRel, sun) ShadowAirVisibility(pRel, sun.dir, sun.shadowIndex)
 #include "Sky.hlsli"
+#if BATAP_RT
+#include "Reflections.hlsli"
+#endif
 
 [[vk::binding(CamerasBinding, FrameSet)]]
 StructuredBuffer<CameraGPUData> CameraInstancebuffer;
@@ -475,7 +478,24 @@ bool LightIncidence(LightGPUData light, float3 P, out float3 L, out float dist,
     return attenuation > 0.0f;
 }
 
-float3 ShadeSurfaceToward(uint shadingModel, Surface s, float3 V, float coverage, bool seen)
+float4 ScreenReflection(float4 svpos, float roughness)
+{
+#if BATAP_RT
+    const uint texture = FrameBuffer[0].reflectionTexture_;
+    const float weight = ReflectWeight(roughness);
+    if (texture == InvalidGPUIndex || weight <= 0.0f)
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+    const float4 traced = g_textures[texture].Load(int3(svpos.xy, 0));
+    if (traced.a <= 0.0f)
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+    return float4(traced.rgb / FrameBuffer[0].exposure_, weight);
+#else
+    return float4(0.0f, 0.0f, 0.0f, 0.0f);
+#endif
+}
+
+float3 ShadeSurfaceToward(uint shadingModel, Surface s, float3 V, float coverage, bool seen,
+                          float4 reflection)
 {
     if (shadingModel == ShadingUnlit)
         return s.albedo_ * coverage;
@@ -499,6 +519,19 @@ float3 ShadeSurfaceToward(uint shadingModel, Surface s, float3 V, float coverage
     // The occlusion darkens the ambient only: the shadow rays already hold
     // the direct light's.
     float3 color = kD * DiffuseIrradiance(s) * ambientAlbedo / PI * coverage;
+#if BATAP_RT
+    if (reflection.a > 0.0f && !regolith)
+    {
+        float3 environment = float3(0.0f, 0.0f, 0.0f);
+        if (g_draw.skyboxCount_ != 0)
+        {
+            const float3 R = reflect(-V, s.N_);
+            environment = SampleSkyPrefiltered(R, s.roughness_) * SpecularOcclusion(s, R);
+        }
+        color += lerp(environment, reflection.rgb, reflection.a) * lobe;
+    }
+    else
+#endif
     if (g_draw.skyboxCount_ != 0 && !regolith)
     {
         const float3 R = reflect(-V, s.N_);
@@ -611,11 +644,12 @@ float3 ShadeSurfaceToward(uint shadingModel, Surface s, float3 V, float coverage
     return color;
 }
 
-float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f)
+float3 ShadeSurface(uint shadingModel, Surface s, float coverage = 1.0f,
+                    float4 reflection = float4(0.0f, 0.0f, 0.0f, 0.0f))
 {
     return ShadeSurfaceToward(shadingModel, s,
                               CameraToEye(CameraInstancebuffer[g_draw.cameraIndex_], s.posRel_),
-                              coverage, true);
+                              coverage, true, reflection);
 }
 
 #endif

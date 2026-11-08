@@ -53,6 +53,7 @@ TerrainDrawer::TerrainDrawer(const DrawSetup& setup) : setup_(setup)
 TerrainDrawer::~TerrainDrawer()
 {
     vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, reflectPrepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
@@ -70,6 +71,7 @@ TerrainDrawer::~TerrainDrawer()
 void TerrainDrawer::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, prepassPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, reflectPrepassPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, pipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, rtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, shadowPipeline_, nullptr);
@@ -81,6 +83,13 @@ void TerrainDrawer::buildPipelines(const ShaderModules& modules)
                            .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
                            .cullBack()
                            .build(setup_.ctx_.device_, setup_.layout_);
+    reflectPrepassPipeline_ = GraphicsPipelineBuilder()
+                                  .shaders(modules[TerrainVS], modules[PrepassTerrainRtPS])
+                                  .colorFormat(ViewNormalFormat)
+                                  .colorFormat(ReflectSurfaceFormat)
+                                  .depth(setup_.depthFormat_, true, VK_COMPARE_OP_GREATER)
+                                  .cullBack()
+                                  .build(setup_.ctx_.device_, setup_.layout_);
     const auto lit = [&](VkShaderModule pixelShader, VkPipelineLayout layout)
     {
         return GraphicsPipelineBuilder()
@@ -465,7 +474,10 @@ void TerrainDrawer::recordDraws(const DrawContext& draw, VkPipeline pipeline,
 
 void TerrainDrawer::recordPrepass(const DrawContext& draw)
 {
-    recordDraws(draw, prepassPipeline_, chunkDraws_);
+    if (draw.reflections_)
+        recordDraws(draw, reflectPrepassPipeline_, draws_);
+    else
+        recordDraws(draw, prepassPipeline_, chunkDraws_);
 }
 
 void TerrainDrawer::record(const DrawContext& draw)

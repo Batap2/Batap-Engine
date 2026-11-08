@@ -33,6 +33,7 @@ struct MeshDrawer
    private:
     DrawSetup setup_;
     VkPipeline prepassPipeline_ = VK_NULL_HANDLE;
+    VkPipeline reflectPrepassPipeline_ = VK_NULL_HANDLE;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     VkPipeline rtPipeline_ = VK_NULL_HANDLE;
     VkPipeline translucentPipeline_ = VK_NULL_HANDLE;

@@ -18,6 +18,7 @@ struct GPUInstanceManager;
 inline constexpr VkFormat ViewNormalFormat = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
 inline constexpr VkFormat TranslucentAccumFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 inline constexpr VkFormat TranslucentRevealFormat = VK_FORMAT_R8_UNORM;
+inline constexpr VkFormat ReflectSurfaceFormat = VK_FORMAT_R32G32_UINT;
 
 struct DrawSetup
 {
@@ -41,6 +42,7 @@ struct DrawContext
     GPUInstanceManager* instanceManager_ = nullptr;
     AssetManager* assetManager_ = nullptr;
     bool rayTracing_ = false;
+    bool reflections_ = false;
 };
 
 inline DrawContext bindDraw(const DrawContext& draw, VkCommandBuffer cmd)

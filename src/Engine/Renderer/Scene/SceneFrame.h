@@ -15,6 +15,7 @@
 #include "Renderer/Features/Gi/GiCache.h"
 #include "Renderer/Features/Gi/GiUpdate.h"
 #include "Renderer/Features/RayTracing/AccelerationStructures.h"
+#include "Renderer/Features/Reflections/Reflections.h"
 #include "Renderer/Features/Shadows/Shadows.h"
 #include "Renderer/Features/SkyPrefilter/SkyPrefilter.h"
 #include "Renderer/Graph/RenderGraph.h"
@@ -88,5 +89,6 @@ struct SceneFrame
     Bloom bloom_;
     Ao ao_;
     SkyPrefilter skyPrefilter_;
+    Reflections reflections_;
 };
 }  // namespace batap

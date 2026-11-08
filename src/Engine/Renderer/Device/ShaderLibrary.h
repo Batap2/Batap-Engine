@@ -53,6 +53,10 @@ enum ShaderId : size_t
     AoPS,
     AoFilterPS,
     AoUpsamplePS,
+    PrepassMeshRtPS,
+    PrepassTerrainRtPS,
+    PrepassScatterRtPS,
+    ReflectTracePS,
     ShaderCount,
 };
 
@@ -107,6 +111,10 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"AoPS", "AoPS", "ps_6_6"},
     {"AoFilterPS", "AoFilterPS", "ps_6_6"},
     {"AoUpsamplePS", "AoUpsamplePS", "ps_6_6"},
+    {"PrepassMeshRtPS", "PrepassMeshRtPS", "ps_6_6"},
+    {"PrepassTerrainRtPS", "PrepassTerrainRtPS", "ps_6_6"},
+    {"PrepassScatterRtPS", "PrepassScatterRtPS", "ps_6_6"},
+    {"ReflectTracePS", "ReflectTracePS", "ps_6_6", true},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

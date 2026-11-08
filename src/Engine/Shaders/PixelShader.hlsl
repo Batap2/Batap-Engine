@@ -20,5 +20,6 @@ float4 main(VS_OUTPUT i) : SV_Target
                                                 RelativeTo(inst.prevWorld_, cam.prevPos_));
         return float4(MotionDebugColor(MotionNdc(cam, i.posRel_, prevRel)), 1.0f);
     }
-    return float4(ShadeSurface(mat.shadingModel_, s), 1.0f);
+    return float4(
+        ShadeSurface(mat.shadingModel_, s, 1.0f, ScreenReflection(i.position_, s.roughness_)), 1.0f);
 }

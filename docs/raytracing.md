@@ -1382,8 +1382,18 @@ borne ; à mesurer en 4.2.
       0,26 % des pixels de géométrie à plus de 8 niveaux, tous sur le
       tuyau texturé (LOD du cône contre dérivées). Raster identique au
       pixel, coût inchangé. Détail dans les notes.
-- [ ] **7.2 Miroirs** : rugosité < 0,05, un rayon déterministe, sans filtre.
+- [x] **7.2 Miroirs** : rugosité < 0,05, un rayon déterministe, sans filtre.
       *Vérif* : un reflet net d'un objet hors écran.
+      *Fait (2026-11-08)* : la prépasse RT écrit une cible de plus
+      (normale d'ombrage, rugosité, instance), une passe plein écran
+      `reflection trace` trace le rayon, la passe éclairée RT le lit à la
+      place de l'IBL, multiplié par le même terme préintégré. Miroir =
+      rugosité ≤ 0,05 (le plancher où toute rugosité est bornée).
+      `test_reflection` : le cube rouge au-dessus du champ dans le sol
+      miroir, le cube vert derrière la caméra dans la sphère de cuivre ;
+      `test_brdf` : sphères de cuivre et rouge à 0,02 montrent le sol et
+      leurs voisines. Raster identique au pixel. +0,13 ms sur
+      `test_reflection`, +0,06 ms sur `test_brdf` et la lune en 720p.
 - [ ] **7.3 Rugosité intermédiaire** : VNDF, et coupure à 0,5–0,6 vers l'IBL.
 - [ ] **7.4 Démodulation + réutilisation des rayons voisins** (Stachowiak).
 - [ ] **7.5 Reprojection par la distance de hit.**

@@ -273,7 +273,8 @@ float3 RtShadeHit(RtSurface hit, float3 V)
 {
     if (hit.shadingModel_ == ShadingUnlit)
         return hit.surface_.albedo_ / max(FrameBuffer[0].exposure_, 1e-30f);
-    return ShadeSurfaceToward(hit.shadingModel_, hit.surface_, V, 1.0f, false);
+    return ShadeSurfaceToward(hit.shadingModel_, hit.surface_, V, 1.0f, false,
+                              float4(0.0f, 0.0f, 0.0f, 0.0f));
 }
 
 #endif

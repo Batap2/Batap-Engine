@@ -181,7 +181,8 @@ set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Bloom.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Glints.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Brdf.hlsli"
-                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Ao.hlsli")
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Ao.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Reflections.hlsli")
 
 function(batap_compile_shader src out target)
   add_custom_command(
@@ -237,6 +238,10 @@ batap_compile_shader(SkyPrefilterPS.hlsl SkyPrefilterPS.spv ps_6_6)
 batap_compile_shader(AoPS.hlsl         AoPS.spv         ps_6_6)
 batap_compile_shader(AoFilterPS.hlsl   AoFilterPS.spv   ps_6_6)
 batap_compile_shader(AoUpsamplePS.hlsl AoUpsamplePS.spv ps_6_6)
+batap_compile_shader(PrepassMeshRtPS.hlsl PrepassMeshRtPS.spv ps_6_6)
+batap_compile_shader(PrepassTerrainRtPS.hlsl PrepassTerrainRtPS.spv ps_6_6)
+batap_compile_shader(PrepassScatterRtPS.hlsl PrepassScatterRtPS.spv ps_6_6)
+batap_compile_shader(ReflectTracePS.hlsl ReflectTracePS.spv ps_6_6 -D BATAP_RT=1)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -278,7 +283,11 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/SkyPrefilterPS.spv"
   "${engine_shader_out}/AoPS.spv"
   "${engine_shader_out}/AoFilterPS.spv"
-  "${engine_shader_out}/AoUpsamplePS.spv")
+  "${engine_shader_out}/AoUpsamplePS.spv"
+  "${engine_shader_out}/PrepassMeshRtPS.spv"
+  "${engine_shader_out}/PrepassTerrainRtPS.spv"
+  "${engine_shader_out}/PrepassScatterRtPS.spv"
+  "${engine_shader_out}/ReflectTracePS.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —
