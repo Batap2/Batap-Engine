@@ -76,7 +76,30 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
     const float3 Ngeom = normalize(mul(Nview, (float3x3)cam.view_));
     const float3 V = -dir;
 
-    const float3 L = reflect(-V, surface.N_);
+    const float NdotV = dot(surface.N_, V);
+    float3 L = reflect(-V, surface.N_);
+    float pdf = 0.0f;
+    if (surface.roughness_ > ReflectMirrorRoughness && NdotV > 1e-4f)
+    {
+        const float alpha = surface.roughness_ * surface.roughness_;
+        const float3 T = normalize(cross(abs(surface.N_.y) < 0.99f ? float3(0.0f, 1.0f, 0.0f)
+                                                                   : float3(1.0f, 0.0f, 0.0f),
+                                         surface.N_));
+        const float3 B = cross(surface.N_, T);
+        const float3 Vt = float3(dot(V, T), dot(V, B), NdotV);
+        uint seed = GiHash(uint(pixel.x) + GiHash(uint(pixel.y) + GiHash(frame.frameIndex_)));
+        [unroll]
+        for (uint attempt = 0; attempt < 2u && pdf <= 0.0f; ++attempt)
+        {
+            const float3 Ht = BrdfSampleVndf(Vt, alpha, float2(GiRand(seed), GiRand(seed)));
+            const float3 sampled = reflect(-V, T * Ht.x + B * Ht.y + surface.N_ * Ht.z);
+            if (dot(sampled, Ngeom) > 0.0f && dot(sampled, surface.N_) > 0.0f)
+            {
+                L = sampled;
+                pdf = BrdfPdfVndf(Vt, Ht, alpha);
+            }
+        }
+    }
     if (dot(L, Ngeom) <= 0.0f)
         return o;
     const float distance = length(P);
@@ -87,7 +110,9 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
     RtHitRecord record;
     if (ReflectTrace(start, L, record))
     {
-        const RtSurface hit = RtResolveSurface(record, L, pixelAngle * (distance + record.t_));
+        const float spread = pixelAngle * (distance + record.t_) +
+                             surface.roughness_ * surface.roughness_ * record.t_;
+        const RtSurface hit = RtResolveSurface(record, L, spread);
         radiance = RtShadeHit(hit, -L);
         hitDistance = record.t_;
     }
@@ -97,6 +122,6 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
     }
 
     o.radiance_ = float4(min(radiance * frame.exposure_, ReflectMaxRadiance), max(hitDistance, 1e-4f));
-    o.ray_ = float4(L, 0.0f);
+    o.ray_ = float4(L, min(pdf, 65000.0f));
     return o;
 }

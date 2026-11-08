@@ -1285,3 +1285,35 @@ chunk-là. Rochers et cailloux (scatter) ne sont pas dans la TLAS.
 - GPU de la frame : `test_reflection` 0,686 → 0,818 ms, `test_brdf`
   0,715 → 0,771 ms ; lune, temps minimal 0,939 → 1,003 ms (prépasse avec
   sa cible de plus, terrain par strate, passe qui sort tout de suite).
+
+## 7.3 Rugosité intermédiaire
+
+*Fait (2026-11-08)* :
+- **Un rayon VNDF** au-dessus de 0,05 : repère tangent quelconque autour de
+  N (GGX isotrope), `BrdfSampleVndf` puis `BrdfPdfVndf` (densité en L),
+  hachage du pixel et de `frameIndex_` (bruit blanc, change à chaque frame).
+  Deux tirages au plus ; une direction sous la surface (géométrique ou
+  d'ombrage) est retirée, et après deux échecs le rayon part dans la
+  direction miroir avec une pdf nulle.
+- **Échantillon démodulé = la radiance du hit, seule.** Avec la VNDF, f
+  cos / pdf vaut F G₂/G₁ : presque constant dans le lobe, donc l'image
+  moyenne d'un pixel est la moyenne pondérée par la BRDF à un facteur
+  près, que la passe éclairée remet (`lobe`). L'estimateur ratio de 7.4
+  pèse les échantillons exactement.
+- **Cône** : angle d'un pixel × (distance caméra + t) + α t (le lobe
+  élargit l'empreinte au hit).
+- **Coupure 0,6, fondu de 0,5 à 0,6** (`ReflectWeight`, la même fonction
+  dans la passe de trace et la passe éclairée). Choisie sur les images et
+  les matériaux : 36 `.bmat` lit du jeu sur 48 non texturés sont sous 0,6,
+  dont 28 à 0,45–0,5 (structures, drones, rovers, conteneur, traîneau,
+  machines). L'IBL y montre le ciel noir de la lune là où le reflet tracé
+  montre le régolithe éclairé ; dans `test_reflection`, la moitié basse
+  des sphères à 0,45 passe du brun du nadir au gris du sol.
+
+*Mesuré* (720p, RT, contre 7.2) :
+- `test_reflection` : 0,63 % des pixels à plus de 8 niveaux (sphères à
+  0,1–0,45, tuyau texturé), `test_brdf` : 0,46 % (cuivre et blanc à
+  0,15–0,45). D'une frame à l'autre, 0,31 % des pixels bougent de plus de
+  8 niveaux : le bruit blanc d'un rayon, que 7.4 et 7.5 retirent.
+- GPU de la frame : `test_reflection` 0,818 → 0,852 ms, `test_brdf`
+  0,771 → 0,917 ms (14 sphères tracées, rayons incohérents).

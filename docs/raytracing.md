@@ -1394,7 +1394,13 @@ borne ; à mesurer en 4.2.
       `test_brdf` : sphères de cuivre et rouge à 0,02 montrent le sol et
       leurs voisines. Raster identique au pixel. +0,13 ms sur
       `test_reflection`, +0,06 ms sur `test_brdf` et la lune en 720p.
-- [ ] **7.3 Rugosité intermédiaire** : VNDF, et coupure à 0,5–0,6 vers l'IBL.
+- [x] **7.3 Rugosité intermédiaire** : VNDF, et coupure à 0,5–0,6 vers l'IBL.
+      *Fait (2026-11-08)* : un rayon VNDF (`BrdfSampleVndf`, pdf dans la
+      cible `reflection ray`) au-dessus de 0,05. Coupure à **0,6**, fondu
+      vers l'IBL de 0,5 à 0,6 : les matériaux du jeu sont presque tous à
+      0,45–0,5 (structures, drones, conteneur, traîneau), et l'IBL y met le
+      ciel là où le reflet tracé montre le sol éclairé. Sans filtre, bruit
+      blanc sur les sphères à 0,1–0,45. `test_brdf` +0,15 ms en 720p.
 - [ ] **7.4 Démodulation + réutilisation des rayons voisins** (Stachowiak).
 - [ ] **7.5 Reprojection par la distance de hit.**
 - [ ] **7.6 SSR d'abord** *(option)*.
