@@ -1,6 +1,8 @@
 #include "ReflectPass.hlsli"
 
 static const uint ReflectReuseSamples = 4u;
+static const uint ReflectReuseRoughSamples = 8u;
+static const float ReflectReuseRough = 0.25f;
 static const float ReflectReuseMaxRadius = 0.02f;
 static const float ReflectReuseMinRadius = 3.0f;
 static const float ReflectPlaneTolerance = 0.02f;
@@ -45,13 +47,17 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
     const float footprint = alpha * hitDistance * abs(dot(self.Ngeom_, V));
     const float radius = clamp(footprint / max(pixelWorld, 1e-6f), ReflectReuseMinRadius,
                                ReflectReuseMaxRadius * size.y);
-    uint seed = GiHash(uint(pixel.x) + GiHash(uint(pixel.y) + GiHash(frame.frameIndex_ + 7u)));
-    const float rotation = GiRand(seed) * 6.28318531f;
-    [unroll]
-    for (uint i = 0; i < ReflectReuseSamples; ++i)
+    uint seed = GiHash(uint(pixel.x) + GiHash(uint(pixel.y) + 7u));
+    const float rotation =
+        frac(GiRand(seed) + float(frame.frameIndex_ % ReflectSequencePeriod) * ReflectGoldenRatio) *
+        6.28318531f;
+    const uint count = self.surface_.roughness_ >= ReflectReuseRough ? ReflectReuseRoughSamples
+                                                                     : ReflectReuseSamples;
+    [loop]
+    for (uint i = 0; i < count; ++i)
     {
         const float angle = rotation + float(i) * ReflectGoldenAngle;
-        const float r = radius * sqrt((float(i) + 0.5f) / float(ReflectReuseSamples));
+        const float r = radius * sqrt((float(i) + 0.5f) / float(count));
         const int2 q = pixel + int2(round(float2(cos(angle), sin(angle)) * r));
         if (all(q == pixel) || any(q < 0) || any(q >= int2(size)))
             continue;

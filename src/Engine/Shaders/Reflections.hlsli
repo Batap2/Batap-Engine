@@ -16,6 +16,9 @@ static const float ReflectSkyDistance = 65000.0f;
 static const float ReflectNoSample = -1.0f;
 static const float ReflectMaxRadiance = 256.0f;
 static const float ReflectMaxStochasticRadiance = 16.0f;
+static const float ReflectGoldenRatio = 0.618033989f;
+static const float2 ReflectR2 = float2(0.754877666f, 0.569840291f);
+static const uint ReflectSequencePeriod = 4096u;
 
 struct ReflectSurface
 {

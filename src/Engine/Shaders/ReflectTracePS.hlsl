@@ -89,11 +89,15 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
                                          surface.N_));
         const float3 B = cross(surface.N_, T);
         const float3 Vt = float3(dot(V, T), dot(V, B), NdotV);
-        uint seed = GiHash(uint(pixel.x) + GiHash(uint(pixel.y) + GiHash(frame.frameIndex_)));
+        uint seed = GiHash(uint(pixel.x) + GiHash(uint(pixel.y)));
+        float2 u = frac(float2(GiRand(seed), GiRand(seed)) +
+                        float(frame.frameIndex_ % ReflectSequencePeriod) * ReflectR2);
+        seed = GiHash(seed + GiHash(frame.frameIndex_));
         [unroll]
         for (uint attempt = 0; attempt < ReflectSampleAttempts && pdf <= 0.0f; ++attempt)
         {
-            const float3 Ht = BrdfSampleVndf(Vt, alpha, float2(GiRand(seed), GiRand(seed)));
+            const float3 Ht = BrdfSampleVndf(Vt, alpha, u);
+            u = float2(GiRand(seed), GiRand(seed));
             const float3 sampled = reflect(-V, T * Ht.x + B * Ht.y + surface.N_ * Ht.z);
             if (dot(sampled, Ngeom) > 0.0f && dot(sampled, surface.N_) > 0.0f)
             {
