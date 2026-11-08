@@ -13,11 +13,22 @@ static const float ReflectHistoryNearTolerance = 0.15f;
 static const float ReflectHistoryNearRamp = 0.25f;
 static const float ReflectHistoryNearSpread = 1.0f;
 static const float ReflectNearnessMax = 1000.0f;
+static const float ReflectVirtualFrom = 0.1f;
+static const float ReflectVirtualTo = 0.4f;
+static const float ReflectHistoryParallax = 0.5f;
+static const float ReflectLobeAngle = 1.3f;
 
 struct TemporalOutput
 {
     float4 color_ : SV_Target0;
     uint4 surface_ : SV_Target1;
+};
+
+struct ReflectHistory
+{
+    float4 color_;
+    float2 nearness_;
+    float weight_;
 };
 
 void ReflectPlacement(ReflectSurface s, CameraGPUData cam, out float4x4 placed,
@@ -71,6 +82,53 @@ float ReflectHistoryLength(float roughness)
                       saturate((roughness - ReflectMirrorRoughness) / ReflectHistoryRamp);
 }
 
+ReflectHistory ReflectFetchHistory(CameraGPUData cam, float2 size, float3 prevPoint, float3 prevP,
+                                   float3 N, uint identity, float viewDepth)
+{
+    const FrameGPUData frame = FrameBuffer[0];
+    ReflectHistory h;
+    h.color_ = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    h.nearness_ = float2(0.0f, 0.0f);
+    h.weight_ = 0.0f;
+    const float4 clip = mul(cam.prevViewProj_, float4(prevPoint, 1.0f));
+    if (clip.w <= 0.0f)
+        return h;
+    const float2 ndc = clip.xy / clip.w;
+    const float2 at = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size - 0.5f;
+    const int2 base = int2(floor(at));
+    const float2 f = at - float2(base);
+    [unroll]
+    for (uint k = 0; k < 4u; ++k)
+    {
+        const int2 offset = int2(k & 1u, k >> 1);
+        const int2 q = base + offset;
+        if (any(q < 0) || any(q >= int2(size)))
+            continue;
+        const uint4 previous = g_uintTextures[frame.reflectHistorySurfaceTexture_].Load(int3(q, 0));
+        const float previousDepth = asfloat(previous.z);
+        if (previousDepth <= 0.0f || (previous.y & 0x3FFFFFu) != identity ||
+            dot(ReflectOctUnpack(previous.x), N) < ReflectHistoryNormal)
+            continue;
+        const float3 Q =
+            ReflectPreviousPosition(cam, ReflectPixelNdc(float2(q) + 0.5f, size), previousDepth);
+        if (abs(dot(Q - prevP, N)) > ReflectHistoryPlane * viewDepth)
+            continue;
+        const float2 bilinear = lerp(1.0f - f, f, float2(offset));
+        const float w = bilinear.x * bilinear.y;
+        h.color_ += w * g_textures[frame.reflectHistoryTexture_].Load(int3(q, 0));
+        h.nearness_ += w * ReflectUnpackNearness(previous.w);
+        h.weight_ += w;
+    }
+    if (h.weight_ > 1e-3f)
+    {
+        h.color_ /= h.weight_;
+        h.nearness_ /= h.weight_;
+    }
+    else
+        h.weight_ = 0.0f;
+    return h;
+}
+
 TemporalOutput main(float4 svpos : SV_POSITION)
 {
     const FrameGPUData frame = FrameBuffer[0];
@@ -116,7 +174,7 @@ TemporalOutput main(float4 svpos : SV_POSITION)
     const float localSpread =
         sqrt(max(localSquare / localCount - localNearness * localNearness, 0.0f));
 
-    const float maxLength = ReflectHistoryLength(self.surface_.roughness_);
+    float maxLength = ReflectHistoryLength(self.surface_.roughness_);
     float4 history = float4(0.0f, 0.0f, 0.0f, 0.0f);
     float2 historyNearness = float2(nearness, nearness * nearness);
     float confidence = 0.0f;
@@ -125,63 +183,47 @@ TemporalOutput main(float4 svpos : SV_POSITION)
         float4x4 placed;
         float4x4 prevPlaced;
         ReflectPlacement(self.surface_, cam, placed, prevPlaced);
-        const float3 virtualPoint = self.P_ + normalize(self.P_) * current.a;
-        const float3 prevVirtual = PreviousPosition(virtualPoint, placed, prevPlaced);
         const float3 prevP = PreviousPosition(self.P_, placed, prevPlaced);
-        const float4 clip = mul(cam.prevViewProj_, float4(prevVirtual, 1.0f));
-        if (clip.w > 0.0f)
+        const float parallax = length(cross(normalize(self.P_), normalize(prevP)));
+        const float lobe =
+            ReflectLobeAngle * self.surface_.roughness_ * self.surface_.roughness_;
+        maxLength = clamp(ReflectHistoryParallax * lobe / max(parallax, 1e-6f), 1.0f, maxLength);
+        const uint identity = packed.y & 0x3FFFFFu;
+        const float virtualAmount =
+            1.0f - smoothstep(ReflectVirtualFrom, ReflectVirtualTo, self.surface_.roughness_);
+        const ReflectHistory surface =
+            ReflectFetchHistory(cam, size, prevP, prevP, self.surface_.N_, identity, viewDepth);
+        ReflectHistory chosen = surface;
+        float trust = 1.0f - virtualAmount;
+        if (virtualAmount > 0.0f)
         {
-            const float2 ndc = clip.xy / clip.w;
-            const float2 at = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size - 0.5f;
-            const int2 base = int2(floor(at));
-            const float2 f = at - float2(base);
-            const uint identity = packed.y & 0x3FFFFFu;
-            float weight = 0.0f;
-            float2 stats = float2(0.0f, 0.0f);
-            [unroll]
-            for (uint k = 0; k < 4u; ++k)
+            const float3 virtualPoint = self.P_ + normalize(self.P_) * current.a;
+            const ReflectHistory reflected = ReflectFetchHistory(
+                cam, size, PreviousPosition(virtualPoint, placed, prevPlaced), prevP,
+                self.surface_.N_, identity, viewDepth);
+            if (reflected.weight_ > 0.0f)
             {
-                const int2 offset = int2(k & 1u, k >> 1);
-                const int2 q = base + offset;
-                if (any(q < 0) || any(q >= int2(size)))
-                    continue;
-                const uint4 previous =
-                    g_uintTextures[frame.reflectHistorySurfaceTexture_].Load(int3(q, 0));
-                const float previousDepth = asfloat(previous.z);
-                if (previousDepth <= 0.0f || (previous.y & 0x3FFFFFu) != identity ||
-                    dot(ReflectOctUnpack(previous.x), self.surface_.N_) < ReflectHistoryNormal)
-                    continue;
-                const float3 Q = ReflectPreviousPosition(
-                    cam, ReflectPixelNdc(float2(q) + 0.5f, size), previousDepth);
-                if (abs(dot(Q - prevP, self.surface_.N_)) > ReflectHistoryPlane * viewDepth)
-                    continue;
-                const float2 bilinear = lerp(1.0f - f, f, float2(offset));
-                const float w = bilinear.x * bilinear.y;
-                history += w * g_textures[frame.reflectHistoryTexture_].Load(int3(q, 0));
-                stats += w * ReflectUnpackNearness(previous.w);
-                weight += w;
+                const float blend = surface.weight_ > 0.0f ? virtualAmount : 1.0f;
+                chosen.color_ = lerp(surface.color_, reflected.color_, blend);
+                chosen.nearness_ = lerp(surface.nearness_, reflected.nearness_, blend);
+                chosen.weight_ = reflected.weight_;
+                trust = 1.0f;
             }
-            if (weight > 1e-3f)
-            {
-                history /= weight;
-                historyNearness = stats / weight;
-                const float spread = max(sqrt(max(historyNearness.y - historyNearness.x *
-                                                                          historyNearness.x,
-                                                  0.0f)),
-                                         localSpread);
-                const float change =
-                    max(abs(historyNearness.x - localNearness) -
-                            ReflectHistoryNearSpread * spread,
-                        0.0f) /
-                    (historyNearness.x + localNearness + ReflectHistoryNearFloor);
-                confidence = saturate(1.0f - (change - ReflectHistoryNearTolerance) /
-                                                 ReflectHistoryNearRamp);
-            }
-            else
-            {
-                history = float4(0.0f, 0.0f, 0.0f, 0.0f);
-                confidence = 0.0f;
-            }
+        }
+        if (chosen.weight_ > 0.0f)
+        {
+            history = chosen.color_;
+            historyNearness = chosen.nearness_;
+            const float spread = max(sqrt(max(historyNearness.y - historyNearness.x *
+                                                                      historyNearness.x,
+                                              0.0f)),
+                                     localSpread);
+            const float change =
+                max(abs(historyNearness.x - localNearness) - ReflectHistoryNearSpread * spread,
+                    0.0f) /
+                (historyNearness.x + localNearness + ReflectHistoryNearFloor);
+            confidence = trust * saturate(1.0f - (change - ReflectHistoryNearTolerance) /
+                                                     ReflectHistoryNearRamp);
         }
     }
 
