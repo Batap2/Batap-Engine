@@ -1410,7 +1410,19 @@ borne ; à mesurer en 4.2.
       Sol à 0,3 contre une référence à 128 rayons : erreur RMS 25,6 →
       20,9 ; la convergence vient de 7.5. +0,12 ms sur `test_brdf` (sol
       tracé), +0,06 ms sur `test_reflection` en 720p.
-- [ ] **7.5 Reprojection par la distance de hit.**
+- [x] **7.5 Reprojection par la distance de hit.**
+      *Fait (2026-11-08)* : passe `reflection temporal`, historique
+      persistant en ping-pong (radiance démodulée + longueur, surface).
+      Le point virtuel `P + dir × t` est reprojeté avec le mouvement rigide
+      du réflecteur ; rejet par instance, normale (> 0,9) et plan (1 % de la
+      profondeur), aucun clamping de voisinage. Longueur de 1 (miroir) à 32
+      (rugosité ≥ 0,3) ; anti-traînée par l'inverse de la distance de hit
+      (historique contre moyenne 3 × 3 de la frame). Caméra fixe : erreur
+      contre la référence 128 rayons 20,9 → 9,6 (bruit propre de la
+      référence ≈ 7,5). Cube qui tourne au-dessus d'un sol à 0,15 : écart
+      moyen +0,1 niveau contre le rendu sans historique, pas de traînée.
+      Caméra en orbite : reflets suivis, sans dédoublement. +0,05–0,07 ms
+      en 720p.
 - [ ] **7.6 SSR d'abord** *(option)*.
 
 ## Portée

@@ -58,6 +58,7 @@ enum ShaderId : size_t
     PrepassScatterRtPS,
     ReflectTracePS,
     ReflectResolvePS,
+    ReflectTemporalPS,
     ShaderCount,
 };
 
@@ -117,6 +118,7 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"PrepassScatterRtPS", "PrepassScatterRtPS", "ps_6_6"},
     {"ReflectTracePS", "ReflectTracePS", "ps_6_6", true},
     {"ReflectResolvePS", "ReflectResolvePS", "ps_6_6"},
+    {"ReflectTemporalPS", "ReflectTemporalPS", "ps_6_6"},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

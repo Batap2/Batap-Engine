@@ -26,7 +26,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
         return float4(0.0f, 0.0f, 0.0f, 0.0f);
     const float4 ray = g_textures[frame.reflectRayTexture_].Load(int3(pixel, 0));
     if (raw.a > 0.0f && ray.w <= 0.0f)
-        return float4(raw.rgb, 1.0f);
+        return raw;
 
     const float2 size = ReflectScreenSize();
     ReflectPixel self;
@@ -38,6 +38,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 
     float weight = raw.a > 0.0f ? ReflectReuseWeight(N, V, ray.xyz, alpha, ray.w) : 0.0f;
     float3 sum = raw.rgb * weight;
+    float nearness = raw.a > 0.0f ? weight / raw.a : 0.0f;
 
     const float hitDistance = raw.a > 0.0f ? raw.a : ReflectSkyDistance;
     const float pixelWorld = 2.0f * viewDepth / (abs(cam.proj_[1][1]) * size.y);
@@ -70,6 +71,9 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
         const float w = ReflectReuseWeight(N, V, L, alpha, otherRay.w);
         sum += otherRaw.rgb * w;
         weight += w;
+        nearness += w / otherRaw.a;
     }
-    return weight > 0.0f ? float4(sum / weight, 1.0f) : float4(0.0f, 0.0f, 0.0f, 0.0f);
+    if (weight <= 0.0f)
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+    return float4(sum / weight, clamp(weight / max(nearness, 1e-30f), 1e-3f, ReflectSkyDistance));
 }

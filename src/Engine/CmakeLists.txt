@@ -244,6 +244,7 @@ batap_compile_shader(PrepassTerrainRtPS.hlsl PrepassTerrainRtPS.spv ps_6_6)
 batap_compile_shader(PrepassScatterRtPS.hlsl PrepassScatterRtPS.spv ps_6_6)
 batap_compile_shader(ReflectTracePS.hlsl ReflectTracePS.spv ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(ReflectResolvePS.hlsl ReflectResolvePS.spv ps_6_6)
+batap_compile_shader(ReflectTemporalPS.hlsl ReflectTemporalPS.spv ps_6_6)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -290,7 +291,8 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/PrepassTerrainRtPS.spv"
   "${engine_shader_out}/PrepassScatterRtPS.spv"
   "${engine_shader_out}/ReflectTracePS.spv"
-  "${engine_shader_out}/ReflectResolvePS.spv")
+  "${engine_shader_out}/ReflectResolvePS.spv"
+  "${engine_shader_out}/ReflectTemporalPS.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —

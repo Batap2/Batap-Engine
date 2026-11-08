@@ -217,6 +217,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     frameData_.rtCutInstances_ = rayTracing ? as.cutInstances_ : 0u;
     const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
     frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
+    frameData_.prevExposure_ = frameData_.exposure_;
     frameData_.exposure_ =
         exposure_.update(frame, args.camera_, reg->get<Camera_C>(args.camera_), dt) *
         std::exp2(ctx.settings().brightness_);
@@ -245,7 +246,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         ao_.createImages(graph, targets.extent_, camera, ctx.settings().ambientOcclusion_);
     frameData_.aoRadius_ = rayTracing ? 0.f : AoRasterRadius;
     const std::optional<Reflections::Images> reflections =
-        reflections_.createImages(graph, targets.extent_, camera, rayTracing);
+        reflections_.createImages(graph, targets.extent_, camera, args.camera_, rayTracing);
     draw.reflections_ = reflections.has_value();
     skyPrefilter_.createImages(graph, draw.push_.skyboxCount_ != 0);
 
@@ -289,6 +290,12 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                     data.reflectSurfaceTexture_ = c.graph_.textureIndex(reflections->surface_);
                     data.reflectRawTexture_ = c.graph_.textureIndex(reflections->raw_);
                     data.reflectRayTexture_ = c.graph_.textureIndex(reflections->ray_);
+                    data.reflectResolvedTexture_ = c.graph_.textureIndex(reflections->resolved_);
+                    data.reflectHistoryTexture_ =
+                        reflections->historyValid_ ? c.graph_.textureIndex(reflections->history_)
+                                                   : InvalidGPUIndex;
+                    data.reflectHistorySurfaceTexture_ =
+                        c.graph_.textureIndex(reflections->historySurface_);
                     data.reflectionTexture_ = c.graph_.textureIndex(reflections->output_);
                 }
                 auto levels = std::span{data.skyLevels_};

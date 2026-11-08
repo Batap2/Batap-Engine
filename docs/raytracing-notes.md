@@ -1377,3 +1377,67 @@ chunk-là. Rochers et cailloux (scatter) ne sont pas dans la TLAS.
 - GPU de la frame : `test_brdf` 0,917 → 1,039 ms (sol à 0,5 tracé, 70 %
   de l'écran), `test_reflection` 0,852 → 0,913 ms ; lune, temps minimal
   1,003 → 1,039 ms.
+
+## 7.5 Reprojection par la distance de hit
+
+*Fait (2026-11-08)* :
+- **Historique persistant** (`Reflections`, deux paires en ping-pong,
+  `createTarget` sans nom, refaites au changement de taille, oubliées par
+  le graphe avant destruction) : `RGBA16F` (radiance démodulée exposée,
+  alpha = longueur d'historique) et `R32G32B32A32_UINT` (normale et mot
+  d'instance de la prépasse, profondeur de vue, inverse de la distance de
+  hit accumulée). La passe éclairée lit la sortie de la frame.
+- **Passe `reflection temporal`** (layout de base) :
+  - point virtuel `X = P + dir × t`, t = moyenne harmonique des distances
+    de hit de la passe de réutilisation (le ciel compte pour 1/65 000) ;
+  - mouvement : `PreviousPosition` avec les matrices du réflecteur (mesh :
+    `world_`/`prevWorld_` de l'instance ; chunk et scatter : leurs
+    matrices déjà relatives à la caméra), appliqué à X et à P. Exact pour
+    un miroir plan et un contenu reflété immobile ; le ciel (X très loin)
+    suit la seule rotation de la caméra ;
+  - 4 texels bilinéaires autour de X reprojeté, chacun gardé si même
+    instance (genre + id), normale > 0,9, et sur le plan de P à 1 % de la
+    profondeur près. La position précédente d'un texel vient de sa
+    profondeur et des lignes de `prevViewProj_` (projection de
+    `Camera_C::make_proj`). Aucun clamping de voisinage ;
+  - longueur max : 1 pour un miroir (aucun historique, rien à lisser),
+    rampe jusqu'à 32 frames à 0,3 ;
+  - **anti-traînée** : l'inverse de la distance de hit accumulé dans
+    l'historique contre sa moyenne 3 × 3 dans la frame courante ; écart
+    relatif `|a − b| / (a + b + 0,05)` au-delà de 0,15 réduit la longueur
+    d'historique, à 0 au-delà de 0,4. Un objet reflété qui arrive ou part
+    change la distance ; seul, l'écart d'une frame (5 échantillons)
+    rejetait l'historique partout sur un sol rugueux immobile ;
+  - changement d'exposition : l'historique × `exposure_ / prevExposure_`
+    (`FrameGPUData::prevExposure_`, ex-`pad3_`).
+- `FrameGPUData` passe à 320 octets (textures résolue, historique, surface
+  d'historique).
+
+*Pièges* :
+- **Store op** : une image importée lue seulement à la frame suivante sort
+  en `STORE_OP_DONT_CARE` si son `out` est `Usage::None` (rien ne la lit
+  plus tard dans la frame) : l'historique était vide une frame sur deux,
+  sans erreur. Import avec `out = Usage::ShaderRead`.
+- **Première frame** : une image importée sans usage connu ne peut pas
+  être lue (« reads ... before anything writes it ») : la passe ne déclare
+  la lecture de l'historique que s'il est valide (`historyValid_`).
+- **Comparer deux exécutions** : la frame N de deux lancements n'a pas
+  toujours le cube au même endroit (chargement de la scène) ; vérifier
+  l'alignement sur une zone sans reflet (`match.py` du scratchpad) avant de
+  comparer les reflets.
+
+*Mesuré* (720p, RT) :
+- Caméra fixe, sol à 0,3 (copie de `test_reflection`) contre la référence
+  à 128 rayons : erreur RMS 25,6 (un rayon) → 20,9 (7.4) → 9,6 ; d'une
+  frame à l'autre 25,5 → 7,9. La référence elle-même bouge de 10,7 d'une
+  frame à l'autre.
+- Cube jaune qui tourne (`test_reflection_moving`, sol à 0,15), frames
+  alignées, contre le rendu sans historique : écart moyen dans le reflet du
+  cube +0,1 niveau (+1,7 avec l'anti-traînée plus lâche, où une traînée
+  se voyait au bord du reflet du pilier). Pas de traînée visible.
+- Caméra en orbite (`Orbit_C` sur la caméra, 12° par seconde) : reflets
+  du déchet et des sphères suivis, sans dédoublement.
+- `test_brdf` : bruit d'une frame à l'autre 7,3 → 4,6 sur les sphères.
+  Raster identique au pixel (`test_brdf`, `test_reflection`).
+- GPU de la frame : `test_reflection` 0,913 → 0,960 ms ; `test_brdf`
+  temps minimal 1,02 → 1,11 ms ; lune, temps minimal 1,039 → 1,100 ms.
