@@ -89,7 +89,8 @@ SceneRenderArgs World::renderArgs()
 {
     return {
         &registry_,   instanceManager_.get(), renderCamera(), showShadowCascades_, showRtFirstHit_,
-        showGiCells_, showGiSides_,           showGiCache_,   showMotionVectors_,  showAo_};
+        showGiCells_, showGiSides_,           showGiCache_,   showMotionVectors_,  showAo_,
+        showReflections_};
 }
 
 entt::entity World::renderCamera()

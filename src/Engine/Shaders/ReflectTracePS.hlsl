@@ -4,6 +4,7 @@
 
 static const float ReflectRayOffset = 1e-3f;
 static const float ReflectRayOffsetPerMetre = 1e-4f;
+static const uint ReflectSampleAttempts = 4u;
 
 struct TraceOutput
 {
@@ -79,7 +80,8 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
     const float NdotV = dot(surface.N_, V);
     float3 L = reflect(-V, surface.N_);
     float pdf = 0.0f;
-    if (surface.roughness_ > ReflectMirrorRoughness && NdotV > 1e-4f)
+    const bool mirror = surface.roughness_ <= ReflectMirrorRoughness;
+    if (!mirror && NdotV > 1e-4f)
     {
         const float alpha = surface.roughness_ * surface.roughness_;
         const float3 T = normalize(cross(abs(surface.N_.y) < 0.99f ? float3(0.0f, 1.0f, 0.0f)
@@ -89,7 +91,7 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
         const float3 Vt = float3(dot(V, T), dot(V, B), NdotV);
         uint seed = GiHash(uint(pixel.x) + GiHash(uint(pixel.y) + GiHash(frame.frameIndex_)));
         [unroll]
-        for (uint attempt = 0; attempt < 2u && pdf <= 0.0f; ++attempt)
+        for (uint attempt = 0; attempt < ReflectSampleAttempts && pdf <= 0.0f; ++attempt)
         {
             const float3 Ht = BrdfSampleVndf(Vt, alpha, float2(GiRand(seed), GiRand(seed)));
             const float3 sampled = reflect(-V, T * Ht.x + B * Ht.y + surface.N_ * Ht.z);
@@ -100,8 +102,11 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
             }
         }
     }
-    if (dot(L, Ngeom) <= 0.0f)
+    if (mirror ? dot(L, Ngeom) <= 0.0f : pdf <= 0.0f)
+    {
+        o.radiance_.a = mirror ? 0.0f : ReflectNoSample;
         return o;
+    }
     const float distance = length(P);
     const float3 start = P + Ngeom * (ReflectRayOffset + ReflectRayOffsetPerMetre * distance);
 
@@ -112,7 +117,8 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
     {
         const float spread = pixelAngle * (distance + record.t_) +
                              surface.roughness_ * surface.roughness_ * record.t_;
-        const RtSurface hit = RtResolveSurface(record, L, spread);
+        RtSurface hit = RtResolveSurface(record, L, spread);
+        hit.surface_.roughness_ = max(hit.surface_.roughness_, surface.roughness_);
         radiance = RtShadeHit(hit, -L);
         hitDistance = record.t_;
     }
@@ -121,7 +127,8 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
         radiance = SampleSky(L, 0.0f);
     }
 
-    o.radiance_ = float4(min(radiance * frame.exposure_, ReflectMaxRadiance), max(hitDistance, 1e-4f));
+    const float ceiling = pdf > 0.0f ? ReflectMaxStochasticRadiance : ReflectMaxRadiance;
+    o.radiance_ = float4(min(radiance * frame.exposure_, ceiling), max(hitDistance, 1e-4f));
     o.ray_ = float4(L, min(pdf, 65000.0f));
     return o;
 }

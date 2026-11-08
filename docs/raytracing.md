@@ -1401,7 +1401,15 @@ borne ; à mesurer en 4.2.
       0,45–0,5 (structures, drones, conteneur, traîneau), et l'IBL y met le
       ciel là où le reflet tracé montre le sol éclairé. Sans filtre, bruit
       blanc sur les sphères à 0,1–0,45. `test_brdf` +0,15 ms en 720p.
-- [ ] **7.4 Démodulation + réutilisation des rayons voisins** (Stachowiak).
+- [x] **7.4 Démodulation + réutilisation des rayons voisins** (Stachowiak).
+      *Fait (2026-11-08)* : passe `reflection resolve`, estimateur ratio
+      sur le rayon du pixel et 4 voisins (poids D·Vis·cos / pdf du voisin,
+      direction vers son point touché), rayon α × distance du hit × |N·V|
+      en pixels, borné à 3 px – 2 % de la hauteur, rejet par le plan
+      tangent. Le résultat reste démodulé, la passe éclairée remet `lobe`.
+      Sol à 0,3 contre une référence à 128 rayons : erreur RMS 25,6 →
+      20,9 ; la convergence vient de 7.5. +0,12 ms sur `test_brdf` (sol
+      tracé), +0,06 ms sur `test_reflection` en 720p.
 - [ ] **7.5 Reprojection par la distance de hit.**
 - [ ] **7.6 SSR d'abord** *(option)*.
 

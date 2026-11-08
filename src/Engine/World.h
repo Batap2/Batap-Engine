@@ -105,6 +105,7 @@ struct World
     bool showGiCache_ = false;
     bool showMotionVectors_ = false;
     bool showAo_ = false;
+    bool showReflections_ = false;
     emhash8::HashMap<std::string, bool, std::hash<std::string_view>, std::equal_to<>> flags_;
 
    private:

@@ -25,11 +25,17 @@ Reflections::Reflections(const DrawSetup& setup) : setup_(setup) {}
 Reflections::~Reflections()
 {
     vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, resolve_, nullptr);
 }
 
 void Reflections::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, resolve_, nullptr);
+    resolve_ = GraphicsPipelineBuilder()
+                   .shaders(modules[SkyVS], modules[ReflectResolvePS])
+                   .colorFormat(ReflectRadianceFormat)
+                   .build(setup_.ctx_.device_, setup_.layout_);
     trace_ = modules[ReflectTracePS] ? GraphicsPipelineBuilder()
                                            .shaders(modules[SkyVS], modules[ReflectTracePS])
                                            .colorFormat(ReflectRadianceFormat)
@@ -46,13 +52,17 @@ std::optional<Reflections::Images> Reflections::createImages(RenderGraph& graph,
     images_.reset();
     if (!rayTracing || trace_ == VK_NULL_HANDLE || camera.ortho())
         return images_;
-    const GraphImage raw = graph.createImage("reflection raw", {extent, ReflectRadianceFormat});
-    images_ = Images{graph.createImage("reflection surface", {extent, ReflectSurfaceFormat}), raw,
-                     graph.createImage("reflection ray", {extent, ReflectRayFormat}), raw};
+    const GraphImage resolved =
+        graph.createImage("reflection resolved", {extent, ReflectRadianceFormat});
+    images_ = Images{graph.createImage("reflection surface", {extent, ReflectSurfaceFormat}),
+                     graph.createImage("reflection raw", {extent, ReflectRadianceFormat}),
+                     graph.createImage("reflection ray", {extent, ReflectRayFormat}), resolved,
+                     resolved};
     return images_;
 }
 
 void Reflections::addPasses(RenderGraph& graph, GraphImage depth, GraphImage normals,
+                            GraphBuffer frameConstants, GraphBuffer uploads,
                             const DrawContext& draw,
                             const std::function<void(GraphPass&)>& readsShading)
 {
@@ -68,5 +78,16 @@ void Reflections::addPasses(RenderGraph& graph, GraphImage depth, GraphImage nor
             .execute([draw, pipeline = trace_](GraphContext& c)
                      { drawFullscreen(draw, c, pipeline); });
     readsShading(trace);
+    graph.addPass("reflection resolve")
+        .read(depth, Usage::ShaderRead)
+        .read(normals, Usage::ShaderRead)
+        .read(images_->surface_, Usage::ShaderRead)
+        .read(images_->raw_, Usage::ShaderRead)
+        .read(images_->ray_, Usage::ShaderRead)
+        .read(frameConstants, Usage::ShaderRead)
+        .read(uploads, Usage::AnyRead)
+        .color(images_->resolved_, Load::DontCare)
+        .execute([draw, pipeline = resolve_](GraphContext& c)
+                 { drawFullscreen(draw, c, pipeline); });
 }
 }  // namespace batap

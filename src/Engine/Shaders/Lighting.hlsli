@@ -632,6 +632,8 @@ float3 ShadeSurfaceToward(uint shadingModel, Surface s, float3 V, float coverage
         color = GiSideColor(GiSide(s.gi_));
     if ((g_draw.debugFlags_ & DebugAo) != 0u)
         color = s.ao_.xxx;
+    if ((g_draw.debugFlags_ & DebugReflections) != 0u)
+        color = reflection.rgb * (reflection.a * FrameBuffer[0].exposure_);
 #if BATAP_RT
     if ((g_draw.debugFlags_ & DebugGiCache) != 0u)
     {

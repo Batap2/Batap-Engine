@@ -1316,4 +1316,64 @@ chunk-là. Rochers et cailloux (scatter) ne sont pas dans la TLAS.
   0,15–0,45). D'une frame à l'autre, 0,31 % des pixels bougent de plus de
   8 niveaux : le bruit blanc d'un rayon, que 7.4 et 7.5 retirent.
 - GPU de la frame : `test_reflection` 0,818 → 0,852 ms, `test_brdf`
-  0,771 → 0,917 ms (14 sphères tracées, rayons incohérents).
+  0,771 → 0,917 ms (le sol à 0,5 et 14 sphères tracés, rayons
+  incohérents).
+
+## 7.4 Démodulation et réutilisation des rayons voisins
+
+*Fait (2026-11-08)* :
+- **Passe `reflection resolve`** (`ReflectResolvePS`, layout de base, pas
+  de rayon), plein écran, `RGBA16F` : la radiance démodulée filtrée, lue
+  par la passe éclairée à la place de la cible brute. Miroirs (pdf nulle) :
+  recopiés tels quels.
+- **Estimateur ratio** (Stachowiak 2015) : chaque échantillon j (le rayon
+  du pixel et 4 voisins) pèse `D · Vis · (N·L) / pdf_j`, la BRDF *du pixel*
+  sans Fresnel évaluée vers le point touché par le voisin (`P_j + L_j t_j`,
+  ou `L_j` pour le ciel), divisée par la pdf du voisin. Résultat
+  `Σ w L / Σ w` : la moyenne de la radiance pondérée par le lobe du pixel,
+  que la passe éclairée multiplie par `lobe` (∫ f cos préintégré). Pas de
+  jacobien (rapport des distances au point touché), négligeable sous le
+  rayon choisi.
+- **Rayon** : `α × t × |N·V|`, en pixels à la profondeur du pixel, borné à
+  [3 px ; 2 % de la hauteur]. α t est l'empreinte du lobe au point touché,
+  donc la parallaxe d'un voisin reste dans le lobe ; |N·V| ramène le disque
+  monde à l'axe court de son ellipse à l'écran (sol rasant). Près d'un
+  contact, t → 0 : rayon minimal, le reflet reste net (durcissement au
+  contact). Disque de Vogel tourné par pixel et par frame.
+- **Rejet** : distance au plan tangent du pixel au-delà de 2 % de la
+  profondeur. Le poids BRDF écarte le reste. Par voisin, trois lectures
+  (brut, rayon, profondeur).
+- **Échantillons sans direction** : après quatre tirages VNDF sous la
+  surface, le pixel est marqué `ReflectNoSample` (alpha −1) ; ses voisins
+  le remplissent, et sans voisin la passe éclairée garde l'IBL. Un miroir
+  dont le rayon passe sous la surface reste non tracé (alpha 0).
+- **Régularisation au hit** : rugosité du point touché portée au moins à
+  celle du pixel (Kaplanyan et Dachsbacher 2013), sinon un rayon rugueux qui
+  tombe sur le reflet du soleil d'une sphère miroir donne une luciole
+  ≥ 1000 fois le fond. Plafond de 16 (unités exposées) pour un échantillon
+  stochastique, 256 pour un miroir.
+- **Vue debug « Reflections »** (`DebugReflections` = 128, menu View de
+  l'éditeur) : le reflet tel que la passe éclairée le lit, × exposition.
+
+*Pièges* :
+- **Y de l'écran** : le viewport a une hauteur négative, donc
+  `ndc.y = 1 − 2 (y + 0,5) / h` (comme `AoViewPosition`). Avec le signe
+  inverse, la passe recalculait P au pixel symétrique : rejets au hasard,
+  poids faux, et le filtre ne filtrait presque rien.
+- **Karis** (poids `1 / (1 + luminance)`) essayé contre les lucioles :
+  écarté, il assombrit les reflets clairs d'un facteur ~4.
+
+*Mesuré* (720p, RT) :
+- Référence : la passe de trace temporairement à 128 rayons VNDF par pixel
+  (`make_ref_spec.py` dans le scratchpad), sur une copie de
+  `test_reflection` dont le miroir est à 0,3. Erreur RMS (niveaux 8 bits)
+  du sol contre elle : un rayon 25,6, avec 7.4 20,9 ; zone du reflet du
+  cube rouge 22,7 → 19,6. Le bruit restant (grains clairs du reflet des
+  sphères) part en 7.5. 4 voisins plutôt que 8 pour le coût : 8 coûtaient
+  +0,1 ms de plus sur `test_brdf`.
+- Contre 7.3 : `test_reflection` 0,83 % des pixels à plus de 8 niveaux,
+  `test_brdf` 0,24 %. Raster `test_brdf` et `test_reflection` identiques
+  au pixel.
+- GPU de la frame : `test_brdf` 0,917 → 1,039 ms (sol à 0,5 tracé, 70 %
+  de l'écran), `test_reflection` 0,852 → 0,913 ms ; lune, temps minimal
+  1,003 → 1,039 ms.

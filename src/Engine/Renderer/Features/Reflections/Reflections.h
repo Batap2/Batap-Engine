@@ -18,6 +18,7 @@ struct Reflections
         GraphImage surface_;
         GraphImage raw_;
         GraphImage ray_;
+        GraphImage resolved_;
         GraphImage output_;
     };
 
@@ -31,11 +32,13 @@ struct Reflections
     std::optional<Images> createImages(RenderGraph& graph, VkExtent2D extent,
                                        const Camera_C& camera, bool rayTracing);
     void addPasses(RenderGraph& graph, GraphImage depth, GraphImage normals,
-                   const DrawContext& draw, const std::function<void(GraphPass&)>& readsShading);
+                   GraphBuffer frameConstants, GraphBuffer uploads, const DrawContext& draw,
+                   const std::function<void(GraphPass&)>& readsShading);
 
    private:
     DrawSetup setup_;
     VkPipeline trace_ = VK_NULL_HANDLE;
+    VkPipeline resolve_ = VK_NULL_HANDLE;
     std::optional<Images> images_;
 };
 }  // namespace batap

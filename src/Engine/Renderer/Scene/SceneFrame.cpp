@@ -165,6 +165,7 @@ DrawContext SceneFrame::drawContext(uint32_t frame, uint32_t camera, const Scene
         (args.showRtFirstHit_ ? DebugRtFirstHit : 0u) | (args.showGiCells_ ? DebugGiCells : 0u) |
         (args.showGiSides_ ? DebugGiSides : 0u) | (args.showGiCache_ ? DebugGiCache : 0u) |
         (args.showMotionVectors_ ? DebugMotionVectors : 0u) | (args.showAo_ ? DebugAo : 0u) |
+        (args.showReflections_ ? DebugReflections : 0u) |
         ctx.forcedDebugFlags_;
     draw.reg_ = args.reg_;
     draw.instanceManager_ = args.instanceManager_;
@@ -354,7 +355,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         for (const GraphImage level : skyPrefilter_.levels())
             pass.read(level, Usage::ShaderRead);
     };
-    reflections_.addPasses(graph, depth, normals, draw, readsShading);
+    reflections_.addPasses(graph, depth, normals, frameConstants, uploads, draw, readsShading);
 
     GraphPass& scene = graph.addPass("scene")
                            .color(hdr, Load::Clear, targets.clearColor_)

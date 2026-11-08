@@ -20,6 +20,7 @@ struct SceneRenderArgs
     bool showGiCache_ = false;
     bool showMotionVectors_ = false;
     bool showAo_ = false;
+    bool showReflections_ = false;
 };
 
 void bindScene(Engine& ctx, World& world);

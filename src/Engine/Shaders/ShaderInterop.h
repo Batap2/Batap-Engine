@@ -520,6 +520,7 @@ static const uint DebugGiSides = 8u;
 static const uint DebugGiCache = 16u;
 static const uint DebugMotionVectors = 32u;
 static const uint DebugAo = 64u;
+static const uint DebugReflections = 128u;
 
 enum ThumbnailSetBinding : uint
 {

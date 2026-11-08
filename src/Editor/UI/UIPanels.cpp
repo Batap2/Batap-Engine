@@ -1043,6 +1043,7 @@ void UIPanels::drawViewMenu(World& world, App& app)
     ImGui::MenuItem("GI cache", nullptr, &world.showGiCache_);
     ImGui::MenuItem("Motion vectors", nullptr, &world.showMotionVectors_);
     ImGui::MenuItem("Ambient occlusion", nullptr, &world.showAo_);
+    ImGui::MenuItem("Reflections", nullptr, &world.showReflections_);
     bool giPerCell = app.ctx_->settings().giPerCell_;
     if (ImGui::MenuItem("GI traced per cell", nullptr, &giPerCell))
         app.ctx_->setGiPerCell(giPerCell);

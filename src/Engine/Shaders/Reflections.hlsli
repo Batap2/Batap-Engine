@@ -13,7 +13,9 @@ static const uint ReflectKindMesh = 1u;
 static const uint ReflectKindTerrain = 2u;
 static const uint ReflectKindScatter = 3u;
 static const float ReflectSkyDistance = 65000.0f;
+static const float ReflectNoSample = -1.0f;
 static const float ReflectMaxRadiance = 256.0f;
+static const float ReflectMaxStochasticRadiance = 16.0f;
 
 struct ReflectSurface
 {
