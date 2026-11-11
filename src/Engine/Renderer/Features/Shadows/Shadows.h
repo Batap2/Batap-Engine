@@ -50,7 +50,7 @@ struct Shadows
 
     void buildPipelines(const ShaderModules& modules);
     void prepare(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
-                 v2i frameSize, bool rayTracing);
+                 v2i frameSize, bool rayTracing, bool maps);
     Output addPasses(RenderGraph& graph, GraphBuffer uploads, const DrawContext& draw,
                      TerrainDrawer& terrain, ScatterDrawer& scatter);
 

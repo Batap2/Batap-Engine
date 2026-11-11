@@ -72,6 +72,7 @@ struct SceneFrame
     FrameBindings bindings_;
     std::optional<AccelerationStructures> accelerationStructures_;
     std::optional<GiCache> giCache_;
+    bool giActive_ = false;
 
     GPUResourceHandle ltcMat_;
     GPUResourceHandle ltcAmp_;

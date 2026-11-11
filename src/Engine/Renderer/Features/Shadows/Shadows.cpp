@@ -76,10 +76,13 @@ void Shadows::buildPipelines(const ShaderModules& modules)
 }
 
 void Shadows::prepare(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
-                      v2i frameSize, bool rayTracing)
+                      v2i frameSize, bool rayTracing, bool maps)
 {
-    localAllocator_.allocate(reg, instances, camera, frameSize, rayTracing, localViews_);
-    if (rayTracing)
+    if (maps)
+        localAllocator_.allocate(reg, instances, camera, frameSize, rayTracing, localViews_);
+    else
+        localViews_.clear();
+    if (rayTracing || !maps)
         cascadeViews_.clear();
     else
         fitCascades(reg, instances, camera, frameSize);

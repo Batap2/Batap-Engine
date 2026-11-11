@@ -274,8 +274,11 @@ float ShadowAirVisibility(float3 P, float3 L, uint shadowIndex)
     if ((shadowIndex >> ShadowFamilyShift) != ShadowCascadeFamily)
         return 1.0f;
 #if BATAP_RT
-    return TraceShadowRay(P, L, L, ShadowRayFar);
-#else
+    if ((FrameBuffer[0].features_ & FeatureRtShadows) != 0u)
+        return TraceShadowRay(P, L, L, ShadowRayFar);
+#endif
+    if ((FrameBuffer[0].features_ & FeatureShadowMaps) == 0u)
+        return 1.0f;
     uint firstView = shadowIndex & ShadowIndexMask;
     uint c = CascadeIndexAt(P, firstView);
     if (c >= ShadowCascadeCount)
@@ -300,7 +303,6 @@ float ShadowAirVisibility(float3 P, float3 L, uint shadowIndex)
     if (CascadeNextAt(P, firstView, c) >= ShadowCascadeCount)
         vis = lerp(vis, 1.0f, CascadeFadeAt(P, sh));
     return vis;
-#endif
 }
 
 float3 CascadeDebugTint(uint c)

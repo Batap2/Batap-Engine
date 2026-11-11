@@ -108,9 +108,11 @@ float ShadowVisibility(float3 P, float3 N, float3 Nface, float3 L, float dL, Lig
         return 1.0f;
 
 #if BATAP_RT
-    if (light.type_ != LightRect)
+    if ((FrameBuffer[0].features_ & FeatureRtShadows) != 0u && light.type_ != LightRect)
         return TraceShadowRay(P, Nface, L, ShadowRayLength(light, dL), frontOnlyUntil);
 #endif
+    if ((FrameBuffer[0].features_ & FeatureShadowMaps) == 0u)
+        return 1.0f;
 
     // The floor keeps smoothstep defined when sourceRadius_ is 0, where the
     // transition collapses to a hard step.
@@ -448,11 +450,11 @@ float3 DiffuseIrradiance(Surface s)
 {
     const float3 sky = g_draw.skyboxCount_ != 0 ? EvalSH9(s.N_) : float3(0.0f, 0.0f, 0.0f);
 #if BATAP_RT
-    return GiIrradianceAt(s.gi_, length(s.posRel_), sky) * s.ao_;
-#else
+    if ((FrameBuffer[0].features_ & FeatureRtGi) != 0u)
+        return GiIrradianceAt(s.gi_, length(s.posRel_), sky) * s.ao_;
+#endif
     return g_draw.skyboxCount_ != 0 ? max(sky - SkyOccludedIrradiance(s.ao_, s.aoMoment_), 0.0f)
                                     : sky;
-#endif
 }
 
 bool LightIncidence(LightGPUData light, float3 P, out float3 L, out float dist,

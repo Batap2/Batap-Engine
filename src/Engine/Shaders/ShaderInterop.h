@@ -409,7 +409,7 @@ struct FrameGPUData
     uint reflectTemporalTexture_;
     uint screenShadowTexture_;
     uint screenShadowLight_;
-    uint pad0_;
+    uint features_;
     uint pad1_;
 };
 
@@ -530,6 +530,10 @@ static const uint DebugMotionVectors = 32u;
 static const uint DebugAo = 64u;
 static const uint DebugReflections = 128u;
 static const uint DebugScreenShadows = 256u;
+
+static const uint FeatureShadowMaps = 1u;
+static const uint FeatureRtShadows = 2u;
+static const uint FeatureRtGi = 4u;
 
 enum ThumbnailSetBinding : uint
 {

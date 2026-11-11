@@ -39,6 +39,10 @@ struct EngineSettings
     uint32_t maxFps_ = 0;
     bool vsync_ = false;
     bool rayTracing_ = true;
+    bool rtShadows_ = true;
+    bool rtGi_ = true;
+    bool rtReflections_ = true;
+    bool shadowMaps_ = true;
     uint32_t giBounces_ = 2;
     uint32_t giPasses_ = 2;
     bool giPerCell_ = true;
@@ -114,6 +118,10 @@ struct Engine
     void setMaxFps(uint32_t fps) { settings_.maxFps_ = fps; }
     void setVsync(bool on);
     void setRayTracing(bool on) { settings_.rayTracing_ = on; }
+    void setRtShadows(bool on) { settings_.rtShadows_ = on; }
+    void setRtGi(bool on) { settings_.rtGi_ = on; }
+    void setRtReflections(bool on) { settings_.rtReflections_ = on; }
+    void setShadowMaps(bool on) { settings_.shadowMaps_ = on; }
     void setGiBounces(uint32_t bounces) { settings_.giBounces_ = bounces; }
     void setGiPasses(uint32_t passes) { settings_.giPasses_ = passes; }
     void setGiPerCell(bool on) { settings_.giPerCell_ = on; }

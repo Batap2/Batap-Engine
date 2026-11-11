@@ -72,6 +72,10 @@ struct UIPanels
         bool focusOnShow = true;
         bool behindOnShow = false;
         bool rayTracing = true;
+        bool rtShadows = true;
+        bool rtGi = true;
+        bool rtReflections = true;
+        bool shadowMaps = true;
         int maxFps = 0;
         int giBounces = 2;
         int giPasses = 2;

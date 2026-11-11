@@ -303,22 +303,33 @@ void UIPanels::drawWindowButtons(Engine& ctx, float height)
 // file for its next launch.
 void UIPanels::loadAppSettings(App& app, Engine& ctx)
 {
+    const auto settingsOf = [](const WindowDesc& window, const EngineSettings& render)
+    {
+        AppSettings s;
+        s.screen = window.screen;
+        s.size = {static_cast<int>(window.width), static_cast<int>(window.height)};
+        s.focusOnShow = window.focusOnShow;
+        s.behindOnShow = window.behindOnShow;
+        s.rayTracing = render.rayTracing_;
+        s.rtShadows = render.rtShadows_;
+        s.rtGi = render.rtGi_;
+        s.rtReflections = render.rtReflections_;
+        s.shadowMaps = render.shadowMaps_;
+        s.maxFps = static_cast<int>(render.maxFps_);
+        s.giBounces = static_cast<int>(render.giBounces_);
+        s.giPasses = static_cast<int>(render.giPasses_);
+        s.tonemap = render.tonemap_;
+        s.ambientOcclusion = render.ambientOcclusion_;
+        s.screenShadows = render.screenShadows_;
+        s.vsync = render.vsync_;
+        s.bloom = render.bloom_;
+        s.brightness = render.brightness_;
+        return s;
+    };
+
     WindowDesc editor;
     editorConfig::readWindow(editor);
-    editorSettings_ = {editor.screen,
-                       {static_cast<int>(editor.width), static_cast<int>(editor.height)},
-                       editor.focusOnShow,
-                       editor.behindOnShow,
-                       ctx.settings().rayTracing_,
-                       static_cast<int>(ctx.settings().maxFps_),
-                       static_cast<int>(ctx.settings().giBounces_),
-                       static_cast<int>(ctx.settings().giPasses_),
-                       ctx.settings().tonemap_,
-                       ctx.settings().ambientOcclusion_,
-                       ctx.settings().screenShadows_,
-                       ctx.settings().vsync_,
-                       ctx.settings().bloom_,
-                       ctx.settings().brightness_};
+    editorSettings_ = settingsOf(editor, ctx.settings());
 
     WindowDesc game;
     EngineSettings gameRender;
@@ -329,20 +340,7 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
         userConfig::readWindow(config, game);
         userConfig::readRender(config, gameRender);
     }
-    gameSettings_ = {game.screen,
-                     {static_cast<int>(game.width), static_cast<int>(game.height)},
-                     game.focusOnShow,
-                     game.behindOnShow,
-                     gameRender.rayTracing_,
-                     static_cast<int>(gameRender.maxFps_),
-                     static_cast<int>(gameRender.giBounces_),
-                     static_cast<int>(gameRender.giPasses_),
-                     gameRender.tonemap_,
-                     gameRender.ambientOcclusion_,
-                     gameRender.screenShadows_,
-                     gameRender.vsync_,
-                     gameRender.bloom_,
-                     gameRender.brightness_};
+    gameSettings_ = settingsOf(game, gameRender);
 
     startScene_ = app.projectDir_.empty() ? std::string{}
                                           : editorConfig::readStartScene(app.projectDir_);
@@ -419,6 +417,37 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         if (ImGui::Checkbox(ctx.rtSupported() ? "Ray tracing" : "Ray tracing (unsupported GPU)",
                             &s.rayTracing))
             change = Render;
+        ImGui::Indent();
+        ImGui::BeginDisabled(!s.rayTracing);
+        if (ImGui::Checkbox("Shadows##rt", &s.rtShadows))
+            change = Render;
+        ImGui::SetItemTooltip("Off: shadow maps");
+        if (ImGui::Checkbox("Global illumination", &s.rtGi))
+            change = Render;
+        ImGui::SetItemTooltip("Off: sky irradiance and ambient occlusion only");
+        ImGui::Indent();
+        ImGui::BeginDisabled(!s.rtGi);
+        ImGui::SetNextItemWidth(80.0f);
+        ImGui::InputInt("Bounces (1-4)", &s.giBounces, 1);
+        if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemEdited())
+        {
+            s.giBounces = std::clamp(s.giBounces, 1, 4);
+            change = Render;
+        }
+        ImGui::SetNextItemWidth(80.0f);
+        ImGui::InputInt("Passes per frame (1-8)", &s.giPasses, 1);
+        if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemEdited())
+        {
+            s.giPasses = std::clamp(s.giPasses, 1, 8);
+            change = Render;
+        }
+        ImGui::EndDisabled();
+        ImGui::Unindent();
+        if (ImGui::Checkbox("Reflections", &s.rtReflections))
+            change = Render;
+        ImGui::SetItemTooltip("Off: prefiltered sky");
+        ImGui::EndDisabled();
+        ImGui::Unindent();
         ImGui::EndDisabled();
         ImGui::SetNextItemWidth(80.0f);
         ImGui::InputInt("FPS cap (0 = none)", &s.maxFps, 0);
@@ -446,6 +475,9 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         }
         if (ImGui::Checkbox("Ambient occlusion", &s.ambientOcclusion))
             change = Render;
+        if (ImGui::Checkbox("Shadow maps", &s.shadowMaps))
+            change = Render;
+        ImGui::SetItemTooltip("Off: no shadows but the ray traced ones");
         if (ImGui::Checkbox("Screen-space shadows", &s.screenShadows))
             change = Render;
         if (ImGui::Checkbox("Bloom", &s.bloom))
@@ -457,22 +489,6 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
             s.brightness = std::clamp(s.brightness, -3.0f, 3.0f);
             change = Render;
         }
-        ImGui::BeginDisabled(!ctx.rtSupported());
-        ImGui::SetNextItemWidth(80.0f);
-        ImGui::InputInt("GI bounces (1-4)", &s.giBounces, 1);
-        if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemEdited())
-        {
-            s.giBounces = std::clamp(s.giBounces, 1, 4);
-            change = Render;
-        }
-        ImGui::SetNextItemWidth(80.0f);
-        ImGui::InputInt("GI passes per frame (1-8)", &s.giPasses, 1);
-        if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemEdited())
-        {
-            s.giPasses = std::clamp(s.giPasses, 1, 8);
-            change = Render;
-        }
-        ImGui::EndDisabled();
         ImGui::PopID();
         ImGui::Unindent();
         return change;
@@ -482,6 +498,10 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
     {
         EngineSettings render;
         render.rayTracing_ = s.rayTracing;
+        render.rtShadows_ = s.rtShadows;
+        render.rtGi_ = s.rtGi;
+        render.rtReflections_ = s.rtReflections;
+        render.shadowMaps_ = s.shadowMaps;
         render.maxFps_ = static_cast<uint32_t>(s.maxFps);
         render.giBounces_ = static_cast<uint32_t>(s.giBounces);
         render.giPasses_ = static_cast<uint32_t>(s.giPasses);
@@ -548,6 +568,10 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         const EngineSettings render = renderOf(editorSettings_);
         editorConfig::writeRender(render);
         ctx.setRayTracing(render.rayTracing_);
+        ctx.setRtShadows(render.rtShadows_);
+        ctx.setRtGi(render.rtGi_);
+        ctx.setRtReflections(render.rtReflections_);
+        ctx.setShadowMaps(render.shadowMaps_);
         ctx.setMaxFps(render.maxFps_);
         ctx.setGiBounces(render.giBounces_);
         ctx.setGiPasses(render.giPasses_);

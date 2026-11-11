@@ -88,7 +88,8 @@ void Planetshine_S::update(World& world, Engine& ctx)
     const Star star = findStar(reg);
     const entt::entity camera = world.renderCamera();
     const Transform_C* eye = reg.valid(camera) ? reg.try_get<Transform_C>(camera) : nullptr;
-    const bool shadows = ctx.rtSupported() && ctx.settings().rayTracing_;
+    const bool shadows =
+        ctx.rtSupported() && ctx.settings().rayTracing_ && ctx.settings().rtShadows_;
 
     for (auto [body, shine, transform] : reg.view<Planetshine_C, Transform_C>().each())
     {

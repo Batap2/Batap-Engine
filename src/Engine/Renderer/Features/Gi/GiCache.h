@@ -36,6 +36,7 @@ struct GiCache
         uint32_t tailMiss_ = 0;
     };
 
+    void clear() { clear_ = true; }
     Buffers addPasses(RenderGraph& graph);
     Stats addStatsPass(RenderGraph& graph, const Buffers& buffers, uint32_t frame);
 

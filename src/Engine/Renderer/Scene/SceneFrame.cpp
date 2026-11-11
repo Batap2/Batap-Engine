@@ -198,9 +198,12 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         return false;
 
     const bool rayTracing = accelerationStructures_ && ctx.settings().rayTracing_;
+    const bool rtShadows = rayTracing && ctx.settings().rtShadows_;
+    const bool rtGi = rayTracing && ctx.settings().rtGi_;
     AssetManager& assets = *ctx.assetManager_;
 
-    shadows_.prepare(*reg, *instances, args.camera_, ctx.getFrameSize(), rayTracing);
+    shadows_.prepare(*reg, *instances, args.camera_, ctx.getFrameSize(), rtShadows,
+                     ctx.settings().shadowMaps_);
 
     writeFrameSet(frame, args, ctx);
     DrawContext draw = drawContext(frame, camID, args, ctx, rayTracing);
@@ -212,11 +215,16 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     {
         as = accelerationStructures_->addPasses(graph, uploads, traced, frame, *reg, *instances,
                                                 assets, terrain_, args.camera_);
+        if (rtGi && !giActive_)
+            giCache_->clear();
         gi = giCache_->addPasses(graph);
         bindings_.writeRayTracingSet(frame, *accelerationStructures_, *giCache_);
     }
 
+    giActive_ = rtGi;
     frameData_.rtCutInstances_ = rayTracing ? as.cutInstances_ : 0u;
+    frameData_.features_ = (ctx.settings().shadowMaps_ ? FeatureShadowMaps : 0u) |
+                           (rtShadows ? FeatureRtShadows : 0u) | (rtGi ? FeatureRtGi : 0u);
     const float dt = std::clamp(ctx.deltaTime_, 1.f / 4096.f, 1.f / 8.f);
     frameData_.tonemap_ = tonemapChoice(ctx.settings().tonemap_).operator_;
     frameData_.prevExposure_ = frameData_.exposure_;
@@ -246,14 +254,15 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     frameData_.bloomIntensity_ = bloom_.intensity();
     const std::optional<Ao::Images> ao =
         ao_.createImages(graph, targets.extent_, camera, ctx.settings().ambientOcclusion_);
-    frameData_.aoRadius_ = rayTracing ? 0.f : AoRasterRadius;
+    frameData_.aoRadius_ = rtGi ? 0.f : AoRasterRadius;
     const uint32_t screenShadowLight = ScreenShadows::lightIndex(*reg, *instances);
     const std::optional<GraphImage> screenShadow = screenShadows_.createImage(
         graph, targets.extent_, camera,
         ctx.settings().screenShadows_ && screenShadowLight != InvalidGPUIndex);
     frameData_.screenShadowLight_ = screenShadow ? screenShadowLight : InvalidGPUIndex;
     const std::optional<Reflections::Images> reflections =
-        reflections_.createImages(graph, targets.extent_, camera, args.camera_, rayTracing);
+        reflections_.createImages(graph, targets.extent_, camera, args.camera_,
+                                  rayTracing && ctx.settings().rtReflections_);
     draw.reflections_ = reflections.has_value();
     skyPrefilter_.createImages(graph, draw.push_.skyboxCount_ != 0);
 
@@ -321,7 +330,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 vkCmdUpdateBuffer(c.cmd(), c.buffer(frameConstants), 0, sizeof data, &data);
             });
 
-    if (rayTracing)
+    if (rtGi)
     {
         giUpdate_.addPasses(graph, as.tlas_, as.blases_, traced, gi, uploads, frameConstants, draw,
                             frame, targets.extent_, ctx.settings().giPerCell_);
