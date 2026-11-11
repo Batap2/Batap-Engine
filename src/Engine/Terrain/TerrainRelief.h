@@ -27,6 +27,9 @@ struct TerrainRelief
         int32_t level_ = 0;
         // Metres between two vertices at this level: finer detail cannot show.
         double cell_ = 0.0;
+        // Asked for the colliders, which need not lie where the ground is
+        // drawn.
+        bool collider_ = false;
     };
 
     struct Sample

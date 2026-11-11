@@ -39,9 +39,11 @@ const std::array<FaceFrame, 6>& faceFrames()
 // Point (i, j) of a node's grid, counted in cells, on the relief of `level`.
 struct NodeSampler
 {
-    NodeSampler(const TerrainRelief& relief, const TerrainGrid& grid, const ChunkKey& key)
+    NodeSampler(const TerrainRelief& relief, const TerrainGrid& grid, const ChunkKey& key,
+                bool collider = false)
         : relief_(relief),
           grid_(grid),
+          collider_(collider),
           face_(key.face_),
           level_(std::clamp(key.level_, 0, kMaxTerrainLevel)),
           span_(std::ldexp(2.0, -level_)),
@@ -62,7 +64,7 @@ struct NodeSampler
         const double v = v0_ + span_ * j / grid_.cells_;
         const SurfacePoint p = surfacePoint(grid_, face_, u, v);
         const TerrainRelief::Sample s =
-            relief_.sample({p.base_, p.up_, level, cellSize(grid_, level)});
+            relief_.sample({p.base_, p.up_, level, cellSize(grid_, level), collider_});
         const SurfacePoint q = std::abs(s.du_) + std::abs(s.dv_) > 0.0
                                    ? surfacePoint(grid_, face_, u + s.du_, v + s.dv_)
                                    : p;
@@ -71,6 +73,7 @@ struct NodeSampler
 
     const TerrainRelief& relief_;
     const TerrainGrid& grid_;
+    bool collider_;
     int32_t face_;
     int32_t level_;
     double span_;
@@ -408,7 +411,7 @@ ChunkMesh buildChunk(const TerrainRelief& relief, const TerrainGrid& grid, const
 
 ChunkSurface chunkSurface(const TerrainRelief& relief, const TerrainGrid& grid, const ChunkKey& key)
 {
-    const NodeSampler sample(relief, grid, key);
+    const NodeSampler sample(relief, grid, key, true);
     const int32_t cells = grid.cells_;
     ChunkSurface out;
     out.center_ = sample(0.5 * cells, 0.5 * cells, sample.level_).pos_;
