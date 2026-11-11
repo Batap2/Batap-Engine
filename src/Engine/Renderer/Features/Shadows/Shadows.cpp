@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -76,13 +77,16 @@ void Shadows::buildPipelines(const ShaderModules& modules)
 }
 
 void Shadows::prepare(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
-                      v2i frameSize, bool rayTracing, bool maps)
+                      v2i frameSize, bool rayTracing, bool maps, bool scatterCasters)
 {
     if (maps)
         localAllocator_.allocate(reg, instances, camera, frameSize, rayTracing, localViews_);
     else
         localViews_.clear();
-    if (rayTracing || !maps)
+    // Under RT the TLAS holds meshes and terrain but no scatter instance: the
+    // cascades stay for those alone.
+    scatterOnlyCascades_ = rayTracing;
+    if (!maps || (rayTracing && !scatterCasters))
         cascadeViews_.clear();
     else
         fitCascades(reg, instances, camera, frameSize);
@@ -113,6 +117,11 @@ void Shadows::fitCascades(entt::registry& reg, GPUInstanceManager& instances, en
     in.fovY_ = reg.get<Camera_C>(camera).fov_;
     in.orthoHeight_ = reg.get<Camera_C>(camera).orthoHeight_;
     in.aspect_ = static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y());
+    viewForward_ = in.camFwd_;
+    viewCone_ =
+        in.orthoHeight_ > 0.f
+            ? 0.f
+            : std::atan(std::tan(0.5f * in.fovY_) * std::sqrt(1.f + in.aspect_ * in.aspect_));
     in.range_ = CascadeRange;
     in.lightPos_ = lightTrans->world().translation();
     if (sun)
@@ -137,6 +146,7 @@ void Shadows::fitCascades(entt::registry& reg, GPUInstanceManager& instances, en
         view.y_ = (c / 2) * CascadeTileSize;
         view.size_ = CascadeTileSize;
         view.entry_ = id * MaxShadowViewsPerLight + c;
+        view.lightDir_ = sun ? in.lightDir_ : (s.center_ - in.lightPos_).normalized();
     }
 
     if (tooClose != 0 && tooClose != warnedCascades_)
@@ -220,19 +230,32 @@ Shadows::Output Shadows::addPasses(RenderGraph& graph, GraphBuffer uploads, cons
             .read(uploads, Usage::AnyRead)
             .read(shadows, Usage::ShaderRead)
             .execute(
-                [draw, views = atlasViews.views_, pipeline = pipeline_,
+                [draw, views = atlasViews.views_, pipeline = pipeline_, viewForward = viewForward_,
+                 viewCone = viewCone_,
+                 scatterOnly = scatterOnlyCascades_ && &atlasViews == &atlases[1],
                  &resources = setup_.resources_, &terrain, &scatter](GraphContext& c)
                 {
                     DrawContext shadowDraw = bindDraw(draw, c.cmd());
+                    std::array<v4f, ShadowCascadeCount> finer{};
+                    size_t finerCount = 0;
                     for (const ShadowView& view : views)
                     {
                         shadowDraw.push_.shadowViewIndex_ = view.entry_;
                         setViewportYUpRect(c.cmd(), view.x_, view.y_, view.size_, view.size_);
                         // Again for every view: the terrain binds its own.
                         vkCmdBindPipeline(c.cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-                        recordMeshDraws(shadowDraw, resources, 1, MeshPass::ShadowCasters);
-                        terrain.recordShadow(shadowDraw);
-                        scatter.recordShadow(shadowDraw);
+                        if (!scatterOnly)
+                        {
+                            recordMeshDraws(shadowDraw, resources, 1, MeshPass::ShadowCasters);
+                            terrain.recordShadow(shadowDraw);
+                        }
+                        const bool cascade = view.lightDir_ != v3f::Zero();
+                        scatter.recordShadow(shadowDraw,
+                                             {cascade ? view.sphere_ : v4f::Zero(), view.lightDir_,
+                                              std::span{finer}.first(finerCount), viewForward,
+                                              viewCone});
+                        if (cascade && finerCount < finer.size())
+                            finer[finerCount++] = view.sphere_;
                     }
                 });
     }

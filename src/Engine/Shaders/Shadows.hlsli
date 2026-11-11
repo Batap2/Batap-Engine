@@ -219,10 +219,6 @@ uint CascadeIndexAt(float3 P, uint firstView)
     return ShadowCascadeCount;
 }
 
-// Across a cascade boundary the texel jumps, and an edge rasterised on both
-// sides shows the step as a line; fading over this band makes it a ramp.
-static const float CascadeFadeBand = 0.1f;
-
 float CascadeFadeAt(float3 P, ShadowGPUData sh)
 {
     float d = distance(P, sh.sphere_.xyz) / sh.sphere_.w;

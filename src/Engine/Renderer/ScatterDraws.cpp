@@ -12,7 +12,7 @@ namespace batap
 uint64_t ScatterDraws::add(Batch batch)
 {
     const uint64_t id = next_++;
-    anchors_[id] = {batch.owner_, batch.centre_, batch.radius_};
+    anchors_[id] = {batch.owner_, batch.centre_, batch.radius_, batch.castShadows_};
     added_.emplace_back(id, std::move(batch));
     return id;
 }
@@ -56,30 +56,57 @@ void ScatterDraws::place(const entt::registry& reg, entt::entity camera, const V
         }
     }
 
+    struct Owner
+    {
+        entt::entity entity_ = entt::null;
+        bool placed_ = false;
+        m3f linearF_ = m3f::Identity();
+        m3d linear_ = m3d::Identity();
+        m3d toOwnerAxes_ = m3d::Identity();
+        v3d offset_ = v3d::Zero();
+        double scale_ = 1.0;
+    } owner;
+    bool first = true;
     for (const auto& [id, anchor] : anchors_)
     {
-        const Transform_C* tc = reg.valid(anchor.owner_) ? reg.try_get<Transform_C>(anchor.owner_)
-                                                         : nullptr;
-        if (!tc)
+        if (first || anchor.owner_ != owner.entity_)
+        {
+            first = false;
+            owner.entity_ = anchor.owner_;
+            const Transform_C* tc =
+                reg.valid(anchor.owner_) ? reg.try_get<Transform_C>(anchor.owner_) : nullptr;
+            owner.placed_ = tc != nullptr;
+            if (tc)
+            {
+                const transform& ownerWorld = tc->world();
+                owner.linearF_ = ownerWorld.linear();
+                owner.linear_ = owner.linearF_.cast<double>();
+                owner.toOwnerAxes_ =
+                    owner.linear_.colwise().normalized().transpose() * owner.linear_;
+                owner.offset_ = ownerWorld.translation().cast<double>() - cameraPos;
+                owner.scale_ = owner.linear_.colwise().norm().maxCoeff();
+            }
+        }
+        if (!owner.placed_)
             continue;
-        const transform& ownerWorld = tc->world();
-        const m3d linear = ownerWorld.linear().cast<double>();
-        const m3d toOwnerAxes = linear.colwise().normalized().transpose() * linear;
-        Placement placement;
-        placement.world_ = m4f::Identity();
-        placement.world_.topLeftCorner<3, 3>() = ownerWorld.linear();
-        const v3d offset =
-            linear * anchor.centre_ + ownerWorld.translation().cast<double>() - cameraPos;
-        placement.world_.topRightCorner<3, 1>() = offset.cast<float>();
-        const double radius =
-            static_cast<double>(anchor.radius_) * linear.colwise().norm().maxCoeff();
+        const v3d offset = owner.linear_ * anchor.centre_ + owner.offset_;
+        const double radius = static_cast<double>(anchor.radius_) * owner.scale_;
         const double distance = offset.norm();
+        bool visible = true;
         if (cone > 0.0 && radius > 0.0 && distance > radius)
         {
             const double angle = std::acos(std::clamp(offset.dot(forward) / distance, -1.0, 1.0));
-            placement.visible_ = angle - std::asin(radius / distance) <= cone;
+            visible = angle - std::asin(radius / distance) <= cone;
         }
-        placement.centreInOwner_ = toOwnerAxes * anchor.centre_;
+        if (!visible && !anchor.castShadows_)
+            continue;
+        Placement placement;
+        placement.world_ = m4f::Identity();
+        placement.world_.topLeftCorner<3, 3>() = owner.linearF_;
+        placement.world_.topRightCorner<3, 1>() = offset.cast<float>();
+        placement.radius_ = static_cast<float>(radius);
+        placement.visible_ = visible;
+        placement.centreInOwner_ = owner.toOwnerAxes_ * anchor.centre_;
         placement.owner_ = static_cast<uint32_t>(entt::to_entity(anchor.owner_));
         placed_.emplace_back(id, placement);
     }

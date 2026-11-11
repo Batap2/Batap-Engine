@@ -109,7 +109,19 @@ float ShadowVisibility(float3 P, float3 N, float3 Nface, float3 L, float dL, Lig
 
 #if BATAP_RT
     if ((FrameBuffer[0].features_ & FeatureRtShadows) != 0u && light.type_ != LightRect)
-        return TraceShadowRay(P, Nface, L, ShadowRayLength(light, dL), frontOnlyUntil);
+    {
+        float traced = TraceShadowRay(P, Nface, L, ShadowRayLength(light, dL), frontOnlyUntil);
+        // The cascades hold only the scatter instances here, which the TLAS lacks.
+        if (traced > 0.0f && (FrameBuffer[0].features_ & FeatureShadowMaps) != 0u &&
+            (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
+        {
+            float covered;
+            traced = min(traced, CascadeVisibility(P, N, L,
+                                                   light.type_ == LightDirectional ? 1.0f : dL,
+                                                   light.shadowIndex_ & ShadowIndexMask, covered));
+        }
+        return traced;
+    }
 #endif
     if ((FrameBuffer[0].features_ & FeatureShadowMaps) == 0u)
         return 1.0f;

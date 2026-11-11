@@ -31,6 +31,7 @@ struct ShadowView
     uint32_t size_ = 0;
     uint32_t entry_ = 0;
     float strength_ = 1.f;
+    v3f lightDir_ = v3f::Zero();
 };
 
 struct Shadows
@@ -50,7 +51,7 @@ struct Shadows
 
     void buildPipelines(const ShaderModules& modules);
     void prepare(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
-                 v2i frameSize, bool rayTracing, bool maps);
+                 v2i frameSize, bool rayTracing, bool maps, bool scatterCasters);
     Output addPasses(RenderGraph& graph, GraphBuffer uploads, const DrawContext& draw,
                      TerrainDrawer& terrain, ScatterDrawer& scatter);
 
@@ -80,6 +81,9 @@ struct Shadows
     LocalShadowAllocator localAllocator_;
     std::vector<ShadowView> localViews_;
     std::vector<ShadowView> cascadeViews_;
+    bool scatterOnlyCascades_ = false;
+    v3f viewForward_ = v3f::Zero();
+    float viewCone_ = 0.f;
     uint32_t warnedCascades_ = 0;
 };
 }  // namespace batap

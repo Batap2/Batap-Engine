@@ -172,6 +172,7 @@ set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RtHit.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Motion.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Scatter.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Impostor.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Sky.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Stars.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/MeshSurface.hlsli"
@@ -247,6 +248,11 @@ batap_compile_shader(ReflectResolvePS.hlsl ReflectResolvePS.spv ps_6_6)
 batap_compile_shader(ReflectTemporalPS.hlsl ReflectTemporalPS.spv ps_6_6)
 batap_compile_shader(ReflectFilterPS.hlsl ReflectFilterPS.spv ps_6_6)
 batap_compile_shader(ScreenShadowPS.hlsl ScreenShadowPS.spv ps_6_6)
+batap_compile_shader(ImpostorVS.hlsl ImpostorVS.spv vs_6_6)
+batap_compile_shader(ImpostorPS.hlsl ImpostorPS.spv ps_6_6)
+batap_compile_shader(ImpostorPS.hlsl ImpostorPSRT.spv ps_6_6 -D BATAP_RT=1)
+batap_compile_shader(ImpostorPrepassPS.hlsl ImpostorPrepassPS.spv ps_6_6)
+batap_compile_shader(ImpostorPrepassRtPS.hlsl ImpostorPrepassRtPS.spv ps_6_6)
 
 add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/VertexShader.spv"
@@ -296,7 +302,12 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/ReflectResolvePS.spv"
   "${engine_shader_out}/ReflectTemporalPS.spv"
   "${engine_shader_out}/ReflectFilterPS.spv"
-  "${engine_shader_out}/ScreenShadowPS.spv")
+  "${engine_shader_out}/ScreenShadowPS.spv"
+  "${engine_shader_out}/ImpostorVS.spv"
+  "${engine_shader_out}/ImpostorPS.spv"
+  "${engine_shader_out}/ImpostorPSRT.spv"
+  "${engine_shader_out}/ImpostorPrepassPS.spv"
+  "${engine_shader_out}/ImpostorPrepassRtPS.spv")
 add_dependencies(Batap_Engine Batap_Shaders)
 
 # Hot reload sous Windows : dxcompiler.dll à côté des exes (pas de dxil.dll —

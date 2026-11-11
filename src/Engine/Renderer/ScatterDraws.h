@@ -27,14 +27,19 @@ struct ScatterDraws
     struct Batch
     {
         MeshHandle mesh_;
+        MeshHandle shadowMesh_;
         std::array<MaterialHandle, 8> materials_{};
         std::vector<Instance> instances_;
         entt::entity owner_ = entt::null;
         v3d centre_ = v3d::Zero();
         bool castShadows_ = true;
+        // Metres past its bounds, along the light, that the batch's shadow can
+        // reach a receiver nothing else shadows; 0 for no bound.
+        float shadowLength_ = 0.f;
         float fadeStart_ = 0.f;
         float fadeEnd_ = 0.f;
         float radius_ = 0.f;
+        float impostorRadius_ = 0.f;
     };
 
     struct Placement
@@ -42,6 +47,7 @@ struct ScatterDraws
         m4f world_;
         v3d centreInOwner_;
         uint32_t owner_ = 0;
+        float radius_ = 0.f;
         bool visible_ = true;
     };
 
@@ -62,6 +68,7 @@ struct ScatterDraws
         entt::entity owner_ = entt::null;
         v3d centre_ = v3d::Zero();
         float radius_ = 0.f;
+        bool castShadows_ = true;
     };
 
     std::unordered_map<uint64_t, Anchor> anchors_;

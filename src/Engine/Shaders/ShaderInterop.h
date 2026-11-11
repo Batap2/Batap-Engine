@@ -274,7 +274,9 @@ struct ScatterBatchGPUData
     uint firstInstance_;
     float fadeStart_;
     float fadeEnd_;
-    uint pad0_;
+    // 0: the batch draws its mesh; else a camera-facing octahedral impostor
+    // of this radius, read from its first material (Impostor.hlsli).
+    float impostorRadius_;
 };
 
 // A kind leaves the fields it has no use for at zero.
@@ -326,6 +328,9 @@ static const uint MaxShadowViewsPerLight = 6u;
 
 // One quadrant of atlas A each.
 static const uint ShadowCascadeCount = 4u;
+// Across a cascade boundary the texel jumps, and an edge rasterised on both
+// sides shows the step as a line; fading over this band makes it a ramp.
+static const float CascadeFadeBand = 0.1f;
 
 static const uint ShadowIndexMask = 0xFFFFFFu;
 static const uint ShadowFamilyShift = 24u;

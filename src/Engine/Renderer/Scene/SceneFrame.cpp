@@ -203,7 +203,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     AssetManager& assets = *ctx.assetManager_;
 
     shadows_.prepare(*reg, *instances, args.camera_, ctx.getFrameSize(), rtShadows,
-                     ctx.settings().shadowMaps_);
+                     ctx.settings().shadowMaps_, scatter_.hasShadowCasters());
 
     writeFrameSet(frame, args, ctx);
     DrawContext draw = drawContext(frame, camID, args, ctx, rayTracing);
