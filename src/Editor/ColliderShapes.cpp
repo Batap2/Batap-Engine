@@ -60,6 +60,7 @@ v3f size(const Shape& s)
         case Shape::Kind::Capsule:
             return {s.radius_, s.halfHeight_, s.radius_};
         case Shape::Kind::Mesh:
+        case Shape::Kind::Hull:
             return v3f::Ones();
         case Shape::Kind::Box:
             break;
@@ -80,6 +81,7 @@ void setSize(Shape& s, const v3f& size)
             s.halfHeight_ = v.y();
             break;
         case Shape::Kind::Mesh:
+        case Shape::Kind::Hull:
             break;
         case Shape::Kind::Box:
             s.halfExtents_ = v;
@@ -146,6 +148,7 @@ bool fit(Engine& ctx, EntityHandle body, Shape& s)
             break;
         }
         case Shape::Kind::Mesh:
+        case Shape::Kind::Hull:
             s.localPos_ = v3f::Zero();
             if (const auto* mc = body.try_get<Mesh_C>(); mc && mc->mesh_)
                 s.mesh_ = mc->mesh_;
@@ -164,6 +167,8 @@ const char* kindName(Shape::Kind k)
             return "Capsule";
         case Shape::Kind::Mesh:
             return "Mesh";
+        case Shape::Kind::Hull:
+            return "Hull";
         case Shape::Kind::Box:
             break;
     }

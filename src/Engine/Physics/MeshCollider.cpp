@@ -1,7 +1,9 @@
 #include "Physics/MeshCollider.h"
 
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 
+#include <algorithm>
 #include <iostream>
 
 namespace batap
@@ -44,6 +46,32 @@ JPH::ShapeRefC makeMeshShape(const BmeshData& data)
         triangles.emplace_back(data.indices[i], data.indices[i + 1], data.indices[i + 2], 0u);
 
     return meshShapeOf(vertexListOf(data.vertices), std::move(triangles));
+}
+
+JPH::ShapeRefC makeHullShape(const BmeshData& data)
+{
+    if (data.vertices.size() < 4)
+        return nullptr;
+
+    JPH::Array<JPH::Vec3> points;
+    points.reserve(data.vertices.size());
+    v3f lo = data.vertices.front();
+    v3f hi = lo;
+    for (const v3f& v : data.vertices)
+    {
+        points.push_back(JPH::Vec3(v.x(), v.y(), v.z()));
+        lo = lo.cwiseMin(v);
+        hi = hi.cwiseMax(v);
+    }
+    const float radius = std::min(JPH::cDefaultConvexRadius, (hi - lo).minCoeff() * 0.1f);
+    JPH::ConvexHullShapeSettings settings(points, radius);
+    const JPH::Shape::ShapeResult result = settings.Create();
+    if (result.HasError())
+    {
+        std::cerr << "[MeshCollider] " << result.GetError() << "\n";
+        return nullptr;
+    }
+    return result.Get();
 }
 
 JPH::ShapeRefC makeGridMeshShape(const std::vector<v3f>& positions, int32_t cells)

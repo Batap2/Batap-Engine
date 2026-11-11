@@ -119,21 +119,19 @@ void setWorldPose(Transform_S& transforms, entt::registry& reg, entt::entity e, 
 }
 
 // The triangles come from the file, not from the GPU copy: the loader keeps
-// no CPU vertices. Read once per build, never per tick.
-JPH::ShapeRefC meshShapeOf(const Shape& s, AssetManager& assets)
+// no CPU vertices. Read once per mesh: every body of that mesh shares the shape.
+JPH::ShapeRefC meshShapeOf(const Shape& s, AssetManager& assets, PhysicsWorld& physics)
 {
+    if (JPH::ShapeRefC shared = physics.meshShape(assets, s.mesh_, s.kind_ == Shape::Kind::Hull))
+        return shared;
     const std::string* path = s.mesh_ ? assets.getPath(s.mesh_) : nullptr;
-    if (path)
-        if (const auto data = readBmesh((std::filesystem::path(assets.baseDir()) / *path).string()))
-            if (JPH::ShapeRefC shape = makeMeshShape(*data))
-                return shape;
 
     std::cerr << "[Physics_S] mesh collider unavailable" << (path ? " : " + *path : std::string{})
               << ", falling back to a unit sphere\n";
     return new JPH::SphereShape(1.f);
 }
 
-JPH::ShapeRefC primitiveOf(const Shape& s, AssetManager& assets)
+JPH::ShapeRefC primitiveOf(const Shape& s, AssetManager& assets, PhysicsWorld& physics)
 {
     switch (s.kind_)
     {
@@ -142,7 +140,8 @@ JPH::ShapeRefC primitiveOf(const Shape& s, AssetManager& assets)
         case Shape::Kind::Capsule:
             return new JPH::CapsuleShape(s.halfHeight_, s.radius_);
         case Shape::Kind::Mesh:
-            return meshShapeOf(s, assets);
+        case Shape::Kind::Hull:
+            return meshShapeOf(s, assets, physics);
         case Shape::Kind::Box:
             break;
     }
@@ -153,29 +152,31 @@ JPH::ShapeRefC primitiveOf(const Shape& s, AssetManager& assets)
                              std::min(JPH::cDefaultConvexRadius, smallest * 0.5f));
 }
 
-JPH::ShapeRefC makeUnscaledShape(const RigidBody_C& rb, AssetManager& assets)
+JPH::ShapeRefC makeUnscaledShape(const RigidBody_C& rb, AssetManager& assets, PhysicsWorld& physics)
 {
     if (rb.shapes_.size() == 1)
     {
         const Shape& s = rb.shapes_.front();
         if (isCentered(s))
-            return primitiveOf(s, assets);
+            return primitiveOf(s, assets, physics);
         // A StaticCompoundShape needs at least two children, so a lone
         // offset shape is wrapped instead.
         return new JPH::RotatedTranslatedShape(toJolt(s.localPos_), toJolt(localRotOf(s)),
-                                               primitiveOf(s, assets));
+                                               primitiveOf(s, assets, physics));
     }
 
     JPH::StaticCompoundShapeSettings settings;
     for (const Shape& s : rb.shapes_)
-        settings.AddShape(toJolt(s.localPos_), toJolt(localRotOf(s)), primitiveOf(s, assets));
+        settings.AddShape(toJolt(s.localPos_), toJolt(localRotOf(s)),
+                          primitiveOf(s, assets, physics));
 
     return settings.Create().Get();
 }
 
-JPH::ShapeRefC makeShape(const RigidBody_C& rb, const v3f& scale, AssetManager& assets)
+JPH::ShapeRefC makeShape(const RigidBody_C& rb, const v3f& scale, AssetManager& assets,
+                         PhysicsWorld& physics)
 {
-    JPH::ShapeRefC base = makeUnscaledShape(rb, assets);
+    JPH::ShapeRefC base = makeUnscaledShape(rb, assets, physics);
     if (!rb.centerOfMassOffset_.isZero())
         base = new JPH::OffsetCenterOfMassShape(base, toJolt(rb.centerOfMassOffset_));
     const JPH::Vec3 s = toJolt(scale);
@@ -273,12 +274,12 @@ void destroyBody(JPH::BodyInterface& bi, RigidBody_C& rb)
 }
 
 void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const Transform_C& tc,
-                const Pose& pose, AssetManager& assets, float maxSpeed)
+                const Pose& pose, AssetManager& assets, PhysicsWorld& physics)
 {
     rb.shapeScale_ = tc.scale();
     rb.dirty_ = false;
     rb.prevValid_ = false;
-    JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_, assets);
+    JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_, assets, physics);
     JPH::BodyCreationSettings settings(shape, toJolt(pose.pos_), toJolt(pose.rot_),
                                        motionTypeOf(rb.motion_), layerOf(rb.motion_));
     settings.mFriction = rb.friction_;
@@ -286,7 +287,7 @@ void createBody(JPH::BodyInterface& bi, entt::entity e, RigidBody_C& rb, const T
     settings.mLinearDamping = rb.linearDamping_;
     settings.mAngularDamping = rb.angularDamping_;
     settings.mGravityFactor = rb.gravityFactor_;
-    settings.mMaxLinearVelocity = maxSpeed;
+    settings.mMaxLinearVelocity = physics.maxBodySpeed();
     settings.mIsSensor = rb.sensor_;
     settings.mMotionQuality = rb.continuous_ ? JPH::EMotionQuality::LinearCast
                                              : JPH::EMotionQuality::Discrete;
@@ -310,6 +311,15 @@ void driveKinematic(JPH::BodyInterface& bi, JPH::BodyID id, const Pose& pose, co
     bi.SetPositionRotationAndVelocity(
         id, toJolt(v3f{pose.pos_ - velocity * dt}), from, toJolt(velocity),
         (toJolt(pose.rot_) * from.Conjugated()).GetAngularVelocity(dt));
+}
+
+bool atPose(JPH::BodyInterface& bi, JPH::BodyID id, const Pose& pose)
+{
+    JPH::RVec3 pos;
+    JPH::Quat rot;
+    bi.GetPositionAndRotation(id, pos, rot);
+    return (toEigen(pos) - pose.pos_).squaredNorm() < 1e-8f &&
+           std::abs(rot.Dot(toJolt(pose.rot_))) > 1.f - 1e-6f;
 }
 
 void rememberPose(JPH::BodyInterface& bi, JPH::BodyID id, RigidBody_C& rb)
@@ -411,6 +421,7 @@ void Physics_S::drawShape(DebugDraw& dbg, AssetManager& assets, const Shape& s,
                         s.radius_ * (scale.x() + scale.z()) * 0.5f, color);
             break;
         case Shape::Kind::Mesh:
+        case Shape::Kind::Hull:
             if (const Mesh* mesh = assets.get(s.mesh_); mesh && mesh->localBounds_.valid())
             {
                 const v3f center = (mesh->localBounds_.min_ + mesh->localBounds_.max_) * 0.5f;
@@ -465,7 +476,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
         const auto& tc = view.get<Transform_C>(e);
         if (rb.bodyId_ == kInvalidBodyId)
         {
-            createBody(bi, e, rb, tc, worldPoseOf(reg, e), assets, physics.maxBodySpeed());
+            createBody(bi, e, rb, tc, worldPoseOf(reg, e), assets, physics);
             continue;
         }
 
@@ -476,7 +487,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
             rb.dirty_ = false;
             rb.shapeScale_ = tc.scale();
 
-            JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_, assets);
+            JPH::ShapeRefC shape = makeShape(rb, rb.shapeScale_, assets, physics);
             bi.SetShape(id, shape, false, activationOf(rb.motion_));
             bi.SetFriction(id, rb.friction_);
             bi.SetRestitution(id, rb.restitution_);
@@ -496,7 +507,7 @@ void Physics_S::fixedUpdate(World& world, float dt)
             if (current == JPH::EMotionType::Static || wanted == JPH::EMotionType::Static)
             {
                 destroyBody(bi, rb);
-                createBody(bi, e, rb, tc, worldPoseOf(reg, e), assets, physics.maxBodySpeed());
+                createBody(bi, e, rb, tc, worldPoseOf(reg, e), assets, physics);
                 continue;
             }
             bi.SetObjectLayer(id, layerOf(rb.motion_));
@@ -508,7 +519,10 @@ void Physics_S::fixedUpdate(World& world, float dt)
         else if (rb.motion_ == RigidBody_C::Motion::Kinematic)
         {
             const Pose pose = worldPoseOf(reg, e);
-            bi.MoveKinematic(id, toJolt(pose.pos_), toJolt(pose.rot_), dt);
+            // MoveKinematic reads float noise between the transform and Jolt's
+            // pose as a velocity and wakes the body: an idle one would never sleep.
+            if (bi.IsActive(id) || !atPose(bi, id, pose))
+                bi.MoveKinematic(id, toJolt(pose.pos_), toJolt(pose.rot_), dt);
         }
         else if (rb.motion_ == RigidBody_C::Motion::Static)
         {

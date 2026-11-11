@@ -19,7 +19,8 @@ struct Shape
         Box = 0,
         Sphere = 1,
         Capsule = 2,
-        Mesh = 3
+        Mesh = 3,
+        Hull = 4
     };
 
     Kind kind_ = Kind::Box;

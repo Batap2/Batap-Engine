@@ -9,14 +9,18 @@
 #include <Jolt/Physics/Constraints/Constraint.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
+#include "Assets/AssetHandle.h"
 #include "Physics/ContactCollector.h"
 #include "Physics/PhysicsLayers.h"
 
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 
 namespace batap
 {
+
+struct AssetManager;
 
 struct JoltRuntime
 {
@@ -37,6 +41,7 @@ struct PhysicsWorld
 
     void clear();
     void step(float dt);
+    float lastStepMs() const { return lastStepMs_; }
 
     JPH::PhysicsSystem& system() { return system_; }
     JPH::BodyInterface& bodies() { return system_.GetBodyInterface(); }
@@ -56,6 +61,9 @@ struct PhysicsWorld
     // Constraints are keyed and owned here for one reason: they must leave the
     // PhysicsSystem before the bodies they hold, and clear() is where that is
     // known. listener is for the constraints that are also step listeners.
+    // Kept until clear(): a re-imported mesh shows after the scene reloads.
+    JPH::ShapeRefC meshShape(AssetManager& assets, MeshHandle mesh, bool hull);
+
     JPH::Constraint* constraint(uint32_t key);
     JPH::Constraint& addConstraint(uint32_t key, JPH::Constraint* constraint,
                                    JPH::PhysicsStepListener* listener = nullptr);
@@ -79,6 +87,8 @@ struct PhysicsWorld
 
     JPH::PhysicsSystem system_;
     float maxBodySpeed_ = JPH::BodyCreationSettings{}.mMaxLinearVelocity;
+    float lastStepMs_ = 0.f;
+    uint32_t reportedErrors_ = 0;
 
     struct OwnedConstraint
     {
@@ -91,6 +101,8 @@ struct PhysicsWorld
     // registered inside it.
     std::unordered_map<uint32_t, JPH::Ref<JPH::CharacterVirtual>> characters_;
     std::unordered_map<uint32_t, OwnedConstraint> constraints_;
+    std::unordered_map<std::string, JPH::ShapeRefC> hullShapes_;
+    std::unordered_map<std::string, JPH::ShapeRefC> triangleShapes_;
 };
 
 }  // namespace batap

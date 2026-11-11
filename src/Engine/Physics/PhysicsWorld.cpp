@@ -1,13 +1,20 @@
 #include "Physics/PhysicsWorld.h"
 
+#include "Assets/AssetManager.h"
+#include "Assets/Mesh.h"
 #include "Physics/JoltConvert.h"
+#include "Physics/MeshCollider.h"
 #include "Physics/PhysicsLayers.h"
+#include "Serialization/BmeshSerializer.h"
 
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
 #include <Jolt/RegisterTypes.h>
 
 #include <algorithm>
+#include <chrono>
+#include <filesystem>
+#include <iostream>
 #include <thread>
 
 namespace batap
@@ -136,6 +143,18 @@ void PhysicsWorld::destroyConstraint(uint32_t key)
     constraints_.erase(it);
 }
 
+JPH::ShapeRefC PhysicsWorld::meshShape(AssetManager& assets, MeshHandle mesh, bool hull)
+{
+    const std::string* path = mesh ? assets.getPath(mesh) : nullptr;
+    if (!path)
+        return nullptr;
+    JPH::ShapeRefC& shared = (hull ? hullShapes_ : triangleShapes_)[*path];
+    if (!shared)
+        if (const auto data = readBmesh((std::filesystem::path(assets.baseDir()) / *path).string()))
+            shared = hull ? makeHullShape(*data) : makeMeshShape(*data);
+    return shared;
+}
+
 void PhysicsWorld::setMaxBodySpeed(float speed)
 {
     maxBodySpeed_ = speed;
@@ -161,6 +180,8 @@ void PhysicsWorld::clear()
         system_.RemoveConstraint(owned.constraint_);
     }
     constraints_.clear();
+    hullShapes_.clear();
+    triangleShapes_.clear();
 
     JPH::BodyIDVector ids;
     system_.GetBodies(ids);
@@ -177,7 +198,21 @@ void PhysicsWorld::clear()
 
 void PhysicsWorld::step(float dt)
 {
-    system_.Update(dt, kCollisionSteps, &tempAllocator_, &jobs_);
+    const auto start = std::chrono::steady_clock::now();
+    const auto errors =
+        static_cast<uint32_t>(system_.Update(dt, kCollisionSteps, &tempAllocator_, &jobs_));
+    lastStepMs_ =
+        std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - start).count();
+
+    const uint32_t fresh = errors & ~reportedErrors_;
+    reportedErrors_ |= errors;
+    if (fresh & static_cast<uint32_t>(JPH::EPhysicsUpdateError::ManifoldCacheFull))
+        std::cerr << "[Physics] manifold cache full: contacts are being dropped\n";
+    if (fresh & static_cast<uint32_t>(JPH::EPhysicsUpdateError::BodyPairCacheFull))
+        std::cerr << "[Physics] body pair cache full (kMaxBodyPairs): contacts are being dropped\n";
+    if (fresh & static_cast<uint32_t>(JPH::EPhysicsUpdateError::ContactConstraintsFull))
+        std::cerr << "[Physics] contact constraints full (kMaxContactConstraints): contacts are "
+                     "being dropped\n";
 }
 
 }  // namespace batap

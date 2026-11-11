@@ -105,6 +105,7 @@ void collect(const Shape& s, const Transform_C& tc, const v3f& camRight,
             break;
         }
         case Shape::Kind::Mesh:
+        case Shape::Kind::Hull:
             break;
     }
 }
@@ -162,6 +163,7 @@ void outline(const Shape& s, const colliderShape::Pose& pose, AssetManager& asse
             break;
         }
         case Shape::Kind::Mesh:
+        case Shape::Kind::Hull:
             if (const Mesh* mesh = assets.get(s.mesh_); mesh && mesh->localBounds_.valid())
                 boxEdges(mesh->localBounds_.center().cwiseProduct(scale),
                          mesh->localBounds_.halfSize().cwiseProduct(scale));

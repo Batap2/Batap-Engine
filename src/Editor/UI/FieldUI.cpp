@@ -315,8 +315,8 @@ void installFieldUI()
                 changed |= ui::Field("Kind",
                                      [&]
                                      {
-                                         static constexpr std::array<const char*, 4> kKinds = {
-                                             "Box", "Sphere", "Capsule", "Mesh"};
+                                         static constexpr std::array<const char*, 5> kKinds = {
+                                             "Box", "Sphere", "Capsule", "Mesh", "Hull"};
                                          int kind = static_cast<int>(s.kind_);
                                          if (!ui::ComboField("##kind", &kind, kKinds))
                                              return false;
@@ -343,6 +343,7 @@ void installFieldUI()
                                                       10000.f);
                         break;
                     case Shape::Kind::Mesh:
+                    case Shape::Kind::Hull:
                         // The picker applies the pick itself (patch +
                         // markDirty), so the row reports no change of its own.
                         ui::Field("Mesh",
@@ -378,7 +379,8 @@ void installFieldUI()
             if (ImGui::BeginPopup("##addShape"))
             {
                 for (const Shape::Kind kind : {Shape::Kind::Box, Shape::Kind::Sphere,
-                                               Shape::Kind::Capsule, Shape::Kind::Mesh})
+                                               Shape::Kind::Capsule, Shape::Kind::Mesh,
+                                               Shape::Kind::Hull})
                     if (ImGui::MenuItem(colliderShape::kindName(kind)))
                     {
                         Shape added;

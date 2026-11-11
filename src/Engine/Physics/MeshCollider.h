@@ -17,6 +17,8 @@ namespace batap
 // renderer draws.
 JPH::ShapeRefC makeMeshShape(const BmeshData& data);
 
+JPH::ShapeRefC makeHullShape(const BmeshData& data);
+
 // Over a grid of cells + 1 vertices a side, row-major, wound like a terrain
 // chunk.
 JPH::ShapeRefC makeGridMeshShape(const std::vector<v3f>& positions, int32_t cells);
