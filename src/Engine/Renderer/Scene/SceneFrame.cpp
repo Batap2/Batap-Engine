@@ -55,6 +55,7 @@ SceneFrame::SceneFrame(VulkanContext& ctx, ResourceManager& resources, VkFormat 
       exposure_(bindings_.drawSetup(outputFormat, depthFormat)),
       bloom_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       ao_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
+      screenShadows_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       skyPrefilter_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat)),
       reflections_(bindings_.drawSetup(toVkFormat(HdrFormat), depthFormat))
 {
@@ -91,6 +92,7 @@ void SceneFrame::buildPipelines(const ShaderModules& modules)
     exposure_.buildPipelines(modules);
     bloom_.buildPipelines(modules);
     ao_.buildPipelines(modules);
+    screenShadows_.buildPipelines(modules);
     skyPrefilter_.buildPipelines(modules);
     reflections_.buildPipelines(modules);
 }
@@ -245,6 +247,11 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     const std::optional<Ao::Images> ao =
         ao_.createImages(graph, targets.extent_, camera, ctx.settings().ambientOcclusion_);
     frameData_.aoRadius_ = rayTracing ? 0.f : AoRasterRadius;
+    const uint32_t screenShadowLight = ScreenShadows::lightIndex(*reg, *instances);
+    const std::optional<GraphImage> screenShadow = screenShadows_.createImage(
+        graph, targets.extent_, camera,
+        ctx.settings().screenShadows_ && screenShadowLight != InvalidGPUIndex);
+    frameData_.screenShadowLight_ = screenShadow ? screenShadowLight : InvalidGPUIndex;
     const std::optional<Reflections::Images> reflections =
         reflections_.createImages(graph, targets.extent_, camera, args.camera_, rayTracing);
     draw.reflections_ = reflections.has_value();
@@ -267,14 +274,16 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     graph.addPass("frame constants")
         .write(frameConstants, Usage::TransferDst)
         .execute(
-            [frameConstants, hdr, translucent, accum, reveal, bloom, ao, reflections, depth,
-             normals, skyLevels = skyPrefilter_.levels(),
+            [frameConstants, hdr, translucent, accum, reveal, bloom, ao, screenShadow, reflections,
+             depth, normals, skyLevels = skyPrefilter_.levels(),
              data = frameData_](GraphContext& c) mutable
             {
                 data.hdrTexture_ = c.graph_.textureIndex(hdr);
                 data.aoTexture_ = InvalidGPUIndex;
                 data.reflectionTexture_ = InvalidGPUIndex;
-                if (ao || reflections)
+                data.screenShadowTexture_ =
+                    screenShadow ? c.graph_.textureIndex(*screenShadow) : InvalidGPUIndex;
+                if (ao || reflections || screenShadow)
                 {
                     data.depthTexture_ = c.graph_.textureIndex(depth);
                     data.viewNormalTexture_ = c.graph_.textureIndex(normals);
@@ -357,6 +366,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     };
     skyPrefilter_.addPasses(graph, draw, readsLighting);
     ao_.addPasses(graph, depth, normals, frameConstants, uploads, draw);
+    screenShadows_.addPass(graph, depth, frameConstants, uploads, draw);
     const auto readsShading = [&](GraphPass& pass)
     {
         readsLighting(pass);
@@ -386,6 +396,8 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     readsShading(scene);
     if (ao)
         scene.read(ao->full_, Usage::ShaderRead);
+    if (screenShadow)
+        scene.read(*screenShadow, Usage::ShaderRead);
     if (reflections)
         scene.read(reflections->filtered_, Usage::ShaderRead);
 

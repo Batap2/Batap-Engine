@@ -183,6 +183,7 @@ RtSurface RtResolveSurface(RtHitRecord record, float3 rayDirection, float coneWi
     s.diffuseRoughness_ = saturate(mat.diffuseRoughness);
     s.emissive_ = mat.emissive * mat.emissiveStrength;
     s.ao_ = 1.0f;
+    s.screenShadow_ = 1.0f;
 
     float2 uv = float2(0.0f, 0.0f);
     float lodBase = 0.0f;

@@ -315,6 +315,7 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
                        static_cast<int>(ctx.settings().giPasses_),
                        ctx.settings().tonemap_,
                        ctx.settings().ambientOcclusion_,
+                       ctx.settings().screenShadows_,
                        ctx.settings().vsync_,
                        ctx.settings().bloom_,
                        ctx.settings().brightness_};
@@ -338,6 +339,7 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
                      static_cast<int>(gameRender.giPasses_),
                      gameRender.tonemap_,
                      gameRender.ambientOcclusion_,
+                     gameRender.screenShadows_,
                      gameRender.vsync_,
                      gameRender.bloom_,
                      gameRender.brightness_};
@@ -444,6 +446,8 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         }
         if (ImGui::Checkbox("Ambient occlusion", &s.ambientOcclusion))
             change = Render;
+        if (ImGui::Checkbox("Screen-space shadows", &s.screenShadows))
+            change = Render;
         if (ImGui::Checkbox("Bloom", &s.bloom))
             change = Render;
         ImGui::SetNextItemWidth(80.0f);
@@ -483,6 +487,7 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         render.giPasses_ = static_cast<uint32_t>(s.giPasses);
         render.tonemap_ = s.tonemap;
         render.ambientOcclusion_ = s.ambientOcclusion;
+        render.screenShadows_ = s.screenShadows;
         render.vsync_ = s.vsync;
         render.bloom_ = s.bloom;
         render.brightness_ = s.brightness;
@@ -548,6 +553,7 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         ctx.setGiPasses(render.giPasses_);
         ctx.setTonemap(render.tonemap_);
         ctx.setAmbientOcclusion(render.ambientOcclusion_);
+        ctx.setScreenShadows(render.screenShadows_);
         ctx.setVsync(render.vsync_);
         ctx.setBloom(render.bloom_);
         ctx.setBrightness(render.brightness_);

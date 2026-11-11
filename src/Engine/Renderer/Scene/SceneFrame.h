@@ -16,6 +16,7 @@
 #include "Renderer/Features/Gi/GiUpdate.h"
 #include "Renderer/Features/RayTracing/AccelerationStructures.h"
 #include "Renderer/Features/Reflections/Reflections.h"
+#include "Renderer/Features/ScreenShadows/ScreenShadows.h"
 #include "Renderer/Features/Shadows/Shadows.h"
 #include "Renderer/Features/SkyPrefilter/SkyPrefilter.h"
 #include "Renderer/Graph/RenderGraph.h"
@@ -88,6 +89,7 @@ struct SceneFrame
     Exposure exposure_;
     Bloom bloom_;
     Ao ao_;
+    ScreenShadows screenShadows_;
     SkyPrefilter skyPrefilter_;
     Reflections reflections_;
 };

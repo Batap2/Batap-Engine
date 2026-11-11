@@ -44,6 +44,7 @@ struct EngineSettings
     bool giPerCell_ = true;
     std::string tonemap_ = "agx";
     bool ambientOcclusion_ = true;
+    bool screenShadows_ = true;
     bool bloom_ = true;
     // EV added to every camera's exposure, auto or not.
     float brightness_ = 0;
@@ -118,6 +119,7 @@ struct Engine
     void setGiPerCell(bool on) { settings_.giPerCell_ = on; }
     void setTonemap(std::string key) { settings_.tonemap_ = std::move(key); }
     void setAmbientOcclusion(bool on) { settings_.ambientOcclusion_ = on; }
+    void setScreenShadows(bool on) { settings_.screenShadows_ = on; }
     void setBloom(bool on) { settings_.bloom_ = on; }
     void setBrightness(float ev) { settings_.brightness_ = ev; }
     bool rtSupported() const;

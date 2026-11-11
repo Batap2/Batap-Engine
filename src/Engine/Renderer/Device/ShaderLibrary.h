@@ -60,6 +60,7 @@ enum ShaderId : size_t
     ReflectResolvePS,
     ReflectTemporalPS,
     ReflectFilterPS,
+    ScreenShadowPS,
     ShaderCount,
 };
 
@@ -121,6 +122,7 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"ReflectResolvePS", "ReflectResolvePS", "ps_6_6"},
     {"ReflectTemporalPS", "ReflectTemporalPS", "ps_6_6"},
     {"ReflectFilterPS", "ReflectFilterPS", "ps_6_6"},
+    {"ScreenShadowPS", "ScreenShadowPS", "ps_6_6"},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

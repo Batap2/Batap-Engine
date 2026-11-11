@@ -94,6 +94,7 @@ void readRender(const nlohmann::json& config, EngineSettings& io)
     io.giPasses_ = it->value("giPasses", io.giPasses_);
     io.tonemap_ = it->value("tonemap", io.tonemap_);
     io.ambientOcclusion_ = it->value("ambientOcclusion", io.ambientOcclusion_);
+    io.screenShadows_ = it->value("screenShadows", io.screenShadows_);
     io.bloom_ = it->value("bloom", io.bloom_);
     io.brightness_ = it->value("brightness", io.brightness_);
 }
@@ -108,6 +109,7 @@ void writeRender(const std::filesystem::path& file, const EngineSettings& render
                   {"giPasses", render.giPasses_},
                   {"tonemap", render.tonemap_},
                   {"ambientOcclusion", render.ambientOcclusion_},
+                  {"screenShadows", render.screenShadows_},
                   {"bloom", render.bloom_},
                   {"brightness", render.brightness_}});
 }

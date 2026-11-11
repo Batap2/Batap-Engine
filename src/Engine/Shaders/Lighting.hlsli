@@ -371,6 +371,7 @@ struct Surface
     float cell_;
     float ao_;
     float3 aoMoment_;
+    float screenShadow_;
     GiPoint gi_;
     float2 uv_;
     float2 uvDx_;
@@ -399,6 +400,9 @@ void ApplyScreenAo(inout Surface s, float4 svpos)
                                                    : g_textures[ao].Load(int3(svpos.xy, 0));
     s.ao_ = occlusion.x;
     s.aoMoment_ = occlusion.yzw;
+    const uint shadow = FrameBuffer[0].screenShadowTexture_;
+    s.screenShadow_ =
+        shadow == InvalidGPUIndex ? 1.0f : g_textures[shadow].Load(int3(svpos.xy, 0)).r;
 }
 
 // The sky's irradiance the occluders hide: exact for a radiance linear in the
@@ -570,6 +574,8 @@ float3 ShadeSurfaceToward(uint shadingModel, Surface s, float3 V, float coverage
             NdotL > 0.0f ? ShadowVisibility(s.posRel_, s.Ngeom_, s.Nface_, L, dist, light,
                                             FacetEscapeCells * s.cell_)
                          : 0.0f;
+        if (lightIndex == FrameBuffer[0].screenShadowLight_)
+            shadow = min(shadow, s.screenShadow_);
         if (seen && (g_draw.debugFlags_ & DebugShadowCascades) != 0u &&
             (light.shadowIndex_ >> ShadowFamilyShift) == ShadowCascadeFamily)
         {
@@ -632,6 +638,8 @@ float3 ShadeSurfaceToward(uint shadingModel, Surface s, float3 V, float coverage
         color = GiSideColor(GiSide(s.gi_));
     if ((g_draw.debugFlags_ & DebugAo) != 0u)
         color = s.ao_.xxx;
+    if ((g_draw.debugFlags_ & DebugScreenShadows) != 0u)
+        color = s.screenShadow_.xxx;
     if ((g_draw.debugFlags_ & DebugReflections) != 0u)
         color = reflection.rgb * (reflection.a * FrameBuffer[0].exposure_);
 #if BATAP_RT

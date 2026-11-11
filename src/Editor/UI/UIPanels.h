@@ -77,6 +77,7 @@ struct UIPanels
         int giPasses = 2;
         std::string tonemap = "agx";
         bool ambientOcclusion = true;
+        bool screenShadows = true;
         bool vsync = false;
         bool bloom = true;
         float brightness = 0.0f;

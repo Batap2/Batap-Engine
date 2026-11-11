@@ -407,6 +407,10 @@ struct FrameGPUData
     uint reflectHistoryTexture_;
     uint reflectHistorySurfaceTexture_;
     uint reflectTemporalTexture_;
+    uint screenShadowTexture_;
+    uint screenShadowLight_;
+    uint pad0_;
+    uint pad1_;
 };
 
 struct SphereOccluderGPUData
@@ -525,6 +529,7 @@ static const uint DebugGiCache = 16u;
 static const uint DebugMotionVectors = 32u;
 static const uint DebugAo = 64u;
 static const uint DebugReflections = 128u;
+static const uint DebugScreenShadows = 256u;
 
 enum ThumbnailSetBinding : uint
 {
@@ -564,7 +569,7 @@ static_assert(sizeof(DrawPush) == 60);
 static_assert(sizeof(ThumbnailDrawGPUData) == 208);
 static_assert(sizeof(ThumbnailPush) == 8);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 320);
+static_assert(sizeof(FrameGPUData) == 336);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);
