@@ -123,6 +123,22 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::depthClamp()
     return *this;
 }
 
+VkPipeline buildComputePipeline(VkDevice device, VkPipelineLayout layout, VkShaderModule shader)
+{
+    VkComputePipelineCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    info.stage.module = shader;
+    info.stage.pName = "main";
+    info.layout = layout;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline) !=
+        VK_SUCCESS)
+        throw std::runtime_error("buildComputePipeline : vkCreateComputePipelines");
+    return pipeline;
+}
+
 VkPipeline GraphicsPipelineBuilder::build(VkDevice device, VkPipelineLayout layout) const
 {
     VkPipelineShaderStageCreateInfo stages[2]{};

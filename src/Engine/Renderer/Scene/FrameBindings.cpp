@@ -21,7 +21,7 @@ VkDescriptorSetLayout createFrameSetLayout(VkDevice device)
         bindings[i].binding = i;
         bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindings[i].descriptorCount = 1;
-        bindings[i].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindings[i].stageFlags = DrawPushStages;
     }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
@@ -103,7 +103,7 @@ VkPipelineLayout createPipelineLayout(VkDevice device,
                                       std::span<const VkDescriptorSetLayout> setLayouts)
 {
     VkPushConstantRange pushRange{};
-    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushRange.stageFlags = DrawPushStages;
     pushRange.size = sizeof(DrawPush);
 
     VkPipelineLayoutCreateInfo info{};

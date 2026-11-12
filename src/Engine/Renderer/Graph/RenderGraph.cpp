@@ -21,6 +21,7 @@ bool canWrite(Usage usage)
     {
         case Usage::TransferDst:
         case Usage::ShaderWrite:
+        case Usage::ComputeWrite:
         case Usage::ColorAttachment:
         case Usage::DepthAttachment:
         case Usage::AccelerationStructureBuild:
@@ -30,6 +31,7 @@ bool canWrite(Usage usage)
         case Usage::ShaderRead:
         case Usage::Present:
         case Usage::AnyRead:
+        case Usage::IndirectRead:
         case Usage::AccelerationStructureRead:
             return false;
     }
@@ -47,6 +49,7 @@ VkImageUsageFlags imageUsage(Usage usage)
         case Usage::ShaderRead:
             return VK_IMAGE_USAGE_SAMPLED_BIT;
         case Usage::ShaderWrite:
+        case Usage::ComputeWrite:
             return VK_IMAGE_USAGE_STORAGE_BIT;
         case Usage::ColorAttachment:
             return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -55,6 +58,7 @@ VkImageUsageFlags imageUsage(Usage usage)
         case Usage::None:
         case Usage::Present:
         case Usage::AnyRead:
+        case Usage::IndirectRead:
         case Usage::AccelerationStructureBuild:
         case Usage::AccelerationStructureRead:
             return 0;

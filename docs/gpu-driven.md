@@ -76,15 +76,24 @@ enregistrement inchangé (~0,58 ms).
 
 ### Phase 2 — Compute dans le moteur
 
-- [ ] **2.1 Pipelines compute.** `ComputePipelineBuilder` dans `Pipelines`,
-  shaders `cs_6_6` dans `ShaderLibrary` et CMake.
-- [ ] **2.2 Bindings.** Stage compute dans les bindings de frame et les push
-  constants.
-- [ ] **2.3 Render graph.** Passe compute (pipeline, dispatch), usages
-  `ComputeRead`, `ComputeWrite` et `IndirectRead` avec leurs barrières.
+- [x] **2.1 Pipelines compute.** `buildComputePipeline` dans `Pipelines` (une
+  fonction suffit : un seul stage). Un shader `cs_6_6` s'ajoute comme les
+  autres dans `ShaderLibrary` et CMake.
+- [x] **2.2 Bindings.** `DrawPushStages` (vertex, fragment, compute) sur les
+  bindings de frame et la plage de push constants ; `pushDraw` le passe en
+  entier, comme l'exige `vkCmdPushConstants`. `bindCompute` lie les sets sur
+  le point de liaison compute.
+- [x] **2.3 Render graph.** Une passe sans attachement n'ouvre pas de rendu :
+  rien à ajouter pour une passe compute. Usages `ComputeWrite` et
+  `IndirectRead` ; une lecture en compute reste `ShaderRead`. Les buffers par
+  défaut ont `INDIRECT_BUFFER`.
 
-Vérifier : une passe de test remplit un buffer, relu sur le CPU, sans erreur
-des couches de validation.
+Vérifié le 2026-11-12 avec une passe de test temporaire (retirée) : un compute
+écrit `i × 3 + 7 + slot` dans un buffer mappé de 4 096 entiers, relu à la frame
+suivante sur le même slot. Juste sur les trois slots en raster et en RT ; en
+debug avec `BATAP_SYNC_VALIDATION=1`, aucune erreur de validation hors des
+`independentBlend` des pipelines translucides, déjà là avant. `IndirectRead`
+n'est pas encore exercé (phase 3).
 
 ### Phase 3 — Culling et dessins sur le GPU
 

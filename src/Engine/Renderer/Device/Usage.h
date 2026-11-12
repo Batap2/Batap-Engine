@@ -29,6 +29,8 @@ enum class Usage : uint8_t
     TransferDst,                 // destination of a copy / blit / clear
     ShaderRead,                  // sampled or read by any shader stage
     ShaderWrite,                 // storage writes and atomics from a fragment shader
+    ComputeWrite,                // storage writes and atomics from a compute shader
+    IndirectRead,                // arguments of an indirect draw or dispatch
     ColorAttachment,             // render target
     DepthAttachment,             // depth test / write
     Present,                     // handed to the compositor
@@ -63,6 +65,13 @@ inline UsageInfo usageInfo(Usage usage)
             return {VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                     VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                     VK_IMAGE_LAYOUT_GENERAL};
+        case Usage::ComputeWrite:
+            return {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_GENERAL};
+        case Usage::IndirectRead:
+            return {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,
+                    VK_IMAGE_LAYOUT_UNDEFINED};
         case Usage::ColorAttachment:
             return {VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                     VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,

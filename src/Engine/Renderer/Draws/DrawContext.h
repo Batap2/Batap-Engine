@@ -30,6 +30,11 @@ struct DrawSetup
     VkPipelineLayout rtLayout_ = VK_NULL_HANDLE;
 };
 
+// The frame set and DrawPush are seen by these stages. vkCmdPushConstants must
+// name every stage of the range it writes, so pushes use this whole set.
+inline constexpr VkShaderStageFlags DrawPushStages =
+    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+
 struct DrawContext
 {
     VkCommandBuffer cmd_ = VK_NULL_HANDLE;
@@ -58,10 +63,18 @@ inline DrawContext bindDraw(const DrawContext& draw, VkCommandBuffer cmd)
     return bound;
 }
 
+inline DrawContext bindCompute(const DrawContext& draw, VkCommandBuffer cmd)
+{
+    DrawContext bound = draw;
+    bound.cmd_ = cmd;
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, draw.layout_, 0,
+                            static_cast<uint32_t>(draw.sets_.size()), draw.sets_.data(), 0,
+                            nullptr);
+    return bound;
+}
+
 inline void pushDraw(const DrawContext& draw, const DrawPush& push)
 {
-    vkCmdPushConstants(draw.cmd_, draw.layout_,
-                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push),
-                       &push);
+    vkCmdPushConstants(draw.cmd_, draw.layout_, DrawPushStages, 0, sizeof(push), &push);
 }
 }  // namespace batap

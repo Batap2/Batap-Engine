@@ -58,6 +58,8 @@ struct GraphicsPipelineBuilder
     bool depthClamp_ = false;
 };
 
+VkPipeline buildComputePipeline(VkDevice device, VkPipelineLayout layout, VkShaderModule shader);
+
 VkPipelineColorBlendAttachmentState blendState(VkBlendFactor source, VkBlendFactor destination);
 
 void setViewportYUp(VkCommandBuffer cmd, uint32_t width, uint32_t height);
