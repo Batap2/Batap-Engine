@@ -44,11 +44,21 @@ struct ScatterDraws
 
     struct Placement
     {
-        m4f world_;
+        v3f offset_ = v3f::Zero();
         v3d centreInOwner_;
         uint32_t owner_ = 0;
         float radius_ = 0.f;
         bool visible_ = true;
+    };
+
+    // This frame, per owner of placed batches: its linear part, its axes and
+    // the camera in metres along them.
+    struct Owner
+    {
+        uint32_t owner_ = 0;
+        m3f linear_ = m3f::Identity();
+        m3f axes_ = m3f::Identity();
+        v3d camera_ = v3d::Zero();
     };
 
     uint64_t add(Batch batch);
@@ -61,6 +71,7 @@ struct ScatterDraws
     std::vector<std::pair<uint64_t, Batch>> added_;
     std::vector<uint64_t> removed_;
     std::vector<std::pair<uint64_t, Placement>> placed_;
+    std::vector<Owner> owners_;
 
    private:
     struct Anchor

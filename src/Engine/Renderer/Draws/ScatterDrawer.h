@@ -45,6 +45,7 @@ struct ScatterDrawer
 
     GPUResourceHandle batchBuffer() const { return batches_; }
     GPUResourceHandle instanceBuffer() const { return instances_; }
+    GPUResourceHandle ownerBuffer() const { return owners_; }
 
    private:
     struct Slot
@@ -59,8 +60,15 @@ struct ScatterDrawer
         float fadeStart_ = 0.f;
         float fadeEnd_ = 0.f;
         float impostorRadius_ = 0.f;
-        m4f placedWorld_ = m4f::Identity();
-        uint64_t placedFrame_ = 0;
+        uint32_t batch_ = InvalidGPUIndex;
+        bool written_ = false;
+    };
+
+    struct OwnerSlot
+    {
+        uint32_t index_ = 0;
+        uint64_t frame_ = 0;
+        ScatterDraws::Owner last_;
     };
 
     struct Draw
@@ -79,6 +87,7 @@ struct ScatterDrawer
     void reserve(uint64_t instances);
     uint64_t allocate(uint64_t count);
     void release(uint64_t first, uint64_t count);
+    void writeBatch(const Slot& slot, const ScatterDraws::Placement& placement, uint32_t owner);
     static bool castsShadow(const Draw& d, const ScatterShadowView& view);
     void recordDraws(const DrawContext& draw, VkPipeline pipeline, uint32_t streams,
                      const ScatterShadowView* shadow) const;
@@ -96,6 +105,11 @@ struct ScatterDrawer
     VkPipeline impostorRtPipeline_ = VK_NULL_HANDLE;
     GPUResourceHandle batches_;
     GPUResourceHandle instances_;
+    GPUResourceHandle owners_;
+    std::vector<uint32_t> freeBatches_;
+    uint32_t nextBatch_ = 0;
+    std::unordered_map<uint32_t, OwnerSlot> ownerSlots_;
+    std::vector<ScatterOwnerGPUData> ownerData_;
     uint64_t capacity_ = 0;
     uint64_t end_ = 0;
     std::map<uint64_t, uint64_t> free_;
@@ -103,7 +117,6 @@ struct ScatterDrawer
     std::vector<std::pair<uint64_t, Slot>> retiredSlots_;
     std::vector<std::pair<uint64_t, GPUResourceHandle>> retiredBuffers_;
     uint64_t frame_ = 0;
-    std::vector<ScatterBatchGPUData> batchData_;
     std::vector<Draw> draws_;
     bool warnedFull_ = false;
 };

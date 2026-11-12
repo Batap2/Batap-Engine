@@ -20,7 +20,8 @@ PrepassOutput main(ImpostorVSOutput i)
 
     clip(g_textures[mat.albedoTexIdx_].Sample(g_sampler, i.uv_).a - ImpostorAlphaCut);
     const float3 N = ImpostorNormal(
-        batch, i.rotation_, g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).xyz * 2.0f - 1.0f);
+        ScatterPlaced(batch), i.rotation_,
+        g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).xyz * 2.0f - 1.0f);
 
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
     PrepassOutput o;

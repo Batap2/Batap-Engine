@@ -33,7 +33,8 @@ float4 main(VS_OUTPUT i) : SV_Target
     s.Nface_ = FaceNormal(i.posRel_, Ngeom);
     s.cell_ = 0.0f;
     ApplyScreenAo(s, i.position_);
-    s.gi_ = GiTerrainPoint(batch.placed_, i.posRel_, GiFacing(s.Nface_, i.posRel_));
+    const TerrainWorldGPUData placed = ScatterPlaced(batch);
+    s.gi_ = GiTerrainPoint(placed, i.posRel_, GiFacing(s.Nface_, i.posRel_));
     if (mat.normalTexIdx_ != InvalidGPUIndex)
     {
         float3 normalSample = g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).rgb;
@@ -53,7 +54,7 @@ float4 main(VS_OUTPUT i) : SV_Target
     if ((g_draw.debugFlags_ & DebugMotionVectors) != 0u)
     {
         const float3 prevRel =
-            PreviousPosition(i.posRel_, batch.placed_.world_, batch.placed_.prevWorld_);
+            PreviousPosition(i.posRel_, placed.world_, placed.prevWorld_);
         return float4(MotionDebugColor(MotionNdc(CameraInstancebuffer[g_draw.cameraIndex_],
                                                  i.posRel_, prevRel)),
                       1.0f);

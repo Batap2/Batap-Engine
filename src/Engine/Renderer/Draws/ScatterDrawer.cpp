@@ -20,6 +20,7 @@ namespace batap
 namespace
 {
 constexpr uint32_t kMaxBatches = 65536;
+constexpr uint32_t kMaxOwners = 64;
 constexpr uint64_t kInitialInstances = 4096;
 constexpr uint64_t kRetireFrames = FramesInFlight + 1;
 
@@ -66,8 +67,10 @@ bool shadowInView(const v4f& batch, float length, const v3f& lightDir, const v3f
 
 ScatterDrawer::ScatterDrawer(const DrawSetup& setup) : setup_(setup)
 {
-    batches_ = setup_.resources_.createPerFrameBuffer(sizeof(ScatterBatchGPUData) * kMaxBatches,
-                                                      "scatter batches");
+    batches_ = setup_.resources_.createStaticBuffer(sizeof(ScatterBatchGPUData) * kMaxBatches,
+                                                    "scatter batches");
+    owners_ = setup_.resources_.createPerFrameBuffer(sizeof(ScatterOwnerGPUData) * kMaxOwners,
+                                                     "scatter owners");
     instances_ =
         setup_.resources_.createStaticBuffer(sizeof(ScatterInstanceGPUData) * kInitialInstances);
     capacity_ = kInitialInstances;
@@ -85,6 +88,7 @@ ScatterDrawer::~ScatterDrawer()
     vkDestroyPipeline(setup_.ctx_.device_, impostorPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, impostorRtPipeline_, nullptr);
     setup_.resources_.requestDestroy(batches_);
+    setup_.resources_.requestDestroy(owners_);
     setup_.resources_.requestDestroy(instances_);
     for (const auto& [frame, buffer] : retiredBuffers_)
         setup_.resources_.requestDestroy(buffer);
@@ -240,6 +244,8 @@ void ScatterDrawer::upload(ScatterDraws& draws)
                           return false;
                       if (retired.second.count_ > 0)
                           release(retired.second.first_, retired.second.count_);
+                      if (retired.second.batch_ != InvalidGPUIndex)
+                          freeBatches_.push_back(retired.second.batch_);
                       return true;
                   });
     std::erase_if(retiredBuffers_,
@@ -269,6 +275,20 @@ void ScatterDrawer::upload(ScatterDraws& draws)
         slot.fadeStart_ = batch.fadeStart_;
         slot.fadeEnd_ = batch.fadeEnd_;
         slot.count_ = batch.instances_.size();
+        if (!freeBatches_.empty())
+        {
+            slot.batch_ = freeBatches_.back();
+            freeBatches_.pop_back();
+        }
+        else if (nextBatch_ < kMaxBatches)
+        {
+            slot.batch_ = nextBatch_++;
+        }
+        else if (!warnedFull_)
+        {
+            std::cerr << "[Scatter] more than " << kMaxBatches << " batches, the rest not drawn\n";
+            warnedFull_ = true;
+        }
         if (slot.count_ > 0)
         {
             slot.first_ = allocate(slot.count_);
@@ -289,54 +309,94 @@ void ScatterDrawer::upload(ScatterDraws& draws)
     }
     draws.added_.clear();
 
-    batchData_.clear();
+    const auto cells = [](const v3d& p, int32_t (&cell)[3], float (&offset)[3])
+    {
+        const v3d whole = (p / double(GiCellBase)).array().floor();
+        const v3i c = whole.cast<int>();
+        std::memcpy(cell, c.data(), sizeof cell);
+        flatten(offset, (p - whole * double(GiCellBase)).cast<float>());
+    };
+    const auto matrix = [](const m3f& m)
+    {
+        m4f out = m4f::Identity();
+        out.topLeftCorner<3, 3>() = m;
+        return out;
+    };
+    ownerData_.clear();
+    for (const ScatterDraws::Owner& owner : draws.owners_)
+    {
+        auto [it, fresh] = ownerSlots_.try_emplace(owner.owner_);
+        OwnerSlot& slot = it->second;
+        if (fresh)
+            slot.index_ = static_cast<uint32_t>(ownerSlots_.size() - 1);
+        if (slot.index_ >= kMaxOwners)
+            continue;
+        const ScatterDraws::Owner& before = slot.frame_ + 1 == frame_ ? slot.last_ : owner;
+        if (ownerData_.size() <= slot.index_)
+            ownerData_.resize(slot.index_ + 1);
+        ScatterOwnerGPUData& gpu = ownerData_[slot.index_];
+        flatten(gpu.linear_, matrix(owner.linear_));
+        flatten(gpu.axes_, matrix(owner.axes_));
+        flatten(gpu.prevLinear_, matrix(before.linear_));
+        flatten(gpu.prevAxes_, matrix(before.axes_));
+        cells(owner.camera_, gpu.cameraCell_, gpu.cameraOffset_);
+        cells(before.camera_, gpu.prevCameraCell_, gpu.prevCameraOffset_);
+        slot.last_ = owner;
+        slot.frame_ = frame_;
+    }
+    if (!ownerData_.empty())
+    {
+        const uint64_t bytes = sizeof(ScatterOwnerGPUData) * ownerData_.size();
+        std::memcpy(setup_.resources_.requestUpload(owners_, bytes).data(), ownerData_.data(),
+                    bytes);
+    }
+
     draws_.clear();
     for (const auto& [id, placement] : draws.placed_)
     {
         const auto it = slots_.find(id);
-        if (it == slots_.end() || it->second.count_ == 0)
+        if (it == slots_.end() || it->second.count_ == 0 || it->second.batch_ == InvalidGPUIndex)
             continue;
-        if (batchData_.size() >= kMaxBatches)
-        {
-            if (!warnedFull_)
-                std::cerr << "[Scatter] more than " << kMaxBatches
-                          << " batches, the rest not drawn\n";
-            warnedFull_ = true;
-            break;
-        }
+        const auto owner = ownerSlots_.find(placement.owner_);
+        if (owner == ownerSlots_.end() || owner->second.index_ >= kMaxOwners)
+            continue;
         Slot& slot = it->second;
-        ScatterBatchGPUData& gpu = batchData_.emplace_back();
-        flatten(gpu.placed_.world_, placement.world_);
-        const bool placedBefore = slot.placedFrame_ != 0 && slot.placedFrame_ + 1 == frame_;
-        flatten(gpu.placed_.prevWorld_, placedBefore ? slot.placedWorld_ : placement.world_);
-        slot.placedWorld_ = placement.world_;
-        slot.placedFrame_ = frame_;
-        const v3d cells = (placement.centreInOwner_ / double(GiCellBase)).array().floor();
-        const v3i cell = cells.cast<int>();
-        std::memcpy(gpu.placed_.centreCell_, cell.data(), sizeof gpu.placed_.centreCell_);
-        flatten(gpu.placed_.centreOffset_,
-                (placement.centreInOwner_ - cells * double(GiCellBase)).cast<float>());
-        gpu.placed_.owner_ = placement.owner_;
-        gpu.placed_.tracedBase_ = TerrainNoTraced;
-        std::copy(slot.materials_.begin(), slot.materials_.end(),
-                  std::span{gpu.materialIndices_}.begin());
-        gpu.firstInstance_ = static_cast<uint32_t>(slot.first_);
-        gpu.fadeStart_ = slot.fadeStart_;
-        gpu.fadeEnd_ = slot.fadeEnd_;
-        gpu.impostorRadius_ = slot.impostorRadius_;
-        const v3f centre = placement.world_.topRightCorner<3, 1>();
+        if (!slot.written_)
+        {
+            writeBatch(slot, placement, owner->second.index_);
+            slot.written_ = true;
+        }
+        const v3f& centre = placement.offset_;
         draws_.push_back({slot.mesh_, slot.shadowMesh_,
                           v4f{centre.x(), centre.y(), centre.z(), placement.radius_},
-                          slot.shadowLength_, static_cast<uint32_t>(batchData_.size() - 1),
-                          static_cast<uint32_t>(slot.count_), slot.castShadows_, placement.visible_,
-                          slot.impostorRadius_ > 0.f});
+                          slot.shadowLength_, slot.batch_, static_cast<uint32_t>(slot.count_),
+                          slot.castShadows_, placement.visible_, slot.impostorRadius_ > 0.f});
     }
-    if (!batchData_.empty())
-    {
-        const uint64_t bytes = sizeof(ScatterBatchGPUData) * batchData_.size();
-        std::memcpy(setup_.resources_.requestUpload(batches_, bytes).data(), batchData_.data(),
-                    bytes);
-    }
+}
+
+// The centre in the owner's frame is taken at the batch's first placement and
+// kept: an owner whose scale changes afterwards would misplace it.
+void ScatterDrawer::writeBatch(const Slot& slot, const ScatterDraws::Placement& placement,
+                               uint32_t owner)
+{
+    ScatterBatchGPUData gpu{};
+    const v3d whole = (placement.centreInOwner_ / double(GiCellBase)).array().floor();
+    const v3i cell = whole.cast<int>();
+    std::memcpy(gpu.centreCell_, cell.data(), sizeof gpu.centreCell_);
+    flatten(gpu.centreOffset_,
+            (placement.centreInOwner_ - whole * double(GiCellBase)).cast<float>());
+    gpu.ownerSlot_ = owner;
+    gpu.owner_ = placement.owner_;
+    std::copy(slot.materials_.begin(), slot.materials_.end(),
+              std::span{gpu.materialIndices_}.begin());
+    gpu.firstInstance_ = static_cast<uint32_t>(slot.first_);
+    gpu.fadeStart_ = slot.fadeStart_;
+    gpu.fadeEnd_ = slot.fadeEnd_;
+    gpu.impostorRadius_ = slot.impostorRadius_;
+    std::memcpy(
+        setup_.resources_.requestUpload(batches_, sizeof gpu, uint64_t{slot.batch_} * sizeof gpu)
+            .data(),
+        &gpu, sizeof gpu);
 }
 
 bool ScatterDrawer::castsShadow(const Draw& d, const ScatterShadowView& view)

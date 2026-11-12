@@ -40,8 +40,9 @@ void ReflectPlacement(ReflectSurface s, CameraGPUData cam, out float4x4 placed,
     }
     else if (s.kind_ == ReflectKindScatter)
     {
-        placed = ScatterBatchBuffer[s.id_].placed_.world_;
-        prevPlaced = ScatterBatchBuffer[s.id_].placed_.prevWorld_;
+        const TerrainWorldGPUData scatter = ScatterPlaced(ScatterBatchBuffer[s.id_]);
+        placed = scatter.world_;
+        prevPlaced = scatter.prevWorld_;
     }
     else
     {

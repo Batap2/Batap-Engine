@@ -159,7 +159,8 @@ enum FrameSetBinding : uint
     AtmospheresBinding = 16,
     ScatterBatchesBinding = 17,
     ScatterInstancesBinding = 18,
-    FrameSetBindingCount = 19,
+    ScatterOwnersBinding = 19,
+    FrameSetBindingCount = 20,
 };
 
 enum ShadingModel : uint
@@ -265,11 +266,15 @@ struct ScatterInstanceGPUData
     float4 rotation_;
 };
 
-// Every frame, at the batch's index for that frame. Placed in its owner's
-// frame as a terrain chunk is, whose GI cells it reads.
+// Written once, when the batch is first placed. Its centre is in its owner's
+// frame, in GI cells as a terrain chunk's is; ScatterOwnerGPUData places it
+// relative to the camera every frame.
 struct ScatterBatchGPUData
 {
-    TerrainWorldGPUData placed_;
+    int3 centreCell_;
+    uint ownerSlot_;
+    float3 centreOffset_;
+    uint owner_;
     uint materialIndices_[8];
     uint firstInstance_;
     float fadeStart_;
@@ -277,6 +282,25 @@ struct ScatterBatchGPUData
     // 0: the batch draws its mesh; else a camera-facing octahedral impostor
     // of this radius, read from its first material (Impostor.hlsli).
     float impostorRadius_;
+};
+
+// Every frame, per owner of batches: its linear part, its axes (the linear
+// part's columns normalized) and the camera in metres along those axes, in GI
+// cells; the same for the frame before.
+struct ScatterOwnerGPUData
+{
+    float4x4 linear_;
+    float4x4 axes_;
+    float4x4 prevLinear_;
+    float4x4 prevAxes_;
+    int3 cameraCell_;
+    uint pad0_;
+    float3 cameraOffset_;
+    uint pad1_;
+    int3 prevCameraCell_;
+    uint pad2_;
+    float3 prevCameraOffset_;
+    uint pad3_;
 };
 
 // A kind leaves the fields it has no use for at zero.
@@ -589,7 +613,8 @@ static_assert(sizeof(TerrainChunkGPUData) == 96);
 static_assert(sizeof(TerrainWorldGPUData) == 160);
 static_assert(sizeof(TerrainMorphRowGPUData) == 16);
 static_assert(sizeof(ScatterInstanceGPUData) == 32);
-static_assert(sizeof(ScatterBatchGPUData) == 208);
+static_assert(sizeof(ScatterBatchGPUData) == 80);
+static_assert(sizeof(ScatterOwnerGPUData) == 320);
 static_assert(sizeof(RtGeometryGPUData) == 48);
 static_assert(sizeof(RtInstanceGPUData) == 16);
 static_assert(sizeof(RtCacheValueGPUData) == 48);
@@ -609,7 +634,7 @@ static_assert(gpuStrideOk<CameraGPUData> && gpuStrideOk<StaticMeshGPUData> &&
               gpuStrideOk<BillboardGPUData> && gpuStrideOk<ShadowGPUData> &&
               gpuStrideOk<TerrainVertexGPUData> && gpuStrideOk<TerrainChunkGPUData> &&
               gpuStrideOk<TerrainWorldGPUData> && gpuStrideOk<ScatterInstanceGPUData> &&
-              gpuStrideOk<ScatterBatchGPUData> && gpuStrideOk<RtGeometryGPUData> &&
+              gpuStrideOk<ScatterBatchGPUData> && gpuStrideOk<ScatterOwnerGPUData> && gpuStrideOk<RtGeometryGPUData> &&
               gpuStrideOk<RtInstanceGPUData> && gpuStrideOk<RtCacheValueGPUData> &&
               gpuStrideOk<ThumbnailDrawGPUData>);
 

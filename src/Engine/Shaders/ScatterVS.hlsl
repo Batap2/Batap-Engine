@@ -29,11 +29,12 @@ VS_OUTPUT main(VS_INPUT input, uint instanceId : SV_InstanceID)
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
     const ScatterBatchGPUData batch = ScatterBatchBuffer[g_draw.instanceIndex_];
     const ScatterInstanceGPUData inst = ScatterInstance(batch, instanceId);
+    const TerrainWorldGPUData placed = ScatterPlaced(batch);
 
     VS_OUTPUT o;
-    o.posRel_ = ScatterPosRel(batch, inst, input.position_);
-    o.nrmWS_ = ScatterDirection(batch, inst, input.normal_);
-    o.tanWS_ = float4(ScatterDirection(batch, inst, input.tangent_.xyz), input.tangent_.w);
+    o.posRel_ = ScatterPosRel(batch, placed, inst, input.position_);
+    o.nrmWS_ = ScatterDirection(placed, inst, input.normal_);
+    o.tanWS_ = float4(ScatterDirection(placed, inst, input.tangent_.xyz), input.tangent_.w);
     o.position_ = mul(cam.proj_, float4(mul((float3x3)cam.view_, o.posRel_), 1.0f));
     o.uv_ = input.uv_;
     return o;

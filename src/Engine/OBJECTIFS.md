@@ -4,12 +4,11 @@ Idées pas encore faites, une par ligne. Le détail de l'ancienne version est da
 
 ## Rendu
 
-- Culling GPU two-phase Hi-Z : meshes dans un buffer partagé, frustum en compute, `vkCmdDrawIndexedIndirectCount`, HZB.
+- Rendu piloté par le GPU (lots statiques, compute, culling et dessins indirects, puis Hi-Z) : plan dans [docs/gpu-driven.md](../../docs/gpu-driven.md).
 - Grille de clusters de lumières (froxels) : scènes à N lumières, puis brouillard volumétrique.
 - AO, bruit : jitter par pixel et flou bilatéral guidé par la profondeur (plan RT 4.3).
 - AO, ambiant directionnel : SH du ciel pondérée par les secteurs libres du bitmask (plan RT 4.4).
 - Indirect diffus en espace écran (SSILVB §3.3) pour le raster : rebond lu dans la lumière HDR de la frame précédente.
-- Ombres de contact en espace écran : 8 à 16 pas dans la profondeur sur ~1 m.
 - Occulteurs d'ombre en capsule, en plus des sphères.
 - Shadow map par objet, pour l'auto-ombrage d'un gros objet lointain.
 

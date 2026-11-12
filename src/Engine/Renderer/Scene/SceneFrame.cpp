@@ -153,6 +153,7 @@ void SceneFrame::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engi
     claim(TerrainMorphRowsBinding, resources_.bufferFor(terrain_.morphRowBuffer()));
     claim(ScatterBatchesBinding, resources_.bufferFor(scatter_.batchBuffer()));
     claim(ScatterInstancesBinding, resources_.bufferFor(scatter_.instanceBuffer()));
+    claim(ScatterOwnersBinding, resources_.bufferFor(scatter_.ownerBuffer()));
 
     bindings_.writeFrameSet(frame, buffers);
 }

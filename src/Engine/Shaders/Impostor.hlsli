@@ -44,9 +44,9 @@ uint2 ImpostorCell(float3 d)
     return min(uint2(OctEncode(d) * float(ImpostorGrid)), uint2(ImpostorGrid - 1u, ImpostorGrid - 1u));
 }
 
-float3 ImpostorNormal(ScatterBatchGPUData batch, float4 rotation, float3 objectNormal)
+float3 ImpostorNormal(TerrainWorldGPUData placed, float4 rotation, float3 objectNormal)
 {
-    return normalize(mul((float3x3)batch.placed_.world_, ScatterRotate(rotation, objectNormal)));
+    return normalize(mul((float3x3)placed.world_, ScatterRotate(rotation, objectNormal)));
 }
 
 #endif

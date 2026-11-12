@@ -15,8 +15,9 @@ ImpostorVSOutput main(uint vertexId : SV_VertexID, uint instanceId : SV_Instance
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
     const ScatterBatchGPUData batch = ScatterBatchBuffer[g_draw.instanceIndex_];
     const ScatterInstanceGPUData inst = ScatterInstance(batch, instanceId);
-    const float3x3 placed = (float3x3)batch.placed_.world_;
-    const float3 centre = batch.placed_.world_._m03_m13_m23 + mul(placed, inst.position_);
+    const float4x4 world = ScatterPlaced(batch).world_;
+    const float3x3 placed = (float3x3)world;
+    const float3 centre = world._m03_m13_m23 + mul(placed, inst.position_);
 
     const float4 inverse = float4(-inst.rotation_.xyz, inst.rotation_.w);
     const float3 toEye = normalize(ScatterRotate(inverse, mul(transpose(placed), -centre)));

@@ -9,8 +9,9 @@ float4 main(ImpostorVSOutput i) : SV_Target
 
     const float4 albedo = g_textures[mat.albedoTexIdx_].Sample(g_sampler, i.uv_);
     clip(albedo.a - ImpostorAlphaCut);
+    const TerrainWorldGPUData placed = ScatterPlaced(batch);
     const float3 N = ImpostorNormal(
-        batch, i.rotation_, g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).xyz * 2.0f - 1.0f);
+        placed, i.rotation_, g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).xyz * 2.0f - 1.0f);
 
     Surface s;
     s.albedo_ = mat.albedo.rgb * albedo.rgb;
@@ -26,7 +27,7 @@ float4 main(ImpostorVSOutput i) : SV_Target
     s.N_ = N;
     s.cell_ = 0.0f;
     ApplyScreenAo(s, i.position_);
-    s.gi_ = GiTerrainPoint(batch.placed_, i.posRel_, GiFacing(N, i.posRel_));
+    s.gi_ = GiTerrainPoint(placed, i.posRel_, GiFacing(N, i.posRel_));
     return float4(
         ShadeSurface(mat.shadingModel_, s, 1.0f, ScreenReflection(i.position_, s.roughness_)), 1.0f);
 }

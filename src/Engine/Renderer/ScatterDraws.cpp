@@ -40,6 +40,7 @@ void ScatterDraws::clear()
 void ScatterDraws::place(const entt::registry& reg, entt::entity camera, const ViewRect& view)
 {
     placed_.clear();
+    owners_.clear();
     v3d cameraPos = v3d::Zero();
     v3d forward = v3d::Zero();
     double cone = 0.0;
@@ -56,7 +57,7 @@ void ScatterDraws::place(const entt::registry& reg, entt::entity camera, const V
         }
     }
 
-    struct Owner
+    struct Cached
     {
         entt::entity entity_ = entt::null;
         bool placed_ = false;
@@ -85,6 +86,14 @@ void ScatterDraws::place(const entt::registry& reg, entt::entity camera, const V
                     owner.linear_.colwise().normalized().transpose() * owner.linear_;
                 owner.offset_ = ownerWorld.translation().cast<double>() - cameraPos;
                 owner.scale_ = owner.linear_.colwise().norm().maxCoeff();
+                const auto ownerId = static_cast<uint32_t>(entt::to_entity(anchor.owner_));
+                if (std::ranges::none_of(owners_,
+                                         [&](const Owner& o) { return o.owner_ == ownerId; }))
+                {
+                    const m3d axes = owner.linear_.colwise().normalized();
+                    owners_.push_back({ownerId, owner.linearF_, axes.cast<float>(),
+                                       -(axes.transpose() * owner.offset_)});
+                }
             }
         }
         if (!owner.placed_)
@@ -101,9 +110,7 @@ void ScatterDraws::place(const entt::registry& reg, entt::entity camera, const V
         if (!visible && !anchor.castShadows_)
             continue;
         Placement placement;
-        placement.world_ = m4f::Identity();
-        placement.world_.topLeftCorner<3, 3>() = owner.linearF_;
-        placement.world_.topRightCorner<3, 1>() = offset.cast<float>();
+        placement.offset_ = offset.cast<float>();
         placement.radius_ = static_cast<float>(radius);
         placement.visible_ = visible;
         placement.centreInOwner_ = owner.toOwnerAxes_ * anchor.centre_;
