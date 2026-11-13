@@ -65,11 +65,14 @@ struct ScatterDraws
     void remove(uint64_t batch);
     void clear();
     void place(const entt::registry& reg, entt::entity camera, const ViewRect& view);
+    void setGpuDriven(bool on) { gpuDriven_ = on; }
     size_t size() const { return anchors_.size(); }
     bool has(uint64_t batch) const { return anchors_.contains(batch); }
 
     std::vector<std::pair<uint64_t, Batch>> added_;
     std::vector<uint64_t> removed_;
+    // Taken by the renderer. GPU-driven, only the batches never placed before:
+    // the GPU places and culls the rest from what they were given then.
     std::vector<std::pair<uint64_t, Placement>> placed_;
     std::vector<Owner> owners_;
 
@@ -83,7 +86,10 @@ struct ScatterDraws
     };
 
     std::unordered_map<uint64_t, Anchor> anchors_;
+    std::unordered_map<entt::entity, uint32_t> ownerAnchors_;
+    std::vector<uint64_t> fresh_;
     uint64_t next_ = 1;
+    bool gpuDriven_ = false;
 };
 
 }  // namespace batap

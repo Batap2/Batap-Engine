@@ -14,7 +14,7 @@ struct PrepassOutput
 
 PrepassOutput main(ImpostorVSOutput i)
 {
-    const ScatterBatchGPUData batch = ScatterBatchBuffer[g_draw.instanceIndex_];
+    const ScatterBatchGPUData batch = ScatterBatchBuffer[i.batch_];
     const uint matIdx = batch.materialIndices_[0];
     const Material mat = MaterialBuffer[matIdx != InvalidGPUIndex ? matIdx : 0u];
 
@@ -29,7 +29,7 @@ PrepassOutput main(ImpostorVSOutput i)
 #ifdef IMPOSTOR_REFLECT
     o.surface_ = ReflectSurfaceEncode(
         N, ReflectRoughness(mat.shadingModel_, clamp(mat.roughness, 0.05f, 1.0f)), ReflectKindScatter,
-        g_draw.instanceIndex_);
+        i.batch_);
 #endif
     return o;
 }

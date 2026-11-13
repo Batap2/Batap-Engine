@@ -13,14 +13,21 @@ uint64_t ScatterDraws::add(Batch batch)
 {
     const uint64_t id = next_++;
     anchors_[id] = {batch.owner_, batch.centre_, batch.radius_, batch.castShadows_};
+    ++ownerAnchors_[batch.owner_];
+    fresh_.push_back(id);
     added_.emplace_back(id, std::move(batch));
     return id;
 }
 
 void ScatterDraws::remove(uint64_t batch)
 {
-    if (anchors_.erase(batch) == 0)
+    const auto anchor = anchors_.find(batch);
+    if (anchor == anchors_.end())
         return;
+    if (const auto owner = ownerAnchors_.find(anchor->second.owner_);
+        owner != ownerAnchors_.end() && --owner->second == 0)
+        ownerAnchors_.erase(owner);
+    anchors_.erase(anchor);
     const auto it =
         std::find_if(added_.begin(), added_.end(), [&](const auto& a) { return a.first == batch; });
     if (it != added_.end())
@@ -34,12 +41,15 @@ void ScatterDraws::clear()
     for (const auto& [id, anchor] : anchors_)
         removed_.push_back(id);
     anchors_.clear();
+    ownerAnchors_.clear();
+    fresh_.clear();
     added_.clear();
 }
 
 void ScatterDraws::place(const entt::registry& reg, entt::entity camera, const ViewRect& view)
 {
-    placed_.clear();
+    if (!gpuDriven_)
+        placed_.clear();
     owners_.clear();
     v3d cameraPos = v3d::Zero();
     v3d forward = v3d::Zero();
@@ -68,34 +78,63 @@ void ScatterDraws::place(const entt::registry& reg, entt::entity camera, const V
         double scale_ = 1.0;
     } owner;
     bool first = true;
+    const auto cache = [&](entt::entity entity)
+    {
+        if (!first && entity == owner.entity_)
+            return;
+        first = false;
+        owner.entity_ = entity;
+        const Transform_C* tc = reg.valid(entity) ? reg.try_get<Transform_C>(entity) : nullptr;
+        owner.placed_ = tc != nullptr;
+        if (!tc)
+            return;
+        const transform& ownerWorld = tc->world();
+        owner.linearF_ = ownerWorld.linear();
+        owner.linear_ = owner.linearF_.cast<double>();
+        owner.toOwnerAxes_ = owner.linear_.colwise().normalized().transpose() * owner.linear_;
+        owner.offset_ = ownerWorld.translation().cast<double>() - cameraPos;
+        owner.scale_ = owner.linear_.colwise().norm().maxCoeff();
+        const auto ownerId = static_cast<uint32_t>(entt::to_entity(entity));
+        if (std::ranges::none_of(owners_, [&](const Owner& o) { return o.owner_ == ownerId; }))
+        {
+            const m3d axes = owner.linear_.colwise().normalized();
+            owners_.push_back(
+                {ownerId, owner.linearF_, axes.cast<float>(), -(axes.transpose() * owner.offset_)});
+        }
+    };
+    const auto emplace = [&](uint64_t id, const Anchor& anchor, bool visible)
+    {
+        Placement placement;
+        placement.offset_ = (owner.linear_ * anchor.centre_ + owner.offset_).cast<float>();
+        placement.radius_ = static_cast<float>(static_cast<double>(anchor.radius_) * owner.scale_);
+        placement.visible_ = visible;
+        placement.centreInOwner_ = owner.toOwnerAxes_ * anchor.centre_;
+        placement.owner_ = static_cast<uint32_t>(entt::to_entity(anchor.owner_));
+        placed_.emplace_back(id, placement);
+    };
+
+    if (gpuDriven_)
+    {
+        for (const auto& [entity, count] : ownerAnchors_)
+            cache(entity);
+        std::erase_if(fresh_,
+                      [&](uint64_t id)
+                      {
+                          const auto it = anchors_.find(id);
+                          if (it == anchors_.end())
+                              return true;
+                          cache(it->second.owner_);
+                          if (!owner.placed_)
+                              return false;
+                          emplace(id, it->second, true);
+                          return true;
+                      });
+        return;
+    }
+    fresh_.clear();
     for (const auto& [id, anchor] : anchors_)
     {
-        if (first || anchor.owner_ != owner.entity_)
-        {
-            first = false;
-            owner.entity_ = anchor.owner_;
-            const Transform_C* tc =
-                reg.valid(anchor.owner_) ? reg.try_get<Transform_C>(anchor.owner_) : nullptr;
-            owner.placed_ = tc != nullptr;
-            if (tc)
-            {
-                const transform& ownerWorld = tc->world();
-                owner.linearF_ = ownerWorld.linear();
-                owner.linear_ = owner.linearF_.cast<double>();
-                owner.toOwnerAxes_ =
-                    owner.linear_.colwise().normalized().transpose() * owner.linear_;
-                owner.offset_ = ownerWorld.translation().cast<double>() - cameraPos;
-                owner.scale_ = owner.linear_.colwise().norm().maxCoeff();
-                const auto ownerId = static_cast<uint32_t>(entt::to_entity(anchor.owner_));
-                if (std::ranges::none_of(owners_,
-                                         [&](const Owner& o) { return o.owner_ == ownerId; }))
-                {
-                    const m3d axes = owner.linear_.colwise().normalized();
-                    owners_.push_back({ownerId, owner.linearF_, axes.cast<float>(),
-                                       -(axes.transpose() * owner.offset_)});
-                }
-            }
-        }
+        cache(anchor.owner_);
         if (!owner.placed_)
             continue;
         const v3d offset = owner.linear_ * anchor.centre_ + owner.offset_;
@@ -109,13 +148,7 @@ void ScatterDraws::place(const entt::registry& reg, entt::entity camera, const V
         }
         if (!visible && !anchor.castShadows_)
             continue;
-        Placement placement;
-        placement.offset_ = offset.cast<float>();
-        placement.radius_ = static_cast<float>(radius);
-        placement.visible_ = visible;
-        placement.centreInOwner_ = owner.toOwnerAxes_ * anchor.centre_;
-        placement.owner_ = static_cast<uint32_t>(entt::to_entity(anchor.owner_));
-        placed_.emplace_back(id, placement);
+        emplace(id, anchor, visible);
     }
 }
 

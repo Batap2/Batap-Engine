@@ -66,6 +66,7 @@ Engine::Engine(const WindowDesc& desc, const EngineSettings& settings)
     billboards_ = std::make_unique<Billboards>();
     terrainDraws_ = std::make_unique<TerrainDraws>();
     scatterDraws_ = std::make_unique<ScatterDraws>();
+    scatterDraws_->setGpuDriven(renderer_->ctx_.gpuDriven_);
     createDefaultAssets(*this);
 
     // `--project <dir>` is how dev launch configs point a build-tree exe at
@@ -164,8 +165,7 @@ void Engine::endFrame()
     renderer_->uploadBillboards(*billboards_, *assetManager_);
     renderer_->uploadTerrain(*terrainDraws_, settings().rayTracing_);
     terrainDraws_->placed_.clear();
-    renderer_->uploadScatter(*scatterDraws_);
-    scatterDraws_->placed_.clear();
+    renderer_->uploadScatter(*scatterDraws_, *assetManager_);
     debugDraw_->endFrame(deltaTime_);
     debugOverlay_->endFrame(deltaTime_);
     billboards_->endFrame(deltaTime_);

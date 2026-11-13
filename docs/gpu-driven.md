@@ -97,21 +97,117 @@ n'est pas encore exercé (phase 3).
 
 ### Phase 3 — Culling et dessins sur le GPU
 
-- [ ] **3.1 Compute de culling.** Un thread par lot : cône de vue, puis
-  frustum exact. Il écrit des `VkDrawIndexedIndirectCommand` et un compteur
-  par (pipeline, maillage).
-- [ ] **3.2 Dessins indirects.** `vkCmdDrawIndexedIndirectCount` ; les shaders
-  trouvent leur lot par l'index du dessin au lieu du push constant
-  `instanceIndex_`.
-- [ ] **3.3 Ombres.** Le même compute par cascade, avec `castsInto` et
-  `shadowStaysIn` portés en HLSL.
-- [ ] **3.4 Impostors.** Même chemin avec `vkCmdDrawIndirectCount`
-  (6 sommets par instance).
+- [x] **3.1 Compute de culling.** `ScatterCullCS`, un thread par lot : cône de
+  vue de la caméra, puis pour chaque cascade `castsInto`, cône de vue de
+  l'ombre et `shadowStaysIn` portés en HLSL (le chemin CPU garde les mêmes
+  tests). Il ajoute une `VkDrawIndexedIndirectCommand` par lot visible et par
+  groupe de dessin (maillage × sous-maillage), avec un compteur atomique par
+  (vue, groupe). Six vues : caméra, quatre cascades, lumières locales (toutes
+  les ombres, sans culling, comme le CPU).
+- [x] **3.2 Dessins indirects.** Un `vkCmdDrawIndexedIndirectCount` par
+  groupe. `firstInstance` est le premier index du lot ; les shaders trouvent
+  leur lot par `ScatterInstanceBatchBuffer[SV_InstanceID]`, sur les deux
+  chemins.
+- [x] **3.3 Ombres.** Une région de commandes par cascade (`shadowOffset_`,
+  `shadowStride_`), lue par les passes d'atlas.
+- [x] **3.4 Impostors.** Groupe 0 : un quad indexé (6 indices).
 - [ ] **3.5 *(option)* Buffer de maillages partagé.** Tous les maillages lus
   par le vertex shader : un seul dessin indirect par pipeline.
+- [x] **3.6 Compaction par instance.** Le compute écrit les index des instances
+  visibles dans une liste par (vue, groupe) ; une commande par (vue, groupe),
+  dont il incrémente `instanceCount_` par lot visible. Un
+  `vkCmdDrawIndexedIndirect` par groupe, `firstInstance` à 0 : le vertex
+  shader lit `ScatterVisibleBuffer[instanceIndex_ + SV_InstanceID]`
+  (`instanceIndex_` = `InvalidGPUIndex` sur le chemin CPU). Un groupe de 64
+  threads par lot : le thread 0 teste et réserve, tous écrivent les index.
+  Ne demande plus `drawIndirectCount`, `multiDrawIndirect` ni
+  `drawIndirectFirstInstance` (que la phase 3 utilisait sans l'activer).
 
-Vérifier : image identique ; chronos CPU des instances proches de zéro ; coût
-du compute (cible ~0,1 ms) ; compteurs relus en debug.
+Actif par défaut ; `BATAP_GPU_DRIVEN=0` garde le chemin CPU. En mode GPU, `place` ne calcule plus
+que les propriétaires et les lots jamais placés, gardés dans `placed_` jusqu'à
+ce que le renderer les prenne. Le drawer écrit chaque lot une fois et ne
+construit plus de liste par frame.
+
+Vérifié le 2026-11-12 (même caméra qu'en phase 1, raster, impostors à 150 m) :
+- image identique au chemin GPU sans culling d'ombre ; vecteurs de mouvement
+  identiques à la référence ; chemin CPU (`BATAP_GPU_DRIVEN=0`) identique au
+  pixel à avant la phase ;
+- compteurs relus : autant de lanceurs par cascade que le CPU, frame par
+  frame. Les écarts d'image entre les deux chemins (≤ 3 000 pixels) viennent
+  du contenu : les tas se remplissent sur un thread et le terrain travaille au
+  budget de temps, donc à frame égale le contenu dépend du temps CPU ;
+- RT : ~25 000 pixels écartés de 1/765 d'un run à l'autre ; l'ordre des
+  dessins dans un groupe suit les atomiques ;
+- debug avec `BATAP_SYNC_VALIDATION=1` (raster, RT avec GI et reflets, chemin
+  CPU) : seulement les `independentBlend` déjà là. La validation a trouvé deux
+  copies vers le même lot dans une frame (placeholder vide puis lot) : les
+  écritures de lots passent par une table, une copie par lot et par frame.
+
+Mesuré (impostors à 300 m, ~23 800 lots), par frame :
+
+| | Chemin CPU | Chemin GPU |
+|---|---|---|
+| `place` | 0,70 ms | 0,001 ms |
+| `upload` | 0,25 ms | 0,004 ms |
+| Enregistrement (prépass, éclairée, 4 cascades) | 1,0 ms | 0,07 ms |
+| Compute de culling (GPU) | — | 11 µs |
+| Dessins de déchets (GPU) | ~2,4 ms | ~3,0 ms |
+
+Constat : le GPU dessine le même ensemble, mais plus lentement (+0,5 ms par
+frame). Un sous-dessin indirect coûte ~0,35 µs contre ~0,19 µs pour un dessin
+direct, et il y en a ~8 500 par frame : un par lot et par passe, et beaucoup
+de lots n'ont que quelques instances. Des atomiques agrégés par wave n'y
+changent rien (et le compute passe à 45 µs) : ce n'est pas la contention.
+Piste 3.6 : le compute écrit les index des instances visibles dans une liste
+par (vue, groupe), avec un seul dessin par groupe, soit ~150 dessins par passe
+au lieu de milliers. Le vertex shader lit son instance dans cette liste.
+
+Mesuré le 2026-11-13 après 3.6 (impostors à 300 m, 1,22 M instances, raster
+avec cascades et ombres écran, caméra `BATAP_VIEW=3`, frame 1500). Chronos
+GPU par passe et statistiques de pipeline posés temporairement dans le render
+graph (retirés) ; « déchets seuls » = timestamps autour des dessins scatter :
+
+| | Chemin CPU | Chemin GPU |
+|---|---|---|
+| Frame | 3,48 ms | 3,95 ms (phase 3 : 4,05) |
+| Atlas des cascades | 0,73-0,76 ms | 0,91-0,95 ms |
+| Prépass | 0,82 ms | 0,95-0,97 ms |
+| Éclairée | 1,43 ms | 1,50-1,54 ms |
+| Déchets seuls : ombres / prépass / éclairée | 0,29 / 0,69 / 1,15 ms | 0,50 / 0,84 / 1,26 ms |
+| Compute de culling | — | 19 µs |
+| Invocations de vertex shader (ombres) | 15 795 090 | 15 795 114 |
+
+Image identique au pixel à la phase 3 (raster, vecteurs de mouvement), et
+entre les deux chemins à la frame 2000. Le GPU traite les mêmes sommets et les
+mêmes primitives : la dépense en plus vient de la façon de les dessiner, pas
+du nombre de dessins. Écarté par mesure :
+- coût par dessin : 8 dessins indirects vides de plus par groupe coûtent
+  ~17 ns chacun ;
+- indirect : le chemin CPU en `vkCmdDrawIndexedIndirect` (commandes écrites
+  par le CPU) va aussi vite qu'en direct ;
+- taille des dessins : les comptes du compute rejoués en dessins directs, un
+  par groupe ou par tranches de 16 instances, sont aussi lents ;
+- lecture de la liste : le chemin CPU qui lit ses instances dans une liste
+  identité écrite par le compute va aussi vite que sans ; liste copiée par un
+  transfert, profondeur des lectures dépendantes (lot rangé avec l'instance) :
+  sans effet ;
+- ordre : ordre inversé, lots non recyclés côté GPU, dessins mélangés côté CPU :
+  sans effet ;
+- cache : le compute lancé sur le chemin CPU, ou 48 Mo écrits avant les
+  ombres, ne le ralentissent pas ;
+- ordre spatial : une liste rangée lot par lot dans l'ordre de Morton des
+  centres (deux computes, sans atomiques) donne la même image et les mêmes
+  temps de dessin, et sa passe de compaction coûte 0,3-0,8 ms ;
+- lectures divergentes du lot : une boucle `WaveReadLaneFirst` qui charge
+  chaque lot d'un warp de façon uniforme (image juste) ne change rien.
+
+Il reste une seule différence : un dessin du chemin CPU ne contient qu'un lot,
+un dessin du chemin GPU enchaîne des instances de lots différents. C'est la
+seule configuration lente mesurée ; la phase 3 (multi-draw indirect, un
+sous-dessin par lot) l'était aussi, sans doute parce que la carte fusionne les
+sous-dessins. Ni l'ordre spatial ni les lectures du lot n'expliquent la
+différence : il faut des compteurs matériels (Nsight Perf SDK) pour savoir
+quelle unité sature.
 
 ### Phase 4 — Options
 

@@ -22,13 +22,16 @@ struct VS_OUTPUT
     float3 nrmWS_    : TEXCOORD1;
     float2 uv_       : TEXCOORD2;
     float4 tanWS_    : TEXCOORD3;
+    nointerpolation uint batch_ : TEXCOORD4;
 };
 
 VS_OUTPUT main(VS_INPUT input, uint instanceId : SV_InstanceID)
 {
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
-    const ScatterBatchGPUData batch = ScatterBatchBuffer[g_draw.instanceIndex_];
-    const ScatterInstanceGPUData inst = ScatterInstance(batch, instanceId);
+    const uint instance = ScatterInstanceOf(instanceId, g_draw.instanceIndex_);
+    const uint batchIndex = ScatterBatchOf(instance);
+    const ScatterBatchGPUData batch = ScatterBatchBuffer[batchIndex];
+    const ScatterInstanceGPUData inst = ScatterInstanceBuffer[instance];
     const TerrainWorldGPUData placed = ScatterPlaced(batch);
 
     VS_OUTPUT o;
@@ -37,5 +40,6 @@ VS_OUTPUT main(VS_INPUT input, uint instanceId : SV_InstanceID)
     o.tanWS_ = float4(ScatterDirection(placed, inst, input.tangent_.xyz), input.tangent_.w);
     o.position_ = mul(cam.proj_, float4(mul((float3x3)cam.view_, o.posRel_), 1.0f));
     o.uv_ = input.uv_;
+    o.batch_ = batchIndex;
     return o;
 }

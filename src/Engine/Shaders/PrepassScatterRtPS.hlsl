@@ -9,6 +9,7 @@ struct VS_OUTPUT
     float3 nrmWS_    : TEXCOORD1;
     float2 uv_       : TEXCOORD2;
     float4 tanWS_    : TEXCOORD3;
+    nointerpolation uint batch_ : TEXCOORD4;
 };
 
 struct PrepassOutput
@@ -19,7 +20,7 @@ struct PrepassOutput
 
 PrepassOutput main(VS_OUTPUT i)
 {
-    const ScatterBatchGPUData batch = ScatterBatchBuffer[g_draw.instanceIndex_];
+    const ScatterBatchGPUData batch = ScatterBatchBuffer[i.batch_];
     const uint matIdx = batch.materialIndices_[g_draw.submeshIndex_];
     const Material mat = MaterialBuffer[matIdx != InvalidGPUIndex ? matIdx : 0u];
     const float roughness = clamp(
@@ -41,6 +42,6 @@ PrepassOutput main(VS_OUTPUT i)
     PrepassOutput o;
     o.normal_ = float4(normalize(mul((float3x3)cam.view_, i.nrmWS_)) * 0.5f + 0.5f, 1.0f);
     o.surface_ = ReflectSurfaceEncode(N, ReflectRoughness(mat.shadingModel_, roughness),
-                                      ReflectKindScatter, g_draw.instanceIndex_);
+                                      ReflectKindScatter, i.batch_);
     return o;
 }

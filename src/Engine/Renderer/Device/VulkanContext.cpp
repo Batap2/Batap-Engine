@@ -93,6 +93,9 @@ VulkanContext::VulkanContext()
     physicalDevice_ = vkbPhysicalDevice.physical_device;
     std::cout << "[Vulkan] GPU : " << vkbPhysicalDevice.name << "\n";
 
+    gpuDriven_ = platformEnvVar("BATAP_GPU_DRIVEN").value_or("1") != "0";
+    std::cout << "[Vulkan] GPU-driven : " << (gpuDriven_ ? "oui" : "non") << "\n";
+
     VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
     accelerationStructureFeatures.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;

@@ -3,12 +3,14 @@
 #include "Handles.h"
 #include "Renderer/Device/ShaderLibrary.h"
 #include "Renderer/Draws/DrawContext.h"
+#include "Renderer/Graph/RenderGraph.h"
 #include "Renderer/ScatterDraws.h"
 #include "Shaders/ShaderInterop.h"
 
 #include <array>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <span>
 #include <unordered_map>
 #include <utility>
@@ -26,6 +28,15 @@ struct ScatterShadowView
     std::span<const v4f> finerCascades_;
     v3f viewForward_ = v3f::Zero();
     float viewCone_ = 0.f;
+    uint32_t cullView_ = 0;
+};
+
+struct AssetManager;
+
+struct ScatterCullBuffers
+{
+    GraphBuffer commands_;
+    GraphBuffer visible_;
 };
 
 struct ScatterDrawer
@@ -37,7 +48,11 @@ struct ScatterDrawer
     ScatterDrawer& operator=(const ScatterDrawer&) = delete;
 
     void buildPipelines(const ShaderModules& modules);
-    void upload(ScatterDraws& draws);
+    void upload(ScatterDraws& draws, AssetManager& assets);
+    void setGpuCulling(bool on) { gpuCulling_ = on; }
+    std::optional<ScatterCullBuffers> addCullPass(RenderGraph& graph, const DrawContext& draw,
+                                                  GraphBuffer uploads,
+                                                  const ScatterCullGPUData& views);
     void recordPrepass(const DrawContext& draw);
     void record(const DrawContext& draw);
     void recordShadow(const DrawContext& draw, const ScatterShadowView& view);
@@ -46,6 +61,11 @@ struct ScatterDrawer
     GPUResourceHandle batchBuffer() const { return batches_; }
     GPUResourceHandle instanceBuffer() const { return instances_; }
     GPUResourceHandle ownerBuffer() const { return owners_; }
+    GPUResourceHandle instanceBatchBuffer() const { return instanceBatches_; }
+    GPUResourceHandle drawGroupBuffer() const { return groupBuffer_; }
+    GPUResourceHandle drawCommandBuffer() const { return commands_; }
+    GPUResourceHandle visibleBuffer() const { return visible_; }
+    GPUResourceHandle cullBuffer() const { return cullData_; }
 
    private:
     struct Slot
@@ -60,8 +80,21 @@ struct ScatterDrawer
         float fadeStart_ = 0.f;
         float fadeEnd_ = 0.f;
         float impostorRadius_ = 0.f;
+        float radius_ = 0.f;
         uint32_t batch_ = InvalidGPUIndex;
+        uint32_t drawGroup_ = 0;
+        uint32_t drawGroups_ = 0;
+        uint32_t shadowGroup_ = 0;
+        uint32_t shadowGroups_ = 0;
         bool written_ = false;
+    };
+
+    struct Group
+    {
+        MeshHandle mesh_;
+        uint32_t submesh_ = 0;
+        uint64_t instances_ = 0;
+        uint64_t shadowInstances_ = 0;
     };
 
     struct OwnerSlot
@@ -77,7 +110,7 @@ struct ScatterDrawer
         MeshHandle shadowMesh_;
         v4f bounds_{v4f::Zero()};
         float shadowLength_ = 0.f;
-        uint32_t batch_ = 0;
+        uint32_t first_ = 0;
         uint32_t count_ = 0;
         bool castShadows_ = true;
         bool visible_ = true;
@@ -87,7 +120,15 @@ struct ScatterDrawer
     void reserve(uint64_t instances);
     uint64_t allocate(uint64_t count);
     void release(uint64_t first, uint64_t count);
-    void writeBatch(const Slot& slot, const ScatterDraws::Placement& placement, uint32_t owner);
+    bool writeBatch(Slot& slot, const ScatterDraws::Placement& placement, uint32_t owner,
+                    AssetManager& assets);
+    void writeEmpty(uint32_t batch);
+    void flushBatchWrites();
+    std::pair<uint32_t, uint32_t> groupsOf(MeshHandle mesh, AssetManager& assets);
+    void countGroups(const Slot& slot, int32_t delta);
+    void reserveVisible();
+    void recordIndirect(const DrawContext& draw, VkPipeline meshPipeline, VkPipeline impostorPipeline,
+                        uint32_t streams, uint32_t view) const;
     static bool castsShadow(const Draw& d, const ScatterShadowView& view);
     void recordDraws(const DrawContext& draw, VkPipeline pipeline, uint32_t streams,
                      const ScatterShadowView* shadow) const;
@@ -103,8 +144,22 @@ struct ScatterDrawer
     VkPipeline impostorReflectPrepassPipeline_ = VK_NULL_HANDLE;
     VkPipeline impostorPipeline_ = VK_NULL_HANDLE;
     VkPipeline impostorRtPipeline_ = VK_NULL_HANDLE;
+    VkPipeline cullPipeline_ = VK_NULL_HANDLE;
     GPUResourceHandle batches_;
+    GPUResourceHandle groupBuffer_;
+    GPUResourceHandle commands_;
+    GPUResourceHandle visible_;
+    uint64_t visibleCapacity_ = 0;
+    GPUResourceHandle quadIndices_;
+    GPUResourceHandle cullData_;
+    uint32_t shadowStride_ = 0;
+    std::vector<Group> groups_;
+    std::unordered_map<uint64_t, uint32_t> groupOf_;
+    std::vector<ScatterDrawGroupGPUData> groupData_;
+    bool gpuCulling_ = false;
+    bool warnedGroups_ = false;
     GPUResourceHandle instances_;
+    GPUResourceHandle instanceBatches_;
     GPUResourceHandle owners_;
     std::vector<uint32_t> freeBatches_;
     uint32_t nextBatch_ = 0;
@@ -118,6 +173,9 @@ struct ScatterDrawer
     std::vector<std::pair<uint64_t, GPUResourceHandle>> retiredBuffers_;
     uint64_t frame_ = 0;
     std::vector<Draw> draws_;
+    std::vector<std::pair<uint64_t, ScatterDraws::Placement>> pending_;
+    // Uploads within a frame are unordered: one copy per batch, the last write.
+    std::unordered_map<uint32_t, ScatterBatchGPUData> batchWrites_;
     bool warnedFull_ = false;
 };
 

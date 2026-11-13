@@ -27,6 +27,7 @@ struct VulkanContext
     uint32_t graphicsQueueFamily_ = 0;
 
     bool rtSupported_ = false;
+    bool gpuDriven_ = false;
     uint32_t asScratchAlignment_ = 0;
     float timestampPeriodNs_ = 0.f;
 

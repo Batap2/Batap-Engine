@@ -76,7 +76,7 @@ struct Renderer
     void uploadDebugDraw(const DebugDraw& depthTested, const DebugDraw& overlay);
     void uploadBillboards(const Billboards& billboards, const AssetManager& assets);
     void uploadTerrain(TerrainDraws& draws, bool rayTracing);
-    void uploadScatter(ScatterDraws& draws);
+    void uploadScatter(ScatterDraws& draws, AssetManager& assets);
 
     ResourceManager* resourceManager_ = nullptr;
 

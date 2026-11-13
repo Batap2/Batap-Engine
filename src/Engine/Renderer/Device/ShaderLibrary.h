@@ -66,6 +66,7 @@ enum ShaderId : size_t
     ImpostorRtPS,
     ImpostorPrepassPS,
     ImpostorPrepassRtPS,
+    ScatterCullCS,
     ShaderCount,
 };
 
@@ -133,6 +134,7 @@ inline constexpr std::array<ShaderDesc, ShaderCount> kShaders = {{
     {"ImpostorPSRT", "ImpostorPS", "ps_6_6", true},
     {"ImpostorPrepassPS", "ImpostorPrepassPS", "ps_6_6"},
     {"ImpostorPrepassRtPS", "ImpostorPrepassRtPS", "ps_6_6"},
+    {"ScatterCullCS", "ScatterCullCS", "cs_6_6"},
 }};
 
 using ShaderModules = std::array<VkShaderModule, ShaderCount>;

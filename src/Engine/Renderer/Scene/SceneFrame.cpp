@@ -76,6 +76,7 @@ SceneFrame::SceneFrame(VulkanContext& ctx, ResourceManager& resources, VkFormat 
     frameData_.ltcAmpTexture_ = resources_.textureIndex(ltcAmp_);
     frameConstants_ = resources_.createPerFrameBuffer(sizeof(FrameGPUData), "frame constants");
 
+    scatter_.setGpuCulling(ctx.gpuDriven_);
     buildPipelines(shaders_.modules());
 }
 
@@ -112,9 +113,9 @@ void SceneFrame::uploadTerrain(TerrainDraws& draws, bool rayTracing)
     terrain_.upload(draws, accelerationStructures_ && rayTracing);
 }
 
-void SceneFrame::uploadScatter(ScatterDraws& draws)
+void SceneFrame::uploadScatter(ScatterDraws& draws, AssetManager& assets)
 {
-    scatter_.upload(draws);
+    scatter_.upload(draws, assets);
 }
 
 void SceneFrame::checkHotReload()
@@ -154,6 +155,11 @@ void SceneFrame::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engi
     claim(ScatterBatchesBinding, resources_.bufferFor(scatter_.batchBuffer()));
     claim(ScatterInstancesBinding, resources_.bufferFor(scatter_.instanceBuffer()));
     claim(ScatterOwnersBinding, resources_.bufferFor(scatter_.ownerBuffer()));
+    claim(ScatterInstanceBatchesBinding, resources_.bufferFor(scatter_.instanceBatchBuffer()));
+    claim(ScatterDrawGroupsBinding, resources_.bufferFor(scatter_.drawGroupBuffer()));
+    claim(ScatterDrawCommandsBinding, resources_.bufferFor(scatter_.drawCommandBuffer()));
+    claim(ScatterVisibleInstancesBinding, resources_.bufferFor(scatter_.visibleBuffer()));
+    claim(ScatterCullBinding, resources_.bufferFor(scatter_.cullBuffer()));
 
     bindings_.writeFrameSet(frame, buffers);
 }
@@ -338,9 +344,15 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         giUpdate_.report(giCache_->addStatsPass(graph, gi, frame), args.showGiCache_);
     }
 
-    const Shadows::Output shadows = shadows_.addPasses(graph, uploads, draw, terrain_, scatter_);
+    const std::optional<ScatterCullBuffers> culled =
+        scatter_.addCullPass(graph, draw, uploads, shadows_.scatterCull());
+    const Shadows::Output shadows =
+        shadows_.addPasses(graph, uploads, draw, terrain_, scatter_, culled);
 
     GraphPass& prepass = graph.addPass("prepass");
+    if (culled)
+        prepass.read(culled->commands_, Usage::IndirectRead)
+            .read(culled->visible_, Usage::ShaderRead);
     if (rayTracing)
         prepass.read(traced, Usage::ShaderRead);
     prepass.color(normals, Load::Clear);
@@ -404,6 +416,9 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                                    fullscreen_.recordSky(bound);
                                });
     readsShading(scene);
+    if (culled)
+        scene.read(culled->commands_, Usage::IndirectRead)
+            .read(culled->visible_, Usage::ShaderRead);
     if (ao)
         scene.read(ao->full_, Usage::ShaderRead);
     if (screenShadow)

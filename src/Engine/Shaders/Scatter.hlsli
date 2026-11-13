@@ -9,6 +9,18 @@ StructuredBuffer<ScatterBatchGPUData> ScatterBatchBuffer;
 StructuredBuffer<ScatterInstanceGPUData> ScatterInstanceBuffer;
 [[vk::binding(ScatterOwnersBinding, FrameSet)]]
 StructuredBuffer<ScatterOwnerGPUData> ScatterOwnerBuffer;
+[[vk::binding(ScatterInstanceBatchesBinding, FrameSet)]]
+StructuredBuffer<uint> ScatterInstanceBatchBuffer;
+
+#ifndef BATAP_SCATTER_CULL
+[[vk::binding(ScatterVisibleInstancesBinding, FrameSet)]]
+StructuredBuffer<uint> ScatterVisibleBuffer;
+
+uint ScatterInstanceOf(uint instanceId, uint listStart)
+{
+    return listStart == InvalidGPUIndex ? instanceId : ScatterVisibleBuffer[listStart + instanceId];
+}
+#endif
 
 float3 ScatterRotate(float4 q, float3 v)
 {
@@ -16,9 +28,9 @@ float3 ScatterRotate(float4 q, float3 v)
     return v + q.w * t + cross(q.xyz, t);
 }
 
-ScatterInstanceGPUData ScatterInstance(ScatterBatchGPUData batch, uint instanceId)
+uint ScatterBatchOf(uint instanceId)
 {
-    return ScatterInstanceBuffer[batch.firstInstance_ + instanceId];
+    return ScatterInstanceBatchBuffer[instanceId];
 }
 
 float4x4 ScatterPlacedMatrix(float4x4 shape, float4x4 axes, int3 cells, float3 offset)

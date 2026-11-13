@@ -12,6 +12,7 @@ struct ImpostorVSOutput
     float3 posRel_ : TEXCOORD0;
     float2 uv_ : TEXCOORD1;
     nointerpolation float4 rotation_ : TEXCOORD2;
+    nointerpolation uint batch_ : TEXCOORD3;
 };
 
 float2 OctEncode(float3 d)

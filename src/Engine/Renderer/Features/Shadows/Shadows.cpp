@@ -164,8 +164,29 @@ void Shadows::fitCascades(entt::registry& reg, GPUInstanceManager& instances, en
     warnedCascades_ = tooClose;
 }
 
+ScatterCullGPUData Shadows::scatterCull() const
+{
+    ScatterCullGPUData out{};
+    const size_t count = std::min<size_t>(cascadeViews_.size(), ShadowCascadeCount);
+    const std::span<float4> spheres{out.cascades_};
+    const std::span<float4> lightDirs{out.lightDirs_};
+    for (size_t c = 0; c < count; ++c)
+    {
+        const ShadowView& view = cascadeViews_[c];
+        flatten(spheres[c], view.sphere_);
+        flatten(lightDirs[c],
+                v4f{view.lightDir_.x(), view.lightDir_.y(), view.lightDir_.z(), 0.f});
+    }
+    flatten(out.viewForward_, viewForward_);
+    out.viewCone_ = viewCone_;
+    out.cascadeCount_ = static_cast<uint32_t>(count);
+    out.localViews_ = localViews_.empty() ? 0u : 1u;
+    return out;
+}
+
 Shadows::Output Shadows::addPasses(RenderGraph& graph, GraphBuffer uploads, const DrawContext& draw,
-                                   TerrainDrawer& terrain, ScatterDrawer& scatter)
+                                   TerrainDrawer& terrain, ScatterDrawer& scatter,
+                                   const std::optional<ScatterCullBuffers>& culled)
 {
     const auto atlas = [&](const char* name, GPUResourceHandle image, uint32_t size,
                            std::span<const ShadowView> views)
@@ -225,11 +246,14 @@ Shadows::Output Shadows::addPasses(RenderGraph& graph, GraphBuffer uploads, cons
     {
         if (atlasViews.views_.empty())
             continue;
-        graph.addPass(atlasViews.name_)
-            .depth(atlasViews.atlas_, Load::Clear, 1.f)
-            .read(uploads, Usage::AnyRead)
-            .read(shadows, Usage::ShaderRead)
-            .execute(
+        GraphPass& pass = graph.addPass(atlasViews.name_)
+                              .depth(atlasViews.atlas_, Load::Clear, 1.f)
+                              .read(uploads, Usage::AnyRead)
+                              .read(shadows, Usage::ShaderRead);
+        if (culled)
+            pass.read(culled->commands_, Usage::IndirectRead)
+                .read(culled->visible_, Usage::ShaderRead);
+        pass.execute(
                 [draw, views = atlasViews.views_, pipeline = pipeline_, viewForward = viewForward_,
                  viewCone = viewCone_,
                  scatterOnly = scatterOnlyCascades_ && &atlasViews == &atlases[1],
@@ -253,7 +277,9 @@ Shadows::Output Shadows::addPasses(RenderGraph& graph, GraphBuffer uploads, cons
                         scatter.recordShadow(shadowDraw,
                                              {cascade ? view.sphere_ : v4f::Zero(), view.lightDir_,
                                               std::span{finer}.first(finerCount), viewForward,
-                                              viewCone});
+                                              viewCone,
+                                              cascade ? 1u + static_cast<uint32_t>(finerCount)
+                                                      : ScatterCullViews - 1u});
                         if (cascade && finerCount < finer.size())
                             finer[finerCount++] = view.sphere_;
                     }

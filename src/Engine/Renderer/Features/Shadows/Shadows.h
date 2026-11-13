@@ -4,6 +4,7 @@
 #include "Handles.h"
 #include "Renderer/Device/ShaderLibrary.h"
 #include "Renderer/Draws/DrawContext.h"
+#include "Renderer/Draws/ScatterDrawer.h"
 #include "Renderer/Features/Shadows/LocalShadowAllocator.h"
 #include "Renderer/Graph/RenderGraph.h"
 
@@ -12,6 +13,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -53,7 +55,9 @@ struct Shadows
     void prepare(entt::registry& reg, GPUInstanceManager& instances, entt::entity camera,
                  v2i frameSize, bool rayTracing, bool maps, bool scatterCasters);
     Output addPasses(RenderGraph& graph, GraphBuffer uploads, const DrawContext& draw,
-                     TerrainDrawer& terrain, ScatterDrawer& scatter);
+                     TerrainDrawer& terrain, ScatterDrawer& scatter,
+                     const std::optional<ScatterCullBuffers>& culled);
+    ScatterCullGPUData scatterCull() const;
 
     GPUResourceHandle buffer() const { return buffer_; }
 

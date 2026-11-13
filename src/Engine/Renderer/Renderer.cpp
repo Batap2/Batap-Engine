@@ -321,10 +321,10 @@ void Renderer::uploadTerrain(TerrainDraws& draws, bool rayTracing)
         sceneFrame_->uploadTerrain(draws, rayTracing);
 }
 
-void Renderer::uploadScatter(ScatterDraws& draws)
+void Renderer::uploadScatter(ScatterDraws& draws, AssetManager& assets)
 {
     if (sceneFrame_)
-        sceneFrame_->uploadScatter(draws);
+        sceneFrame_->uploadScatter(draws, assets);
 }
 
 void Renderer::setSceneGraph(SceneGraphFn fn)

@@ -3,7 +3,7 @@
 
 float4 main(ImpostorVSOutput i) : SV_Target
 {
-    const ScatterBatchGPUData batch = ScatterBatchBuffer[g_draw.instanceIndex_];
+    const ScatterBatchGPUData batch = ScatterBatchBuffer[i.batch_];
     const uint matIdx = batch.materialIndices_[0];
     const Material mat = MaterialBuffer[matIdx != InvalidGPUIndex ? matIdx : 0u];
 

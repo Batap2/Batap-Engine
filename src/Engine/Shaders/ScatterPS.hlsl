@@ -9,11 +9,12 @@ struct VS_OUTPUT
     float3 nrmWS_    : TEXCOORD1;
     float2 uv_       : TEXCOORD2;
     float4 tanWS_    : TEXCOORD3;
+    nointerpolation uint batch_ : TEXCOORD4;
 };
 
 float4 main(VS_OUTPUT i) : SV_Target
 {
-    const ScatterBatchGPUData batch = ScatterBatchBuffer[g_draw.instanceIndex_];
+    const ScatterBatchGPUData batch = ScatterBatchBuffer[i.batch_];
     const uint matIdx = batch.materialIndices_[g_draw.submeshIndex_];
     const Material mat = MaterialBuffer[matIdx != InvalidGPUIndex ? matIdx : 0u];
 

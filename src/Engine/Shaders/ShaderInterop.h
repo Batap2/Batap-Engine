@@ -160,7 +160,12 @@ enum FrameSetBinding : uint
     ScatterBatchesBinding = 17,
     ScatterInstancesBinding = 18,
     ScatterOwnersBinding = 19,
-    FrameSetBindingCount = 20,
+    ScatterInstanceBatchesBinding = 20,
+    ScatterDrawGroupsBinding = 21,
+    ScatterDrawCommandsBinding = 22,
+    ScatterVisibleInstancesBinding = 23,
+    ScatterCullBinding = 24,
+    FrameSetBindingCount = 25,
 };
 
 enum ShadingModel : uint
@@ -282,7 +287,41 @@ struct ScatterBatchGPUData
     // 0: the batch draws its mesh; else a camera-facing octahedral impostor
     // of this radius, read from its first material (Impostor.hlsli).
     float impostorRadius_;
+    // 0 for a free slot or one not placed yet: culled.
+    uint instanceCount_;
+    // In the owner's frame, before its scale.
+    float radius_;
+    // The draw groups of its mesh's submeshes, from drawGroup_ on; the
+    // shadow mesh's likewise, none when it casts no shadow.
+    uint drawGroup_;
+    uint drawGroups_;
+    uint shadowGroup_;
+    uint shadowGroups_;
+    float shadowLength_;
+    uint pad0_;
 };
+
+struct ScatterDrawGroupGPUData
+{
+    uint offset_;
+    uint capacity_;
+    uint shadowOffset_;
+    uint shadowCapacity_;
+};
+
+// VkDrawIndexedIndirectCommand.
+struct ScatterDrawCommandGPUData
+{
+    uint indexCount_;
+    uint instanceCount_;
+    uint firstIndex_;
+    int vertexOffset_;
+    uint firstInstance_;
+};
+
+static const uint ScatterImpostorGroup = 0u;
+static const uint ScatterMaxDrawGroups = 1024u;
+static const uint ScatterCullRow = 256u;
 
 // Every frame, per owner of batches: its linear part, its axes (the linear
 // part's columns normalized) and the camera in metres along those axes, in GI
@@ -352,6 +391,22 @@ static const uint MaxShadowViewsPerLight = 6u;
 
 // One quadrant of atlas A each.
 static const uint ShadowCascadeCount = 4u;
+// The camera's view, one per shadow cascade, then every local light's.
+static const uint ScatterCullViews = 2u + ShadowCascadeCount;
+
+// Camera-relative, the cascades in the order Shadows draws them.
+struct ScatterCullGPUData
+{
+    float4 cascades_[ShadowCascadeCount];
+    float4 lightDirs_[ShadowCascadeCount];
+    float3 viewForward_;
+    // 0: shadows are not culled against the view.
+    float viewCone_;
+    uint cascadeCount_;
+    uint localViews_;
+    uint shadowStride_;
+    uint pad0_;
+};
 // Across a cascade boundary the texel jumps, and an edge rasterised on both
 // sides shows the step as a line; fading over this band makes it a ramp.
 static const float CascadeFadeBand = 0.1f;
@@ -613,7 +668,10 @@ static_assert(sizeof(TerrainChunkGPUData) == 96);
 static_assert(sizeof(TerrainWorldGPUData) == 160);
 static_assert(sizeof(TerrainMorphRowGPUData) == 16);
 static_assert(sizeof(ScatterInstanceGPUData) == 32);
-static_assert(sizeof(ScatterBatchGPUData) == 80);
+static_assert(sizeof(ScatterBatchGPUData) == 112);
+static_assert(sizeof(ScatterDrawGroupGPUData) == 16);
+static_assert(sizeof(ScatterDrawCommandGPUData) == 20);
+static_assert(sizeof(ScatterCullGPUData) == 160);
 static_assert(sizeof(ScatterOwnerGPUData) == 320);
 static_assert(sizeof(RtGeometryGPUData) == 48);
 static_assert(sizeof(RtInstanceGPUData) == 16);
