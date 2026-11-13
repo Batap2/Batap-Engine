@@ -266,9 +266,15 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
         ao_.createImages(graph, targets.extent_, camera, ctx.settings().ambientOcclusion_);
     frameData_.aoRadius_ = rtGi ? 0.f : AoRasterRadius;
     const uint32_t screenShadowLight = ScreenShadows::lightIndex(*reg, *instances);
-    const std::optional<GraphImage> screenShadow = screenShadows_.createImage(
-        graph, targets.extent_, camera,
-        ctx.settings().screenShadows_ && screenShadowLight != InvalidGPUIndex);
+    const auto frameSize = ctx.getFrameSize();
+    const bool screenShadowPlanned =
+        ctx.settings().screenShadows_ && screenShadowLight != InvalidGPUIndex &&
+        frameSize.y() > 0 &&
+        screenShadows_.plan(*reg, args.camera_, targets.extent_,
+                            static_cast<float>(frameSize.x()) / static_cast<float>(frameSize.y()),
+                            frameData_);
+    const std::optional<GraphImage> screenShadow =
+        screenShadows_.createImage(graph, targets.extent_, camera, screenShadowPlanned);
     frameData_.screenShadowLight_ = screenShadow ? screenShadowLight : InvalidGPUIndex;
     const std::optional<Reflections::Images> reflections =
         reflections_.createImages(graph, targets.extent_, camera, args.camera_,

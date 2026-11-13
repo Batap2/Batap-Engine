@@ -5,6 +5,7 @@ namespace batap
 {
 constexpr uint32_t FramesInFlight = 3;
 constexpr uint32_t BindlessTextureCapacity = 4096;
+constexpr uint32_t BindlessStorageImageCapacity = 64;
 constexpr uint64_t StagingBytesPerFrame = 64ull * 1024 * 1024;
 constexpr uint32_t LocalAtlasSize = 4096;
 constexpr uint32_t LocalTileMin = 128;

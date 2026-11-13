@@ -72,6 +72,10 @@ compare against the GPU-driven one.
 - C++/HLSL shared layouts live once in `src/Engine/Shaders/ShaderInterop.h`
   (compiled by both dxc and the engine). Never duplicate a GPU struct in a
   `.hlsl` file.
+- Compute passes write images through the bindless storage table
+  (`StorageImagesBinding`, `GraphContext::storageIndex`): declare the image
+  `.write(image, Usage::ComputeWrite)` and use
+  `[[vk::image_format("unknown")]] RWTexture2D<float4>` in HLSL.
 - GPU instance data: `Instance/InstanceManager.h` pools, dirty-marking uploads
   everything (not per component). Mesh and camera ids stay with their entity
   while it is in the pool, and a freed id goes to the next entity inserted.

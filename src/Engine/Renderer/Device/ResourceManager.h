@@ -61,6 +61,7 @@ struct ResourceManager
 
     void requestDestroy(GPUResourceHandle handle);
     uint32_t textureIndex(GPUResourceHandle image);
+    uint32_t storageIndex(GPUResourceHandle image);
 
     // Returns 16-byte aligned staging memory for the caller to fill in place
     std::span<std::byte> requestUpload(GPUResourceHandle dest, uint64_t sizeBytes,
@@ -109,6 +110,7 @@ struct ResourceManager
         uint32_t height = 0;
         uint32_t mipLevels = 1;
         uint32_t textureIndex = 0;
+        uint32_t storageIndex = 0;
     };
 
     // Mapped once for the whole run; offset bumps forward, rewinds at beginFrame.
@@ -149,6 +151,7 @@ struct ResourceManager
     std::byte* stagingAlloc(uint64_t size, UploadRequest& req);
 
     uint32_t allocTextureIndex();
+    uint32_t allocStorageIndex();
     void destroyNow(Buffer& b);
     void destroyNow(Image& i);
 
@@ -188,5 +191,7 @@ struct ResourceManager
     uint32_t textureCapacity_ = 0;
     uint32_t textureNext_ = 0;
     std::vector<uint32_t> textureFree_;
+    uint32_t storageNext_ = 0;
+    std::vector<uint32_t> storageFree_;
 };
 }  // namespace batap

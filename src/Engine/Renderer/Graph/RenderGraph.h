@@ -51,6 +51,7 @@ struct GraphImageInfo
     VkExtent2D extent_{};
     VkImageAspectFlags aspect_ = VK_IMAGE_ASPECT_COLOR_BIT;
     uint32_t textureIndex_ = UINT32_MAX;
+    uint32_t storageIndex_ = UINT32_MAX;
     GPUResourceHandle resource_{};
 };
 
@@ -212,6 +213,7 @@ struct GraphContext
     VkImageView view(GraphImage handle) const;
     VkExtent2D extent(GraphImage handle) const;
     uint32_t textureIndex(GraphImage handle) const;
+    uint32_t storageIndex(GraphImage handle) const;
     VkBuffer buffer(GraphBuffer handle) const;
 
     const RenderGraph& graph_;

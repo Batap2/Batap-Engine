@@ -54,6 +54,7 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
              info.aspect_ = isDepthFormat(desc.format_) ? VK_IMAGE_ASPECT_DEPTH_BIT
                                                         : VK_IMAGE_ASPECT_COLOR_BIT;
              info.textureIndex_ = resources_->textureIndex(image);
+             info.storageIndex_ = resources_->storageIndex(image);
              info.resource_ = image;
              return info;
          },

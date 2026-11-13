@@ -251,8 +251,30 @@ quelle unité sature.
   Les ombres restent l'endroit où le chemin GPU perd (déchets dans les
   ombres 0,50 ms contre 0,29 ms, voir le constat de la phase 3).
 - Meshes (`MeshDrawer`) et terrain sur le même chemin.
-- Autres usages du compute : ombres écran avec le partage d'échantillons de
-  Bend, passes de GI qui tournent aujourd'hui en pixel shaders.
+- [x] **4.2 Ombres écran en compute (Bend).** Le moteur a maintenant des
+  images de stockage bindless (`StorageImagesBinding`, index donné par
+  `ResourceManager::storageIndex` / `GraphContext::storageIndex`, écriture
+  sans format). `ScreenShadowCS` est le port de Bend : `ScreenShadows::plan`
+  calcule sur le CPU la position de la lumière à l'écran et jusqu'à 8
+  dispatches (quadrants autour de la lumière), passés par `FrameGPUData` ;
+  chaque groupe de 64 threads prend 64 pixels d'un même rayon vers la
+  lumière, lit leurs profondeurs une fois en mémoire partagée, et chaque pixel
+  y lit ses `ScreenShadowSamples` échantillons. Même fenêtre que l'ancienne
+  passe (0,5 m le long du rayon, contraste 4), mode d'interpolation de Bend où
+  la profondeur de départ et celle des échantillons sont interpolées : avec
+  son mode par défaut, qui repousse les échantillons de l'écart bilinéaire,
+  la plupart des ombres sortaient de la fenêtre.
+
+  Vérifié le 2026-11-13 : à 60 échantillons, masque à 0,3 % de luminosité
+  moyenne de l'ancienne passe (calculée dans le même shader) ; frame 2,74 ms
+  contre 2,88 ms avec l'ancienne passe (150 m, raster). Gardé à 256
+  échantillons (ombres de 256 px) : +0,08 ms par rapport à 60, soit le coût de
+  l'ancienne passe ; avec un soleil bas, 39 000 pixels de plus à l'ombre.
+  Validation debug (raster, RT avec GI, reflets, AO) : seulement les
+  `independentBlend` déjà là. Code de Bend sous Apache 2.0 : voir
+  `THIRD_PARTY_NOTICES.md`.
+- Autres usages du compute : passes de GI qui tournent aujourd'hui en pixel
+  shaders.
 
 ## Risques
 

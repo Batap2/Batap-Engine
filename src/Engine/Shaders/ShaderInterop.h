@@ -12,6 +12,7 @@ namespace batap
 {
 using uint = uint32_t;
 using int3 = int32_t[3];
+using int4 = int32_t[4];
 using float3 = float[3];
 using float4 = float[4];
 using float4x4 = float[16];
@@ -130,12 +131,17 @@ struct RtCacheValueGPUData
     uint vote_;
 };
 
+static const uint ScreenShadowWave = 64u;
+static const uint ScreenShadowSamples = 256u;
+static const uint ScreenShadowDispatches = 8u;
+
 enum BindlessBinding : uint
 {
     SamplerBinding = 0,
     ShadowSamplerBinding = 1,
+    StorageImagesBinding = 2,
     // Must stay the HIGHEST binding of the set: VARIABLE_DESCRIPTOR_COUNT
-    TexturesBinding = 2,
+    TexturesBinding = 3,
 };
 
 enum FrameSetBinding : uint
@@ -503,6 +509,8 @@ struct FrameGPUData
     uint screenShadowLight_;
     uint features_;
     uint pad1_;
+    float4 screenShadowLightCoord_;
+    int4 screenShadowWaves_[ScreenShadowDispatches];
 };
 
 struct SphereOccluderGPUData
@@ -665,7 +673,7 @@ static_assert(sizeof(DrawPush) == 60);
 static_assert(sizeof(ThumbnailDrawGPUData) == 208);
 static_assert(sizeof(ThumbnailPush) == 8);
 static_assert(sizeof(SphereOccluderGPUData) == 16);
-static_assert(sizeof(FrameGPUData) == 336);
+static_assert(sizeof(FrameGPUData) == 480);
 static_assert(sizeof(ShadowGPUData) == 112);
 static_assert(ShadowCascadeCount <= MaxShadowViewsPerLight);
 static_assert(sizeof(DebugVertexGPUData) == 16);

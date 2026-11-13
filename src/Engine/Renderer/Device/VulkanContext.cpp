@@ -70,6 +70,7 @@ VulkanContext::VulkanContext()
     features12.descriptorBindingPartiallyBound = VK_TRUE;
     features12.descriptorBindingVariableDescriptorCount = VK_TRUE;
     features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    features12.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
 
     VkPhysicalDeviceFeatures features10{};
     features10.samplerAnisotropy = VK_TRUE;
@@ -77,6 +78,7 @@ VulkanContext::VulkanContext()
     features10.depthClamp = VK_TRUE;
     // MeshCut_C, in the vertex shaders.
     features10.shaderClipDistance = VK_TRUE;
+    features10.shaderStorageImageWriteWithoutFormat = VK_TRUE;
 
     auto selection = vkb::PhysicalDeviceSelector(vkbInstance)
                          .set_minimum_version(1, 3)

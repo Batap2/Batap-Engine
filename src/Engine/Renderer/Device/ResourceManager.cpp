@@ -184,7 +184,7 @@ ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFra
 
     textureCapacity_ = BindlessTextureCapacity;
 
-    VkDescriptorSetLayoutBinding bindings[3]{};
+    VkDescriptorSetLayoutBinding bindings[4]{};
     bindings[SamplerBinding].binding = SamplerBinding;
     bindings[SamplerBinding].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     bindings[SamplerBinding].descriptorCount = 1;
@@ -197,6 +197,11 @@ ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFra
     bindings[ShadowSamplerBinding].stageFlags = VK_SHADER_STAGE_ALL;
     bindings[ShadowSamplerBinding].pImmutableSamplers = &shadowSampler_;
 
+    bindings[StorageImagesBinding].binding = StorageImagesBinding;
+    bindings[StorageImagesBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    bindings[StorageImagesBinding].descriptorCount = BindlessStorageImageCapacity;
+    bindings[StorageImagesBinding].stageFlags = VK_SHADER_STAGE_ALL;
+
     // VARIABLE_DESCRIPTOR_COUNT requires the highest binding number of the set
     bindings[TexturesBinding].binding = TexturesBinding;
     bindings[TexturesBinding].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
@@ -207,32 +212,35 @@ ResourceManager::ResourceManager(VulkanContext& ctx, uint64_t stagingBytesPerFra
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
         VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
         VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-    const VkDescriptorBindingFlags bindingFlags[3] = {0, 0, textureFlags};
+    const VkDescriptorBindingFlags storageFlags =
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    const VkDescriptorBindingFlags bindingFlags[4] = {0, 0, storageFlags, textureFlags};
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo{};
     flagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-    flagsInfo.bindingCount = 3;
+    flagsInfo.bindingCount = 4;
     flagsInfo.pBindingFlags = bindingFlags;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.pNext = &flagsInfo;
     layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-    layoutInfo.bindingCount = 3;
+    layoutInfo.bindingCount = 4;
     layoutInfo.pBindings = bindings;
     if (vkCreateDescriptorSetLayout(ctx_.device_, &layoutInfo, nullptr, &textureSetLayout_) !=
         VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : bindless layout");
 
-    VkDescriptorPoolSize poolSizes[2] = {
+    VkDescriptorPoolSize poolSizes[3] = {
         {VK_DESCRIPTOR_TYPE_SAMPLER, 2},
         {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureCapacity_},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, BindlessStorageImageCapacity},
     };
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
     poolInfo.maxSets = 1;
-    poolInfo.poolSizeCount = 2;
+    poolInfo.poolSizeCount = 3;
     poolInfo.pPoolSizes = poolSizes;
     if (vkCreateDescriptorPool(ctx_.device_, &poolInfo, nullptr, &texturePool_) != VK_SUCCESS)
         throw std::runtime_error("ResourceManager(vk) : bindless pool");
@@ -500,6 +508,26 @@ GPUResourceHandle ResourceManager::createImageInternal(uint32_t width, uint32_t 
         vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
     }
 
+    image.storageIndex = UINT32_MAX;
+    if ((usage & VK_IMAGE_USAGE_STORAGE_BIT) && mipLevels == 1)
+    {
+        image.storageIndex = allocStorageIndex();
+
+        VkDescriptorImageInfo descriptor{};
+        descriptor.imageView = image.view;
+        descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = textureSet_;
+        write.dstBinding = StorageImagesBinding;
+        write.dstArrayElement = image.storageIndex;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        write.pImageInfo = &descriptor;
+        vkUpdateDescriptorSets(ctx_.device_, 1, &write, 0, nullptr);
+    }
+
     images_.emplace(handle, image);
     return handle;
 }
@@ -516,6 +544,13 @@ uint32_t ResourceManager::textureIndex(GPUResourceHandle texture)
     auto it = images_.find(texture);
     assert(it != images_.end() && "textureIndex: not a texture");
     return it->second.textureIndex;
+}
+
+uint32_t ResourceManager::storageIndex(GPUResourceHandle image)
+{
+    auto it = images_.find(image);
+    assert(it != images_.end() && "storageIndex: not an image");
+    return it->second.storageIndex;
 }
 
 VkExtent2D ResourceManager::extentFor(GPUResourceHandle image)
@@ -758,6 +793,8 @@ void ResourceManager::requestDestroy(GPUResourceHandle handle)
     {
         if (it->second.textureIndex != UINT32_MAX)
             textureFree_.push_back(it->second.textureIndex);
+        if (it->second.storageIndex != UINT32_MAX)
+            storageFree_.push_back(it->second.storageIndex);
         destroyQueues_[currentFrame()].images.push_back(it->second);
         images_.erase(it);
     }
@@ -827,6 +864,18 @@ uint32_t ResourceManager::allocTextureIndex()
     }
     assert(textureNext_ < textureCapacity_ && "bindless table full");
     return textureNext_++;
+}
+
+uint32_t ResourceManager::allocStorageIndex()
+{
+    if (!storageFree_.empty())
+    {
+        const uint32_t idx = storageFree_.back();
+        storageFree_.pop_back();
+        return idx;
+    }
+    assert(storageNext_ < BindlessStorageImageCapacity && "bindless storage table full");
+    return storageNext_++;
 }
 
 void ResourceManager::destroyNow(Buffer& b)

@@ -238,6 +238,7 @@ GraphImage RenderGraph::importImage(std::string name, ResourceManager& resources
     info.aspect_ = isDepthFormat(resources.formatFor(image)) ? VK_IMAGE_ASPECT_DEPTH_BIT
                                                              : VK_IMAGE_ASPECT_COLOR_BIT;
     info.textureIndex_ = resources.textureIndex(image);
+    info.storageIndex_ = resources.storageIndex(image);
     return importImage(std::move(name), info, in, out);
 }
 
@@ -757,6 +758,11 @@ VkExtent2D GraphContext::extent(GraphImage handle) const
 uint32_t GraphContext::textureIndex(GraphImage handle) const
 {
     return declared(handle).textureIndex_;
+}
+
+uint32_t GraphContext::storageIndex(GraphImage handle) const
+{
+    return declared(handle).storageIndex_;
 }
 
 VkBuffer GraphContext::buffer(GraphBuffer handle) const
