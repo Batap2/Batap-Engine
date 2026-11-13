@@ -35,6 +35,7 @@ every run. `BATAP_NO_AUDIO=1` opens no audio device: every sound call is a no-op
 `BATAP_DEBUG_FLAGS=<n>` forces the `Debug*` bits of `Shaders/ShaderInterop.h`
 on every view (64 = ambient occlusion), for frame dumps of a debug view
 without the editor's View menu.
+`BATAP_HIZ=0` turns off the per-instance occlusion culling of the GPU path.
 `BATAP_GPU_DRIVEN=0` keeps the scatter culling and draws on the CPU path, to
 compare against the GPU-driven one.
 

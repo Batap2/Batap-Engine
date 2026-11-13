@@ -165,7 +165,9 @@ enum FrameSetBinding : uint
     ScatterDrawCommandsBinding = 22,
     ScatterVisibleInstancesBinding = 23,
     ScatterCullBinding = 24,
-    FrameSetBindingCount = 25,
+    ScatterHzbBinding = 25,
+    ScatterVisibilityBinding = 26,
+    FrameSetBindingCount = 27,
 };
 
 enum ShadingModel : uint
@@ -298,7 +300,7 @@ struct ScatterBatchGPUData
     uint shadowGroup_;
     uint shadowGroups_;
     float shadowLength_;
-    uint pad0_;
+    float pieceRadius_;
 };
 
 struct ScatterDrawGroupGPUData
@@ -393,6 +395,8 @@ static const uint MaxShadowViewsPerLight = 6u;
 static const uint ShadowCascadeCount = 4u;
 // The camera's view, one per shadow cascade, then every local light's.
 static const uint ScatterCullViews = 2u + ShadowCascadeCount;
+static const uint ScatterLateView = ScatterCullViews;
+static const uint ScatterCommandViews = ScatterCullViews + 1u;
 
 // Camera-relative, the cascades in the order Shadows draws them.
 struct ScatterCullGPUData
@@ -405,7 +409,11 @@ struct ScatterCullGPUData
     uint cascadeCount_;
     uint localViews_;
     uint shadowStride_;
-    uint pad0_;
+    uint mainStride_;
+    uint screenWidth_;
+    uint screenHeight_;
+    uint hzbLevels_;
+    uint hiz_;
 };
 // Across a cascade boundary the texel jumps, and an edge rasterised on both
 // sides shows the step as a line; fading over this band makes it a ramp.
@@ -671,7 +679,7 @@ static_assert(sizeof(ScatterInstanceGPUData) == 32);
 static_assert(sizeof(ScatterBatchGPUData) == 112);
 static_assert(sizeof(ScatterDrawGroupGPUData) == 16);
 static_assert(sizeof(ScatterDrawCommandGPUData) == 20);
-static_assert(sizeof(ScatterCullGPUData) == 160);
+static_assert(sizeof(ScatterCullGPUData) == 176);
 static_assert(sizeof(ScatterOwnerGPUData) == 320);
 static_assert(sizeof(RtGeometryGPUData) == 48);
 static_assert(sizeof(RtInstanceGPUData) == 16);

@@ -160,6 +160,8 @@ void SceneFrame::writeFrameSet(uint32_t frame, const SceneRenderArgs& args, Engi
     claim(ScatterDrawCommandsBinding, resources_.bufferFor(scatter_.drawCommandBuffer()));
     claim(ScatterVisibleInstancesBinding, resources_.bufferFor(scatter_.visibleBuffer()));
     claim(ScatterCullBinding, resources_.bufferFor(scatter_.cullBuffer()));
+    claim(ScatterHzbBinding, resources_.bufferFor(scatter_.hzbBuffer()));
+    claim(ScatterVisibilityBinding, resources_.bufferFor(scatter_.visibilityBuffer()));
 
     bindings_.writeFrameSet(frame, buffers);
 }
@@ -212,6 +214,7 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     shadows_.prepare(*reg, *instances, args.camera_, ctx.getFrameSize(), rtShadows,
                      ctx.settings().shadowMaps_, scatter_.hasShadowCasters());
 
+    scatter_.prepareHzb(targets.extent_);
     writeFrameSet(frame, args, ctx);
     DrawContext draw = drawContext(frame, camID, args, ctx, rayTracing);
     const GraphBuffer traced = terrain_.addMorphPass(graph, draw, uploads);
@@ -370,6 +373,25 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                 terrain_.recordPrepass(bound);
                 scatter_.recordPrepass(bound);
             });
+    if (culled && scatter_.addOcclusionPasses(graph, draw, *culled, depth, uploads))
+    {
+        GraphPass& late = graph.addPass("prepass late");
+        late.read(culled->commands_, Usage::IndirectRead)
+            .read(culled->visible_, Usage::ShaderRead);
+        if (rayTracing)
+            late.read(traced, Usage::ShaderRead);
+        late.color(normals, Load::Keep);
+        if (reflections)
+            late.color(reflections->surface_, Load::Keep);
+        late.depth(depth, Load::Keep)
+            .read(uploads, Usage::AnyRead)
+            .execute(
+                [this, draw](GraphContext& c)
+                {
+                    const DrawContext bound = bindDraw(draw, c.cmd());
+                    scatter_.recordPrepassLate(bound);
+                });
+    }
 
     const auto readsLighting = [&](GraphPass& pass)
     {

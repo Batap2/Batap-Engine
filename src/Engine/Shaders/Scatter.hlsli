@@ -22,6 +22,26 @@ uint ScatterInstanceOf(uint instanceId, uint listStart)
 }
 #endif
 
+uint2 ScatterHzbSize(uint level, uint2 screen)
+{
+    uint2 size = (screen + 1u) / 2u;
+    for (uint l = 0u; l < level; ++l)
+        size = (size + 1u) / 2u;
+    return max(size, 1u);
+}
+
+uint ScatterHzbOffset(uint level, uint2 screen)
+{
+    uint offset = 0u;
+    uint2 size = (screen + 1u) / 2u;
+    for (uint l = 0u; l < level; ++l)
+    {
+        offset += size.x * size.y;
+        size = (size + 1u) / 2u;
+    }
+    return offset;
+}
+
 float3 ScatterRotate(float4 q, float3 v)
 {
     const float3 t = 2.0f * cross(q.xyz, v);

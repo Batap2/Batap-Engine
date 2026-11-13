@@ -7,6 +7,7 @@
 #include "Renderer/Device/Pipelines.h"
 #include "Renderer/Device/ResourceManager.h"
 #include "Renderer/Device/VulkanContext.h"
+#include "Platform/PlatformWindow.h"
 #include "Renderer/EngineConfig.h"
 
 #include <algorithm>
@@ -14,6 +15,7 @@
 #include <cstring>
 #include <iostream>
 #include <span>
+#include <string>
 
 namespace batap
 {
@@ -78,10 +80,14 @@ ScatterDrawer::ScatterDrawer(const DrawSetup& setup) : setup_(setup)
     groupBuffer_ = setup_.resources_.createPerFrameBuffer(
         sizeof(ScatterDrawGroupGPUData) * ScatterMaxDrawGroups, "scatter draw groups");
     commands_ = setup_.resources_.createPerFrameBuffer(
-        kCommandBytes * ScatterCullViews * ScatterMaxDrawGroups, "scatter draw commands");
+        kCommandBytes * ScatterCommandViews * ScatterMaxDrawGroups, "scatter draw commands");
     cullData_ = setup_.resources_.createPerFrameBuffer(sizeof(ScatterCullGPUData), "scatter cull");
     visibleCapacity_ = kInitialInstances * ScatterCullViews;
     visible_ = setup_.resources_.createPerFrameBuffer(sizeof(uint32_t) * visibleCapacity_);
+    visibility_ = setup_.resources_.createStaticBuffer(sizeof(uint32_t) * kInitialInstances);
+    hzbCapacity_ = kInitialInstances;
+    hzb_ = setup_.resources_.createPerFrameBuffer(sizeof(float) * hzbCapacity_);
+    hiz_ = platformEnvVar("BATAP_HIZ").value_or("1") != "0";
     quadIndices_ = setup_.resources_.createStaticBuffer(6 * sizeof(uint32_t), "impostor quad");
     const std::array<uint32_t, 6> quad{0, 1, 2, 3, 4, 5};
     std::memcpy(setup_.resources_.requestUpload(quadIndices_, sizeof quad).data(), quad.data(),
@@ -102,7 +108,11 @@ ScatterDrawer::~ScatterDrawer()
     vkDestroyPipeline(setup_.ctx_.device_, impostorPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, impostorRtPipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, cullPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, lateCullPipeline_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, hzbPipeline_, nullptr);
     setup_.resources_.requestDestroy(batches_);
+    setup_.resources_.requestDestroy(visibility_);
+    setup_.resources_.requestDestroy(hzb_);
     setup_.resources_.requestDestroy(groupBuffer_);
     setup_.resources_.requestDestroy(commands_);
     setup_.resources_.requestDestroy(visible_);
@@ -190,6 +200,12 @@ void ScatterDrawer::buildPipelines(const ShaderModules& modules)
     vkDestroyPipeline(setup_.ctx_.device_, cullPipeline_, nullptr);
     cullPipeline_ =
         buildComputePipeline(setup_.ctx_.device_, setup_.layout_, modules[ScatterCullCS]);
+    vkDestroyPipeline(setup_.ctx_.device_, lateCullPipeline_, nullptr);
+    lateCullPipeline_ =
+        buildComputePipeline(setup_.ctx_.device_, setup_.layout_, modules[ScatterLateCS]);
+    vkDestroyPipeline(setup_.ctx_.device_, hzbPipeline_, nullptr);
+    hzbPipeline_ =
+        buildComputePipeline(setup_.ctx_.device_, setup_.layout_, modules[ScatterHzbCS]);
     impostorRtPipeline_ = modules[ImpostorRtPS]
                               ? impostorLit(modules[ImpostorRtPS], setup_.rtLayout_)
                               : VK_NULL_HANDLE;
@@ -214,6 +230,8 @@ void ScatterDrawer::reserve(uint64_t instances)
     setup_.resources_.requestCopy(grownBatches, instanceBatches_, end_ * sizeof(uint32_t));
     retiredBuffers_.emplace_back(frame_, instanceBatches_);
     instanceBatches_ = grownBatches;
+    retiredBuffers_.emplace_back(frame_, visibility_);
+    visibility_ = setup_.resources_.createStaticBuffer(capacity * sizeof(uint32_t));
     capacity_ = capacity;
 }
 
@@ -484,6 +502,17 @@ bool ScatterDrawer::writeBatch(Slot& slot, const ScatterDraws::Placement& placem
     gpu.shadowGroup_ = slot.shadowGroup_;
     gpu.shadowGroups_ = slot.shadowGroups_;
     gpu.shadowLength_ = slot.shadowLength_;
+    gpu.pieceRadius_ = slot.radius_;
+    if (slot.impostorRadius_ > 0.f)
+    {
+        gpu.pieceRadius_ = 1.5f * slot.impostorRadius_;
+    }
+    else if (const Mesh* mesh = assets.get(slot.mesh_); mesh && mesh->localBounds_.valid())
+    {
+        const v3f reach =
+            mesh->localBounds_.min_.cwiseAbs().cwiseMax(mesh->localBounds_.max_.cwiseAbs());
+        gpu.pieceRadius_ = reach.norm();
+    }
     batchWrites_[slot.batch_] = gpu;
     return true;
 }
@@ -552,7 +581,7 @@ void ScatterDrawer::reserveVisible()
         main += g.instances_;
         shadow += g.shadowInstances_;
     }
-    const uint64_t need = main + uint64_t{ScatterCullViews - 1} * shadow;
+    const uint64_t need = 2 * main + uint64_t{ScatterCullViews - 1} * shadow;
     if (need <= visibleCapacity_)
         return;
     setup_.resources_.requestDestroy(visible_);
@@ -579,8 +608,9 @@ std::optional<ScatterCullBuffers> ScatterDrawer::addCullPass(RenderGraph& graph,
         mainRoom += g.instances_;
         shadowRoom += g.shadowInstances_;
     }
-    mainRoom = std::min(mainRoom, visibleCapacity_);
-    shadowRoom = std::min(shadowRoom, (visibleCapacity_ - mainRoom) / (ScatterCullViews - 1));
+    mainRoom = std::min(mainRoom, visibleCapacity_ / 2);
+    shadowRoom =
+        std::min(shadowRoom, (visibleCapacity_ - 2 * mainRoom) / (ScatterCullViews - 1));
     uint64_t offset = 0;
     uint64_t shadowOffset = 0;
     for (size_t g = 0; g < groups_.size(); ++g)
@@ -621,10 +651,18 @@ std::optional<ScatterCullBuffers> ScatterDrawer::addCullPass(RenderGraph& graph,
         }
     }
     for (ScatterDrawGroupGPUData& data : groupData_)
-        data.shadowOffset_ += static_cast<uint32_t>(offset);
+        data.shadowOffset_ += static_cast<uint32_t>(2 * offset);
     shadowStride_ = static_cast<uint32_t>(shadowOffset);
+    mainStride_ = static_cast<uint32_t>(offset);
+    hizActive_ = hiz_ && hzbLevels_ > 0 && lateCullPipeline_ != VK_NULL_HANDLE &&
+                 hzbPipeline_ != VK_NULL_HANDLE;
     ScatterCullGPUData cull = views;
     cull.shadowStride_ = shadowStride_;
+    cull.mainStride_ = mainStride_;
+    cull.screenWidth_ = extent_.width;
+    cull.screenHeight_ = extent_.height;
+    cull.hzbLevels_ = hzbLevels_;
+    cull.hiz_ = hizActive_ ? 1u : 0u;
 
     const GraphBuffer table = graph.importBuffer("scatter draw groups", setup_.resources_,
                                                  groupBuffer_, Usage::None, Usage::None);
@@ -634,6 +672,9 @@ std::optional<ScatterCullBuffers> ScatterDrawer::addCullPass(RenderGraph& graph,
                                                    visible_, Usage::None, Usage::None);
     const GraphBuffer cullViews = graph.importBuffer("scatter cull views", setup_.resources_,
                                                      cullData_, Usage::None, Usage::None);
+    const GraphBuffer visibility =
+        graph.importBuffer("scatter batch visibility", setup_.resources_, visibility_,
+                           Usage::ComputeWrite, Usage::ComputeWrite);
     graph.addPass("scatter cull setup")
         .write(table, Usage::TransferDst)
         .write(commandBuffer, Usage::TransferDst)
@@ -645,7 +686,7 @@ std::optional<ScatterCullBuffers> ScatterDrawer::addCullPass(RenderGraph& graph,
                 vkCmdUpdateBuffer(c.cmd(), c.buffer(table), 0,
                                   data.size() * sizeof(ScatterDrawGroupGPUData), data.data());
                 vkCmdUpdateBuffer(c.cmd(), c.buffer(cullViews), 0, sizeof cull, &cull);
-                for (uint32_t view = 0; view < ScatterCullViews; ++view)
+                for (uint32_t view = 0; view < ScatterCommandViews; ++view)
                     vkCmdUpdateBuffer(c.cmd(), c.buffer(commandBuffer),
                                       uint64_t{view} * ScatterMaxDrawGroups * kCommandBytes,
                                       commands.size() * kCommandBytes, commands.data());
@@ -653,6 +694,7 @@ std::optional<ScatterCullBuffers> ScatterDrawer::addCullPass(RenderGraph& graph,
     graph.addPass("scatter cull")
         .read(table, Usage::ShaderRead)
         .read(cullViews, Usage::ShaderRead)
+        .read(visibility, Usage::ShaderRead)
         .read(uploads, Usage::AnyRead)
         .write(commandBuffer, Usage::ComputeWrite)
         .write(visible, Usage::ComputeWrite)
@@ -667,7 +709,87 @@ std::optional<ScatterCullBuffers> ScatterDrawer::addCullPass(RenderGraph& graph,
                 vkCmdDispatch(bound.cmd_, std::min(batches, ScatterCullRow),
                               (batches + ScatterCullRow - 1) / ScatterCullRow, 1);
             });
-    return ScatterCullBuffers{commandBuffer, visible};
+    return ScatterCullBuffers{commandBuffer, visible, table, cullViews, visibility, hizActive_};
+}
+
+void ScatterDrawer::prepareHzb(VkExtent2D extent)
+{
+    if (extent.width == extent_.width && extent.height == extent_.height)
+        return;
+    extent_ = extent;
+    hzbLevels_ = 0;
+    if (extent.width == 0 || extent.height == 0)
+        return;
+    uint64_t width = (uint64_t{extent.width} + 1) / 2;
+    uint64_t height = (uint64_t{extent.height} + 1) / 2;
+    uint64_t texels = width * height;
+    hzbLevels_ = 1;
+    while (width > 1 || height > 1)
+    {
+        width = (width + 1) / 2;
+        height = (height + 1) / 2;
+        texels += width * height;
+        ++hzbLevels_;
+    }
+    if (texels <= hzbCapacity_)
+        return;
+    setup_.resources_.requestDestroy(hzb_);
+    hzbCapacity_ = texels;
+    hzb_ = setup_.resources_.createPerFrameBuffer(sizeof(float) * hzbCapacity_);
+}
+
+bool ScatterDrawer::addOcclusionPasses(RenderGraph& graph, const DrawContext& draw,
+                                       const ScatterCullBuffers& culled, GraphImage depth,
+                                       GraphBuffer uploads)
+{
+    if (!culled.hiz_)
+        return false;
+    const GraphBuffer hzb =
+        graph.importBuffer("scatter hzb", setup_.resources_, hzb_, Usage::None, Usage::None);
+    uint32_t width = (extent_.width + 1) / 2;
+    uint32_t height = (extent_.height + 1) / 2;
+    for (uint32_t level = 0; level < hzbLevels_; ++level)
+    {
+        GraphPass& pass = graph.addPass("scatter hzb " + std::to_string(level))
+                              .read(culled.cullViews_, Usage::ShaderRead)
+                              .write(hzb, Usage::ComputeWrite);
+        if (level == 0)
+            pass.read(depth, Usage::ShaderRead);
+        pass.execute(
+            [draw, depth, level, width, height, pipeline = hzbPipeline_](GraphContext& c)
+            {
+                const DrawContext bound = bindCompute(draw, c.cmd());
+                vkCmdBindPipeline(bound.cmd_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+                DrawPush push = bound.push_;
+                push.instanceIndex_ = level;
+                if (level == 0)
+                    push.submeshIndex_ = c.textureIndex(depth);
+                pushDraw(bound, push);
+                vkCmdDispatch(bound.cmd_, (width + 7) / 8, (height + 7) / 8, 1);
+            });
+        width = (width + 1) / 2;
+        height = (height + 1) / 2;
+    }
+    graph.addPass("scatter cull late")
+        .read(culled.table_, Usage::ShaderRead)
+        .read(culled.cullViews_, Usage::ShaderRead)
+        .read(hzb, Usage::ShaderRead)
+        .read(uploads, Usage::AnyRead)
+        .write(culled.visibility_, Usage::ComputeWrite)
+        .write(culled.commands_, Usage::ComputeWrite)
+        .write(culled.visible_, Usage::ComputeWrite)
+        .execute(
+            [draw, pipeline = lateCullPipeline_, batches = nextBatch_](GraphContext& c)
+            {
+                const DrawContext bound = bindCompute(draw, c.cmd());
+                vkCmdBindPipeline(bound.cmd_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+                DrawPush push = bound.push_;
+                push.instanceIndex_ = batches;
+                pushDraw(bound, push);
+                vkCmdDispatch(bound.cmd_, std::min(batches, ScatterCullRow),
+                              (batches + ScatterCullRow - 1) / ScatterCullRow, 1);
+            });
+    return true;
 }
 
 void ScatterDrawer::recordIndirect(const DrawContext& draw, VkPipeline meshPipeline,
@@ -675,14 +797,18 @@ void ScatterDrawer::recordIndirect(const DrawContext& draw, VkPipeline meshPipel
                                    uint32_t view) const
 {
     const VkBuffer commands = setup_.resources_.bufferFor(commands_);
+    const bool main = view == 0 || view == ScatterLateView;
     const auto capacityOf = [&](size_t g)
-    { return view == 0 ? groupData_[g].capacity_ : groupData_[g].shadowCapacity_; };
+    { return main ? groupData_[g].capacity_ : groupData_[g].shadowCapacity_; };
     DrawPush push = draw.push_;
     const auto drawGroup = [&](size_t g)
     {
         const ScatterDrawGroupGPUData& data = groupData_[g];
-        push.instanceIndex_ =
-            view == 0 ? data.offset_ : data.shadowOffset_ + (view - 1) * shadowStride_;
+        push.instanceIndex_ = data.shadowOffset_ + (view - 1) * shadowStride_;
+        if (view == 0)
+            push.instanceIndex_ = data.offset_;
+        else if (view == ScatterLateView)
+            push.instanceIndex_ = data.offset_ + mainStride_;
         push.submeshIndex_ = groups_[g].submesh_;
         pushDraw(draw, push);
         vkCmdDrawIndexedIndirect(draw.cmd_, commands,
@@ -799,13 +925,24 @@ void ScatterDrawer::recordPrepass(const DrawContext& draw)
                     draw.reflections_ ? impostorReflectPrepassPipeline_ : impostorPrepassPipeline_);
 }
 
+void ScatterDrawer::recordPrepassLate(const DrawContext& draw)
+{
+    if (!gpuCulling_ || groupData_.empty() || !hizActive_)
+        return;
+    recordIndirect(draw, draw.reflections_ ? reflectPrepassPipeline_ : prepassPipeline_,
+                   draw.reflections_ ? impostorReflectPrepassPipeline_ : impostorPrepassPipeline_,
+                   Mesh::VertexStreams, ScatterLateView);
+}
+
 void ScatterDrawer::record(const DrawContext& draw)
 {
     if (gpuCulling_ && !groupData_.empty())
     {
-        recordIndirect(draw, draw.rayTracing_ ? rtPipeline_ : pipeline_,
-                       draw.rayTracing_ ? impostorRtPipeline_ : impostorPipeline_,
-                       Mesh::VertexStreams, 0);
+        for (const uint32_t view : {0u, ScatterLateView})
+            if (view == 0 || hizActive_)
+                recordIndirect(draw, draw.rayTracing_ ? rtPipeline_ : pipeline_,
+                               draw.rayTracing_ ? impostorRtPipeline_ : impostorPipeline_,
+                               Mesh::VertexStreams, view);
         return;
     }
     recordDraws(draw, draw.rayTracing_ ? rtPipeline_ : pipeline_, Mesh::VertexStreams, nullptr);

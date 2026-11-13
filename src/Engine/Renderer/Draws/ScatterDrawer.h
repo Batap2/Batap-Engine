@@ -37,6 +37,10 @@ struct ScatterCullBuffers
 {
     GraphBuffer commands_;
     GraphBuffer visible_;
+    GraphBuffer table_;
+    GraphBuffer cullViews_;
+    GraphBuffer visibility_;
+    bool hiz_ = false;
 };
 
 struct ScatterDrawer
@@ -50,10 +54,15 @@ struct ScatterDrawer
     void buildPipelines(const ShaderModules& modules);
     void upload(ScatterDraws& draws, AssetManager& assets);
     void setGpuCulling(bool on) { gpuCulling_ = on; }
+    void prepareHzb(VkExtent2D extent);
     std::optional<ScatterCullBuffers> addCullPass(RenderGraph& graph, const DrawContext& draw,
                                                   GraphBuffer uploads,
                                                   const ScatterCullGPUData& views);
+    bool addOcclusionPasses(RenderGraph& graph, const DrawContext& draw,
+                            const ScatterCullBuffers& culled, GraphImage depth,
+                            GraphBuffer uploads);
     void recordPrepass(const DrawContext& draw);
+    void recordPrepassLate(const DrawContext& draw);
     void record(const DrawContext& draw);
     void recordShadow(const DrawContext& draw, const ScatterShadowView& view);
     bool hasShadowCasters() const;
@@ -65,6 +74,8 @@ struct ScatterDrawer
     GPUResourceHandle drawGroupBuffer() const { return groupBuffer_; }
     GPUResourceHandle drawCommandBuffer() const { return commands_; }
     GPUResourceHandle visibleBuffer() const { return visible_; }
+    GPUResourceHandle hzbBuffer() const { return hzb_; }
+    GPUResourceHandle visibilityBuffer() const { return visibility_; }
     GPUResourceHandle cullBuffer() const { return cullData_; }
 
    private:
@@ -145,11 +156,21 @@ struct ScatterDrawer
     VkPipeline impostorPipeline_ = VK_NULL_HANDLE;
     VkPipeline impostorRtPipeline_ = VK_NULL_HANDLE;
     VkPipeline cullPipeline_ = VK_NULL_HANDLE;
+    VkPipeline lateCullPipeline_ = VK_NULL_HANDLE;
+    VkPipeline hzbPipeline_ = VK_NULL_HANDLE;
     GPUResourceHandle batches_;
     GPUResourceHandle groupBuffer_;
     GPUResourceHandle commands_;
     GPUResourceHandle visible_;
     uint64_t visibleCapacity_ = 0;
+    GPUResourceHandle visibility_;
+    GPUResourceHandle hzb_;
+    uint64_t hzbCapacity_ = 0;
+    uint32_t hzbLevels_ = 0;
+    VkExtent2D extent_{};
+    bool hiz_ = true;
+    bool hizActive_ = false;
+    uint32_t mainStride_ = 0;
     GPUResourceHandle quadIndices_;
     GPUResourceHandle cullData_;
     uint32_t shadowStride_ = 0;

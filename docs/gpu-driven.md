@@ -213,7 +213,43 @@ quelle unité sature.
 
 - Choix 3D / impostor et LOD par instance sur le GPU : plus de saut au
   changement de LOD d'un bloc.
-- Occlusion par pyramide de profondeur (Hi-Z, deux phases).
+- [x] **4.1 Occlusion par pièce (Hi-Z, deux phases).** Un bit de visibilité
+  par instance, gardé d'une frame à l'autre (`ScatterVisibilityBinding`,
+  agrandi avec le buffer d'instances). `ScatterCullCS` met dans la prépasse
+  les instances visibles à la frame d'avant, des lots dans le cône de la
+  caméra. `ScatterHzbCS` construit la pyramide de profondeur (la plus lointaine
+  par bloc de 2×2, Z inversé) dans un buffer par frame, une dispatch par
+  niveau ; le niveau L couvre 2^(L+1) pixels. `ScatterLateCS` teste chaque
+  instance des lots dans le cône (sphère : rayon du maillage, `pieceRadius_`,
+  × échelle), la boîte de la sphère projetée contre 2×2 texels du niveau qui
+  la couvre ; un lot caché en entier remet ses bits à 0 sans tester ses
+  instances. Les instances visibles et pas encore dessinées vont dans la vue
+  `ScatterLateView`, dessinée par la passe « prepass late » ; la passe
+  éclairée dessine les deux listes. Compaction par paquets de 64 instances
+  (préfixe en mémoire partagée, un atomique par paquet et par groupe). Les
+  ombres ne changent pas. `BATAP_HIZ=0` le coupe.
+
+  Un premier essai par lot n'enlevait que 0,06 % des sommets (5 % avec un
+  test volontairement trop agressif) : un lot est un bloc de tas de plusieurs
+  mètres, jamais caché en entier ; ce qui est caché, ce sont les pièces sous
+  la surface des tas.
+
+  Vérifié le 2026-11-13 (même caméra) : à la frame 2000, image identique au
+  pixel au chemin CPU, vecteurs de mouvement à 1 pixel près ; RT avec GI et
+  reflets dans le bruit de la GI ; validation debug avec
+  `BATAP_SYNC_VALIDATION=1` (raster, RT) : seulement les `independentBlend`
+  déjà là. Mesuré à 300 m (1,22 M instances) :
+
+  | | Hi-Z | Sans Hi-Z | Chemin CPU |
+  |---|---|---|---|
+  | Frame GPU (raster) | 2,93 ms | 4,03 ms | 3,46 ms |
+  | Frame GPU (RT, GI et reflets, 150 m) | 4,85 ms | 6,04 ms | — |
+  | Sommets de la prépasse | 6,1 M | 14,2 M | 14,1 M |
+  | Déchets seuls : prépass / éclairée | 0,32 / 0,61 ms | 0,82 / 1,25 ms | 0,66 / 1,13 ms |
+  | Pyramide + deux culls | ~0,09 ms | 0,02 ms | — |
+
+  Les ombres restent l'endroit où le chemin GPU perd (déchets dans les
+  ombres 0,50 ms contre 0,29 ms, voir le constat de la phase 3).
 - Meshes (`MeshDrawer`) et terrain sur le même chemin.
 - Autres usages du compute : ombres écran avec le partage d'échantillons de
   Bend, passes de GI qui tournent aujourd'hui en pixel shaders.
