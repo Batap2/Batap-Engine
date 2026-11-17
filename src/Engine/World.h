@@ -53,6 +53,7 @@ struct World
     void update();
     void update(Game& game);
 
+    Engine& engine() { return *ctx_; }
     InputManager& input();
     AssetManager& assets();
     Audio& audio();

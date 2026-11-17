@@ -10,8 +10,6 @@
 
 namespace batap::userConfig
 {
-namespace
-{
 void writeSection(const std::filesystem::path& file, const char* key, nlohmann::json section)
 {
     nlohmann::json j = read(file);
@@ -20,7 +18,6 @@ void writeSection(const std::filesystem::path& file, const char* key, nlohmann::
     std::filesystem::create_directories(file.parent_path(), ec);
     std::ofstream(file) << j.dump(2);
 }
-}  // namespace
 
 std::filesystem::path path(std::string_view app, std::string_view file)
 {

@@ -28,6 +28,8 @@ std::filesystem::path path(std::string_view app, std::string_view file);
 // The whole file as an object, empty when absent or unreadable.
 nlohmann::json read(const std::filesystem::path& file);
 
+void writeSection(const std::filesystem::path& file, const char* key, nlohmann::json section);
+
 // The "window" section: `screen` is the monitor the window opens centred on
 // (platformMonitors() order, 0 the primary), `focusOnShow` false shows it
 // without taking the focus, `behindOnShow` under every other window. A key the

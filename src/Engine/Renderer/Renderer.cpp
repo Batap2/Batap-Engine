@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 
@@ -152,13 +153,13 @@ void Renderer::writeDump()
     for (uint64_t i = 0; i < count; ++i)  // swapchain BGRA -> RGBA
         std::swap(px[i * 4 + 0], px[i * 4 + 2]);
 #pragma clang diagnostic pop
-    const auto timed = static_cast<std::ptrdiff_t>(std::min(gpuFrameCount_, gpuFrameMs_.size()));
-    if (timed > 0)
+    const std::span<const float> timed =
+        std::span(gpuFrameMs_).first(std::min(gpuFrameCount_, gpuFrameMs_.size()));
+    if (!timed.empty())
     {
-        const auto [low, high] =
-            std::minmax_element(gpuFrameMs_.begin(), gpuFrameMs_.begin() + timed);
+        const auto [low, high] = std::minmax_element(timed.begin(), timed.end());
         std::cout << "[Vulkan] frame GPU : médiane " << gpuFrameMedianMs() << " ms, min " << *low
-                  << " ms, max " << *high << " ms sur " << timed << " frames\n";
+                  << " ms, max " << *high << " ms sur " << timed.size() << " frames\n";
     }
 
     const std::string name = dumpFrames_.size() == 1
@@ -197,11 +198,12 @@ void Renderer::endGpuFrameTime(VkCommandBuffer cmd, uint32_t frame)
 
 float Renderer::gpuFrameMedianMs() const
 {
-    const auto count = static_cast<std::ptrdiff_t>(std::min(gpuFrameCount_, gpuFrameMs_.size()));
-    if (count == 0)
+    const std::span<const float> recorded =
+        std::span(gpuFrameMs_).first(std::min(gpuFrameCount_, gpuFrameMs_.size()));
+    if (recorded.empty())
         return 0.f;
-    std::vector<float> times(gpuFrameMs_.begin(), gpuFrameMs_.begin() + count);
-    const auto middle = times.begin() + count / 2;
+    std::vector<float> times(recorded.begin(), recorded.end());
+    const auto middle = times.begin() + static_cast<std::ptrdiff_t>(times.size() / 2);
     std::nth_element(times.begin(), middle, times.end());
     return *middle;
 }
