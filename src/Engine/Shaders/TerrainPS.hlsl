@@ -43,6 +43,9 @@ float4 main(TerrainVSOutput i) : SV_Target
     s.N_ = (chunk.flags_ & TerrainFlat) != 0u ? s.Nface_ : s.Ngeom_;
     s.cell_ = (length(ddx(i.posRel_)) + length(ddy(i.posRel_))) /
               max(length(ddx(i.grid_)) + length(ddy(i.grid_)), 1e-6f);
+    // Helper lanes only feed the derivatives above: no derivative may come after this.
+    if (IsHelperLane())
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
     ApplyScreenAo(s, i.position_);
     s.gi_ = GiTerrainPoint(TerrainWorldBuffer[g_draw.instanceIndex_], i.posRel_,
                            GiFacing(s.Nface_, i.posRel_));

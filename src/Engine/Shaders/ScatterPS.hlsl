@@ -51,6 +51,9 @@ float4 main(VS_OUTPUT i) : SV_Target
     {
         s.N_ = Ngeom;
     }
+    // Helper lanes only feed the derivatives above: no derivative may come after this.
+    if (IsHelperLane())
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
 
     if ((g_draw.debugFlags_ & DebugMotionVectors) != 0u)
     {

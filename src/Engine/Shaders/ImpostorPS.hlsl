@@ -12,6 +12,9 @@ float4 main(ImpostorVSOutput i) : SV_Target
     const TerrainWorldGPUData placed = ScatterPlaced(batch);
     const float3 N = ImpostorNormal(
         placed, i.rotation_, g_textures[mat.normalTexIdx_].Sample(g_sampler, i.uv_).xyz * 2.0f - 1.0f);
+    // Helper lanes only feed the derivatives above: no derivative may come after this.
+    if (IsHelperLane())
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
 
     Surface s;
     s.albedo_ = mat.albedo.rgb * albedo.rgb;

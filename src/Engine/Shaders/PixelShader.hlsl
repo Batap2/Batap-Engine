@@ -11,6 +11,9 @@ float4 main(VS_OUTPUT i) : SV_Target
     Material mat = MeshMaterial(inst);
     float albedoAlpha;
     Surface s = MeshSurface(i, inst, mat, albedoAlpha);
+    // Helper lanes only feed the derivatives above: no derivative may come after this.
+    if (IsHelperLane())
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
     ApplyScreenAo(s, i.position_);
 
     if ((g_draw.debugFlags_ & DebugMotionVectors) != 0u)
