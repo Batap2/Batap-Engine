@@ -156,14 +156,14 @@ void Renderer::writeDump()
     for (uint64_t i = 0; i < count; ++i)  // swapchain BGRA -> RGBA
         std::swap(px[i * 4 + 0], px[i * 4 + 2]);
 #pragma clang diagnostic pop
-    const std::span<const float> timed =
-        std::span(gpuFrameMs_).first(std::min(gpuFrameCount_, gpuFrameMs_.size()));
+    const std::span<const float> timed = gpuFrame_.recorded();
     if (!timed.empty())
     {
         const auto [low, high] = std::minmax_element(timed.begin(), timed.end());
-        std::cout << "[Vulkan] frame GPU : médiane " << gpuFrameMedianMs() << " ms, min " << *low
+        std::cout << "[Vulkan] frame GPU : médiane " << gpuFrame_.median() << " ms, min " << *low
                   << " ms, max " << *high << " ms sur " << timed.size() << " frames\n";
     }
+    cpuFrames_.print();
     passTimer_->print();
 
     const std::string name = dumpFrames_.size() == 1
@@ -187,8 +187,8 @@ void Renderer::beginGpuFrameTime(VkCommandBuffer cmd, uint32_t frame)
         std::array<uint64_t, 2> ticks{};
         if (vkGetQueryPoolResults(ctx_.device_, frameQueries_, first, 2, sizeof ticks, ticks.data(),
                                   sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
-            gpuFrameMs_[gpuFrameCount_++ % gpuFrameMs_.size()] =
-                static_cast<float>(ticks[1] - ticks[0]) * ctx_.timestampPeriodNs_ * 1e-6f;
+            gpuFrame_.add(static_cast<float>(ticks[1] - ticks[0]) * ctx_.timestampPeriodNs_ *
+                          1e-6f);
     }
     vkCmdResetQueryPool(cmd, frameQueries_, first, 2);
     vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, frameQueries_, first);
@@ -200,18 +200,6 @@ void Renderer::endGpuFrameTime(VkCommandBuffer cmd, uint32_t frame)
 {
     vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frameQueries_, frame * 2 + 1);
     frameQueriesWritten_[frame] = true;
-}
-
-float Renderer::gpuFrameMedianMs() const
-{
-    const std::span<const float> recorded =
-        std::span(gpuFrameMs_).first(std::min(gpuFrameCount_, gpuFrameMs_.size()));
-    if (recorded.empty())
-        return 0.f;
-    std::vector<float> times(recorded.begin(), recorded.end());
-    const auto middle = times.begin() + static_cast<std::ptrdiff_t>(times.size() / 2);
-    std::nth_element(times.begin(), middle, times.end());
-    return *middle;
 }
 
 // Made on first use: only a host that narrows or shows the view ever needs it.
@@ -356,7 +344,17 @@ bool Renderer::addScene(uint32_t frame, GraphBuffer uploads, GraphImage output, 
 
 void Renderer::beginFrame()
 {
+    using Clock = std::chrono::steady_clock;
+    const Clock::time_point start = Clock::now();
+    if (frameStart_)
+    {
+        cpuLast_.total_ = TimeWindow::ms(start - *frameStart_);
+        cpuFrames_.add(cpuLast_);
+    }
+    frameStart_ = start;
+    cpuLast_ = {};
     swapchain_.waitFrame();
+    cpuLast_.fence_ = TimeWindow::ms(Clock::now() - start);
     removeRetiredTextureSets(ctx_.frameIndex_);
     resources_->beginFrame();
 
@@ -371,7 +369,11 @@ void Renderer::beginFrame()
 
 void Renderer::render()
 {
+    using Clock = std::chrono::steady_clock;
+    const Clock::time_point acquireStart = Clock::now();
     const uint32_t imageIndex = swapchain_.acquire();
+    const Clock::time_point recordStart = Clock::now();
+    cpuLast_.acquire_ = TimeWindow::ms(recordStart - acquireStart);
     if (imageIndex == VulkanSwapchain::OutOfDate)
     {
         resize(0, 0);
@@ -478,7 +480,10 @@ void Renderer::render()
                      { recordDumpCopy(c.cmd(), c.image(swapchain)); });
 
     submitBatches(frame, imageIndex, swapchain);
+    const Clock::time_point presentStart = Clock::now();
+    cpuLast_.record_ = TimeWindow::ms(presentStart - recordStart);
     swapchain_.present(ctx_.graphicsQueue_, imageIndex);
+    cpuLast_.present_ = TimeWindow::ms(Clock::now() - presentStart);
 
     if (dumpThisFrame && dumpBuffer_)
         writeDump();

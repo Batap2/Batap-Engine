@@ -38,6 +38,11 @@ without the editor's View menu.
 `BATAP_HIZ=0` turns off the per-instance occlusion culling of the GPU path.
 `BATAP_GPU_DRIVEN=0` keeps the scatter culling and draws on the CPU path, to
 compare against the GPU-driven one.
+The `BATAP_DUMP_FRAME` dump also prints the median GPU frame time and the CPU
+frame split over the last 1024 frames: waiting for the GPU (the frame is
+GPU-bound when it is most of it), acquire, graph and submit, present, and the
+rest (game update). The dump itself stalls the frame: the fps in the window
+title drops for the second around it.
 `BATAP_PASS_TIMES=1` puts a full barrier and a timestamp between every two
 passes of the render graph, and the `BATAP_DUMP_FRAME` dump prints each pass's
 median GPU time. The barriers serialize the frame: take the frame time from a
