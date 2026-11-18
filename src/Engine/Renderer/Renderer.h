@@ -4,6 +4,7 @@
 #include "Renderer/Device/VulkanContext.h"
 #include "Renderer/Device/VulkanSwapchain.h"
 #include "Renderer/EngineConfig.h"
+#include "Renderer/Graph/PassTimer.h"
 #include "Renderer/Graph/RenderGraph.h"
 
 #include <imgui.h>
@@ -150,5 +151,6 @@ struct Renderer
     std::array<bool, FramesInFlight> frameQueriesWritten_{};
     std::array<float, 256> gpuFrameMs_{};
     size_t gpuFrameCount_ = 0;
+    std::unique_ptr<PassTimer> passTimer_;
 };
 }  // namespace batap

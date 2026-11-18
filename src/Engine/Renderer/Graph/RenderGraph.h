@@ -17,6 +17,7 @@
 
 namespace batap
 {
+struct PassTimer;
 struct ResourceManager;
 
 struct GraphImage
@@ -149,6 +150,7 @@ struct RenderGraph
     void reset();
     void compile();
     void record(uint32_t batch, VkCommandBuffer cmd);
+    void setPassTimer(PassTimer* timer) { timer_ = timer; }
 
     uint32_t textureIndex(GraphImage handle) const;
     uint32_t firstBatch(GraphImage handle) const;
@@ -204,6 +206,7 @@ struct RenderGraph
     GraphAllocator allocator_;
     std::vector<Transient> transients_;
     uint64_t frame_ = 0;
+    PassTimer* timer_ = nullptr;
 };
 
 struct GraphContext

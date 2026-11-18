@@ -81,6 +81,9 @@ Renderer::Renderer(void* nativeWindow, bool transparent)
     queryInfo.queryCount = 2 * FramesInFlight;
     if (vkCreateQueryPool(ctx_.device_, &queryInfo, nullptr, &frameQueries_) != VK_SUCCESS)
         throw std::runtime_error("Renderer(vk) : frame timestamps");
+    passTimer_ = std::make_unique<PassTimer>(ctx_);
+    if (passTimer_->enabled())
+        graph_.setPassTimer(passTimer_.get());
 
     const auto parseDumpFrames = [&](const std::string& list)
     {
@@ -161,6 +164,7 @@ void Renderer::writeDump()
         std::cout << "[Vulkan] frame GPU : médiane " << gpuFrameMedianMs() << " ms, min " << *low
                   << " ms, max " << *high << " ms sur " << timed.size() << " frames\n";
     }
+    passTimer_->print();
 
     const std::string name = dumpFrames_.size() == 1
                                  ? std::string("frame_dump.png")
@@ -188,6 +192,8 @@ void Renderer::beginGpuFrameTime(VkCommandBuffer cmd, uint32_t frame)
     }
     vkCmdResetQueryPool(cmd, frameQueries_, first, 2);
     vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, frameQueries_, first);
+    if (passTimer_->enabled())
+        passTimer_->begin(cmd, frame);
 }
 
 void Renderer::endGpuFrameTime(VkCommandBuffer cmd, uint32_t frame)

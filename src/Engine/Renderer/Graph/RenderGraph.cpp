@@ -4,6 +4,7 @@
 #include "Renderer/Device/Pipelines.h"
 #include "Renderer/Device/ResourceManager.h"
 #include "Renderer/EngineConfig.h"
+#include "Renderer/Graph/PassTimer.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -722,8 +723,14 @@ void RenderGraph::record(uint32_t batchIndex, VkCommandBuffer cmd)
             "render graph: a batch that waits on another queue needs the "
             "batches submitted apart");
     for (uint32_t p = batch.firstPass_; p < batch.firstPass_ + batch.passCount_; ++p)
+    {
+        if (timer_)
+            timer_->mark(cmd, &passes_[p].name_);
         recordPass(passes_[p], cmd);
+    }
     recordBarriers(cmd, batch.exits_);
+    if (timer_)
+        timer_->mark(cmd, nullptr);
 }
 
 const GraphImageInfo& GraphContext::declared(GraphImage handle) const
