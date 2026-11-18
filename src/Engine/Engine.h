@@ -42,6 +42,7 @@ struct EngineSettings
     bool rtShadows_ = true;
     bool rtGi_ = true;
     bool rtReflections_ = true;
+    bool halfResReflections_ = false;
     bool shadowMaps_ = true;
     uint32_t giBounces_ = 2;
     uint32_t giPasses_ = 2;
@@ -121,6 +122,7 @@ struct Engine
     void setRtShadows(bool on) { settings_.rtShadows_ = on; }
     void setRtGi(bool on) { settings_.rtGi_ = on; }
     void setRtReflections(bool on) { settings_.rtReflections_ = on; }
+    void setHalfResReflections(bool on) { settings_.halfResReflections_ = on; }
     void setShadowMaps(bool on) { settings_.shadowMaps_ = on; }
     void setGiBounces(uint32_t bounces) { settings_.giBounces_ = bounces; }
     void setGiPasses(uint32_t passes) { settings_.giPasses_ = passes; }

@@ -31,6 +31,7 @@ Reflections::Reflections(const DrawSetup& setup) : setup_(setup) {}
 Reflections::~Reflections()
 {
     vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, traceOwn_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, resolve_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, temporal_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
@@ -40,6 +41,7 @@ Reflections::~Reflections()
 void Reflections::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, trace_, nullptr);
+    vkDestroyPipeline(setup_.ctx_.device_, traceOwn_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, resolve_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, temporal_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
@@ -50,6 +52,9 @@ void Reflections::buildPipelines(const ShaderModules& modules)
     trace_ = modules[ReflectTraceCS]
                  ? buildComputePipeline(device, setup_.rtLayout_, modules[ReflectTraceCS])
                  : VK_NULL_HANDLE;
+    traceOwn_ = modules[ReflectTraceOwnCS]
+                    ? buildComputePipeline(device, setup_.rtLayout_, modules[ReflectTraceOwnCS])
+                    : VK_NULL_HANDLE;
 }
 
 void Reflections::releaseHistory(RenderGraph* graph)
@@ -101,7 +106,7 @@ std::optional<Reflections::Images> Reflections::createImages(RenderGraph& graph,
                                                              VkExtent2D extent,
                                                              const Camera_C& camera,
                                                              entt::entity cameraEntity,
-                                                             bool rayTracing)
+                                                             bool rayTracing, bool halfRes)
 {
     images_.reset();
     if (!rayTracing || trace_ == VK_NULL_HANDLE || camera.ortho())
@@ -119,9 +124,18 @@ std::optional<Reflections::Images> Reflections::createImages(RenderGraph& graph,
     const uint32_t write = historyWrite_;
     const uint32_t read = write ^ 1u;
     Images images;
+    images.traceShift_ = halfRes && traceOwn_ != VK_NULL_HANDLE ? 1u : 0u;
+    const uint32_t round = (1u << images.traceShift_) - 1u;
+    const VkExtent2D traced = {(extent.width + round) >> images.traceShift_,
+                               (extent.height + round) >> images.traceShift_};
     images.surface_ = graph.createImage("reflection surface", {extent, ReflectSurfaceFormat});
-    images.raw_ = graph.createImage("reflection raw", {extent, ReflectRadianceFormat});
-    images.ray_ = graph.createImage("reflection ray", {extent, ReflectRayFormat});
+    images.raw_ = graph.createImage("reflection raw", {traced, ReflectRadianceFormat});
+    images.ray_ = graph.createImage("reflection ray", {traced, ReflectRayFormat});
+    if (images.traceShift_ != 0)
+    {
+        images.ownRaw_ = graph.createImage("reflection own raw", {extent, ReflectRadianceFormat});
+        images.ownRay_ = graph.createImage("reflection own ray", {extent, ReflectRayFormat});
+    }
     images.resolved_ = graph.createImage("reflection resolved", {extent, ReflectRadianceFormat});
     images.history_ = importHistory(graph, "reflection history", history_[read]);
     images.historySurface_ =
@@ -154,7 +168,25 @@ void Reflections::addPasses(RenderGraph& graph, GraphImage depth, GraphImage nor
                                      ray = images_->ray_](GraphContext& c)
                                     { dispatchInto(draw, c, pipeline, raw, ray); });
     readsShading(trace);
-    graph.addPass("reflection resolve")
+    const bool own = images_->traceShift_ != 0;
+    if (own)
+    {
+        GraphPass& traceOwn =
+            graph.addPass("reflection own rays")
+                .read(depth, Usage::ShaderRead)
+                .read(normals, Usage::ShaderRead)
+                .read(images_->surface_, Usage::ShaderRead)
+                .write(images_->ownRaw_, Usage::ComputeWrite)
+                .write(images_->ownRay_, Usage::ComputeWrite)
+                .execute([draw, pipeline = traceOwn_, raw = images_->ownRaw_,
+                          ray = images_->ownRay_](GraphContext& c)
+                         { dispatchInto(draw, c, pipeline, raw, ray); });
+        readsShading(traceOwn);
+    }
+    GraphPass& resolve = graph.addPass("reflection resolve");
+    if (own)
+        resolve.read(images_->ownRaw_, Usage::ShaderRead).read(images_->ownRay_, Usage::ShaderRead);
+    resolve
         .read(depth, Usage::ShaderRead)
         .read(normals, Usage::ShaderRead)
         .read(images_->surface_, Usage::ShaderRead)

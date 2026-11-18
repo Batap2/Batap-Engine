@@ -185,7 +185,8 @@ set(engine_shader_interop "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ShaderInterop.h"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Brdf.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Ao.hlsli"
                           "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Reflections.hlsli"
-                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ReflectPass.hlsli")
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ReflectPass.hlsli"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ReflectTrace.hlsli")
 
 function(batap_compile_shader src out target)
   add_custom_command(
@@ -245,6 +246,7 @@ batap_compile_shader(PrepassMeshRtPS.hlsl PrepassMeshRtPS.spv ps_6_6)
 batap_compile_shader(PrepassTerrainRtPS.hlsl PrepassTerrainRtPS.spv ps_6_6)
 batap_compile_shader(PrepassScatterRtPS.hlsl PrepassScatterRtPS.spv ps_6_6)
 batap_compile_shader(ReflectTraceCS.hlsl ReflectTraceCS.spv cs_6_6 -D BATAP_RT=1)
+batap_compile_shader(ReflectTraceOwnCS.hlsl ReflectTraceOwnCS.spv cs_6_6 -D BATAP_RT=1)
 batap_compile_shader(ReflectResolveCS.hlsl ReflectResolveCS.spv cs_6_6)
 batap_compile_shader(ReflectTemporalCS.hlsl ReflectTemporalCS.spv cs_6_6)
 batap_compile_shader(ReflectFilterCS.hlsl ReflectFilterCS.spv cs_6_6)
@@ -303,6 +305,7 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/PrepassTerrainRtPS.spv"
   "${engine_shader_out}/PrepassScatterRtPS.spv"
   "${engine_shader_out}/ReflectTraceCS.spv"
+  "${engine_shader_out}/ReflectTraceOwnCS.spv"
   "${engine_shader_out}/ReflectResolveCS.spv"
   "${engine_shader_out}/ReflectTemporalCS.spv"
   "${engine_shader_out}/ReflectFilterCS.spv"

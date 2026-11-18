@@ -88,6 +88,7 @@ void readRender(const nlohmann::json& config, EngineSettings& io)
     io.rtShadows_ = it->value("rtShadows", io.rtShadows_);
     io.rtGi_ = it->value("rtGi", io.rtGi_);
     io.rtReflections_ = it->value("rtReflections", io.rtReflections_);
+    io.halfResReflections_ = it->value("halfResReflections", io.halfResReflections_);
     io.shadowMaps_ = it->value("shadowMaps", io.shadowMaps_);
     io.maxFps_ = it->value("maxFps", io.maxFps_);
     io.vsync_ = it->value("vsync", io.vsync_);
@@ -107,6 +108,7 @@ void writeRender(const std::filesystem::path& file, const EngineSettings& render
                   {"rtShadows", render.rtShadows_},
                   {"rtGi", render.rtGi_},
                   {"rtReflections", render.rtReflections_},
+                  {"halfResReflections", render.halfResReflections_},
                   {"shadowMaps", render.shadowMaps_},
                   {"maxFps", render.maxFps_},
                   {"vsync", render.vsync_},

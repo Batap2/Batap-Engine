@@ -75,6 +75,7 @@ struct UIPanels
         bool rtShadows = true;
         bool rtGi = true;
         bool rtReflections = true;
+        bool halfResReflections = false;
         bool shadowMaps = true;
         int maxFps = 0;
         int giBounces = 2;

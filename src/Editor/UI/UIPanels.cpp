@@ -314,6 +314,7 @@ void UIPanels::loadAppSettings(App& app, Engine& ctx)
         s.rtShadows = render.rtShadows_;
         s.rtGi = render.rtGi_;
         s.rtReflections = render.rtReflections_;
+        s.halfResReflections = render.halfResReflections_;
         s.shadowMaps = render.shadowMaps_;
         s.maxFps = static_cast<int>(render.maxFps_);
         s.giBounces = static_cast<int>(render.giBounces_);
@@ -446,6 +447,13 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         if (ImGui::Checkbox("Reflections", &s.rtReflections))
             change = Render;
         ImGui::SetItemTooltip("Off: prefiltered sky");
+        ImGui::Indent();
+        ImGui::BeginDisabled(!s.rtReflections);
+        if (ImGui::Checkbox("Half resolution##reflections", &s.halfResReflections))
+            change = Render;
+        ImGui::SetItemTooltip("One ray per 2x2 pixels");
+        ImGui::EndDisabled();
+        ImGui::Unindent();
         ImGui::EndDisabled();
         ImGui::Unindent();
         ImGui::EndDisabled();
@@ -501,6 +509,7 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         render.rtShadows_ = s.rtShadows;
         render.rtGi_ = s.rtGi;
         render.rtReflections_ = s.rtReflections;
+        render.halfResReflections_ = s.halfResReflections;
         render.shadowMaps_ = s.shadowMaps;
         render.maxFps_ = static_cast<uint32_t>(s.maxFps);
         render.giBounces_ = static_cast<uint32_t>(s.giBounces);
@@ -571,6 +580,7 @@ void UIPanels::drawGeneralSettings(App& app, Engine& ctx)
         ctx.setRtShadows(render.rtShadows_);
         ctx.setRtGi(render.rtGi_);
         ctx.setRtReflections(render.rtReflections_);
+        ctx.setHalfResReflections(render.halfResReflections_);
         ctx.setShadowMaps(render.shadowMaps_);
         ctx.setMaxFps(render.maxFps_);
         ctx.setGiBounces(render.giBounces_);

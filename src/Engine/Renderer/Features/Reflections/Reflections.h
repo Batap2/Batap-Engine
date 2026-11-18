@@ -22,12 +22,15 @@ struct Reflections
         GraphImage surface_;
         GraphImage raw_;
         GraphImage ray_;
+        GraphImage ownRaw_;
+        GraphImage ownRay_;
         GraphImage resolved_;
         GraphImage history_;
         GraphImage historySurface_;
         GraphImage output_;
         GraphImage outputSurface_;
         GraphImage filtered_;
+        uint32_t traceShift_ = 0;
         bool historyValid_ = false;
     };
 
@@ -40,7 +43,7 @@ struct Reflections
     void buildPipelines(const ShaderModules& modules);
     std::optional<Images> createImages(RenderGraph& graph, VkExtent2D extent,
                                        const Camera_C& camera, entt::entity cameraEntity,
-                                       bool rayTracing);
+                                       bool rayTracing, bool halfRes);
     void addPasses(RenderGraph& graph, GraphImage depth, GraphImage normals,
                    GraphBuffer frameConstants, GraphBuffer uploads, const DrawContext& draw,
                    const std::function<void(GraphPass&)>& readsShading);
@@ -52,6 +55,7 @@ struct Reflections
 
     DrawSetup setup_;
     VkPipeline trace_ = VK_NULL_HANDLE;
+    VkPipeline traceOwn_ = VK_NULL_HANDLE;
     VkPipeline resolve_ = VK_NULL_HANDLE;
     VkPipeline temporal_ = VK_NULL_HANDLE;
     VkPipeline filter_ = VK_NULL_HANDLE;

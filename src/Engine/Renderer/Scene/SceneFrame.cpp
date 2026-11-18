@@ -278,8 +278,10 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
     frameData_.screenShadowLight_ = screenShadow ? screenShadowLight : InvalidGPUIndex;
     const std::optional<Reflections::Images> reflections =
         reflections_.createImages(graph, targets.extent_, camera, args.camera_,
-                                  rayTracing && ctx.settings().rtReflections_);
+                                  rayTracing && ctx.settings().rtReflections_,
+                                  ctx.settings().halfResReflections_);
     draw.reflections_ = reflections.has_value();
+    frameData_.reflectTraceShift_ = reflections ? reflections->traceShift_ : 0u;
     skyPrefilter_.createImages(graph, draw.push_.skyboxCount_ != 0);
 
     const bool rtFirstHit = rayTracing && (draw.push_.debugFlags_ & DebugRtFirstHit) != 0u;
@@ -324,6 +326,12 @@ bool SceneFrame::addPasses(RenderGraph& graph, uint32_t frame, const RenderTarge
                     data.reflectSurfaceTexture_ = c.graph_.textureIndex(reflections->surface_);
                     data.reflectRawTexture_ = c.graph_.textureIndex(reflections->raw_);
                     data.reflectRayTexture_ = c.graph_.textureIndex(reflections->ray_);
+                    data.reflectOwnRawTexture_ = reflections->traceShift_ != 0
+                                                     ? c.graph_.textureIndex(reflections->ownRaw_)
+                                                     : InvalidGPUIndex;
+                    data.reflectOwnRayTexture_ = reflections->traceShift_ != 0
+                                                     ? c.graph_.textureIndex(reflections->ownRay_)
+                                                     : InvalidGPUIndex;
                     data.reflectResolvedTexture_ = c.graph_.textureIndex(reflections->resolved_);
                     data.reflectHistoryTexture_ =
                         reflections->historyValid_ ? c.graph_.textureIndex(reflections->history_)

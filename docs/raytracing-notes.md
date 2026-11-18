@@ -1567,3 +1567,51 @@ dépasse le budget) :
   petites à l'écran).
 - Leviers si un jeu y trouve un grand sol lisse : passes de réutilisation
   et temporelle en ½ × ½ (comme l'AO), SSR d'abord, ou coupure plus basse.
+
+## 7.7 Rayons en demi-résolution
+
+*Fait (2026-11-18)*, réglage `halfResReflections` (clé `render` de la
+config ; éditeur : Settings, sous Reflections ; jeu : menu Graphics) :
+- **Un rayon par bloc 2 × 2** pour la rugosité au-dessus de 0,25 : la passe
+  `reflection trace` tourne sur la grille des blocs et écrit `reflection
+  raw` / `reflection ray` en ½ × ½. Le pixel tracé change à chaque frame
+  (`ReflectTraceOffset` : (0,0), (1,1), (1,0), (0,1)), en 4 frames chaque
+  pixel a eu le sien. `reflectTraceShift_` (0 ou 1) dit au resolve où vit
+  chaque rayon.
+- **Rayon propre sous 0,25** (`ReflectOwnRayRoughness`) : la passe
+  `reflection own rays` (`ReflectTraceOwnCS`, plein écran) trace les
+  pixels lisses que le bloc n'a pas pris, dans `reflection own raw` / `own
+  ray` en pleine résolution. Sans elle, un miroir ne peut pas réutiliser le
+  rayon d'un voisin (escaliers de 2 px aux bords des objets reflétés, sur
+  `test_reflection`), et les sphères à 0,1 et 0,2 sortent bruitées (lobe
+  étroit, normales qui tournent vite, historique court).
+- **Resolve, temporel et filtre restent en pleine résolution** : le resolve
+  prend le rayon du bloc du pixel (le sien s'il l'a tracé), puis ceux des
+  blocs voisins, rayon minimal 6 px au lieu de 3.
+
+*Mesuré* (planète, `BATAP_VIEW=2`, frame 1500, passes chronométrées) :
+
+| | 720p | 1440p |
+|---|---|---|
+| Frame GPU, plein → demi | 4,34 → 4,10 ms | 8,18 → 7,62 ms |
+| Trace | 0,47 → 0,16 ms | 1,18 → 0,49 ms |
+| Rayons propres | — → 0,045 ms | — → 0,12 ms |
+| Resolve | 0,082 → 0,085 ms | 0,34 → 0,34 ms |
+
+- La passe des rayons propres coûte ~0,04 ms à vide en 1440p ; le reste
+  vient des déchets dont la texture de rugosité descend sous 0,25. Un fil
+  par bloc (boucle sur ses 4 pixels) n'est pas plus rapide (0,068 ms en
+  720p, 0,119 en 1440p).
+- Un premier essai sur des cibles pleine résolution remplies un pixel sur
+  quatre (miroirs tracés en place, boucle de 4 rayons dans la trace) :
+  trace 0,69 ms et resolve 0,38 ms en 1440p. Les lectures éparses coûtent
+  le cache ; les cibles ½ × ½ compactes restent.
+- Mode plein : resolve 0,30 → 0,34 ms en 1440p (code du mode demi), le
+  reste identique. Images : dans le bruit d'un lancement à l'autre.
+- Demi contre plein, planète à l'arrêt : pas de différence visible ;
+  `test_reflection` : seule la sphère à 0,3 (rayon par bloc) est un peu
+  plus granuleuse. En mouvement, l'historique se refait sur moins de
+  rayons : pas mesuré.
+- Piège de mesure : en 1440p, la trace des reflets vaut 1,18 ou 1,59 ms
+  selon le lancement, même binaire et même shader, toutes les autres passes
+  RT identiques. Ne comparer que des lancements dans le même état.

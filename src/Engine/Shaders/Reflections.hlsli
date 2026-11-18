@@ -6,6 +6,7 @@
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<uint4> g_uintTextures[];
 
 static const float ReflectMirrorRoughness = 0.0505f;
+static const float ReflectOwnRayRoughness = 0.25f;
 static const float ReflectCutoff = 0.6f;
 static const float ReflectCutoffBlend = 0.1f;
 static const uint ReflectKindNone = 0u;
@@ -72,6 +73,17 @@ float ReflectRoughness(uint shadingModel, float roughness)
 float ReflectWeight(float roughness)
 {
     return 1.0f - smoothstep(ReflectCutoff - ReflectCutoffBlend, ReflectCutoff, roughness);
+}
+
+int2 ReflectTraceOffset(uint frameIndex)
+{
+    const uint k = frameIndex & 3u;
+    return int2(((k + 1u) >> 1) & 1u, k & 1u);
+}
+
+int2 ReflectTracedPixel(int2 texel, uint shift, int2 offset, int2 size)
+{
+    return shift != 0u ? min((texel << 1) + offset, size - 1) : texel;
 }
 
 #endif
