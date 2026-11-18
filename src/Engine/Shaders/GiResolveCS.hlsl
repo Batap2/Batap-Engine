@@ -1,16 +1,15 @@
 #include "GiPath.hlsli"
 
-float4 main(float4 svpos : SV_POSITION) : SV_Target
+[numthreads(GiCellGroupSize, 1, 1)]
+void main(uint3 id : SV_DispatchThreadID)
 {
     const FrameGPUData fc = FrameBuffer[0];
-    const uint2 pixel = uint2(svpos.xy);
-    const uint entry = pixel.y * RtCacheResolveWidth + pixel.x;
+    const uint entry = id.x;
     const uint bucket = entry & (RtCacheStatsBuckets - 1u);
-    const float4 none = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
     const uint64_t key = GiKeys[entry];
     if (key == 0)
-        return none;
+        return;
 
     RtCacheValueGPUData v = GiValues[entry];
     uint samples = v.history_ & GiSamplesMask;
@@ -37,7 +36,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
                 GiValues[entry].vote_ = 0u;
             GiStatAdd(RtCacheStatOccupied, bucket);
         }
-        return none;
+        return;
     }
 
     float tau = GiSlowTau;
@@ -98,5 +97,4 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
     v.vote_ = 0u;
     GiValues[entry] = v;
     GiStatAdd(RtCacheStatOccupied, bucket);
-    return none;
 }

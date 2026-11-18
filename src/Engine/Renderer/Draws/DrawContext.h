@@ -70,11 +70,24 @@ inline DrawContext bindCompute(const DrawContext& draw, VkCommandBuffer cmd)
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, draw.layout_, 0,
                             static_cast<uint32_t>(draw.sets_.size()), draw.sets_.data(), 0,
                             nullptr);
+    if (draw.rtSet_ != VK_NULL_HANDLE)
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, draw.rtLayout_, RayTracingSet,
+                                1, &draw.rtSet_, 0, nullptr);
     return bound;
 }
 
 inline void pushDraw(const DrawContext& draw, const DrawPush& push)
 {
     vkCmdPushConstants(draw.cmd_, draw.layout_, DrawPushStages, 0, sizeof(push), &push);
+}
+
+inline void dispatchScreen(const DrawContext& draw, VkCommandBuffer cmd, VkPipeline pipeline,
+                           const DrawPush& push, VkExtent2D extent)
+{
+    const DrawContext bound = bindCompute(draw, cmd);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+    pushDraw(bound, push);
+    vkCmdDispatch(cmd, (extent.width + ScreenGroupSize - 1) / ScreenGroupSize,
+                  (extent.height + ScreenGroupSize - 1) / ScreenGroupSize, 1);
 }
 }  // namespace batap

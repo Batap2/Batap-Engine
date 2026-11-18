@@ -273,8 +273,70 @@ quelle unité sature.
   Validation debug (raster, RT avec GI, reflets, AO) : seulement les
   `independentBlend` déjà là. Code de Bend sous Apache 2.0 : voir
   `THIRD_PARTY_NOTICES.md`.
-- Autres usages du compute : passes de GI qui tournent aujourd'hui en pixel
-  shaders.
+- [x] **4.3 Passes plein écran en compute.** Toutes les passes qui dessinaient
+  un triangle plein écran dans leur propre cible sont des compute shaders :
+  - GI : vote, trace, update, resolve ;
+  - reflets : trace, resolve, temporal, filter ;
+  - AO : trace, filter, upsample ;
+  - ciel : equirect, préfiltrage ;
+  - bloom : descente, remontée ;
+  - mesure d'exposition.
+
+  Elles passent par `dispatchScreen` : un thread par pixel, groupes de 8×8,
+  sortie dans `DrawPush::storageImage_` (et `storageImage2_` pour une
+  deuxième), `ScreenCompute.hlsli` côté HLSL. Le set RT est maintenant visible
+  du compute. Restent des pixel shaders le ciel, le tonemap et le composite
+  translucide : ils dessinent dans une passe de rendu qui fait autre chose.
+
+  Cas particuliers :
+  - Les passes de GI n'ont plus leur cible factice. La trace et le resolve
+    comptent des cellules et non des pixels : dispatches 1D de 64 threads, où
+    les rayons d'une même cellule se suivent dans le warp.
+  - La remontée du bloom refait à la main le mélange
+    `ONE, ONE_MINUS_SRC_ALPHA` en relisant sa cible.
+  - Le préfiltrage du ciel donne 16 threads à chaque texel, chacun prenant un
+    échantillon sur 16, puis une réduction en mémoire partagée. Un thread seul
+    attendait ses 64 à 128 lectures l'une après l'autre : le dernier niveau
+    (4×2 texels) coûtait autant que le premier.
+
+  Chrono par passe : `BATAP_PASS_TIMES=1` (voir `CLAUDE.md`). Sur NVIDIA, un
+  timestamp n'attend les dispatches qui le précèdent que derrière une barrière
+  mémoire. Sans elle, le préfiltrage du ciel (~0,18 ms) apparaissait dans la
+  passe d'AO qui le suit.
+
+  Vérifié le 2026-11-18 :
+  - Planète, caméra `BATAP_VIEW=2`, frame 2000, sur l'image finale et les vues
+    debug du cache GI, de l'AO et des reflets : l'ancien et le nouveau binaire
+    diffèrent moins que deux runs de l'ancien entre eux (~30 000 pixels contre
+    ~40 000 à 60 000, quelques centaines à plus de 30). Le contenu dépend du
+    temps CPU, comme en phase 3.
+  - Éditeur, scènes `test_furnace` et `test_reflection` en raster (l'ancien
+    binaire y est déterministe) : au plus 1 niveau d'écart, venu de l'ordre
+    des sommes du préfiltrage. Mêmes quelques pixels à plus de 30 qu'entre
+    deux runs de l'ancien.
+  - Validation de synchronisation, couche du SDK sur le build relwithdebinfo
+    (raster, RT avec GI et reflets) : seulement les `independentBlend` déjà
+    là.
+  - GI par pixel (`giPerCell_` à false) : tourne et remplit le cache, sans
+    comparaison avec l'ancien binaire.
+
+  Mesuré sur la planète (RTX 5070, 720p, frame 1500, médiane de 3 runs
+  alternés ancien/nouveau). Frame sans chrono, passes avec :
+
+  | | Avant | Après |
+  |---|---|---|
+  | Frame GPU, RT (GI, reflets, AO) | 4,78 ms | 4,32 ms |
+  | Frame GPU, raster | 2,96 ms | 2,84 ms |
+  | GI : vote / traces / resolve | 0,028 / 0,206 / 0,089 ms | 0,025 / 0,139 / 0,057 ms |
+  | Reflets : trace / resolve / temporal / filter | 0,676 / 0,082 / 0,096 / 0,054 ms | 0,471 / 0,074 / 0,080 / 0,049 ms |
+  | AO : trace / filter / upsample | 0,059 / 0,046 / 0,025 ms | 0,055 / 0,033 / 0,025 ms |
+  | Ciel : equirect + préfiltrage | 0,206 ms | 0,078 ms |
+  | Bloom | 0,065 ms | 0,068 ms |
+  | Exposition | 0,009 ms | 0,007 ms |
+
+  La trace des reflets gagne le plus (−30 %), la cause n'est pas mesurée.
+  Seule la première descente du bloom (pleine résolution, 13 lectures) est
+  plus lente en compute (0,012 → 0,018 ms).
 
 ## Risques
 

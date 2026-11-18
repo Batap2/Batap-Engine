@@ -1,5 +1,6 @@
 #include "Ao.hlsli"
 #include "GiCache.hlsli"
+#include "ScreenCompute.hlsli"
 
 static const float AoPi = 3.14159265358979f;
 static const uint AoSlices = 1u;
@@ -85,7 +86,7 @@ bool AoClipToSphere(float3 P, float3 dir, float2 span, float radius, out float2 
     return clipped.x < clipped.y;
 }
 
-float4 main(float4 svpos : SV_POSITION) : SV_Target
+float4 AoTrace(float4 svpos)
 {
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
@@ -231,4 +232,14 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
     moment /= float(AoSlices);
     const float3 world = moment.x * cam.right_ + moment.y * cam.up_ - moment.z * cam.fwd_;
     return float4(1.0f - occlusion / float(AoSlices), world);
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    const float4 svpos = float4(float2(id.xy) + 0.5f, 0.0f, 1.0f);
+    g_storageImages[g_draw.storageImage_][id.xy] = AoTrace(svpos);
 }

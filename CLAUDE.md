@@ -80,6 +80,12 @@ run without it.
   (`StorageImagesBinding`, `GraphContext::storageIndex`): declare the image
   `.write(image, Usage::ComputeWrite)` and use
   `[[vk::image_format("unknown")]] RWTexture2D<float4>` in HLSL.
+  Full-screen passes are compute shaders: `dispatchScreen` (one thread per
+  pixel, `ScreenGroupSize` square groups) with the output's storage index in
+  `DrawPush::storageImage_` (`storageImage2_` for a second one), and
+  `Shaders/ScreenCompute.hlsli` on the HLSL side. Only passes that draw into a
+  render pass doing other work (sky, tonemap, translucent composite) stay
+  pixel shaders.
 - GPU instance data: `Instance/InstanceManager.h` pools, dirty-marking uploads
   everything (not per component). Mesh and camera ids stay with their entity
   while it is in the pool, and a freed id goes to the next entity inserted.

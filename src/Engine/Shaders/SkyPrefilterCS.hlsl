@@ -1,18 +1,31 @@
 #include "ShaderInterop.h"
 #include "Sky.hlsli"
+#include "ScreenCompute.hlsli"
 
 [[vk::binding(SamplerBinding, BindlessSet)]]  SamplerState      g_sampler;
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
 
 [[vk::push_constant]] DrawPush g_draw;
 
+static const uint SkyPrefilterLanes = 16u;
+groupshared float4 g_partial[SkyPrefilterTexelsPerGroup][SkyPrefilterLanes];
+
 float2 Hammersley(uint i, uint count)
 {
     return float2(float(i) / float(count), float(reversebits(i)) * 2.3283064365386963e-10f);
 }
 
-float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
+// A thread alone waits on its fetches one after the other, and the small levels have too few
+// texels to hide it: SkyPrefilterLanes threads per texel, each taking every SkyPrefilterLanes-th
+// sample.
+[numthreads(SkyPrefilterLanes, SkyPrefilterTexelsPerGroup, 1)]
+void main(uint3 group : SV_GroupID, uint3 local : SV_GroupThreadID)
 {
+    const uint lane = local.x;
+    const uint row = local.y;
+    const uint2 texel = uint2(group.x * SkyPrefilterTexelsPerGroup + row, group.y);
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    const float2 ndc = ScreenNdc(texel, size);
     float2 uv = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f);
     float3 N = SkyEquirectDir(uv);
     float3 up = abs(N.y) < 0.999f ? float3(0.0f, 1.0f, 0.0f) : float3(1.0f, 0.0f, 0.0f);
@@ -23,7 +36,8 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
 
     float3 sum = 0.0f.xxx;
     float weight = 0.0f;
-    for (uint i = 0u; i < g_draw.skySamples_; ++i)
+    const uint samples = texel.x < size.x ? g_draw.skySamples_ : 0u;
+    for (uint i = lane; i < samples; i += SkyPrefilterLanes)
     {
         float2 xi = Hammersley(i, g_draw.skySamples_);
         float phi = 2.0f * SKY_PI * xi.x;
@@ -38,5 +52,17 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
                NdotL;
         weight += NdotL;
     }
-    return float4(sum / max(weight, 1e-4f), 1.0f);
+
+    g_partial[row][lane] = float4(sum, weight);
+    GroupMemoryBarrierWithGroupSync();
+    [unroll]
+    for (uint stride = SkyPrefilterLanes / 2u; stride > 0u; stride >>= 1u)
+    {
+        if (lane < stride)
+            g_partial[row][lane] += g_partial[row][lane + stride];
+        GroupMemoryBarrierWithGroupSync();
+    }
+    if (lane == 0u && texel.x < size.x)
+        g_storageImages[g_draw.storageImage_][texel] =
+            float4(g_partial[row][0].rgb / max(g_partial[row][0].a, 1e-4f), 1.0f);
 }

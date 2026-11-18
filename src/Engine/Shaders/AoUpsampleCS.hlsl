@@ -1,9 +1,10 @@
 #include "Ao.hlsli"
+#include "ScreenCompute.hlsli"
 
 // Back to full resolution: the four nearest half-resolution texels, weighted
 // bilinearly and by how well their surface continues this pixel's. A pixel no
 // texel stands for (thinner than the 2x2 block) gets no occlusion.
-float4 main(float4 svpos : SV_POSITION) : SV_Target
+float4 AoUpsample(float4 svpos)
 {
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
@@ -45,4 +46,14 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
     }
     const float4 ao = weight > 1e-3f ? sum / weight : float4(1.0f, 0.0f, 0.0f, 0.0f);
     return float4(saturate(ao.x), ao.yzw);
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    const float4 svpos = float4(float2(id.xy) + 0.5f, 0.0f, 1.0f);
+    g_storageImages[g_draw.storageImage_][id.xy] = AoUpsample(svpos);
 }

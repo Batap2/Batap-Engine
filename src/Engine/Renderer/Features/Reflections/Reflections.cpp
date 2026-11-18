@@ -13,14 +13,16 @@ constexpr VkFormat ReflectRadianceFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 constexpr VkFormat ReflectRayFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 constexpr VkFormat ReflectHistorySurfaceFormat = VK_FORMAT_R32G32B32A32_UINT;
 constexpr VkImageUsageFlags ReflectHistoryUsage =
-    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
-void drawFullscreen(const DrawContext& draw, GraphContext& c, VkPipeline pipeline)
+void dispatchInto(const DrawContext& draw, GraphContext& c, VkPipeline pipeline, GraphImage target,
+                  std::optional<GraphImage> second = std::nullopt)
 {
-    const DrawContext bound = bindDraw(draw, c.cmd());
-    vkCmdBindPipeline(bound.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    pushDraw(bound, bound.push_);
-    vkCmdDraw(bound.cmd_, 3, 1, 0, 0);
+    DrawPush push = draw.push_;
+    push.storageImage_ = c.storageIndex(target);
+    if (second)
+        push.storageImage2_ = c.storageIndex(*second);
+    dispatchScreen(draw, c.cmd(), pipeline, push, c.extent(target));
 }
 }  // namespace
 
@@ -41,25 +43,13 @@ void Reflections::buildPipelines(const ShaderModules& modules)
     vkDestroyPipeline(setup_.ctx_.device_, resolve_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, temporal_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, filter_, nullptr);
-    resolve_ = GraphicsPipelineBuilder()
-                   .shaders(modules[SkyVS], modules[ReflectResolvePS])
-                   .colorFormat(ReflectRadianceFormat)
-                   .build(setup_.ctx_.device_, setup_.layout_);
-    temporal_ = GraphicsPipelineBuilder()
-                    .shaders(modules[SkyVS], modules[ReflectTemporalPS])
-                    .colorFormat(ReflectRadianceFormat)
-                    .colorFormat(ReflectHistorySurfaceFormat)
-                    .build(setup_.ctx_.device_, setup_.layout_);
-    filter_ = GraphicsPipelineBuilder()
-                  .shaders(modules[SkyVS], modules[ReflectFilterPS])
-                  .colorFormat(ReflectRadianceFormat)
-                  .build(setup_.ctx_.device_, setup_.layout_);
-    trace_ = modules[ReflectTracePS] ? GraphicsPipelineBuilder()
-                                           .shaders(modules[SkyVS], modules[ReflectTracePS])
-                                           .colorFormat(ReflectRadianceFormat)
-                                           .colorFormat(ReflectRayFormat)
-                                           .build(setup_.ctx_.device_, setup_.rtLayout_)
-                                     : VK_NULL_HANDLE;
+    const VkDevice device = setup_.ctx_.device_;
+    resolve_ = buildComputePipeline(device, setup_.layout_, modules[ReflectResolveCS]);
+    temporal_ = buildComputePipeline(device, setup_.layout_, modules[ReflectTemporalCS]);
+    filter_ = buildComputePipeline(device, setup_.layout_, modules[ReflectFilterCS]);
+    trace_ = modules[ReflectTraceCS]
+                 ? buildComputePipeline(device, setup_.rtLayout_, modules[ReflectTraceCS])
+                 : VK_NULL_HANDLE;
 }
 
 void Reflections::releaseHistory(RenderGraph* graph)
@@ -102,6 +92,7 @@ GraphImage Reflections::importHistory(RenderGraph& graph, const char* name,
     info.extent_ = resources.extentFor(image);
     info.aspect_ = VK_IMAGE_ASPECT_COLOR_BIT;
     info.textureIndex_ = resources.textureIndex(image);
+    info.storageIndex_ = resources.storageIndex(image);
     info.resource_ = image;
     return graph.importImage(name, info, Usage::ShaderRead);
 }
@@ -153,15 +144,15 @@ void Reflections::addPasses(RenderGraph& graph, GraphImage depth, GraphImage nor
 {
     if (!images_)
         return;
-    GraphPass& trace =
-        graph.addPass("reflection trace")
-            .read(depth, Usage::ShaderRead)
-            .read(normals, Usage::ShaderRead)
-            .read(images_->surface_, Usage::ShaderRead)
-            .color(images_->raw_, Load::DontCare)
-            .color(images_->ray_, Load::DontCare)
-            .execute([draw, pipeline = trace_](GraphContext& c)
-                     { drawFullscreen(draw, c, pipeline); });
+    GraphPass& trace = graph.addPass("reflection trace")
+                           .read(depth, Usage::ShaderRead)
+                           .read(normals, Usage::ShaderRead)
+                           .read(images_->surface_, Usage::ShaderRead)
+                           .write(images_->raw_, Usage::ComputeWrite)
+                           .write(images_->ray_, Usage::ComputeWrite)
+                           .execute([draw, pipeline = trace_, raw = images_->raw_,
+                                     ray = images_->ray_](GraphContext& c)
+                                    { dispatchInto(draw, c, pipeline, raw, ray); });
     readsShading(trace);
     graph.addPass("reflection resolve")
         .read(depth, Usage::ShaderRead)
@@ -171,9 +162,9 @@ void Reflections::addPasses(RenderGraph& graph, GraphImage depth, GraphImage nor
         .read(images_->ray_, Usage::ShaderRead)
         .read(frameConstants, Usage::ShaderRead)
         .read(uploads, Usage::AnyRead)
-        .color(images_->resolved_, Load::DontCare)
-        .execute([draw, pipeline = resolve_](GraphContext& c)
-                 { drawFullscreen(draw, c, pipeline); });
+        .write(images_->resolved_, Usage::ComputeWrite)
+        .execute([draw, pipeline = resolve_, target = images_->resolved_](GraphContext& c)
+                 { dispatchInto(draw, c, pipeline, target); });
     GraphPass& temporal = graph.addPass("reflection temporal");
     if (images_->historyValid_)
         temporal.read(images_->history_, Usage::ShaderRead)
@@ -184,10 +175,11 @@ void Reflections::addPasses(RenderGraph& graph, GraphImage depth, GraphImage nor
         .read(images_->resolved_, Usage::ShaderRead)
         .read(frameConstants, Usage::ShaderRead)
         .read(uploads, Usage::AnyRead)
-        .color(images_->output_, Load::DontCare)
-        .color(images_->outputSurface_, Load::DontCare)
-        .execute([draw, pipeline = temporal_](GraphContext& c)
-                 { drawFullscreen(draw, c, pipeline); });
+        .write(images_->output_, Usage::ComputeWrite)
+        .write(images_->outputSurface_, Usage::ComputeWrite)
+        .execute([draw, pipeline = temporal_, output = images_->output_,
+                  surface = images_->outputSurface_](GraphContext& c)
+                 { dispatchInto(draw, c, pipeline, output, surface); });
     graph.addPass("reflection filter")
         .read(depth, Usage::ShaderRead)
         .read(normals, Usage::ShaderRead)
@@ -196,8 +188,8 @@ void Reflections::addPasses(RenderGraph& graph, GraphImage depth, GraphImage nor
         .read(images_->output_, Usage::ShaderRead)
         .read(frameConstants, Usage::ShaderRead)
         .read(uploads, Usage::AnyRead)
-        .color(images_->filtered_, Load::DontCare)
-        .execute([draw, pipeline = filter_](GraphContext& c)
-                 { drawFullscreen(draw, c, pipeline); });
+        .write(images_->filtered_, Usage::ComputeWrite)
+        .execute([draw, pipeline = filter_, target = images_->filtered_](GraphContext& c)
+                 { dispatchInto(draw, c, pipeline, target); });
 }
 }  // namespace batap

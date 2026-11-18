@@ -14,16 +14,14 @@ constexpr size_t kMaxLevels = 6;
 constexpr uint32_t kMinSide = 8;
 
 void drawLevel(const DrawContext& draw, GraphContext& c, VkPipeline pipeline, GraphImage source,
-               bool karis, float radius)
+               GraphImage target, bool karis, float radius)
 {
-    const DrawContext bound = bindDraw(draw, c.cmd());
-    DrawPush push = bound.push_;
+    DrawPush push = draw.push_;
     push.bloomSource_ = c.textureIndex(source);
     push.bloomKaris_ = karis ? 1u : 0u;
     push.bloomRadius_ = radius;
-    vkCmdBindPipeline(bound.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    pushDraw(bound, push);
-    vkCmdDraw(bound.cmd_, 3, 1, 0, 0);
+    push.storageImage_ = c.storageIndex(target);
+    dispatchScreen(draw, c.cmd(), pipeline, push, c.extent(target));
 }
 }  // namespace
 
@@ -39,15 +37,8 @@ void Bloom::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, down_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, up_, nullptr);
-    down_ = GraphicsPipelineBuilder()
-                .shaders(modules[SkyVS], modules[BloomDownPS])
-                .colorFormat(setup_.colorFormat_)
-                .build(setup_.ctx_.device_, setup_.layout_);
-    up_ = GraphicsPipelineBuilder()
-              .shaders(modules[SkyVS], modules[BloomUpPS])
-              .colorFormat(setup_.colorFormat_,
-                           blendState(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA))
-              .build(setup_.ctx_.device_, setup_.layout_);
+    down_ = buildComputePipeline(setup_.ctx_.device_, setup_.layout_, modules[BloomDownCS]);
+    up_ = buildComputePipeline(setup_.ctx_.device_, setup_.layout_, modules[BloomUpCS]);
 }
 
 std::optional<GraphImage> Bloom::createImages(RenderGraph& graph, VkExtent2D extent,
@@ -81,18 +72,20 @@ void Bloom::addPasses(RenderGraph& graph, GraphImage hdr, const DrawContext& dra
         const GraphImage source = i == 0 ? hdr : levels_[i - 1];
         graph.addPass("bloom down " + std::to_string(i))
             .read(source, Usage::ShaderRead)
-            .color(levels_[i], Load::DontCare)
-            .execute([draw, pipeline = down_, source, karis = i == 0](GraphContext& c)
-                     { drawLevel(draw, c, pipeline, source, karis, 1.f); });
+            .write(levels_[i], Usage::ComputeWrite)
+            .execute([draw, pipeline = down_, source, target = levels_[i],
+                      karis = i == 0](GraphContext& c)
+                     { drawLevel(draw, c, pipeline, source, target, karis, 1.f); });
     }
     for (size_t i = levels_.size() - 1; i > 0; --i)
     {
         const GraphImage source = levels_[i];
+        const GraphImage target = levels_[i - 1];
         graph.addPass("bloom up " + std::to_string(i - 1))
             .read(source, Usage::ShaderRead)
-            .color(levels_[i - 1], Load::Keep)
-            .execute([draw, pipeline = up_, source, radius = radius_](GraphContext& c)
-                     { drawLevel(draw, c, pipeline, source, false, radius); });
+            .write(target, Usage::ComputeWrite)
+            .execute([draw, pipeline = up_, source, target, radius = radius_](GraphContext& c)
+                     { drawLevel(draw, c, pipeline, source, target, false, radius); });
     }
 }
 }  // namespace batap

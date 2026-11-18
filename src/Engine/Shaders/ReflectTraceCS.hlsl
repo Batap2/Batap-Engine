@@ -1,6 +1,7 @@
 #include "Camera.hlsli"
 #include "Reflections.hlsli"
 #include "RtHit.hlsli"
+#include "ScreenCompute.hlsli"
 
 static const float ReflectRayOffset = 1e-3f;
 static const float ReflectRayOffsetPerMetre = 1e-4f;
@@ -8,8 +9,8 @@ static const uint ReflectSampleAttempts = 4u;
 
 struct TraceOutput
 {
-    float4 radiance_ : SV_Target0;
-    float4 ray_ : SV_Target1;
+    float4 radiance_;
+    float4 ray_;
 };
 
 bool ReflectTrace(float3 origin, float3 direction, out RtHitRecord record)
@@ -51,11 +52,11 @@ bool ReflectTrace(float3 origin, float3 direction, out RtHitRecord record)
     return found;
 }
 
-TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
+TraceOutput ReflectTracePixel(float4 svpos, float2 ndc, float ndcPerPixel)
 {
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
-    const float pixelAngle = abs(ddy(ndc.y)) / cam.proj_[1][1];
+    const float pixelAngle = ndcPerPixel / cam.proj_[1][1];
     const int3 pixel = int3(svpos.xy, 0);
 
     TraceOutput o;
@@ -135,4 +136,16 @@ TraceOutput main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0)
     o.radiance_ = float4(min(radiance * frame.exposure_, ceiling), max(hitDistance, 1e-4f));
     o.ray_ = float4(L, min(pdf, 65000.0f));
     return o;
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    const float4 svpos = float4(float2(id.xy) + 0.5f, 0.0f, 1.0f);
+    const TraceOutput o = ReflectTracePixel(svpos, ScreenNdc(id.xy, size), 2.0f / float(size.y));
+    g_storageImages[g_draw.storageImage_][id.xy] = o.radiance_;
+    g_storageImages[g_draw.storageImage2_][id.xy] = o.ray_;
 }

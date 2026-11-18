@@ -1,25 +1,17 @@
 #include "Renderer/Features/Gi/GiUpdate.h"
 
-#include "Renderer/Device/Formats.h"
 #include "Renderer/Device/Pipelines.h"
-#include "Renderer/Device/ResourceManager.h"
 #include "Renderer/Device/VulkanContext.h"
-#include "Renderer/ResourceFormat.h"
 #include "Shaders/ShaderInterop.h"
 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <optional>
 #include <string>
 
 namespace batap
 {
-namespace
-{
-constexpr int kResolveWidth = static_cast<int>(RtCacheResolveWidth);
-constexpr int kResolveHeight = static_cast<int>(RtCacheCapacity / RtCacheResolveWidth);
-}  // namespace
-
 GiUpdate::~GiUpdate()
 {
     vkDestroyPipeline(setup_.ctx_.device_, updatePipeline_, nullptr);
@@ -35,18 +27,15 @@ void GiUpdate::buildPipelines(const ShaderModules& modules)
     vkDestroyPipeline(setup_.ctx_.device_, resolvePipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, votePipeline_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, tracePipeline_, nullptr);
-    const auto build = [&](VkShaderModule pixelShader, VkFormat format)
+    const auto build = [&](VkShaderModule shader)
     {
-        return pixelShader ? GraphicsPipelineBuilder()
-                                 .shaders(modules[SkyVS], pixelShader)
-                                 .colorFormat(format)
-                                 .build(setup_.ctx_.device_, setup_.rtLayout_)
-                           : VK_NULL_HANDLE;
+        return shader ? buildComputePipeline(setup_.ctx_.device_, setup_.rtLayout_, shader)
+                      : VK_NULL_HANDLE;
     };
-    updatePipeline_ = build(modules[GiUpdatePS], VK_FORMAT_R8G8B8A8_UNORM);
-    resolvePipeline_ = build(modules[GiResolvePS], VK_FORMAT_R8_UNORM);
-    votePipeline_ = build(modules[GiVotePS], VK_FORMAT_R8G8B8A8_UNORM);
-    tracePipeline_ = build(modules[GiTracePS], VK_FORMAT_R8_UNORM);
+    updatePipeline_ = build(modules[GiUpdateCS]);
+    resolvePipeline_ = build(modules[GiResolveCS]);
+    votePipeline_ = build(modules[GiVoteCS]);
+    tracePipeline_ = build(modules[GiTraceCS]);
 }
 
 VkExtent2D GiUpdate::updateExtent(VkExtent2D output)
@@ -113,38 +102,37 @@ void GiUpdate::addPasses(RenderGraph& graph, GraphBuffer tlas, GraphBuffer blase
         written_[frame] = true;
     }
 
-    const GraphImage updateTarget = graph.createImage(
-        "gi update target", {updateExtent(output), toVkFormat(ResourceFormat::R8G8B8A8_UNORM)});
-    const GraphImage resolveTarget = graph.createImage(
-        "gi resolve target",
-        {{static_cast<uint32_t>(kResolveWidth), static_cast<uint32_t>(kResolveHeight)},
-         toVkFormat(ResourceFormat::R8_UNORM)});
-
-    const auto fullscreenPass = [&](std::string name, GraphImage target, VkPipeline pipeline,
-                                    uint32_t index) -> GraphPass&
+    const VkExtent2D updateSize = updateExtent(output);
+    const auto computePass = [&](std::string name, VkPipeline pipeline, uint32_t index,
+                                 std::optional<uint32_t> cells) -> GraphPass&
     {
         return graph.addPass(std::move(name))
-            .write(cache.keys_, Usage::ShaderWrite)
-            .write(cache.values_, Usage::ShaderWrite)
-            .write(cache.stats_, Usage::ShaderWrite)
-            .write(cache.work_, Usage::ShaderWrite)
-            .write(cache.probes_, Usage::ShaderWrite)
+            .write(cache.keys_, Usage::ComputeWrite)
+            .write(cache.values_, Usage::ComputeWrite)
+            .write(cache.stats_, Usage::ComputeWrite)
+            .write(cache.work_, Usage::ComputeWrite)
+            .write(cache.probes_, Usage::ComputeWrite)
             .read(frameConstants, Usage::ShaderRead)
-            .color(target, Load::DontCare)
             .execute(
-                [draw, pipeline, index](GraphContext& c)
+                [draw, pipeline, index, cells, updateSize](GraphContext& c)
                 {
-                    DrawContext context = bindDraw(draw, c.cmd());
-                    context.push_.instanceIndex_ = index;
-                    vkCmdBindPipeline(context.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-                    pushDraw(context, context.push_);
-                    vkCmdDraw(context.cmd_, 3, 1, 0, 0);
+                    DrawPush push = draw.push_;
+                    push.instanceIndex_ = index;
+                    if (!cells)
+                    {
+                        dispatchScreen(draw, c.cmd(), pipeline, push, updateSize);
+                        return;
+                    }
+                    const DrawContext bound = bindCompute(draw, c.cmd());
+                    vkCmdBindPipeline(c.cmd(), VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+                    pushDraw(bound, push);
+                    vkCmdDispatch(c.cmd(), *cells / GiCellGroupSize, 1, 1);
                 });
     };
-    const auto tracingPass =
-        [&](std::string name, GraphImage target, VkPipeline pipeline, uint32_t index)
+    const auto tracingPass = [&](std::string name, VkPipeline pipeline, uint32_t index,
+                                 std::optional<uint32_t> cells = std::nullopt)
     {
-        fullscreenPass(std::move(name), target, pipeline, index)
+        computePass(std::move(name), pipeline, index, cells)
             .read(uploads, Usage::AnyRead)
             .read(tlas, Usage::AccelerationStructureRead)
             .read(blases, Usage::AccelerationStructureRead)
@@ -152,17 +140,14 @@ void GiUpdate::addPasses(RenderGraph& graph, GraphBuffer tlas, GraphBuffer blase
     };
     if (perCell)
     {
-        const GraphImage traceTarget =
-            graph.createImage("gi trace target", {{RtCacheTraceWidth, RtCacheTraceWidth},
-                                                  toVkFormat(ResourceFormat::R8_UNORM)});
-        tracingPass("gi vote", updateTarget, votePipeline_, 0);
+        tracingPass("gi vote", votePipeline_, 0);
         for (uint32_t i = 0; i < passes_; ++i)
-            tracingPass("gi trace " + std::to_string(i), traceTarget, tracePipeline_, i);
+            tracingPass("gi trace " + std::to_string(i), tracePipeline_, i, RtCacheListCapacity);
     }
     else
         for (uint32_t i = 0; i < passes_; ++i)
-            tracingPass("gi update " + std::to_string(i), updateTarget, updatePipeline_, i);
-    fullscreenPass("gi resolve", resolveTarget, resolvePipeline_, draw.push_.instanceIndex_);
+            tracingPass("gi update " + std::to_string(i), updatePipeline_, i);
+    computePass("gi resolve", resolvePipeline_, draw.push_.instanceIndex_, RtCacheCapacity);
 
     if (queries != VK_NULL_HANDLE)
         graph.addPass("gi timer end")

@@ -38,10 +38,8 @@ Exposure::~Exposure()
 void Exposure::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, measurePipeline_, nullptr);
-    measurePipeline_ = GraphicsPipelineBuilder()
-                           .shaders(modules[SkyVS], modules[ExposureMeasurePS])
-                           .colorFormat(VK_FORMAT_R32G32_SFLOAT)
-                           .build(setup_.ctx_.device_, setup_.layout_);
+    measurePipeline_ =
+        buildComputePipeline(setup_.ctx_.device_, setup_.layout_, modules[ExposureMeasureCS]);
 }
 
 // Averaging the whole frame over-exposes as soon as a dark majority (black
@@ -136,13 +134,13 @@ void Exposure::addPasses(RenderGraph& graph, GraphImage hdr, GraphBuffer frameCo
     graph.addPass("exposure measure")
         .read(hdr, Usage::ShaderRead)
         .read(frameConstants, Usage::ShaderRead)
-        .color(grid, Load::DontCare)
+        .write(grid, Usage::ComputeWrite)
         .execute(
-            [draw, pipeline = measurePipeline_](GraphContext& c)
+            [draw, pipeline = measurePipeline_, grid](GraphContext& c)
             {
-                const DrawContext context = bindDraw(draw, c.cmd());
-                vkCmdBindPipeline(context.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-                vkCmdDraw(context.cmd_, 3, 1, 0, 0);
+                DrawPush push = draw.push_;
+                push.storageImage_ = c.storageIndex(grid);
+                dispatchScreen(draw, c.cmd(), pipeline, push, c.extent(grid));
             });
 
     graph.addPass("exposure readback")

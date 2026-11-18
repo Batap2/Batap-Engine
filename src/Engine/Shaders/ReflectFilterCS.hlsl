@@ -1,4 +1,5 @@
 #include "ReflectPass.hlsli"
+#include "ScreenCompute.hlsli"
 
 static const uint ReflectFilterTaps = 8u;
 static const float ReflectFilterMaxRadius = 0.02f;
@@ -7,7 +8,7 @@ static const float ReflectFilterNormalPower = 32.0f;
 static const float ReflectFilterRoughness = 0.1f;
 static const float ReflectFilterGoldenAngle = 2.39996323f;
 
-float4 main(float4 svpos : SV_POSITION) : SV_Target
+float4 ReflectFilter(float4 svpos)
 {
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
@@ -63,4 +64,14 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
         weight += w;
     }
     return float4(sum / weight, centre.a);
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    const float4 svpos = float4(float2(id.xy) + 0.5f, 0.0f, 1.0f);
+    g_storageImages[g_draw.storageImage_][id.xy] = ReflectFilter(svpos);
 }

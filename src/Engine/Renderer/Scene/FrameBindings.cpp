@@ -57,7 +57,7 @@ VkDescriptorSetLayout createRayTracingSetLayout(VkDevice device)
     for (VkDescriptorSetLayoutBinding& binding : bindings)
     {
         binding.descriptorCount = 1;
-        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
     }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};

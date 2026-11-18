@@ -1,18 +1,18 @@
 #include "GiPath.hlsli"
 
-float4 main(float4 svpos : SV_POSITION) : SV_Target
+[numthreads(GiCellGroupSize, 1, 1)]
+void main(uint3 id : SV_DispatchThreadID)
 {
     const FrameGPUData fc = FrameBuffer[0];
-    const uint2 pixel = uint2(svpos.xy);
-    const uint thread = pixel.y * RtCacheTraceWidth + pixel.x;
+    const uint thread = id.x;
     const uint cells = min(GiWork[RtCacheWorkCount], RtCacheListCapacity);
     if (cells == 0u)
-        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+        return;
     const uint budget = min(fc.giWidth_ * fc.giHeight_, RtCacheListCapacity);
     const uint rays = max(budget / cells, 1u);
     const uint cell = thread / rays;
     if (cell >= cells)
-        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+        return;
 
     const uint slot = GiWork[RtCacheWorkList + cell];
     const uint candidate = GiValues[slot].vote_ & (RtCacheCandidateCapacity - 1u);
@@ -40,7 +40,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
                                                firstDirect, firstSlot);
     GiAccumulate(slot, irradiance, fc.exposure_);
     if (ray >= 512u)
-        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+        return;
     const uint pick = (g_draw.instanceIndex_ << 9) | ray;
     if (firstDirect > 0.0f)
         InterlockedMax(GiProbes[probe + RtProbeBest],
@@ -49,5 +49,4 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
              asfloat(GiProbes[firstSlot * RtProbeWords + RtProbeRadiance]) > 0.0f)
         InterlockedMax(GiProbes[probe + RtProbeBest],
                        (asuint(GiLuminance(irradiance)) & GiBestLuminance) | pick);
-    return float4(0.0f, 0.0f, 0.0f, 0.0f);
 }

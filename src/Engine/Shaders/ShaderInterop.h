@@ -134,6 +134,8 @@ struct RtCacheValueGPUData
 static const uint ScreenShadowWave = 64u;
 static const uint ScreenShadowSamples = 256u;
 static const uint ScreenShadowDispatches = 8u;
+static const uint ScreenGroupSize = 8u;
+static const uint GiCellGroupSize = 64u;
 
 enum BindlessBinding : uint
 {
@@ -452,6 +454,7 @@ static const uint ExposureGridSize = 64u;
 // i / (SkyPrefilterLevels - 1), SkyPrefilterWidth wide at level 0, halved after.
 static const uint SkyPrefilterLevels = 8u;
 static const uint SkyPrefilterWidth = 512u;
+static const uint SkyPrefilterTexelsPerGroup = 4u;
 
 enum TonemapOperator : uint
 {
@@ -619,6 +622,8 @@ struct DrawPush
     uint skySource_;
     float skyRoughness_;
     uint skySamples_;
+    uint storageImage_;
+    uint storageImage2_;
 };
 
 static const uint DebugShadowCascades = 1u;
@@ -669,7 +674,7 @@ static_assert(sizeof(LightGPUData) == 96);
 static_assert(sizeof(Material) == 80);
 static_assert(sizeof(SkyboxGPUData) == 240);
 static_assert(sizeof(AtmosphereGPUData) == 64);
-static_assert(sizeof(DrawPush) == 60);
+static_assert(sizeof(DrawPush) == 68);
 static_assert(sizeof(ThumbnailDrawGPUData) == 208);
 static_assert(sizeof(ThumbnailPush) == 8);
 static_assert(sizeof(SphereOccluderGPUData) == 16);

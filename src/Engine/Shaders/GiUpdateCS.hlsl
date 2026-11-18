@@ -1,9 +1,15 @@
 #include "GiPath.hlsli"
+#include "ScreenCompute.hlsli"
 
-float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
 {
     const FrameGPUData fc = FrameBuffer[0];
-    const uint2 pixel = uint2(svpos.xy);
+    const uint2 pixel = id.xy;
+    const uint2 size = uint2(fc.giWidth_, fc.giHeight_);
+    if (any(pixel >= size))
+        return;
+    const float2 ndc = ScreenNdc(pixel, size);
     const uint sampleIndex = fc.frameIndex_ * fc.giPasses_ + g_draw.instanceIndex_;
     uint seed = GiHash(pixel.x + GiHash(pixel.y + GiHash(sampleIndex)));
 
@@ -15,7 +21,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
 
     RtHit first;
     if (!GiCameraHit(ndc + jitter, first))
-        return float4(0.0f, 0.0f, 0.0f, 1.0f);
+        return;
 
     const uint2 key = GiCacheKey(first.gi_, GiRandomLevel(length(first.position_), GiRand(seed)));
     const uint bucket = (pixel.x ^ pixel.y) & (RtCacheStatsBuckets - 1u);
@@ -24,7 +30,7 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     if (slot == GiNoSlot)
     {
         GiStatAdd(RtCacheStatFailed, bucket);
-        return float4(1.0f, 0.0f, 1.0f, 1.0f);
+        return;
     }
     if (inserted)
         GiStatAdd(RtCacheStatInserted, bucket);
@@ -46,5 +52,4 @@ float4 main(float4 svpos : SV_POSITION, float2 ndc : TEXCOORD0) : SV_Target
     const float3 irradiance =
         GiPathIrradiance(first, firstU, seed, bucket, 0u, false, firstDirect, firstSlot);
     GiAccumulate(slot, irradiance, fc.exposure_);
-    return float4(irradiance, 1.0f);
 }

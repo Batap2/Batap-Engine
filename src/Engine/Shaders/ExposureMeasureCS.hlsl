@@ -1,12 +1,13 @@
-#include "ShaderInterop.h"
+#include "ScreenCompute.hlsli"
 
 [[vk::binding(TexturesBinding, BindlessSet)]] Texture2D<float4> g_textures[];
 [[vk::binding(FrameConstantsBinding, FrameSet)]] StructuredBuffer<FrameGPUData> FrameBuffer;
+[[vk::push_constant]] DrawPush g_draw;
 
 static const uint ExposureSamples = 4u;
 static const float ExposureFloor = 1e-3f;
 
-float4 main(float4 svpos : SV_POSITION) : SV_Target
+float4 ExposureMeasure(float4 svpos)
 {
     const FrameGPUData frame = FrameBuffer[0];
     uint width;
@@ -32,4 +33,14 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
         }
     }
     return float4(sumLog, count, 0.0f, 0.0f);
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    const float4 svpos = float4(float2(id.xy) + 0.5f, 0.0f, 1.0f);
+    g_storageImages[g_draw.storageImage_][id.xy] = ExposureMeasure(svpos);
 }

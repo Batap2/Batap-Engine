@@ -10,13 +10,11 @@ namespace batap
 {
 namespace
 {
-void drawFullscreen(const DrawContext& draw, GraphContext& c, VkPipeline pipeline,
-                    const DrawPush& push)
+void dispatchInto(const DrawContext& draw, GraphContext& c, VkPipeline pipeline, DrawPush push,
+                  GraphImage target)
 {
-    const DrawContext bound = bindDraw(draw, c.cmd());
-    vkCmdBindPipeline(bound.cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    pushDraw(bound, push);
-    vkCmdDraw(bound.cmd_, 3, 1, 0, 0);
+    push.storageImage_ = c.storageIndex(target);
+    dispatchScreen(draw, c.cmd(), pipeline, push, c.extent(target));
 }
 }  // namespace
 
@@ -32,14 +30,8 @@ void SkyPrefilter::buildPipelines(const ShaderModules& modules)
 {
     vkDestroyPipeline(setup_.ctx_.device_, equirect_, nullptr);
     vkDestroyPipeline(setup_.ctx_.device_, prefilter_, nullptr);
-    equirect_ = GraphicsPipelineBuilder()
-                    .shaders(modules[SkyVS], modules[SkyEquirectPS])
-                    .colorFormat(setup_.colorFormat_)
-                    .build(setup_.ctx_.device_, setup_.layout_);
-    prefilter_ = GraphicsPipelineBuilder()
-                     .shaders(modules[SkyVS], modules[SkyPrefilterPS])
-                     .colorFormat(setup_.colorFormat_)
-                     .build(setup_.ctx_.device_, setup_.layout_);
+    equirect_ = buildComputePipeline(setup_.ctx_.device_, setup_.layout_, modules[SkyEquirectCS]);
+    prefilter_ = buildComputePipeline(setup_.ctx_.device_, setup_.layout_, modules[SkyPrefilterCS]);
 }
 
 void SkyPrefilter::createImages(RenderGraph& graph, bool hasSky)
@@ -61,10 +53,11 @@ void SkyPrefilter::addPasses(RenderGraph& graph, const DrawContext& draw,
 {
     if (levels_.empty())
         return;
-    GraphPass& equirect = graph.addPass("sky equirect")
-                              .color(levels_[0], Load::DontCare)
-                              .execute([draw, pipeline = equirect_](GraphContext& c)
-                                       { drawFullscreen(draw, c, pipeline, draw.push_); });
+    GraphPass& equirect =
+        graph.addPass("sky equirect")
+            .write(levels_[0], Usage::ComputeWrite)
+            .execute([draw, pipeline = equirect_, target = levels_[0]](GraphContext& c)
+                     { dispatchInto(draw, c, pipeline, draw.push_, target); });
     readsLighting(equirect);
 
     // Each level filters the one before it, already convolved with a narrower
@@ -76,15 +69,24 @@ void SkyPrefilter::addPasses(RenderGraph& graph, const DrawContext& draw,
         const uint32_t samples = i < 4 ? 64u : 128u;
         graph.addPass("sky prefilter " + std::to_string(i))
             .read(source, Usage::ShaderRead)
-            .color(levels_[i], Load::DontCare)
+            .write(levels_[i], Usage::ComputeWrite)
             .execute(
-                [draw, pipeline = prefilter_, source, roughness, samples](GraphContext& c)
+                [draw, pipeline = prefilter_, source, target = levels_[i], roughness,
+                 samples](GraphContext& c)
                 {
                     DrawPush push = draw.push_;
                     push.skySource_ = c.textureIndex(source);
                     push.skyRoughness_ = roughness;
                     push.skySamples_ = samples;
-                    drawFullscreen(draw, c, pipeline, push);
+                    push.storageImage_ = c.storageIndex(target);
+                    const DrawContext bound = bindCompute(draw, c.cmd());
+                    vkCmdBindPipeline(c.cmd(), VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+                    pushDraw(bound, push);
+                    const VkExtent2D extent = c.extent(target);
+                    vkCmdDispatch(c.cmd(),
+                                  (extent.width + SkyPrefilterTexelsPerGroup - 1) /
+                                      SkyPrefilterTexelsPerGroup,
+                                  extent.height, 1);
                 });
     }
 }

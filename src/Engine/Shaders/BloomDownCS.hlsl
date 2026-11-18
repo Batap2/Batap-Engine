@@ -1,11 +1,12 @@
 #include "Bloom.hlsli"
+#include "ScreenCompute.hlsli"
 
 float3 BloomBox(float3 a, float3 b, float3 c, float3 d)
 {
     return (a + b + c + d) * 0.25f;
 }
 
-float4 main(BloomInput i) : SV_Target
+float4 BloomDown(BloomInput i)
 {
     const float2 uv = BloomUv(i.ndc_);
     const float2 t = BloomTexel();
@@ -44,4 +45,16 @@ float4 main(BloomInput i) : SV_Target
         total += weight;
     }
     return float4(sum / total, 1.0f);
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    BloomInput i;
+    i.svpos_ = float4(float2(id.xy) + 0.5f, 0.0f, 1.0f);
+    i.ndc_ = ScreenNdc(id.xy, size);
+    g_storageImages[g_draw.storageImage_][id.xy] = BloomDown(i);
 }

@@ -1,11 +1,12 @@
 #include "Ao.hlsli"
+#include "ScreenCompute.hlsli"
 
 static const float AoFilterWeights[5] = {1.0f, 4.0f, 6.0f, 4.0f, 1.0f};
 
 // Binomial 5x5 at half resolution, cut where a texel leaves the centre's
 // tangent plane or turns its normal away. Linear: AoPS writes an unbiased
 // estimate, not a ratio.
-float4 main(float4 svpos : SV_POSITION) : SV_Target
+float4 AoFilter(float4 svpos)
 {
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
@@ -46,4 +47,14 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
         }
     }
     return weight > 0.0f ? sum / weight : raw.Load(int3(centre, 0));
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    const float4 svpos = float4(float2(id.xy) + 0.5f, 0.0f, 1.0f);
+    g_storageImages[g_draw.storageImage_][id.xy] = AoFilter(svpos);
 }

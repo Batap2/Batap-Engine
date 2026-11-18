@@ -215,17 +215,17 @@ batap_compile_shader(TerrainPS.hlsl    TerrainPS.spv    ps_6_6)
 batap_compile_shader(TerrainShadowVS.hlsl TerrainShadowVS.spv vs_6_6)
 batap_compile_shader(TerrainMorphPS.hlsl TerrainMorphPS.spv ps_6_6)
 batap_compile_shader(TonemapPS.hlsl    TonemapPS.spv    ps_6_6)
-batap_compile_shader(ExposureMeasurePS.hlsl ExposureMeasurePS.spv ps_6_6)
+batap_compile_shader(ExposureMeasureCS.hlsl ExposureMeasureCS.spv cs_6_6)
 batap_compile_shader(PrepassPS.hlsl    PrepassPS.spv    ps_6_6)
 batap_compile_shader(ThumbnailVS.hlsl  ThumbnailVS.spv  vs_6_6)
 batap_compile_shader(ThumbnailPS.hlsl  ThumbnailPS.spv  ps_6_6)
 batap_compile_shader(PixelShader.hlsl  PixelShaderRT.spv ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(TerrainPS.hlsl    TerrainPSRT.spv  ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(RtDebugPS.hlsl    RtDebugPS.spv    ps_6_6 -D BATAP_RT=1)
-batap_compile_shader(GiUpdatePS.hlsl   GiUpdatePS.spv   ps_6_6 -D BATAP_RT=1)
-batap_compile_shader(GiResolvePS.hlsl  GiResolvePS.spv  ps_6_6 -D BATAP_RT=1)
-batap_compile_shader(GiVotePS.hlsl     GiVotePS.spv     ps_6_6 -D BATAP_RT=1)
-batap_compile_shader(GiTracePS.hlsl    GiTracePS.spv    ps_6_6 -D BATAP_RT=1)
+batap_compile_shader(GiUpdateCS.hlsl   GiUpdateCS.spv   cs_6_6 -D BATAP_RT=1)
+batap_compile_shader(GiResolveCS.hlsl  GiResolveCS.spv  cs_6_6 -D BATAP_RT=1)
+batap_compile_shader(GiVoteCS.hlsl     GiVoteCS.spv     cs_6_6 -D BATAP_RT=1)
+batap_compile_shader(GiTraceCS.hlsl    GiTraceCS.spv    cs_6_6 -D BATAP_RT=1)
 batap_compile_shader(ScatterVS.hlsl    ScatterVS.spv    vs_6_6)
 batap_compile_shader(ScatterPS.hlsl    ScatterPS.spv    ps_6_6)
 batap_compile_shader(ScatterShadowVS.hlsl ScatterShadowVS.spv vs_6_6)
@@ -234,20 +234,20 @@ batap_compile_shader(TranslucentPS.hlsl TranslucentPS.spv ps_6_6)
 batap_compile_shader(TranslucentPS.hlsl TranslucentPSRT.spv ps_6_6 -D BATAP_RT=1)
 batap_compile_shader(TranslucentCompositePS.hlsl TranslucentCompositePS.spv ps_6_6)
 batap_compile_shader(BillboardTranslucentPS.hlsl BillboardTranslucentPS.spv ps_6_6)
-batap_compile_shader(BloomDownPS.hlsl  BloomDownPS.spv  ps_6_6)
-batap_compile_shader(BloomUpPS.hlsl    BloomUpPS.spv    ps_6_6)
-batap_compile_shader(SkyEquirectPS.hlsl SkyEquirectPS.spv ps_6_6)
-batap_compile_shader(SkyPrefilterPS.hlsl SkyPrefilterPS.spv ps_6_6)
-batap_compile_shader(AoPS.hlsl         AoPS.spv         ps_6_6)
-batap_compile_shader(AoFilterPS.hlsl   AoFilterPS.spv   ps_6_6)
-batap_compile_shader(AoUpsamplePS.hlsl AoUpsamplePS.spv ps_6_6)
+batap_compile_shader(BloomDownCS.hlsl  BloomDownCS.spv  cs_6_6)
+batap_compile_shader(BloomUpCS.hlsl    BloomUpCS.spv    cs_6_6)
+batap_compile_shader(SkyEquirectCS.hlsl SkyEquirectCS.spv cs_6_6)
+batap_compile_shader(SkyPrefilterCS.hlsl SkyPrefilterCS.spv cs_6_6)
+batap_compile_shader(AoCS.hlsl         AoCS.spv         cs_6_6)
+batap_compile_shader(AoFilterCS.hlsl   AoFilterCS.spv   cs_6_6)
+batap_compile_shader(AoUpsampleCS.hlsl AoUpsampleCS.spv cs_6_6)
 batap_compile_shader(PrepassMeshRtPS.hlsl PrepassMeshRtPS.spv ps_6_6)
 batap_compile_shader(PrepassTerrainRtPS.hlsl PrepassTerrainRtPS.spv ps_6_6)
 batap_compile_shader(PrepassScatterRtPS.hlsl PrepassScatterRtPS.spv ps_6_6)
-batap_compile_shader(ReflectTracePS.hlsl ReflectTracePS.spv ps_6_6 -D BATAP_RT=1)
-batap_compile_shader(ReflectResolvePS.hlsl ReflectResolvePS.spv ps_6_6)
-batap_compile_shader(ReflectTemporalPS.hlsl ReflectTemporalPS.spv ps_6_6)
-batap_compile_shader(ReflectFilterPS.hlsl ReflectFilterPS.spv ps_6_6)
+batap_compile_shader(ReflectTraceCS.hlsl ReflectTraceCS.spv cs_6_6 -D BATAP_RT=1)
+batap_compile_shader(ReflectResolveCS.hlsl ReflectResolveCS.spv cs_6_6)
+batap_compile_shader(ReflectTemporalCS.hlsl ReflectTemporalCS.spv cs_6_6)
+batap_compile_shader(ReflectFilterCS.hlsl ReflectFilterCS.spv cs_6_6)
 batap_compile_shader(ScreenShadowCS.hlsl ScreenShadowCS.spv cs_6_6)
 batap_compile_shader(ImpostorVS.hlsl ImpostorVS.spv vs_6_6)
 batap_compile_shader(ImpostorPS.hlsl ImpostorPS.spv ps_6_6)
@@ -273,17 +273,17 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/TerrainShadowVS.spv"
   "${engine_shader_out}/TerrainMorphPS.spv"
   "${engine_shader_out}/TonemapPS.spv"
-  "${engine_shader_out}/ExposureMeasurePS.spv"
+  "${engine_shader_out}/ExposureMeasureCS.spv"
   "${engine_shader_out}/PrepassPS.spv"
   "${engine_shader_out}/ThumbnailVS.spv"
   "${engine_shader_out}/ThumbnailPS.spv"
   "${engine_shader_out}/PixelShaderRT.spv"
   "${engine_shader_out}/TerrainPSRT.spv"
   "${engine_shader_out}/RtDebugPS.spv"
-  "${engine_shader_out}/GiUpdatePS.spv"
-  "${engine_shader_out}/GiResolvePS.spv"
-  "${engine_shader_out}/GiVotePS.spv"
-  "${engine_shader_out}/GiTracePS.spv"
+  "${engine_shader_out}/GiUpdateCS.spv"
+  "${engine_shader_out}/GiResolveCS.spv"
+  "${engine_shader_out}/GiVoteCS.spv"
+  "${engine_shader_out}/GiTraceCS.spv"
   "${engine_shader_out}/ScatterVS.spv"
   "${engine_shader_out}/ScatterPS.spv"
   "${engine_shader_out}/ScatterShadowVS.spv"
@@ -292,20 +292,20 @@ add_custom_target(Batap_Shaders DEPENDS
   "${engine_shader_out}/TranslucentPSRT.spv"
   "${engine_shader_out}/TranslucentCompositePS.spv"
   "${engine_shader_out}/BillboardTranslucentPS.spv"
-  "${engine_shader_out}/BloomDownPS.spv"
-  "${engine_shader_out}/BloomUpPS.spv"
-  "${engine_shader_out}/SkyEquirectPS.spv"
-  "${engine_shader_out}/SkyPrefilterPS.spv"
-  "${engine_shader_out}/AoPS.spv"
-  "${engine_shader_out}/AoFilterPS.spv"
-  "${engine_shader_out}/AoUpsamplePS.spv"
+  "${engine_shader_out}/BloomDownCS.spv"
+  "${engine_shader_out}/BloomUpCS.spv"
+  "${engine_shader_out}/SkyEquirectCS.spv"
+  "${engine_shader_out}/SkyPrefilterCS.spv"
+  "${engine_shader_out}/AoCS.spv"
+  "${engine_shader_out}/AoFilterCS.spv"
+  "${engine_shader_out}/AoUpsampleCS.spv"
   "${engine_shader_out}/PrepassMeshRtPS.spv"
   "${engine_shader_out}/PrepassTerrainRtPS.spv"
   "${engine_shader_out}/PrepassScatterRtPS.spv"
-  "${engine_shader_out}/ReflectTracePS.spv"
-  "${engine_shader_out}/ReflectResolvePS.spv"
-  "${engine_shader_out}/ReflectTemporalPS.spv"
-  "${engine_shader_out}/ReflectFilterPS.spv"
+  "${engine_shader_out}/ReflectTraceCS.spv"
+  "${engine_shader_out}/ReflectResolveCS.spv"
+  "${engine_shader_out}/ReflectTemporalCS.spv"
+  "${engine_shader_out}/ReflectFilterCS.spv"
   "${engine_shader_out}/ScreenShadowCS.spv"
   "${engine_shader_out}/ImpostorVS.spv"
   "${engine_shader_out}/ImpostorPS.spv"

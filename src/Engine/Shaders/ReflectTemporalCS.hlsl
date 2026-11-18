@@ -2,6 +2,7 @@
 #include "Motion.hlsli"
 #include "ReflectPass.hlsli"
 #include "Scatter.hlsli"
+#include "ScreenCompute.hlsli"
 #include "Terrain.hlsli"
 
 static const float ReflectHistoryMax = 32.0f;
@@ -19,8 +20,8 @@ static const float ReflectLobeAngle = 1.3f;
 
 struct TemporalOutput
 {
-    float4 color_ : SV_Target0;
-    uint4 surface_ : SV_Target1;
+    float4 color_;
+    uint4 surface_;
 };
 
 struct ReflectHistory
@@ -116,7 +117,7 @@ ReflectHistory ReflectFetchHistory(CameraGPUData cam, float2 size, float3 prevPo
     return h;
 }
 
-TemporalOutput main(float4 svpos : SV_POSITION)
+TemporalOutput ReflectTemporal(float4 svpos)
 {
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
@@ -216,4 +217,15 @@ TemporalOutput main(float4 svpos : SV_POSITION)
                       historyLength);
     o.surface_.w = asuint(lerp(historyNearness, nearness, 1.0f / historyLength));
     return o;
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    const TemporalOutput o = ReflectTemporal(float4(float2(id.xy) + 0.5f, 0.0f, 1.0f));
+    g_storageImages[g_draw.storageImage_][id.xy] = o.color_;
+    g_storageUintImages[g_draw.storageImage2_][id.xy] = o.surface_;
 }

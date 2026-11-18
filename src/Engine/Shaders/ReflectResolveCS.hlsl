@@ -1,4 +1,5 @@
 #include "ReflectPass.hlsli"
+#include "ScreenCompute.hlsli"
 
 static const uint ReflectReuseSamples = 4u;
 static const uint ReflectReuseRoughSamples = 8u;
@@ -18,7 +19,7 @@ float ReflectReuseWeight(float3 N, float3 V, float3 L, float alpha, float pdf)
     return D_GGX(NdotH, alpha) * V_SmithGGXCorrelated(NdotV, NdotL, alpha) * NdotL / pdf;
 }
 
-float4 main(float4 svpos : SV_POSITION) : SV_Target
+float4 ReflectResolve(float4 svpos)
 {
     const FrameGPUData frame = FrameBuffer[0];
     const CameraGPUData cam = CameraInstancebuffer[g_draw.cameraIndex_];
@@ -82,4 +83,14 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
     if (weight <= 0.0f)
         return float4(0.0f, 0.0f, 0.0f, 0.0f);
     return float4(sum / weight, clamp(weight / max(nearness, 1e-30f), 1e-3f, ReflectSkyDistance));
+}
+
+[numthreads(ScreenGroupSize, ScreenGroupSize, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    const uint2 size = ScreenImageSize(g_draw.storageImage_);
+    if (any(id.xy >= size))
+        return;
+    const float4 svpos = float4(float2(id.xy) + 0.5f, 0.0f, 1.0f);
+    g_storageImages[g_draw.storageImage_][id.xy] = ReflectResolve(svpos);
 }
